@@ -63,14 +63,15 @@ def run_backfill() -> None:
 
                 conn.execute(
                     text(
-                        "UPDATE backfill_progress "
-                        "SET last_order_id = :last_id, rows_processed = :processed, updated_at = NOW() "
-                        "WHERE job_name = :job"
+                        "INSERT INTO backfill_progress (job_name, last_order_id, rows_processed) "
+                        "VALUES (:job, :last_id, :processed) "
+                        "ON CONFLICT (job_name) DO UPDATE "
+                        "SET last_order_id = :last_id, rows_processed = :processed, updated_at = NOW()"
                     ),
                     {
+                        "job": JOB_NAME,
                         "last_id": new_last_order_id,
                         "processed": new_rows_processed,
-                        "job": JOB_NAME,
                     },
                 )
 

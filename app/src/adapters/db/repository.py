@@ -28,6 +28,9 @@ class SQLAlchemyOrderRepository(OrderRepository):
             total_amount=total_amount,
             status=status,
             submitted_at=now,
+            # legacy + dual modes still write to orders.billing_email so the
+            # legacy read path returns the correct value.
+            billing_email=billing_email if write_mode in ("legacy", "dual") else None,
         )
         self._session.add(order_row)
         self._session.flush()
