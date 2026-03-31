@@ -1,0 +1,45 @@
+databaseChangeLog:
+  - changeSet:
+      id: 001-create-order-contact-email
+      author: db-migration-example
+      comment: "Expand: add order_contact_email table (additive only — does not modify orders)"
+      changes:
+        - createTable:
+            tableName: order_contact_email
+            columns:
+              - column:
+                  name: order_id
+                  type: BIGINT
+                  constraints:
+                    primaryKey: true
+                    nullable: false
+                    foreignKeyName: fk_order_contact_email_order_id
+                    references: orders(id)
+              - column:
+                  name: billing_email
+                  type: VARCHAR(255)
+                  constraints:
+                    nullable: false
+              - column:
+                  name: source
+                  type: VARCHAR(32)
+                  constraints:
+                    nullable: false
+              - column:
+                  name: updated_at
+                  type: TIMESTAMPTZ
+                  defaultValueComputed: NOW()
+                  constraints:
+                    nullable: false
+
+  - changeSet:
+      id: 001-index-order-contact-email-updated-at
+      author: db-migration-example
+      comment: "Expand: CREATE INDEX CONCURRENTLY on order_contact_email.updated_at to avoid blocking writes"
+      # runInTransaction must be false for CONCURRENTLY — Postgres does not allow it inside a transaction block
+      runInTransaction: false
+      changes:
+        - sql:
+            sql: >
+              CREATE INDEX CONCURRENTLY IF NOT EXISTS idx_order_contact_email_updated_at
+              ON order_contact_email (updated_at);

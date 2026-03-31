@@ -1,0 +1,35 @@
+databaseChangeLog:
+  - changeSet:
+      id: 002-create-app-runtime-config
+      author: db-migration-example
+      comment: "Switch: create app_runtime_config table for runtime feature flags"
+      changes:
+        - createTable:
+            tableName: app_runtime_config
+            columns:
+              - column:
+                  name: key
+                  type: VARCHAR(100)
+                  constraints:
+                    primaryKey: true
+                    nullable: false
+              - column:
+                  name: value
+                  type: VARCHAR(100)
+                  constraints:
+                    nullable: false
+
+  - changeSet:
+      id: 002-seed-read-mode-legacy
+      author: db-migration-example
+      comment: "Switch: seed READ_MODE = legacy so the app reads from orders.billing_email by default"
+      changes:
+        - insert:
+            tableName: app_runtime_config
+            columns:
+              - column:
+                  name: key
+                  value: READ_MODE
+              - column:
+                  name: value
+                  value: legacy

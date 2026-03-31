@@ -1,0 +1,17 @@
+databaseChangeLog:
+  # 000 — Bootstrap: creates the customers and orders tables with all columns, FK, and indexes.
+  - include:
+      file: changelog/000-bootstrap.yaml
+
+  # 001 — Expand: adds order_contact_email table and index (additive only, safe on live DB).
+  - include:
+      file: changelog/001-expand-order-contact-email.yaml
+
+  # 002 — Switch: creates app_runtime_config table and seeds READ_MODE = legacy.
+  - include:
+      file: changelog/002-switch-read-mode-flag.yaml
+
+  # 003 — Contract: drops orders.billing_email; guarded by sqlCheck precondition (READ_MODE = new).
+  #        Applied independently after the Switch phase is complete and verified.
+  - include:
+      file: changelog/003-contract-drop-orders-billing-email.yaml
