@@ -15,8 +15,11 @@ variable "app_image_tag" {
   default     = null # must be supplied explicitly — no silent fallback to latest
 
   validation {
-    condition     = var.app_image_tag != "latest"
-    error_message = "app_image_tag must not be 'latest'. Use a commit SHA tag (e.g. sha-abc1234)."
+    # null check must come first — null != "latest" is true in Terraform, so
+    # without it a null value passes validation and fails later at apply time
+    # with a confusing "Invalid template interpolation value" error.
+    condition     = var.app_image_tag != null && var.app_image_tag != "latest"
+    error_message = "app_image_tag must be set to a commit SHA tag (e.g. sha-abc1234). Never null or 'latest'."
   }
 }
 

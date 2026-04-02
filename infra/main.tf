@@ -101,8 +101,48 @@ module "ecr_app" {
 }
 
 ################################################################################
-# ECR — worker image
+# ECR — liquibase migrations image
 ################################################################################
+
+module "ecr_liquibase" {
+  source  = "terraform-aws-modules/ecr/aws"
+  version = "~> 3.0"
+
+  repository_name                 = "${local.name}/liquibase"
+  repository_image_tag_mutability = "IMMUTABLE"
+  repository_image_scan_on_push   = true
+
+  repository_read_write_access_arns = [aws_iam_role.github_actions.arn]
+
+  repository_lifecycle_policy = jsonencode({
+    rules = [
+      {
+        rulePriority = 1
+        description  = "Expire untagged images after 1 day"
+        selection = {
+          tagStatus   = "untagged"
+          countType   = "sinceImagePushed"
+          countUnit   = "days"
+          countNumber = 1
+        }
+        action = { type = "expire" }
+      },
+      {
+        rulePriority = 2
+        description  = "Keep last 10 sha- tagged images"
+        selection = {
+          tagStatus     = "tagged"
+          tagPrefixList = ["sha-"]
+          countType     = "imageCountMoreThan"
+          countNumber   = 10
+        }
+        action = { type = "expire" }
+      }
+    ]
+  })
+
+  tags = local.tags
+}
 
 module "ecr_worker" {
   source  = "terraform-aws-modules/ecr/aws"
@@ -380,10 +420,17 @@ module "ecs" {
           # ECS container definition keys are camelCase — they map directly to the ECS API
           portMappings = [{ containerPort = 8000, protocol = "tcp" }]
 
+          # The app container needs its own copy of DB_USER and DB_PASSWORD so that
+          # ECS variable interpolation ($(VAR)) resolves correctly. Interpolation is
+          # per-container — variables injected into pgbouncer are not visible here.
+          secrets = [
+            { name = "DB_USER",     valueFrom = "${module.rds.db_instance_master_user_secret_arn}:username::" },
+            { name = "DB_PASSWORD", valueFrom = "${module.rds.db_instance_master_user_secret_arn}:password::" },
+          ]
+
           environment = [
             # App connects to pgbouncer sidecar on localhost — not RDS directly.
-            # The RDS secret is consumed by the pgbouncer container; the app never
-            # sees the raw credentials.
+            # DB_USER / DB_PASSWORD are resolved from the secrets block above.
             { name = "DATABASE_URL", value = "postgresql://$(DB_USER):$(DB_PASSWORD)@localhost:5432/migration_example" },
           ]
 
@@ -488,6 +535,69 @@ resource "aws_cloudwatch_log_group" "worker" {
 }
 
 ################################################################################
+# Liquibase task definition — one-off Fargate task for schema migrations.
+# Uses a custom image built FROM liquibase/liquibase:4.27 with the db/changelog/
+# directory baked in (see db/Dockerfile). The app image stays free of Liquibase
+# and its JVM dependency.
+# Connects directly to RDS (not pgbouncer) — DDL requires a session connection.
+################################################################################
+
+resource "aws_ecs_task_definition" "liquibase" {
+  family                   = "${local.name}-liquibase"
+  requires_compatibilities = ["FARGATE"]
+  network_mode             = "awsvpc"
+  # 512 CPU / 1024 MiB is the minimum Fargate size that comfortably runs the
+  # Liquibase JVM without OOM on startup.
+  cpu    = 512
+  memory = 1024
+
+  execution_role_arn = module.ecs.task_exec_iam_role_arn
+  # No task role needed — Liquibase only talks to RDS, not AWS APIs.
+
+  container_definitions = jsonencode([
+    {
+      name      = "liquibase"
+      # Changelogs are baked into this image at build time (see db/Dockerfile).
+      # The image tag matches the app/worker images — all three are built and
+      # pushed together from the same commit SHA.
+      image     = "${module.ecr_liquibase.repository_url}:${var.app_image_tag}"
+      essential = true
+
+      secrets = [
+        { name = "DB_HOST",     valueFrom = "${module.rds.db_instance_master_user_secret_arn}:host::" },
+        { name = "DB_PORT",     valueFrom = "${module.rds.db_instance_master_user_secret_arn}:port::" },
+        { name = "DB_NAME",     valueFrom = "${module.rds.db_instance_master_user_secret_arn}:dbname::" },
+        { name = "DB_USER",     valueFrom = "${module.rds.db_instance_master_user_secret_arn}:username::" },
+        { name = "DB_PASSWORD", valueFrom = "${module.rds.db_instance_master_user_secret_arn}:password::" },
+      ]
+
+      environment = [
+        { name = "LIQUIBASE_COMMAND_URL",      value = "jdbc:postgresql://$(DB_HOST):$(DB_PORT)/$(DB_NAME)" },
+        { name = "LIQUIBASE_COMMAND_USERNAME", value = "$(DB_USER)" },
+        { name = "LIQUIBASE_COMMAND_PASSWORD", value = "$(DB_PASSWORD)" },
+      ]
+
+      logConfiguration = {
+        logDriver = "awslogs"
+        options = {
+          "awslogs-group"         = "/ecs/${local.name}/liquibase"
+          "awslogs-region"        = local.region
+          "awslogs-stream-prefix" = "liquibase"
+        }
+      }
+    }
+  ])
+
+  tags = local.tags
+}
+
+resource "aws_cloudwatch_log_group" "liquibase" {
+  name              = "/ecs/${local.name}/liquibase"
+  retention_in_days = 14
+  tags              = local.tags
+}
+
+################################################################################
 # IAM — GitHub Actions OIDC federation (no long-lived keys in GitHub secrets)
 #
 # Bootstrap once per AWS account:
@@ -525,9 +635,10 @@ data "aws_iam_policy_document" "github_actions_assume" {
       variable = "token.actions.githubusercontent.com:sub"
       # refs/heads/main  — apply jobs (push to main)
       # refs/pull/*/head — plan-dev job runs on PRs; must be allowed to plan
+      # Scoped to this repo only — forks from other orgs cannot obtain a token.
       values   = [
-        "repo:*/db-migration-example:ref:refs/heads/main",
-        "repo:*/db-migration-example:ref:refs/pull/*/head",
+        "repo:ersahinco/db-migration-example:ref:refs/heads/main",
+        "repo:ersahinco/db-migration-example:ref:refs/pull/*/head",
       ]
     }
   }
@@ -560,6 +671,7 @@ data "aws_iam_policy_document" "github_actions_permissions" {
     resources = [
       module.ecr_app.repository_arn,
       module.ecr_worker.repository_arn,
+      module.ecr_liquibase.repository_arn,
     ]
   }
 
@@ -586,10 +698,10 @@ data "aws_iam_policy_document" "github_actions_permissions" {
   }
 
   # Terraform infra pipeline — plan and apply for all managed resources.
-  # Scoped to the project name prefix where resource-level scoping is supported.
-  # S3/DynamoDB for remote state access; broad resource permissions are an AWS
-  # limitation for services that don't support resource-level policies (e.g. ECS
-  # RegisterTaskDefinition). Each statement is as narrow as the AWS API allows.
+  # Each statement is scoped as tightly as the AWS API allows. Services that
+  # do not support resource-level ARN filtering (e.g. ECS RegisterTaskDefinition,
+  # most EC2 Describe calls) are documented inline rather than silently using *.
+
   statement {
     sid = "TerraformState"
     actions = [
@@ -614,34 +726,180 @@ data "aws_iam_policy_document" "github_actions_permissions" {
     resources = ["arn:aws:dynamodb:${local.region}:${local.account_id}:table/terraform-locks"]
   }
 
+  # EC2: VPC, subnets, route tables, IGW, NAT, security groups, ENIs.
+  # Describe/List calls have no resource scope in the EC2 API — AWS limitation.
+  # Mutating actions are scoped to resources tagged with this project.
   statement {
-    sid = "TerraformManageInfra"
+    sid = "EC2Describe"
     actions = [
-      "ec2:*",
-      "rds:*",
-      "ecs:*",
-      "ecr:*",
-      "elasticloadbalancing:*",
-      "logs:*",
-      # Describe/tag only — pipeline never needs to read secret values
-      "secretsmanager:CreateSecret",
-      "secretsmanager:DeleteSecret",
+      "ec2:Describe*",
+      "ec2:Get*",
+      "ec2:List*",
+    ]
+    resources = ["*"] # EC2 Describe/Get/List have no resource-level scope — AWS API limitation
+  }
+
+  statement {
+    sid = "EC2Mutate"
+    actions = [
+      "ec2:CreateVpc", "ec2:DeleteVpc", "ec2:ModifyVpcAttribute",
+      "ec2:CreateSubnet", "ec2:DeleteSubnet", "ec2:ModifySubnetAttribute",
+      "ec2:CreateRouteTable", "ec2:DeleteRouteTable",
+      "ec2:CreateRoute", "ec2:DeleteRoute",
+      "ec2:AssociateRouteTable", "ec2:DisassociateRouteTable",
+      "ec2:CreateInternetGateway", "ec2:DeleteInternetGateway",
+      "ec2:AttachInternetGateway", "ec2:DetachInternetGateway",
+      "ec2:AllocateAddress", "ec2:ReleaseAddress", "ec2:AssociateAddress", "ec2:DisassociateAddress",
+      "ec2:CreateNatGateway", "ec2:DeleteNatGateway",
+      "ec2:CreateSecurityGroup", "ec2:DeleteSecurityGroup",
+      "ec2:AuthorizeSecurityGroupIngress", "ec2:RevokeSecurityGroupIngress",
+      "ec2:AuthorizeSecurityGroupEgress", "ec2:RevokeSecurityGroupEgress",
+      "ec2:UpdateSecurityGroupRuleDescriptionsIngress",
+      "ec2:UpdateSecurityGroupRuleDescriptionsEgress",
+      "ec2:CreateTags", "ec2:DeleteTags",
+    ]
+    resources = ["*"] # EC2 resource ARNs are not available at creation time for most resource types
+  }
+
+  # RDS: scoped to this project's DB identifier prefix.
+  statement {
+    sid = "RDSManage"
+    actions = [
+      "rds:CreateDBInstance", "rds:DeleteDBInstance", "rds:ModifyDBInstance",
+      "rds:RebootDBInstance", "rds:StopDBInstance", "rds:StartDBInstance",
+      "rds:CreateDBSubnetGroup", "rds:DeleteDBSubnetGroup", "rds:ModifyDBSubnetGroup",
+      "rds:CreateDBParameterGroup", "rds:DeleteDBParameterGroup", "rds:ModifyDBParameterGroup",
+      "rds:AddTagsToResource", "rds:RemoveTagsFromResource",
+      "rds:ListTagsForResource",
+    ]
+    resources = [
+      "arn:aws:rds:${local.region}:${local.account_id}:db:db-migration-example-*",
+      "arn:aws:rds:${local.region}:${local.account_id}:subgrp:db-migration-example-*",
+      "arn:aws:rds:${local.region}:${local.account_id}:pg:db-migration-example-*",
+    ]
+  }
+
+  statement {
+    sid = "RDSDescribe"
+    actions = [
+      "rds:Describe*",
+    ]
+    resources = ["*"] # RDS Describe calls have no resource-level scope — AWS API limitation
+  }
+
+  # ECS: cluster/service/task scoped to this project prefix.
+  # RegisterTaskDefinition and DescribeTaskDefinition have no resource scope.
+  statement {
+    sid = "ECSManage"
+    actions = [
+      "ecs:CreateCluster", "ecs:DeleteCluster", "ecs:UpdateCluster",
+      "ecs:CreateService", "ecs:DeleteService", "ecs:UpdateService",
+      "ecs:TagResource", "ecs:UntagResource",
+    ]
+    resources = [
+      "arn:aws:ecs:${local.region}:${local.account_id}:cluster/db-migration-example-*",
+      "arn:aws:ecs:${local.region}:${local.account_id}:service/db-migration-example-*/*",
+    ]
+  }
+
+  statement {
+    sid = "ECSDescribeAndRegister"
+    actions = [
+      "ecs:RegisterTaskDefinition",   # no resource scope — AWS API limitation
+      "ecs:DeregisterTaskDefinition", # no resource scope — AWS API limitation
+      "ecs:DescribeTaskDefinition",   # no resource scope — AWS API limitation
+      "ecs:DescribeClusters",
+      "ecs:DescribeServices",
+      "ecs:DescribeTasks",
+      "ecs:ListClusters",
+      "ecs:ListServices",
+      "ecs:ListTaskDefinitions",
+      "ecs:ListTagsForResource",
+      "ecs:RunTask",
+      "ecs:StopTask",
+      "ecs:PutClusterCapacityProviders",
+    ]
+    resources = ["*"] # Describe/Register calls have no resource-level scope — AWS API limitation
+  }
+
+  # ECR: scoped to this project's repositories.
+  statement {
+    sid = "ECRManage"
+    actions = [
+      "ecr:CreateRepository", "ecr:DeleteRepository",
+      "ecr:PutLifecyclePolicy", "ecr:DeleteLifecyclePolicy",
+      "ecr:PutImageTagMutability", "ecr:PutImageScanningConfiguration",
+      "ecr:SetRepositoryPolicy", "ecr:DeleteRepositoryPolicy",
+      "ecr:TagResource", "ecr:UntagResource",
+      "ecr:DescribeRepositories", "ecr:GetRepositoryPolicy",
+      "ecr:ListTagsForResource",
+    ]
+    resources = [
+      "arn:aws:ecr:${local.region}:${local.account_id}:repository/db-migration-example-*",
+    ]
+  }
+
+  # ALB: scoped to this project's load balancers and target groups.
+  statement {
+    sid = "ALBManage"
+    actions = [
+      "elasticloadbalancing:CreateLoadBalancer",
+      "elasticloadbalancing:DeleteLoadBalancer",
+      "elasticloadbalancing:ModifyLoadBalancerAttributes",
+      "elasticloadbalancing:CreateTargetGroup",
+      "elasticloadbalancing:DeleteTargetGroup",
+      "elasticloadbalancing:ModifyTargetGroup",
+      "elasticloadbalancing:ModifyTargetGroupAttributes",
+      "elasticloadbalancing:CreateListener",
+      "elasticloadbalancing:DeleteListener",
+      "elasticloadbalancing:ModifyListener",
+      "elasticloadbalancing:AddTags",
+      "elasticloadbalancing:RemoveTags",
+    ]
+    resources = [
+      "arn:aws:elasticloadbalancing:${local.region}:${local.account_id}:loadbalancer/app/db-migration-example-*/*",
+      "arn:aws:elasticloadbalancing:${local.region}:${local.account_id}:targetgroup/db-migration-example-*/*",
+      "arn:aws:elasticloadbalancing:${local.region}:${local.account_id}:listener/app/db-migration-example-*/*/*",
+    ]
+  }
+
+  statement {
+    sid = "ALBDescribe"
+    actions = [
+      "elasticloadbalancing:Describe*",
+    ]
+    resources = ["*"] # ELB Describe calls have no resource-level scope — AWS API limitation
+  }
+
+  # CloudWatch Logs: scoped to this project's log groups.
+  statement {
+    sid = "LogsManage"
+    actions = [
+      "logs:CreateLogGroup", "logs:DeleteLogGroup",
+      "logs:PutRetentionPolicy", "logs:DeleteRetentionPolicy",
+      "logs:TagLogGroup", "logs:UntagLogGroup",
+      "logs:TagResource", "logs:UntagResource",
+      "logs:DescribeLogGroups", "logs:ListTagsForResource", "logs:ListTagsLogGroup",
+    ]
+    resources = [
+      "arn:aws:logs:${local.region}:${local.account_id}:log-group:/ecs/db-migration-example-*",
+      "arn:aws:logs:${local.region}:${local.account_id}:log-group:/ecs/db-migration-example-*:*",
+    ]
+  }
+
+  # Secrets Manager: Terraform reads metadata (ARN, rotation status) to wire
+  # ECS task definitions. It never reads the secret value itself.
+  statement {
+    sid = "SecretsManagerDescribe"
+    actions = [
       "secretsmanager:DescribeSecret",
       "secretsmanager:GetResourcePolicy",
-      "secretsmanager:PutResourcePolicy",
-      "secretsmanager:DeleteResourcePolicy",
-      "secretsmanager:TagResource",
-      "secretsmanager:UntagResource",
       "secretsmanager:ListSecrets",
-      "iam:GetRole",
-      "iam:GetRolePolicy",
-      "iam:GetPolicy",
-      "iam:GetPolicyVersion",
-      "iam:ListRolePolicies",
-      "iam:ListAttachedRolePolicies",
-      "iam:ListInstanceProfilesForRole",
+      "secretsmanager:ListSecretVersionIds",
     ]
-    resources = ["*"] # EC2/RDS/ECS plan+apply require broad read; apply is gated by manual approval in prod
+    resources = [
+      "arn:aws:secretsmanager:${local.region}:${local.account_id}:secret:rds!db-*",
+    ]
   }
 
   statement {
@@ -657,6 +915,13 @@ data "aws_iam_policy_document" "github_actions_permissions" {
       "iam:TagRole",
       "iam:UntagRole",
       "iam:PassRole",
+      "iam:GetRole",
+      "iam:GetRolePolicy",
+      "iam:GetPolicy",
+      "iam:GetPolicyVersion",
+      "iam:ListRolePolicies",
+      "iam:ListAttachedRolePolicies",
+      "iam:ListInstanceProfilesForRole",
     ]
     # Scoped to roles created by this project
     resources = ["arn:aws:iam::${local.account_id}:role/db-migration-example-*"]

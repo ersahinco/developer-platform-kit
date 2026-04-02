@@ -25,11 +25,11 @@ on:
 # On push to main: full pipeline — test → build → migrate → deploy
 #
 # validate-and-test — hermetic: Postgres + pgbouncer service containers, full test suite
-# build-and-push    — builds app image, trivy CRITICAL scan, pushes to ECR
-# dev-migrate       — Liquibase update on dev RDS (one-off ECS task)
+# build-and-push    — builds app + worker + liquibase images, trivy CRITICAL scan, pushes to ECR
+# dev-migrate       — Liquibase update on dev RDS (one-off ECS task, waits for exit code)
 # dev-deploy        — rolling ECS update to new image tag
 # prod-migrate      — Liquibase update on prod RDS (manual approval)
-# prod-deploy       — rolling ECS update (manual approval)
+# prod-deploy       — rolling ECS update + backfill worker (manual approval)
 #
 # Environments (configure in GitHub → Settings → Environments):
 #   dev                  — no approval required
@@ -37,23 +37,26 @@ on:
 #   production-deploy    — requires approval
 #
 # Required GitHub secrets (set per environment or at repo level):
-#   AWS_ROLE_ARN         — IAM role ARN for OIDC federation (no long-lived keys)
-#   ECR_REGISTRY         — registry hostname: 691627364817.dkr.ecr.eu-central-1.amazonaws.com
-#   ECS_CLUSTER          — ECS cluster name (from terraform output ecs_cluster_name)
-#   APP_SERVICE_NAME     — ECS service name (from terraform output app_service_name)
-#   APP_TASK_FAMILY      — ECS task definition family for the app
-#   PRIVATE_SUBNET_ID    — One private subnet ID for run-task (migrate + worker tasks)
-#   APP_SG_ID            — App security group ID for run-task
-#   DB_SECRET_ARN        — Secrets Manager ARN for DB credentials
-#   WORKER_TASK_DEF_ARN  — Worker task definition ARN (from terraform output worker_task_definition_arn)
+#   AWS_ROLE_ARN              — IAM role ARN for OIDC federation (no long-lived keys)
+#   ECR_REGISTRY              — registry hostname: 691627364817.dkr.ecr.eu-central-1.amazonaws.com
+#   ECS_CLUSTER               — ECS cluster name (from terraform output ecs_cluster_name)
+#   APP_SERVICE_NAME          — ECS service name (from terraform output app_service_name)
+#   APP_TASK_FAMILY           — ECS task definition family for the app
+#   LIQUIBASE_TASK_DEF_ARN    — Liquibase task definition ARN (from terraform output liquibase_task_definition_arn)
+#   PRIVATE_SUBNET_ID         — One private subnet ID for run-task (migrate + worker tasks)
+#   APP_SG_ID                 — App security group ID for run-task
+#   DB_SECRET_ARN             — Secrets Manager ARN for DB credentials
+#   WORKER_TASK_DEF_ARN       — Worker task definition ARN (from terraform output worker_task_definition_arn)
 # ---------------------------------------------------------------------------
 
 env:
-  AWS_REGION:           eu-central-1
-  APP_IMAGE_NAME_DEV:   db-migration-example-dev/app
-  APP_IMAGE_NAME_PROD:  db-migration-example-prod/app
-  WORKER_IMAGE_NAME_DEV:  db-migration-example-dev/worker
-  WORKER_IMAGE_NAME_PROD: db-migration-example-prod/worker
+  AWS_REGION:                 eu-central-1
+  APP_IMAGE_NAME_DEV:         db-migration-example-dev/app
+  APP_IMAGE_NAME_PROD:        db-migration-example-prod/app
+  WORKER_IMAGE_NAME_DEV:      db-migration-example-dev/worker
+  WORKER_IMAGE_NAME_PROD:     db-migration-example-prod/worker
+  LIQUIBASE_IMAGE_NAME_DEV:   db-migration-example-dev/liquibase
+  LIQUIBASE_IMAGE_NAME_PROD:  db-migration-example-prod/liquibase
 
 jobs:
   # ── 1. Test ──────────────────────────────────────────────────────────────
@@ -184,6 +187,15 @@ jobs:
           TAG:      sha-${{ github.sha }}
         run: docker build -t $REGISTRY/${{ env.WORKER_IMAGE_NAME_DEV }}:$TAG worker/
 
+      # Liquibase image: FROM liquibase/liquibase:4.27 with db/changelog/ baked in.
+      # Built from db/Dockerfile — changelogs are versioned with the same SHA as
+      # the app so migrate and deploy always use matching code and schema.
+      - name: Build liquibase image
+        env:
+          REGISTRY: ${{ steps.login-ecr.outputs.registry }}
+          TAG:      sha-${{ github.sha }}
+        run: docker build -t $REGISTRY/${{ env.LIQUIBASE_IMAGE_NAME_DEV }}:$TAG db/
+
       # Scan before push — a CRITICAL CVE fails the pipeline before the image lands in ECR.
       - name: Scan app image for vulnerabilities
         env:
@@ -205,6 +217,16 @@ jobs:
             --exit-code 1 --severity CRITICAL --no-progress \
             $REGISTRY/${{ env.WORKER_IMAGE_NAME_DEV }}:$TAG
 
+      - name: Scan liquibase image for vulnerabilities
+        env:
+          REGISTRY: ${{ steps.login-ecr.outputs.registry }}
+          TAG:      sha-${{ github.sha }}
+        run: |
+          docker run --rm -v /var/run/docker.sock:/var/run/docker.sock \
+            aquasec/trivy:latest image \
+            --exit-code 1 --severity CRITICAL --no-progress \
+            $REGISTRY/${{ env.LIQUIBASE_IMAGE_NAME_DEV }}:$TAG
+
       - name: Push app image
         env:
           REGISTRY: ${{ steps.login-ecr.outputs.registry }}
@@ -225,6 +247,16 @@ jobs:
                       $REGISTRY/${{ env.WORKER_IMAGE_NAME_PROD }}:$TAG
           docker push $REGISTRY/${{ env.WORKER_IMAGE_NAME_PROD }}:$TAG
 
+      - name: Push liquibase image
+        env:
+          REGISTRY: ${{ steps.login-ecr.outputs.registry }}
+          TAG:      sha-${{ github.sha }}
+        run: |
+          docker push $REGISTRY/${{ env.LIQUIBASE_IMAGE_NAME_DEV }}:$TAG
+          docker tag  $REGISTRY/${{ env.LIQUIBASE_IMAGE_NAME_DEV }}:$TAG \
+                      $REGISTRY/${{ env.LIQUIBASE_IMAGE_NAME_PROD }}:$TAG
+          docker push $REGISTRY/${{ env.LIQUIBASE_IMAGE_NAME_PROD }}:$TAG
+
   # ── 3. Dev migrate ────────────────────────────────────────────────────────
   dev-migrate:
     name: Dev — Migrate (Liquibase)
@@ -244,25 +276,19 @@ jobs:
           aws-region:     ${{ env.AWS_REGION }}
 
       # Liquibase runs as a one-off ECS task inside the VPC — no public DB exposure.
-      # Connects directly to RDS (not pgbouncer) — DDL requires a session connection.
+      # The liquibase image has changelogs baked in (see db/Dockerfile), so no
+      # command override is needed. Connects directly to RDS — DDL requires a
+      # session connection, not pgbouncer's transaction-mode pool.
       - name: Run Liquibase on dev RDS
         run: |
           TASK_ARN=$(aws ecs run-task \
             --cluster "${{ secrets.ECS_CLUSTER }}" \
-            --task-definition "${{ secrets.APP_TASK_FAMILY }}" \
+            --task-definition "${{ secrets.LIQUIBASE_TASK_DEF_ARN }}" \
             --launch-type FARGATE \
             --network-configuration "awsvpcConfiguration={
               subnets=[${{ secrets.PRIVATE_SUBNET_ID }}],
               securityGroups=[${{ secrets.APP_SG_ID }}],
               assignPublicIp=DISABLED}" \
-            --overrides '{
-              "containerOverrides":[{
-                "name":"app",
-                "command":["liquibase",
-                  "--changelog-file=changelog/db.changelog-master.yaml",
-                  "--search-path=/app/db",
-                  "update"]
-              }]}' \
             --query 'tasks[0].taskArn' --output text)
 
           aws ecs wait tasks-stopped --cluster "${{ secrets.ECS_CLUSTER }}" --tasks "$TASK_ARN"
@@ -331,20 +357,12 @@ jobs:
         run: |
           TASK_ARN=$(aws ecs run-task \
             --cluster "${{ secrets.ECS_CLUSTER }}" \
-            --task-definition "${{ secrets.APP_TASK_FAMILY }}" \
+            --task-definition "${{ secrets.LIQUIBASE_TASK_DEF_ARN }}" \
             --launch-type FARGATE \
             --network-configuration "awsvpcConfiguration={
               subnets=[${{ secrets.PRIVATE_SUBNET_ID }}],
               securityGroups=[${{ secrets.APP_SG_ID }}],
               assignPublicIp=DISABLED}" \
-            --overrides '{
-              "containerOverrides":[{
-                "name":"app",
-                "command":["liquibase",
-                  "--changelog-file=changelog/db.changelog-master.yaml",
-                  "--search-path=/app/db",
-                  "update"]
-              }]}' \
             --query 'tasks[0].taskArn' --output text)
 
           aws ecs wait tasks-stopped --cluster "${{ secrets.ECS_CLUSTER }}" --tasks "$TASK_ARN"
@@ -391,17 +409,29 @@ jobs:
           cluster:          ${{ secrets.ECS_CLUSTER }}
           wait-for-service-stability: true
 
-      # Trigger the backfill worker as a one-off Fargate task.
-      # It connects directly to RDS (bypasses pgbouncer) and exits when done.
-      # Monitor progress in CloudWatch Logs: /ecs/db-migration-example-prod/worker
+      # Run the backfill worker as a one-off Fargate task. The worker is idempotent
+      # (ON CONFLICT DO NOTHING) and exits immediately when there are no rows left,
+      # so it is safe to run on every deploy. We wait for it to finish and check
+      # the exit code so a backfill failure surfaces as a pipeline failure rather
+      # than silent data loss.
       - name: Run backfill worker
         run: |
-          aws ecs run-task \
+          TASK_ARN=$(aws ecs run-task \
             --cluster "${{ secrets.ECS_CLUSTER }}" \
             --task-definition "${{ secrets.WORKER_TASK_DEF_ARN }}" \
             --launch-type FARGATE \
             --network-configuration "awsvpcConfiguration={
               subnets=[${{ secrets.PRIVATE_SUBNET_ID }}],
               securityGroups=[${{ secrets.APP_SG_ID }}],
-              assignPublicIp=DISABLED}"
-          echo "Backfill worker started. Monitor: CloudWatch Logs /ecs/db-migration-example-prod/worker"
+              assignPublicIp=DISABLED}" \
+            --query 'tasks[0].taskArn' --output text)
+
+          echo "Backfill task: $TASK_ARN"
+          echo "Monitor: CloudWatch Logs /ecs/db-migration-example-prod/worker"
+
+          aws ecs wait tasks-stopped --cluster "${{ secrets.ECS_CLUSTER }}" --tasks "$TASK_ARN"
+
+          EXIT_CODE=$(aws ecs describe-tasks \
+            --cluster "${{ secrets.ECS_CLUSTER }}" --tasks "$TASK_ARN" \
+            --query 'tasks[0].containers[0].exitCode' --output text)
+          [ "$EXIT_CODE" = "0" ] || { echo "Backfill worker failed (exit $EXIT_CODE)"; exit 1; }

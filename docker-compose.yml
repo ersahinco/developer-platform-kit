@@ -10,7 +10,7 @@ services:
     volumes:
       - db_data:/var/lib/postgresql/data
       - ./db/sql/bootstrap.sql:/docker-entrypoint-initdb.d/01-bootstrap.sql
-      - ./db/sql/observability.sql:/docker-entrypoint-initdb.d/02-observability.sql
+      # observability.sql removed — backfill_progress is owned by Liquibase changeset 003.
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-postgres} -d ${POSTGRES_DB:-migration_example}"]
       interval: 5s

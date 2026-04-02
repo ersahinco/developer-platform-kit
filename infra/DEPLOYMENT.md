@@ -101,13 +101,12 @@ terraform output -json
 | `ecs_cluster_name` | `ECS_CLUSTER` |
 | `app_service_name` | `APP_SERVICE_NAME` |
 | `worker_task_definition_arn` | `WORKER_TASK_DEF_ARN` |
+| `liquibase_task_definition_arn` | `LIQUIBASE_TASK_DEF_ARN` |
 | `private_subnet_ids` (first element) | `PRIVATE_SUBNET_ID` |
 | `app_security_group_id` | `APP_SG_ID` |
 | `db_secret_arn` | `DB_SECRET_ARN` |
 
-`ECR_REGISTRY` is the registry hostname only: `691627364817.dkr.ecr.eu-central-1.amazonaws.com`
-
-`APP_TASK_FAMILY` is the ECS task definition family name: `db-migration-example-<environment>-app`
+`APP_TASK_FAMILY` is not a Terraform output — it is deterministic: `db-migration-example-<environment>-app` (e.g. `db-migration-example-dev-app`). Set this as a secret manually after the first apply.
 
 ---
 
@@ -167,7 +166,7 @@ prod-deploy     ← manual approval required  (rolling ECS update)
 
 **validate-and-test** — spins up Postgres and PgBouncer service containers, runs Liquibase, seeds 200 customers / 1,000 orders, starts the app, runs the full pytest suite. Hermetic — no AWS credentials needed.
 
-**build-and-push** — builds the `app/` and `worker/` Docker images, tags both with `sha-<commit>`, scans both with `trivy image --severity CRITICAL` (fails on any CRITICAL CVE before push), then pushes to ECR. Uses OIDC — no long-lived AWS keys.
+**build-and-push** — builds the `app/`, `worker/`, and `db/` (Liquibase) Docker images, tags all three with `sha-<commit>`, scans each with `trivy image --severity CRITICAL` (fails on any CRITICAL CVE before push), then pushes to ECR. Uses OIDC — no long-lived AWS keys.
 
 **dev-migrate / prod-migrate** — a one-off ECS task inside the VPC that runs `liquibase update`. Connects directly to RDS (not via PgBouncer) — DDL requires a persistent session connection.
 

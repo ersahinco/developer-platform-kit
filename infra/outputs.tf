@@ -13,9 +13,19 @@ output "ecr_worker_repository_url" {
   value       = module.ecr_worker.repository_url
 }
 
+output "ecr_liquibase_repository_url" {
+  description = "ECR URL for the Liquibase migrations image. Push target in CI: $ECR_LIQUIBASE_URL:sha-$GITHUB_SHA"
+  value       = module.ecr_liquibase.repository_url
+}
+
 output "worker_task_definition_arn" {
   description = "Worker task definition ARN. Pass to `aws ecs run-task` to trigger a backfill."
   value       = aws_ecs_task_definition.worker.arn
+}
+
+output "liquibase_task_definition_arn" {
+  description = "Liquibase task definition ARN. Pass to `aws ecs run-task` for schema migrations. Set as LIQUIBASE_TASK_DEF_ARN in GitHub."
+  value       = aws_ecs_task_definition.liquibase.arn
 }
 
 output "rds_endpoint" {
