@@ -1,33 +1,23 @@
-"""
-schemas.py — Pydantic request/response models.
-
-Pure data-transfer objects at the HTTP boundary.
-No SQLAlchemy or domain imports.
-"""
-
-from __future__ import annotations
-
 import datetime
+from decimal import Decimal
 
 from pydantic import BaseModel
+
+from domain.order import OrderStatus, ReadModeValue, WriteModeValue
 
 
 class CreateOrderRequest(BaseModel):
     customer_id: int
-    total_amount: float
-    status: str
+    total_amount: Decimal
+    status: OrderStatus
     billing_email: str | None = None
-
-
-class SetReadModeRequest(BaseModel):
-    mode: str
 
 
 class OrderResponse(BaseModel):
     id: int
     customer_id: int
-    total_amount: float
-    status: str
+    total_amount: Decimal
+    status: OrderStatus
     submitted_at: datetime.datetime
     created_at: datetime.datetime
     billing_email: str | None = None
@@ -37,5 +27,17 @@ class HealthResponse(BaseModel):
     status: str
 
 
-class SetReadModeResponse(BaseModel):
-    read_mode: str
+class ReadModeRequest(BaseModel):
+    mode: ReadModeValue
+
+
+class ReadModeResponse(BaseModel):
+    mode: ReadModeValue
+
+
+class WriteModeRequest(BaseModel):
+    mode: WriteModeValue
+
+
+class WriteModeResponse(BaseModel):
+    mode: WriteModeValue

@@ -18,6 +18,35 @@ services:
       retries: 10
       start_period: 10s
 
+  # PgBouncer sits between the app and Postgres.
+  # The app's DATABASE_URL points to pgbouncer:5432, not db:5432.
+  # transaction mode: server connections are returned to the pool after each
+  # transaction, allowing many app connections to share a small server-side pool.
+  # edoburu/pgbouncer: actively maintained, current versions, simple env-var config.
+  pgbouncer:
+    image: edoburu/pgbouncer:v1.25.1-p0
+    environment:
+      DB_HOST: db
+      DB_PORT: 5432
+      DB_NAME: ${POSTGRES_DB:-migration_example}
+      DB_USER: ${POSTGRES_USER:-postgres}
+      DB_PASSWORD: ${POSTGRES_PASSWORD:-postgres}
+      POOL_MODE: transaction
+      DEFAULT_POOL_SIZE: 20
+      MAX_CLIENT_CONN: 200
+      AUTH_TYPE: scram-sha-256
+    ports:
+      - "${PGBOUNCER_PORT:-6432}:5432"
+    depends_on:
+      db:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -h localhost -p 5432 -U ${POSTGRES_USER:-postgres}"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+      start_period: 5s
+
   liquibase:
     image: liquibase/liquibase:4.27
     volumes:
@@ -25,6 +54,8 @@ services:
     environment:
       LIQUIBASE_COMMAND_CHANGELOG_FILE: changelog/db.changelog-master.yaml
       LIQUIBASE_SEARCH_PATH: /liquibase/db
+      # Liquibase connects directly to Postgres, not pgbouncer — DDL statements
+      # require session mode and must not be proxied through a transaction-mode pool.
       LIQUIBASE_COMMAND_URL: jdbc:postgresql://db:5432/${POSTGRES_DB:-migration_example}
       LIQUIBASE_COMMAND_USERNAME: ${POSTGRES_USER:-postgres}
       LIQUIBASE_COMMAND_PASSWORD: ${POSTGRES_PASSWORD:-postgres}
@@ -45,13 +76,18 @@ services:
     depends_on:
       db:
         condition: service_healthy
+      pgbouncer:
+        condition: service_healthy
 
   worker:
     build:
       context: ./worker
       dockerfile: Dockerfile
-    env_file:
-      - .env
+    environment:
+      # Worker bypasses pgbouncer — connects directly to Postgres.
+      BACKFILL_DATABASE_URL: postgresql://${POSTGRES_USER:-postgres}:${POSTGRES_PASSWORD:-postgres}@db:5432/${POSTGRES_DB:-migration_example}
+      BACKFILL_BATCH_SIZE: ${BACKFILL_BATCH_SIZE:-1000}
+      BACKFILL_SLEEP_MS: ${BACKFILL_SLEEP_MS:-100}
     depends_on:
       db:
         condition: service_healthy
@@ -71,6 +107,8 @@ services:
       db:
         condition: service_healthy
     restart: unless-stopped
+    profiles:
+      - tools
 
 volumes:
   db_data:

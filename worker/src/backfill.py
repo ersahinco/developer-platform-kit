@@ -1,24 +1,24 @@
+import json
 import time
 
 from sqlalchemy import create_engine, text
 
 from config import settings
-from metrics import log_batch
 
 JOB_NAME = "order_contact_email_backfill"
 
 
 def run_backfill() -> None:
+    # Worker connects directly to Postgres — bypasses pgbouncer.
+    # Backfill uses long-running transactions that are incompatible with
+    # pgbouncer's transaction-mode pool.
     engine = create_engine(
-        settings.database_url,
+        settings.backfill_database_url,
         pool_pre_ping=True,
-        pool_size=2,
-        max_overflow=2,
+        pool_size=1,
+        max_overflow=0,
     )
     try:
-        last_order_id = 0
-        rows_processed = 0
-
         while True:
             start = time.monotonic()
 
@@ -27,13 +27,13 @@ def run_backfill() -> None:
                 # on restart after a mid-batch crash.
                 row = conn.execute(
                     text(
-                        "SELECT last_order_id, rows_processed FROM backfill_progress WHERE job_name = :job"
+                        "SELECT last_order_id, rows_processed "
+                        "FROM backfill_progress WHERE job_name = :job"
                     ),
                     {"job": JOB_NAME},
                 ).fetchone()
-                if row is not None:
-                    last_order_id = row.last_order_id
-                    rows_processed = row.rows_processed
+                last_order_id = row.last_order_id if row else 0
+                rows_processed = row.rows_processed if row else 0
 
                 batch = conn.execute(
                     text(
@@ -58,8 +58,8 @@ def run_backfill() -> None:
                     [{"order_id": r.id, "billing_email": r.billing_email} for r in batch],
                 )
 
-                new_last_order_id = batch[-1].id
-                new_rows_processed = rows_processed + len(batch)
+                new_last = batch[-1].id
+                new_processed = rows_processed + len(batch)
 
                 conn.execute(
                     text(
@@ -68,24 +68,24 @@ def run_backfill() -> None:
                         "ON CONFLICT (job_name) DO UPDATE "
                         "SET last_order_id = :last_id, rows_processed = :processed, updated_at = NOW()"
                     ),
-                    {
-                        "job": JOB_NAME,
-                        "last_id": new_last_order_id,
-                        "processed": new_rows_processed,
-                    },
+                    {"job": JOB_NAME, "last_id": new_last, "processed": new_processed},
                 )
 
-                last_order_id = new_last_order_id
-                rows_processed = new_rows_processed
+                last_order_id = new_last
+                rows_processed = new_processed
 
             elapsed_ms = (time.monotonic() - start) * 1000
-            log_batch(last_order_id, len(batch), elapsed_ms)
+            print(
+                json.dumps({"last_order_id": last_order_id, "inserted": len(batch), "elapsed_ms": round(elapsed_ms, 1)}),
+                flush=True,
+            )
 
             time.sleep(settings.backfill_sleep_ms / 1000)
 
         print("backfill complete", flush=True)
     finally:
         engine.dispose()
+
 
 if __name__ == "__main__":
     run_backfill()

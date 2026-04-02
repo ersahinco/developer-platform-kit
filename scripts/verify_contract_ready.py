@@ -14,23 +14,20 @@ Usage:
 Reads DATABASE_URL from environment or .env file.
 """
 
+import os
 import sys
+from pathlib import Path
 
-from pydantic_settings import BaseSettings, SettingsConfigDict
+from dotenv import load_dotenv
 from sqlalchemy import create_engine, text
 
+load_dotenv(Path(__file__).parent.parent / ".env", override=False)
 
-class Settings(BaseSettings):
-    model_config = SettingsConfigDict(env_file=".env", env_file_encoding="utf-8", extra="ignore")
-
-    database_url: str
-
-
-settings = Settings()
+DATABASE_URL = os.environ["DATABASE_URL"]
 
 
 def main() -> None:
-    engine = create_engine(settings.database_url, pool_pre_ping=True)
+    engine = create_engine(DATABASE_URL, pool_pre_ping=True)
     ready = True
 
     with engine.connect() as conn:

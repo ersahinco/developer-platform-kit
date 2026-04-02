@@ -2,7 +2,7 @@ databaseChangeLog:
   - changeSet:
       id: 002-create-app-runtime-config
       author: db-migration-example
-      comment: "Switch: create app_runtime_config table for runtime feature flags"
+      comment: "Expand: create app_runtime_config table for runtime feature flags (WRITE_MODE, READ_MODE)"
       changes:
         - createTable:
             tableName: app_runtime_config
@@ -20,9 +20,24 @@ databaseChangeLog:
                     nullable: false
 
   - changeSet:
+      id: 002-seed-write-mode-legacy
+      author: db-migration-example
+      comment: "Expand: seed WRITE_MODE = legacy so the app writes only to orders.billing_email by default"
+      changes:
+        - insert:
+            tableName: app_runtime_config
+            columns:
+              - column:
+                  name: key
+                  value: WRITE_MODE
+              - column:
+                  name: value
+                  value: legacy
+
+  - changeSet:
       id: 002-seed-read-mode-legacy
       author: db-migration-example
-      comment: "Switch: seed READ_MODE = legacy so the app reads from orders.billing_email by default"
+      comment: "Expand: seed READ_MODE = legacy so the app reads from orders.billing_email by default"
       changes:
         - insert:
             tableName: app_runtime_config

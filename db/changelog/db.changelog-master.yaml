@@ -3,15 +3,17 @@ databaseChangeLog:
   - include:
       file: changelog/000-bootstrap.yaml
 
-  # 001 — Expand: adds order_contact_email table and index (additive only, safe on live DB).
+  # 001 — Expand: creates order_contact_email table (new home for billing_email).
+  #        orders.billing_email still exists; dual-write begins after this changeset.
   - include:
-      file: changelog/001-expand-order-contact-email.yaml
+      file: changelog/001-expand.yaml
 
-  # 002 — Switch: creates app_runtime_config table and seeds READ_MODE = legacy.
+  # 002 — Expand: creates app_runtime_config table and seeds WRITE_MODE = legacy, READ_MODE = legacy.
+  #        app_runtime_config is used for WRITE_MODE and READ_MODE runtime flags.
   - include:
-      file: changelog/002-switch-read-mode-flag.yaml
+      file: changelog/002-app-runtime-config.yaml
 
-  # 003 — Contract: drops orders.billing_email; guarded by sqlCheck precondition (READ_MODE = new).
-  #        Applied independently after the Switch phase is complete and verified.
+  # 003 — Backfill progress: moves backfill_progress table under Liquibase ownership.
+  #        Previously in docker-entrypoint-initdb.d/observability.sql (init-only, not idempotent).
   - include:
-      file: changelog/003-contract-drop-orders-billing-email.yaml
+      file: changelog/003-backfill-progress.yaml

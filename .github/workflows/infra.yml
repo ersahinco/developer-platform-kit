@@ -1,0 +1,201 @@
+name: Infra
+
+on:
+  pull_request:
+    paths: ["infra/**"]
+  push:
+    branches: [main]
+    paths: ["infra/**"]
+
+# ---------------------------------------------------------------------------
+# Pipeline overview
+#
+# On pull_request (infra/** changed):
+#   lint-and-validate  — fmt check, validate, tflint, checkov (no AWS needed)
+#   plan-dev           — terraform plan against dev state, posted as PR comment
+#
+# On push to main (infra/** changed):
+#   lint-and-validate  — same static checks
+#   apply-dev          — terraform apply dev (auto, no approval)
+#   apply-prod         — terraform apply prod (manual approval required)
+#
+# State isolation: each environment passes a different S3 key at init time.
+# No Terraform workspaces — tfvars + -backend-config is the full isolation.
+#
+# Required GitHub secrets (set per environment):
+#   infra-dev / infra-prod environments:
+#     AWS_ROLE_ARN   — IAM role ARN for OIDC (same role used by deploy.yml)
+# ---------------------------------------------------------------------------
+
+env:
+  AWS_REGION:       eu-central-1
+  TF_VERSION:       1.11.0
+  TFLINT_VERSION:   v0.55.0
+
+permissions:
+  contents:      read
+  pull-requests: write   # needed to post plan output as PR comment
+  id-token:      write   # needed for OIDC
+
+jobs:
+  # ── 1. Static checks (no AWS credentials needed) ─────────────────────────
+  lint-and-validate:
+    name: Lint & Validate
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: ${{ env.TF_VERSION }}
+
+      - name: terraform fmt
+        run: terraform fmt -check -recursive
+        working-directory: infra
+
+      - name: terraform validate
+        run: |
+          # init with a dummy backend so validate works without real state
+          terraform init -backend=false
+          terraform validate
+        working-directory: infra
+
+      - uses: terraform-linters/setup-tflint@v4
+        with:
+          tflint_version: ${{ env.TFLINT_VERSION }}
+
+      - name: tflint
+        run: |
+          tflint --init
+          tflint --format compact
+        working-directory: infra
+
+      # checkov scans for security misconfigs (open SGs, unencrypted storage, etc.)
+      # Accepted findings are skipped via infra/.checkov.yaml with rationale.
+      - name: checkov
+        uses: bridgecrewio/checkov-action@v12
+        with:
+          directory: infra
+          framework: terraform
+          config_file: infra/.checkov.yaml
+
+  # ── 2. Plan (PR only) ─────────────────────────────────────────────────────
+  plan-dev:
+    name: Plan — dev
+    needs: lint-and-validate
+    if: github.event_name == 'pull_request'
+    runs-on: ubuntu-latest
+    environment: infra-dev
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: ${{ env.TF_VERSION }}
+
+      - uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ secrets.AWS_ROLE_ARN }}
+          aws-region:     ${{ env.AWS_REGION }}
+
+      - name: terraform init (dev state)
+        run: |
+          terraform init \
+            -backend-config="key=db-migration-example/dev.tfstate" \
+            -reconfigure
+        working-directory: infra
+
+      - name: terraform plan
+        id: plan
+        run: |
+          terraform plan -var-file=dev.tfvars -no-color -out=dev.tfplan 2>&1 \
+            | tee plan_output.txt
+          echo "exitcode=${PIPESTATUS[0]}" >> "$GITHUB_OUTPUT"
+        working-directory: infra
+        continue-on-error: true   # post the comment even if plan fails
+
+      # Post plan output as a PR comment so reviewers see the diff inline.
+      - name: Post plan to PR
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const fs = require('fs');
+            const plan = fs.readFileSync('infra/plan_output.txt', 'utf8');
+            const truncated = plan.length > 60000
+              ? plan.slice(0, 60000) + '\n\n... (truncated)'
+              : plan;
+            const body = `### Terraform plan — dev\n\`\`\`\n${truncated}\n\`\`\``;
+            github.rest.issues.createComment({
+              issue_number: context.issue.number,
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              body
+            });
+
+      - name: Fail if plan failed
+        if: steps.plan.outputs.exitcode != '0'
+        run: exit 1
+
+  # ── 3. Apply dev (merge to main only) ────────────────────────────────────
+  apply-dev:
+    name: Apply — dev
+    needs: lint-and-validate
+    if: github.event_name == 'push'
+    runs-on: ubuntu-latest
+    environment: infra-dev
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: ${{ env.TF_VERSION }}
+
+      - uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ secrets.AWS_ROLE_ARN }}
+          aws-region:     ${{ env.AWS_REGION }}
+
+      - name: terraform init (dev state)
+        run: |
+          terraform init \
+            -backend-config="key=db-migration-example/dev.tfstate" \
+            -reconfigure
+        working-directory: infra
+
+      - name: terraform apply
+        run: terraform apply -var-file=dev.tfvars -auto-approve
+        working-directory: infra
+
+  # ── 4. Apply prod (manual approval required) ──────────────────────────────
+  apply-prod:
+    name: Apply — prod
+    needs: apply-dev
+    if: github.event_name == 'push'
+    runs-on: ubuntu-latest
+    environment: infra-prod   # configure Required reviewers in GitHub Environments
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: ${{ env.TF_VERSION }}
+
+      - uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ secrets.AWS_ROLE_ARN }}
+          aws-region:     ${{ env.AWS_REGION }}
+
+      - name: terraform init (prod state)
+        run: |
+          terraform init \
+            -backend-config="key=db-migration-example/prod.tfstate" \
+            -reconfigure
+        working-directory: infra
+
+      - name: terraform apply
+        run: terraform apply -var-file=prod.tfvars -auto-approve
+        working-directory: infra

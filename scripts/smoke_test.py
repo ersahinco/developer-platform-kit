@@ -7,7 +7,7 @@ Exits non-zero if the app is not reachable or returns a non-200 status.
 Usage:
     python scripts/smoke_test.py
 
-Reads APP_URL from environment (default: http://localhost:8000).
+Reads BASE_URL from environment (default: http://localhost:8000).
 """
 
 import os
@@ -17,13 +17,7 @@ import httpx
 
 
 def main() -> None:
-    # BASE_URL is the canonical variable (used by CI and the test suite).
-    # APP_URL is accepted as a fallback for backwards compatibility.
-    base_url = (
-        os.environ.get("BASE_URL")
-        or os.environ.get("APP_URL")
-        or "http://localhost:8000"
-    ).rstrip("/")
+    base_url = os.environ.get("BASE_URL", "http://localhost:8000").rstrip("/")
     url = f"{base_url}/health"
 
     try:

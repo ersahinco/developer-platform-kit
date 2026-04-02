@@ -1,50 +1,67 @@
 name: Deploy
 
 on:
+  pull_request:
+    paths:
+      - "app/**"
+      - "db/**"
+      - "tests/**"
+      - "scripts/**"
   push:
     branches: [main]
     paths:
-      - 'data-ai/db-migration-example/**'
-
-defaults:
-  run:
-    working-directory: data-ai/db-migration-example
+      - "app/**"
+      - "db/**"
+      - "tests/**"
+      - "scripts/**"
 
 # ---------------------------------------------------------------------------
 # Pipeline overview
 #
-# validate-and-test
-#   Runs on every push. Spins up a clean Postgres, applies all migrations,
-#   seeds minimal data, starts the app, runs the full test suite.
+# Triggers on changes to app/**, db/**, tests/**, scripts/**
+# (infra changes are handled by infra.yml — separate pipeline)
 #
-# build-and-push
-#   Builds the app Docker image and pushes it to ECR.
-#   The image tag is the Git SHA — immutable, traceable.
+# On pull_request: validate-and-test only — fast feedback before merge
+# On push to main: full pipeline — test → build → migrate → deploy
 #
-# dev-migrate → dev-deploy
-#   Runs Liquibase against the dev RDS instance as a one-shot ECS task
-#   (same VPC as RDS, no public exposure). Then updates the ECS service
-#   to the new image via a rolling deploy.
+# validate-and-test — hermetic: Postgres + pgbouncer service containers, full test suite
+# build-and-push    — builds app image, trivy CRITICAL scan, pushes to ECR
+# dev-migrate       — Liquibase update on dev RDS (one-off ECS task)
+# dev-deploy        — rolling ECS update to new image tag
+# prod-migrate      — Liquibase update on prod RDS (manual approval)
+# prod-deploy       — rolling ECS update (manual approval)
 #
-# qa-migrate → qa-seed → qa-deploy          [requires approval]
-#   Same pattern as dev. qa-seed only inserts data if the DB is empty.
+# Environments (configure in GitHub → Settings → Environments):
+#   dev                  — no approval required
+#   production-migrate   — requires approval
+#   production-deploy    — requires approval
 #
-# prod-migrate → prod-deploy                [requires approval]
-#   Applies the Expand changeset to prod RDS. The Contract changeset is
-#   blocked by its sqlCheck precondition (READ_MODE != new) and is skipped.
-#   The ECS service is updated with WRITE_MODE=dual (dual-write phase).
-#   The backfill worker runs as a separate ECS task after this step.
-#
-# prod-contract                             [requires approval]
-#   Runs after the backfill is complete and verify_contract_ready.py exits 0.
-#   Applies the Contract changeset (drops orders.billing_email).
-#   Requires a separate manual approval to enforce the pre-flight check gate.
+# Required GitHub secrets (set per environment or at repo level):
+#   AWS_ROLE_ARN         — IAM role ARN for OIDC federation (no long-lived keys)
+#   ECR_REGISTRY         — registry hostname: 691627364817.dkr.ecr.eu-central-1.amazonaws.com
+#   ECS_CLUSTER          — ECS cluster name (from terraform output ecs_cluster_name)
+#   APP_SERVICE_NAME     — ECS service name (from terraform output app_service_name)
+#   APP_TASK_FAMILY      — ECS task definition family for the app
+#   PRIVATE_SUBNET_ID    — One private subnet ID for run-task (migrate + worker tasks)
+#   APP_SG_ID            — App security group ID for run-task
+#   DB_SECRET_ARN        — Secrets Manager ARN for DB credentials
+#   WORKER_TASK_DEF_ARN  — Worker task definition ARN (from terraform output worker_task_definition_arn)
 # ---------------------------------------------------------------------------
 
+env:
+  AWS_REGION:           eu-central-1
+  APP_IMAGE_NAME_DEV:   db-migration-example-dev/app
+  APP_IMAGE_NAME_PROD:  db-migration-example-prod/app
+  WORKER_IMAGE_NAME_DEV:  db-migration-example-dev/worker
+  WORKER_IMAGE_NAME_PROD: db-migration-example-prod/worker
+
 jobs:
+  # ── 1. Test ──────────────────────────────────────────────────────────────
   validate-and-test:
     name: Validate & Test
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
 
     services:
       postgres:
@@ -62,14 +79,29 @@ jobs:
           --health-retries 10
           --health-start-period 10s
 
+      # PgBouncer service container — app connects here, not to Postgres directly.
+      # transaction mode mirrors the production ECS sidecar configuration.
+      pgbouncer:
+        image: edoburu/pgbouncer:v1.25.1-p0
+        env:
+          DB_HOST: postgres
+          DB_PORT: 5432
+          DB_NAME: migration_example
+          DB_USER: postgres
+          DB_PASSWORD: postgres
+          POOL_MODE: transaction
+          DEFAULT_POOL_SIZE: 20
+          MAX_CLIENT_CONN: 200
+          AUTH_TYPE: trust
+        ports:
+          - 6432:5432
+
     env:
-      DATABASE_URL: postgresql://postgres:postgres@localhost:5432/migration_example
-      READ_MODE: legacy
-      WRITE_MODE: dual
-      APP_PORT: 8000
-      BASE_URL: http://localhost:8000
+      # App and tests connect via pgbouncer — same topology as production.
+      DATABASE_URL: postgresql://postgres:postgres@localhost:6432/migration_example
+      BASE_URL:     http://localhost:8000
       SEED_NUM_CUSTOMERS: 200
-      SEED_NUM_ORDERS: 1000
+      SEED_NUM_ORDERS:    1000
 
     steps:
       - uses: actions/checkout@v4
@@ -81,166 +113,295 @@ jobs:
       - name: Install dependencies
         run: uv sync --frozen --group test
 
-      - name: Init DB
+      - name: Init DB schema (bootstrap SQL)
         run: |
-          PGPASSWORD=postgres psql -h localhost -U postgres -d migration_example -f db/sql/bootstrap.sql
-          PGPASSWORD=postgres psql -h localhost -U postgres -d migration_example -f db/sql/observability.sql
+          PGPASSWORD=postgres psql -h localhost -U postgres -d migration_example \
+            -f db/sql/bootstrap.sql
 
-      - name: Run migrations
+      - name: Run Liquibase migrations
         run: |
-          docker run --rm \
-            --network host \
-            -v "${{ github.workspace }}/data-ai/db-migration-example/db:/liquibase/db" \
-            -e LIQUIBASE_SEARCH_PATH=/liquibase/db \
+          docker run --rm --network host \
+            -v "${{ github.workspace }}/db:/liquibase/db" \
             liquibase/liquibase:4.27 \
-            --changelog-file=changelog/db.changelog-master.yaml \
-            --url=jdbc:postgresql://localhost:5432/migration_example \
-            --username=postgres \
-            --password=$POSTGRES_PASSWORD \
-            update
+              --changelog-file=changelog/db.changelog-master.yaml \
+              --search-path=/liquibase/db \
+              --url=jdbc:postgresql://localhost:5432/migration_example \
+              --username=postgres \
+              --password=postgres \
+              update
 
       - name: Seed data
         run: uv run python scripts/seed_data.py
 
       - name: Start app
         run: |
-          cd app/src
-          uv run --directory ../.. uvicorn adapters.api.main:app --host 0.0.0.0 --port 8000 &
-          curl --retry 30 --retry-delay 1 --retry-connrefused -sf http://localhost:8000/health
+          uv run --directory app uvicorn src.adapters.api.main:app \
+            --host 0.0.0.0 --port 8000 &
+          curl --retry 30 --retry-delay 1 --retry-connrefused -sf \
+            http://localhost:8000/health
 
       - name: Run tests
         run: uv run pytest tests/ -v
 
       - name: Stop app
         if: always()
-        run: pkill -f "uvicorn adapters.api.main" || true
+        run: pkill -f "uvicorn" || true
 
+  # ── 2. Build & Push ───────────────────────────────────────────────────────
   build-and-push:
     name: Build & Push to ECR
     needs: validate-and-test
+    if: github.event_name == 'push'
     runs-on: ubuntu-latest
+    permissions:
+      id-token: write
+      contents: read
     outputs:
-      image_tag: ${{ steps.meta.outputs.tag }}
+      image_tag: sha-${{ github.sha }}
 
     steps:
       - uses: actions/checkout@v4
 
-      - name: Set image tag
-        id: meta
-        run: echo "tag=${{ github.sha }}" >> "$GITHUB_OUTPUT"
+      - name: Configure AWS credentials (OIDC — no long-lived keys)
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ secrets.AWS_ROLE_ARN }}
+          aws-region:     ${{ env.AWS_REGION }}
 
-      # In a real deployment:
-      #   aws ecr get-login-password | docker login --username AWS --password-stdin $ECR_REGISTRY
-      #   docker build -t $ECR_REGISTRY/db-migration-example:${{ github.sha }} app/
-      #   docker push $ECR_REGISTRY/db-migration-example:${{ github.sha }}
-      - name: Build and push (placeholder)
-        run: echo "Would push image tag ${{ steps.meta.outputs.tag }} to ECR"
+      - name: Log in to ECR
+        id: login-ecr
+        uses: aws-actions/amazon-ecr-login@v2
 
+      - name: Build app image
+        env:
+          REGISTRY: ${{ steps.login-ecr.outputs.registry }}
+          TAG:      sha-${{ github.sha }}
+        run: docker build -t $REGISTRY/${{ env.APP_IMAGE_NAME_DEV }}:$TAG app/
+
+      - name: Build worker image
+        env:
+          REGISTRY: ${{ steps.login-ecr.outputs.registry }}
+          TAG:      sha-${{ github.sha }}
+        run: docker build -t $REGISTRY/${{ env.WORKER_IMAGE_NAME_DEV }}:$TAG worker/
+
+      # Scan before push — a CRITICAL CVE fails the pipeline before the image lands in ECR.
+      - name: Scan app image for vulnerabilities
+        env:
+          REGISTRY: ${{ steps.login-ecr.outputs.registry }}
+          TAG:      sha-${{ github.sha }}
+        run: |
+          docker run --rm -v /var/run/docker.sock:/var/run/docker.sock \
+            aquasec/trivy:latest image \
+            --exit-code 1 --severity CRITICAL --no-progress \
+            $REGISTRY/${{ env.APP_IMAGE_NAME_DEV }}:$TAG
+
+      - name: Scan worker image for vulnerabilities
+        env:
+          REGISTRY: ${{ steps.login-ecr.outputs.registry }}
+          TAG:      sha-${{ github.sha }}
+        run: |
+          docker run --rm -v /var/run/docker.sock:/var/run/docker.sock \
+            aquasec/trivy:latest image \
+            --exit-code 1 --severity CRITICAL --no-progress \
+            $REGISTRY/${{ env.WORKER_IMAGE_NAME_DEV }}:$TAG
+
+      - name: Push app image
+        env:
+          REGISTRY: ${{ steps.login-ecr.outputs.registry }}
+          TAG:      sha-${{ github.sha }}
+        run: |
+          docker push $REGISTRY/${{ env.APP_IMAGE_NAME_DEV }}:$TAG
+          docker tag  $REGISTRY/${{ env.APP_IMAGE_NAME_DEV }}:$TAG \
+                      $REGISTRY/${{ env.APP_IMAGE_NAME_PROD }}:$TAG
+          docker push $REGISTRY/${{ env.APP_IMAGE_NAME_PROD }}:$TAG
+
+      - name: Push worker image
+        env:
+          REGISTRY: ${{ steps.login-ecr.outputs.registry }}
+          TAG:      sha-${{ github.sha }}
+        run: |
+          docker push $REGISTRY/${{ env.WORKER_IMAGE_NAME_DEV }}:$TAG
+          docker tag  $REGISTRY/${{ env.WORKER_IMAGE_NAME_DEV }}:$TAG \
+                      $REGISTRY/${{ env.WORKER_IMAGE_NAME_PROD }}:$TAG
+          docker push $REGISTRY/${{ env.WORKER_IMAGE_NAME_PROD }}:$TAG
+
+  # ── 3. Dev migrate ────────────────────────────────────────────────────────
   dev-migrate:
-    name: Dev — Migrate
+    name: Dev — Migrate (Liquibase)
     needs: build-and-push
     runs-on: ubuntu-latest
     environment: dev
+    permissions:
+      id-token: write
+      contents: read
 
     steps:
       - uses: actions/checkout@v4
-      # Runs Liquibase as a one-shot ECS task in the same VPC as the dev RDS.
-      # The task uses the same liquibase/liquibase:4.27 image, with DATABASE_URL
-      # injected from AWS Secrets Manager via ECS task definition secrets.
-      #
-      # aws ecs run-task \
-      #   --cluster dev-cluster \
-      #   --task-definition liquibase-migrate \
-      #   --overrides '{"containerOverrides":[{"name":"liquibase","command":["update"]}]}'
-      - name: Run Liquibase on dev RDS (placeholder)
-        run: echo "Would run liquibase update against dev RDS"
 
+      - uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ secrets.AWS_ROLE_ARN }}
+          aws-region:     ${{ env.AWS_REGION }}
+
+      # Liquibase runs as a one-off ECS task inside the VPC — no public DB exposure.
+      # Connects directly to RDS (not pgbouncer) — DDL requires a session connection.
+      - name: Run Liquibase on dev RDS
+        run: |
+          TASK_ARN=$(aws ecs run-task \
+            --cluster "${{ secrets.ECS_CLUSTER }}" \
+            --task-definition "${{ secrets.APP_TASK_FAMILY }}" \
+            --launch-type FARGATE \
+            --network-configuration "awsvpcConfiguration={
+              subnets=[${{ secrets.PRIVATE_SUBNET_ID }}],
+              securityGroups=[${{ secrets.APP_SG_ID }}],
+              assignPublicIp=DISABLED}" \
+            --overrides '{
+              "containerOverrides":[{
+                "name":"app",
+                "command":["liquibase",
+                  "--changelog-file=changelog/db.changelog-master.yaml",
+                  "--search-path=/app/db",
+                  "update"]
+              }]}' \
+            --query 'tasks[0].taskArn' --output text)
+
+          aws ecs wait tasks-stopped --cluster "${{ secrets.ECS_CLUSTER }}" --tasks "$TASK_ARN"
+
+          EXIT_CODE=$(aws ecs describe-tasks \
+            --cluster "${{ secrets.ECS_CLUSTER }}" --tasks "$TASK_ARN" \
+            --query 'tasks[0].containers[0].exitCode' --output text)
+          [ "$EXIT_CODE" = "0" ] || { echo "Liquibase failed (exit $EXIT_CODE)"; exit 1; }
+
+  # ── 4. Dev deploy ─────────────────────────────────────────────────────────
   dev-deploy:
     name: Dev — Deploy App
     needs: dev-migrate
     runs-on: ubuntu-latest
     environment: dev
+    permissions:
+      id-token: write
+      contents: read
 
     steps:
-      # Registers a new ECS task definition revision with the new image tag,
-      # then updates the service — ECS handles the rolling deploy.
-      #
-      # aws ecs register-task-definition --family app --image $ECR_REGISTRY/db-migration-example:$IMAGE_TAG
-      # aws ecs update-service --cluster dev-cluster --service app --task-definition app
-      - name: Update ECS service on dev (placeholder)
-        run: echo "Would deploy image ${{ needs.build-and-push.outputs.image_tag }} to dev ECS"
+      - uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ secrets.AWS_ROLE_ARN }}
+          aws-region:     ${{ env.AWS_REGION }}
 
-  qa-migrate:
-    name: QA — Migrate
+      - name: Log in to ECR
+        id: login-ecr
+        uses: aws-actions/amazon-ecr-login@v2
+
+      - name: Render new task definition
+        id: render-task-def
+        uses: aws-actions/amazon-ecs-render-task-definition@v1
+        with:
+          task-definition-family: ${{ secrets.APP_TASK_FAMILY }}
+          container-name:         app
+          image: >-
+            ${{ steps.login-ecr.outputs.registry }}/${{ env.APP_IMAGE_NAME_DEV }}:${{ needs.build-and-push.outputs.image_tag }}
+
+      - name: Deploy to ECS
+        uses: aws-actions/amazon-ecs-deploy-task-definition@v2
+        with:
+          task-definition:  ${{ steps.render-task-def.outputs.task-definition }}
+          service:          ${{ secrets.APP_SERVICE_NAME }}
+          cluster:          ${{ secrets.ECS_CLUSTER }}
+          wait-for-service-stability: true
+
+  # ── 5. Prod migrate ───────────────────────────────────────────────────────
+  prod-migrate:
+    name: Prod — Migrate (Liquibase)
     needs: dev-deploy
     runs-on: ubuntu-latest
-    environment: qa
-
-    steps:
-      - uses: actions/checkout@v4
-      - name: Run Liquibase on QA RDS (placeholder)
-        run: echo "Would run liquibase update against QA RDS"
-
-  qa-seed:
-    name: QA — Seed (if empty)
-    needs: qa-migrate
-    runs-on: ubuntu-latest
-    environment: qa
-
-    steps:
-      - uses: actions/checkout@v4
-      # Seed only runs if the DB is empty — seed_data.py is idempotent and
-      # skips insertion if rows already exist.
-      # DATABASE_URL points to QA RDS via Secrets Manager / env injection.
-      # SEED_NUM_CUSTOMERS and SEED_NUM_ORDERS are set in the QA environment.
-      - name: Seed QA data (placeholder)
-        run: echo "Would run seed_data.py against QA RDS if empty"
-
-  qa-deploy:
-    name: QA — Deploy App
-    needs: qa-seed
-    runs-on: ubuntu-latest
-    environment: qa
-
-    steps:
-      - name: Update ECS service on QA (placeholder)
-        run: echo "Would deploy image ${{ needs.build-and-push.outputs.image_tag }} to QA ECS"
-
-  prod-migrate:
-    name: Prod — Migrate (Expand)
-    needs: qa-deploy
-    runs-on: ubuntu-latest
     environment: production-migrate
-    # Applies Expand + Switch changesets. The Contract changeset is blocked
-    # by its sqlCheck precondition (READ_MODE = legacy) and is skipped.
+    permissions:
+      id-token: write
+      contents: read
 
     steps:
       - uses: actions/checkout@v4
-      - name: Run Liquibase on prod RDS (placeholder)
-        run: echo "Would run liquibase update against prod RDS (Contract changeset skipped by precondition)"
 
+      - uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ secrets.AWS_ROLE_ARN }}
+          aws-region:     ${{ env.AWS_REGION }}
+
+      - name: Run Liquibase on prod RDS
+        run: |
+          TASK_ARN=$(aws ecs run-task \
+            --cluster "${{ secrets.ECS_CLUSTER }}" \
+            --task-definition "${{ secrets.APP_TASK_FAMILY }}" \
+            --launch-type FARGATE \
+            --network-configuration "awsvpcConfiguration={
+              subnets=[${{ secrets.PRIVATE_SUBNET_ID }}],
+              securityGroups=[${{ secrets.APP_SG_ID }}],
+              assignPublicIp=DISABLED}" \
+            --overrides '{
+              "containerOverrides":[{
+                "name":"app",
+                "command":["liquibase",
+                  "--changelog-file=changelog/db.changelog-master.yaml",
+                  "--search-path=/app/db",
+                  "update"]
+              }]}' \
+            --query 'tasks[0].taskArn' --output text)
+
+          aws ecs wait tasks-stopped --cluster "${{ secrets.ECS_CLUSTER }}" --tasks "$TASK_ARN"
+
+          EXIT_CODE=$(aws ecs describe-tasks \
+            --cluster "${{ secrets.ECS_CLUSTER }}" --tasks "$TASK_ARN" \
+            --query 'tasks[0].containers[0].exitCode' --output text)
+          [ "$EXIT_CODE" = "0" ] || { echo "Liquibase failed (exit $EXIT_CODE)"; exit 1; }
+
+  # ── 6. Prod deploy ────────────────────────────────────────────────────────
   prod-deploy:
-    name: Prod — Deploy App (dual-write)
+    name: Prod — Deploy App
     needs: prod-migrate
     runs-on: ubuntu-latest
     environment: production-deploy
-    # Deploys the app with WRITE_MODE=dual. New orders write to both tables.
-    # After this step: run the backfill worker as a one-shot ECS task, then
-    # run verify_contract_ready.py before approving prod-contract.
+    permissions:
+      id-token: write
+      contents: read
 
     steps:
-      - name: Update ECS service on prod (placeholder)
-        run: echo "Would deploy image ${{ needs.build-and-push.outputs.image_tag }} to prod ECS with WRITE_MODE=dual"
+      - uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ secrets.AWS_ROLE_ARN }}
+          aws-region:     ${{ env.AWS_REGION }}
 
-  prod-contract:
-    name: Prod — Contract Migration (drop column)
-    needs: prod-deploy
-    runs-on: ubuntu-latest
-    environment: production-contract
-    # Gate: approve only after backfill is complete and verify_contract_ready.py exits 0.
-    # The sqlCheck precondition (READ_MODE = new) must pass or Liquibase halts.
+      - name: Log in to ECR
+        id: login-ecr
+        uses: aws-actions/amazon-ecr-login@v2
 
-    steps:
-      - uses: actions/checkout@v4
-      - name: Run Contract changeset on prod RDS (placeholder)
-        run: echo "Would run liquibase update against prod RDS (Contract changeset drops orders.billing_email)"
+      - name: Render new task definition
+        id: render-task-def
+        uses: aws-actions/amazon-ecs-render-task-definition@v1
+        with:
+          task-definition-family: ${{ secrets.APP_TASK_FAMILY }}
+          container-name:         app
+          image: >-
+            ${{ steps.login-ecr.outputs.registry }}/${{ env.APP_IMAGE_NAME_PROD }}:${{ needs.build-and-push.outputs.image_tag }}
+
+      - name: Deploy to ECS
+        uses: aws-actions/amazon-ecs-deploy-task-definition@v2
+        with:
+          task-definition:  ${{ steps.render-task-def.outputs.task-definition }}
+          service:          ${{ secrets.APP_SERVICE_NAME }}
+          cluster:          ${{ secrets.ECS_CLUSTER }}
+          wait-for-service-stability: true
+
+      # Trigger the backfill worker as a one-off Fargate task.
+      # It connects directly to RDS (bypasses pgbouncer) and exits when done.
+      # Monitor progress in CloudWatch Logs: /ecs/db-migration-example-prod/worker
+      - name: Run backfill worker
+        run: |
+          aws ecs run-task \
+            --cluster "${{ secrets.ECS_CLUSTER }}" \
+            --task-definition "${{ secrets.WORKER_TASK_DEF_ARN }}" \
+            --launch-type FARGATE \
+            --network-configuration "awsvpcConfiguration={
+              subnets=[${{ secrets.PRIVATE_SUBNET_ID }}],
+              securityGroups=[${{ secrets.APP_SG_ID }}],
+              assignPublicIp=DISABLED}"
+          echo "Backfill worker started. Monitor: CloudWatch Logs /ecs/db-migration-example-prod/worker"

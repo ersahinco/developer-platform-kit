@@ -1,0 +1,31 @@
+databaseChangeLog:
+  - changeSet:
+      id: 003-create-backfill-progress
+      author: db-migration-example
+      comment: >
+        Move backfill_progress table under Liquibase ownership.
+        Previously created via docker-entrypoint-initdb.d/observability.sql,
+        which only ran on a fresh DB init and was invisible to Liquibase.
+        IF NOT EXISTS makes this idempotent against existing deployments.
+      changes:
+        - sql:
+            sql: |
+              CREATE TABLE IF NOT EXISTS backfill_progress (
+                  job_name       TEXT        PRIMARY KEY,
+                  last_order_id  BIGINT      NOT NULL DEFAULT 0,
+                  rows_processed BIGINT      NOT NULL DEFAULT 0,
+                  updated_at     TIMESTAMPTZ NOT NULL DEFAULT NOW()
+              );
+            splitStatements: false
+
+  - changeSet:
+      id: 003-seed-backfill-progress
+      author: db-migration-example
+      comment: "Seed the initial checkpoint row — ON CONFLICT DO NOTHING makes this idempotent."
+      changes:
+        - sql:
+            sql: |
+              INSERT INTO backfill_progress (job_name, last_order_id, rows_processed)
+              VALUES ('order_contact_email_backfill', 0, 0)
+              ON CONFLICT (job_name) DO NOTHING;
+            splitStatements: false

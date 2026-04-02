@@ -1,11 +1,11 @@
-from __future__ import annotations
-
 import datetime
+from decimal import Decimal
 
 from sqlalchemy import BigInteger, ForeignKey, Numeric, String, TIMESTAMP
 from sqlalchemy.orm import Mapped, mapped_column
 
 from db import Base
+from domain.order import OrderStatus
 
 
 class OrderModel(Base):
@@ -13,14 +13,18 @@ class OrderModel(Base):
 
     id: Mapped[int] = mapped_column(BigInteger, primary_key=True, autoincrement=True)
     customer_id: Mapped[int] = mapped_column(BigInteger, nullable=False)
-    total_amount: Mapped[float] = mapped_column(Numeric(12, 2), nullable=False)
-    status: Mapped[str] = mapped_column(String(32), nullable=False)
+    # Decimal matches the Numeric(12,2) column type and the domain/schema contract.
+    total_amount: Mapped[Decimal] = mapped_column(Numeric(12, 2), nullable=False)
+    # Physical column name is 'status'; mapped as order_status in Python so application
+    # code is stable across any future rename migration.
+    order_status: Mapped[OrderStatus] = mapped_column("status", String(32), nullable=False)
     submitted_at: Mapped[datetime.datetime] = mapped_column(TIMESTAMP(timezone=True), nullable=False)
-    # Dropped in the Contract phase — nullable so the ORM works before and after the migration.
-    billing_email: Mapped[str | None] = mapped_column(String(255), nullable=True)
     created_at: Mapped[datetime.datetime] = mapped_column(
         TIMESTAMP(timezone=True), nullable=False, server_default="NOW()"
     )
+    # Present in legacy/dual WRITE_MODE phases; dropped in the contract phase.
+    # Mapped as Optional so the model works after the column is gone.
+    billing_email: Mapped[str | None] = mapped_column(String(255))
 
 
 class OrderContactEmailModel(Base):

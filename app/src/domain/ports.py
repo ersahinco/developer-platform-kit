@@ -1,8 +1,7 @@
-from __future__ import annotations
-
 import abc
+from decimal import Decimal
 
-from domain.order import Order
+from domain.order import Order, OrderStatus
 
 
 class OrderRepository(abc.ABC):
@@ -10,8 +9,8 @@ class OrderRepository(abc.ABC):
     def create_order(
         self,
         customer_id: int,
-        total_amount: float,
-        status: str,
+        total_amount: Decimal,
+        order_status: OrderStatus,
         billing_email: str | None,
     ) -> Order: ...
 
@@ -21,7 +20,7 @@ class OrderRepository(abc.ABC):
 
 class ConfigStore(abc.ABC):
     @abc.abstractmethod
-    def get_read_mode(self) -> str: ...
+    def get(self, key: str) -> str | None: ...
 
     @abc.abstractmethod
-    def set_read_mode(self, mode: str) -> None: ...
+    def set(self, key: str, value: str) -> None: ...

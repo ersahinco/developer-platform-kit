@@ -1,0 +1,22 @@
+# Checkov skip configuration for known-accepted findings.
+# Each skip must have a documented rationale. Remove the skip if the
+# underlying condition changes (e.g. HTTPS is added to the ALB listener).
+
+skip-check:
+  # HTTP-only ALB listener — intentional for this demo. In production, add an
+  # HTTPS listener with an ACM certificate and redirect HTTP → HTTPS.
+  - CKV_AWS_2
+
+  # ALB access logging disabled — adds S3 cost and operational overhead not
+  # justified for this example. Enable in production for audit trails.
+  - CKV_AWS_91
+
+  # ALB deletion protection disabled — intentional; this example environment
+  # is designed to be torn down. Enable in production (CKV_AWS_150).
+  - CKV_AWS_150
+
+  # Security group egress open to 0.0.0.0/0 — ECS tasks need outbound internet
+  # access to reach ECR, Secrets Manager, and CloudWatch. Locking egress to
+  # specific CIDRs is not practical for Fargate without a NAT allowlist.
+  - CKV_AWS_25
+  - CKV_AWS_277

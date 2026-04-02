@@ -1,22 +1,33 @@
+from collections.abc import Iterator
+
 from sqlalchemy import create_engine
-from sqlalchemy.orm import DeclarativeBase, sessionmaker
+from sqlalchemy.orm import DeclarativeBase, Session, sessionmaker
+from sqlalchemy.pool import NullPool
 
 from config import settings
 
+# NullPool: pgbouncer (transaction mode) manages the server-side connection pool.
+# SQLAlchemy does not need its own pool on top — each checkout opens a new
+# pgbouncer client connection, which pgbouncer maps to a pooled server connection.
+# Stacking two pools would hold server connections idle inside SQLAlchemy's pool,
+# defeating pgbouncer's multiplexing.
 engine = create_engine(
-    settings.database_url,
-    pool_pre_ping=True,
-    pool_size=5,
-    max_overflow=5,
+    str(settings.database_url),
+    poolclass=NullPool,
+    # pool_pre_ping is omitted — it is a no-op with NullPool because every
+    # connection is opened fresh per request; there is nothing to ping.
 )
-SessionLocal = sessionmaker(bind=engine, autocommit=False, autoflush=False)
+SessionLocal = sessionmaker(engine, autoflush=False)
+# autoflush=False: with NullPool and short-lived per-request sessions there is
+# no benefit to implicit flushes before queries, and disabling it avoids
+# surprising DB round-trips inside read paths.
 
 
 class Base(DeclarativeBase):
     pass
 
 
-def get_db():
+def get_db() -> Iterator[Session]:
     db = SessionLocal()
     try:
         yield db

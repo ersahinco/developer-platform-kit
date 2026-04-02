@@ -1,39 +1,18 @@
 # Architecture
 
-## Why hexagonal architecture for a migration example?
+## Why hexagonal architecture?
 
-The migration requires the app to change *where* it reads and writes data at runtime — without a redeploy, without touching the HTTP layer. That's only possible if the HTTP layer doesn't know about SQL.
+The HTTP layer (`main.py`) never touches SQL directly. It calls abstract ports (`OrderRepository`), and the concrete implementation in `repository.py` handles all storage concerns. This boundary is what makes the migration transparent to the HTTP layer — the route handler for `GET /orders/{id}` is unchanged whether `billing_email` lives in `orders` or `order_contact_email`.
 
-`ports.py` defines what the domain needs, not how it's done:
+`ports.py` defines what the domain needs:
 
 ```python
 class OrderRepository(abc.ABC):
+    def create_order(...) -> Order: ...
     def get_order(self, order_id: int) -> Order | None: ...
-
-class ConfigStore(abc.ABC):
-    def get_read_mode(self) -> str: ...
-    def set_read_mode(self, mode: str) -> None: ...
 ```
 
-`main.py` calls the port. It has no idea which table `get_order` reads from:
-
-```python
-order = repo.get_order(order_id)
-```
-
-The routing logic lives entirely in `repository.py`:
-
-```python
-if self._config_store.get_read_mode() == "new":
-    contact = self._session.get(OrderContactEmailModel, order_id)
-    resolved_email = contact.billing_email if contact else None
-else:
-    resolved_email = order_row.billing_email  # legacy column
-```
-
-When `POST /admin/read-mode {"mode": "new"}` is called, `set_read_mode` writes to `app_runtime_config` and invalidates the in-process cache. The next request reads the new value. The route handler never changes.
-
-Without this separation, the `if read_mode == "new"` branch would live in the route — mixing HTTP and storage concerns, and making the switch a deploy instead of an API call.
+`repository.py` reads `WRITE_MODE` and `READ_MODE` from `app_runtime_config` (TTL-cached, 5 s) to decide which table(s) to write to and read from.
 
 ---
 
@@ -45,58 +24,86 @@ adapters/api/        — HTTP boundary (FastAPI routes, Pydantic schemas)
 domain/              — Order entity, abstract ports (pure Python)
                            ↓ implemented by
 adapters/db/         — SQLAlchemy models, repository (all SQL lives here)
-db.py                — engine, session factory, get_db()
+db.py                — engine (NullPool), session factory, get_db()
 ```
 
 ---
 
-## Runtime config cache
+## Schema migration — expand/contract lifecycle
 
-`_ReadModeCache` in `repository.py` is a process-level cache with a 5-second TTL and double-checked locking. On a cache miss, one thread queries the DB while others wait on the lock. When the lock is released, waiting threads see a warm cache and return without a DB hit — N concurrent misses cause exactly one DB query.
+The migration moves `orders.billing_email` into a dedicated `order_contact_email` table using the manual expand → dual-write → backfill → switch → contract pattern.
 
-`set_read_mode` calls `invalidate()` immediately so the next request re-reads from the DB rather than waiting for TTL expiry.
+`repository.py` reads `WRITE_MODE` and `READ_MODE` from `app_runtime_config` (TTL-cached, 5 s) to decide which table(s) to write to and read from.
 
-In production, `invalidate()` only clears the local process cache. Other instances serve stale values until their TTL expires. The fix is pub/sub invalidation (Redis, SNS) — each instance drops its cache on receipt of the event. The cache is entirely inside `SQLAlchemyConfigStore`, so swapping the mechanism is a one-file change with no impact on the ports or routes.
+- `WRITE_MODE` (`legacy` → `dual` → `new`) controls which table(s) receive new writes. `legacy` is safe to deploy before `order_contact_email` exists. `dual` keeps both tables in sync during the backfill window so a `READ_MODE` rollback is always safe. `new` stops touching `orders.billing_email` and is the pre-condition for the contract phase.
+- `READ_MODE` (`legacy` → `new`) controls which table serves reads. Decoupled from `WRITE_MODE` so the read cutover can be verified and rolled back independently.
+- Both flags are stored in `app_runtime_config` and cached with a 5 s TTL — no redeploy needed to advance or roll back a phase.
+- `ConfigStore` port + `SQLAlchemyConfigStore` keep the flag persistence behind an abstraction so `repository.py` never imports HTTP or config concerns directly.
+- `/admin/read-mode` and `/admin/write-mode` expose the switches as HTTP endpoints for the runbook and `scripts/set_runtime_config.py`.
+- `require_phase` markers in the test suite gate each test to the phases where its invariant holds, detected from the live `app_runtime_config` rows at session start.
 
----
+### Relationship with Liquibase
 
-## Backfill worker
+Liquibase owns the migration history (`DATABASECHANGELOG`) and runs all DDL: bootstrapping tables, creating `app_runtime_config`, seeding config rows, and the `order_contact_email` table creation.
 
-Separate Docker service, no FastAPI dependency. Runs once and exits.
-
-Each batch:
-1. Read checkpoint from `backfill_progress` inside the transaction.
-2. `SELECT id, billing_email FROM orders WHERE id > :last_id AND billing_email IS NOT NULL ORDER BY id LIMIT :batch_size`
-3. `INSERT INTO order_contact_email ... ON CONFLICT (order_id) DO NOTHING` — safe to re-run.
-4. Update checkpoint in the same transaction — cursor only advances on successful insert.
-5. Sleep `BACKFILL_SLEEP_MS` ms before next batch.
-
-The checkpoint + same-transaction update means a crash mid-batch replays the batch cleanly on restart.
+Liquibase connects directly to Postgres (not via PgBouncer) — DDL statements require a persistent session connection.
 
 ---
 
-## Contract changeset precondition
+## PgBouncer — connection pooling
 
-`003-contract-drop-orders-billing-email.yaml` uses a Liquibase `sqlCheck` precondition:
+PgBouncer runs as a sidecar in every environment:
 
-```yaml
-preConditions:
-  - onFail: HALT
-    sqlCheck:
-      expectedResult: new
-      sql: SELECT value FROM app_runtime_config WHERE key = 'READ_MODE'
+- **Local / Docker Compose**: `pgbouncer` service, app connects to `pgbouncer:5432` (port 6432 on the host).
+- **ECS Fargate**: `pgbouncer` container in the same task definition as `app`. Both share the task's network namespace — the app connects to `localhost:5432`.
+
+**Why transaction mode**: server connections are returned to the pool after each transaction. A request that takes 10ms holds a server connection for 10ms, not for the lifetime of the HTTP connection. This allows many app connections to share a small RDS pool.
+
+**Why `NullPool` in SQLAlchemy**: stacking SQLAlchemy's own pool on top of PgBouncer's pool would hold server connections idle inside SQLAlchemy between requests, defeating PgBouncer's multiplexing. `NullPool` means SQLAlchemy opens and closes a pgbouncer client connection per request. PgBouncer maps that to a pooled server connection for the transaction duration.
+
+**Pool sizing**: `default_pool_size=20` server connections to RDS. RDS `db.t4g.small` has `max_connections ≈ 97`. 20 server connections leaves headroom for superuser, monitoring, and Liquibase connections. Adjust `pgbouncer_pool_size` in `dev.tfvars` / `prod.tfvars` if connection wait times appear in pgbouncer logs.
+
+**Liquibase bypasses PgBouncer**: it uses DDL that requires a persistent session. It connects directly to the RDS endpoint, not via PgBouncer.
+
+---
+
+## Test design
+
+Tests connect to the live DB via PgBouncer (same `DATABASE_URL` as the app) and to the running app via HTTP. `conftest.py` detects the current migration phase from `app_runtime_config` at session start and uses it to skip tests whose invariants don't hold in the current phase — `require_phase("dual", "switch")` skips in `legacy` and `post_contract`, for example. This means the same test suite runs at every phase of the runbook; only the relevant subset executes.
+
+`committed_db_session` cleans up test rows by watermark after each test. Teardown is unconditional — a failing assertion cannot leave the DB in a state that breaks subsequent tests.
+
+---
+
+## Dev environment strategy
+
+The project uses a long-lived dev environment on AWS (same account, Terraform-isolated from prod via separate state keys and tfvars) rather than ephemeral per-PR environments. The rationale:
+
+- Ephemeral envs add 5–10 min of RDS provisioning per PR and require teardown automation that itself needs maintenance.
+- A long-lived dev env catches infra-level behavior — IAM boundary conditions, security group rules, ALB health check timing, ECS cold-start, PgBouncer pool exhaustion under load — that CI service containers cannot simulate.
+- The risk of dev diverging from prod is managed by: append-only Liquibase changesets, no manual schema edits on dev, and periodic resets at sprint boundaries.
+
+**Sprint reset procedure**:
+
+```bash
+cd infra
+terraform init -backend-config="key=db-migration-example/dev.tfstate" -reconfigure
+terraform destroy -var-file=dev.tfvars
+terraform apply   -var-file=dev.tfvars
 ```
 
-If `READ_MODE != new`, Liquibase halts without marking the changeset as run. Running `liquibase update` again after switching reads will apply it. This is the database enforcing that no reads point at the column before it's dropped.
+Then re-run the full runbook from step 2 against the fresh dev RDS. If any step fails, it fails here — not in prod.
+
+Data volume on dev can be smaller than prod (seed defaults: 1,000 customers / 10,000 orders), but the data shape should match: same schema state, same `DATABASECHANGELOG` history, representative guest-checkout ratio (~5%).
 
 ---
 
 ## What's intentionally omitted
 
-- Feedback-driven backfill throttling (replication lag, primary CPU load)
-- Rolling deploy coordination for `WRITE_MODE` across multiple instances
-- Pub/sub cache invalidation for `READ_MODE` across instances
+- Backfill throttling based on replication lag or primary CPU load
+- Rolling deploy coordination — during the dual-write window, old and new app versions run simultaneously; both write to `orders.billing_email` and `order_contact_email`, but this is not explicitly tested under concurrent load
+- PgBouncer pool exhaustion handling — `max_client_conn=200` is a hard limit; requests beyond that are rejected. A circuit breaker or queue in front of the app would be needed at high scale
 - `CREATE INDEX CONCURRENTLY` failure detection (check `pg_indexes` for `INVALID`)
-- PgBouncer for the backfill worker
-- Secrets management (`DATABASE_URL` in `.env` is local-only)
-- DB snapshot before the Contract phase
+- Secrets management (`DATABASE_URL` in `.env` is local-only; ECS injects credentials via Secrets Manager)
+- DB snapshot before the contract phase (drop column)
+- Pub/sub cache invalidation for any remaining runtime config flags across multiple instances

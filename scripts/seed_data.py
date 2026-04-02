@@ -25,18 +25,17 @@ import os
 import random
 import time
 from datetime import datetime, timedelta, timezone
+from decimal import Decimal
+from pathlib import Path
 
-from pydantic_settings import BaseSettings, SettingsConfigDict
+from dotenv import load_dotenv
 from sqlalchemy import create_engine, text
 
+# load_dotenv with override=False: env vars already set in the shell take
+# precedence over .env values, matching the behaviour of the app's pydantic-settings.
+load_dotenv(Path(__file__).parent.parent / ".env", override=False)
 
-class Settings(BaseSettings):
-    model_config = SettingsConfigDict(env_file=".env", env_file_encoding="utf-8", extra="ignore")
-
-    database_url: str
-
-
-settings = Settings()
+DATABASE_URL = os.environ["DATABASE_URL"]
 
 NUM_CUSTOMERS = int(os.environ.get("SEED_NUM_CUSTOMERS", 1_000))
 NUM_ORDERS = int(os.environ.get("SEED_NUM_ORDERS", 10_000))
@@ -83,7 +82,7 @@ def random_submitted_at() -> datetime:
 
 
 def main() -> None:
-    engine = create_engine(settings.database_url, pool_pre_ping=True)
+    engine = create_engine(DATABASE_URL, pool_pre_ping=True)
 
     with engine.connect() as conn:
         # ------------------------------------------------------------------ #
@@ -143,7 +142,9 @@ def main() -> None:
                     billing_email = None if is_guest else customer_email(cust_name, cust_id)
                     rows.append({
                         "customer_id": cust_id,
-                        "total_amount": round(random.uniform(1.00, 9999.99), 2),
+                        # Decimal via string avoids float representation noise before
+                        # the value reaches the NUMERIC(12,2) column.
+                        "total_amount": Decimal(f"{random.uniform(1.00, 9999.99):.2f}"),
                         "status": random.choice(STATUSES),
                         "submitted_at": random_submitted_at(),
                         "billing_email": billing_email,

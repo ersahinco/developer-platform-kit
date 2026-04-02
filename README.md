@@ -1,32 +1,41 @@
 # db-migration-example
 
-A fully-runnable local example of the **expand → dual-write → backfill → switch → contract** pattern for zero/low-downtime schema migrations.
+A fully-runnable local example of zero-downtime schema migration using the **expand/contract** pattern and **PgBouncer** for connection pooling across all environments.
 
-The concrete migration: moving `orders.billing_email` into a dedicated `order_contact_email` table — without downtime, without locking the table, and without a flag day.
+The concrete migration: moving `orders.billing_email` into a dedicated `order_contact_email` table — without downtime, without locking the table, without a flag day.
 
 ---
 
 ## What this demonstrates
 
-| Phase | Mechanism | Key files |
+| Concern | Mechanism | Key files |
 |---|---|---|
-| Expand | Additive DDL — new table + index, nothing removed | `db/changelog/001-expand-order-contact-email.yaml` |
-| Dual-write | `WRITE_MODE=dual` — app writes to both tables | `app/src/adapters/db/repository.py` |
-| Backfill | Standalone worker copies historic rows in batches | `worker/src/backfill.py` |
-| Switch | `POST /admin/read-mode` flips reads at runtime, no redeploy | `scripts/switch_read_mode.py` |
-| Contract | Guarded DDL — drops old column only when `READ_MODE=new` | `db/changelog/003-contract-drop-orders-billing-email.yaml` |
+| Schema bootstrap | Liquibase changesets | `db/changelog/000-bootstrap.yaml`, `002-app-runtime-config.yaml` |
+| Column migration | Expand/contract (dual-write + backfill + switch) | `db/changelog/`, `worker/src/backfill.py` |
+| Connection pooling | PgBouncer (transaction mode) | `docker-compose.yml`, `db/pgbouncer/pgbouncer.ini`, `infra/main.tf` |
+| Zero-downtime deploy | ECS rolling update + WRITE_MODE/READ_MODE flags | `infra/main.tf`, `.github/workflows/deploy.yml` |
 
 ---
 
 ## How it works
 
-The app controls migration behavior through two environment variables — `WRITE_MODE` and `READ_MODE` — without any redeploy. This is possible because the HTTP layer (`main.py`) never touches SQL directly. It calls abstract ports (`OrderRepository`, `ConfigStore`), and the concrete implementation in `repository.py` decides which table to read from or write to based on the current mode.
+The migration follows the **expand → dual-write → backfill → switch → contract** pattern:
 
-Flipping `POST /admin/read-mode {"mode": "new"}` writes to `app_runtime_config` in the database and takes effect on the next request. The route handler is unchanged.
+1. Expand — Liquibase creates `order_contact_email`. `orders.billing_email` still exists.
+2. Dual-write — advance `WRITE_MODE=dual` via the admin API. The app writes to both tables.
+3. Backfill — the worker copies historical rows from `orders.billing_email` into `order_contact_email`.
+4. Switch — advance `READ_MODE=new`. The app reads from `order_contact_email`.
+5. Contract — advance `WRITE_MODE=new`, then drop `orders.billing_email` via a Liquibase changeset.
+
+**PgBouncer** sits between the app and Postgres in every environment. The app's `DATABASE_URL` points to PgBouncer, not Postgres directly. PgBouncer runs in transaction mode — server connections are returned to the pool after each transaction, multiplexing many app connections onto a small RDS pool. SQLAlchemy uses `NullPool` so it does not stack its own pool on top of PgBouncer's.
+
+Liquibase connects directly to Postgres (not via PgBouncer) — DDL statements require a persistent session connection.
 
 See [`ARCHITECTURE.md`](ARCHITECTURE.md) for the full design rationale.
 
 ---
+
+## Prerequisites
 
 - Docker Desktop — [install](https://docs.docker.com/desktop/install/mac-install/)
 - Python 3.12+ — `brew install python@3.12`
@@ -37,26 +46,22 @@ See [`ARCHITECTURE.md`](ARCHITECTURE.md) for the full design rationale.
 ## Project layout
 
 ```
-data-ai/db-migration-example/
+db-migration-example/
 ├── app/src/
-│   ├── config.py                 # pydantic-settings: WRITE_MODE, READ_MODE, DATABASE_URL
-│   ├── db.py                     # SQLAlchemy engine + get_db()
+│   ├── config.py                 # pydantic-settings: DATABASE_URL
+│   ├── db.py                     # SQLAlchemy engine (NullPool — pgbouncer owns pooling)
 │   ├── domain/
 │   │   ├── order.py              # Order entity — pure Python
-│   │   └── ports.py              # Abstract interfaces: OrderRepository, ConfigStore
+│   │   └── ports.py              # Abstract interface: OrderRepository
 │   └── adapters/
 │       ├── api/main.py           # FastAPI routes
-│       └── db/repository.py      # Dual-write + read-mode routing lives here
-├── worker/src/
-│   ├── backfill.py               # Checkpoint-based batch backfill
-│   └── metrics.py                # Structured JSON batch logging
-├── db/changelog/
-│   ├── 000-bootstrap.yaml        # customers + orders tables
-│   ├── 001-expand-*.yaml         # Expand phase
-│   ├── 002-switch-*.yaml         # app_runtime_config + READ_MODE seed
-│   └── 003-contract-*.yaml       # Contract phase (guarded by precondition)
-├── scripts/                      # seed, smoke test, switch, verify, upgrade-path
-├── tests/                        # pytest phase-aware integration tests
+│       └── db/repository.py      # Writes to + reads from order_contact_email
+├── db/
+│   ├── changelog/                # Liquibase: bootstrap + app_runtime_config
+│   ├── pgbouncer/pgbouncer.ini   # PgBouncer config (used as reference; Docker uses env vars)
+│   └── sql/bootstrap.sql         # Postgres init: pg_stat_statements extension
+├── scripts/                      # seed, smoke test
+├── tests/                        # pytest integration tests
 ├── .env.example                  # All env vars with safe local defaults
 └── docker-compose.yml
 ```
@@ -65,12 +70,12 @@ data-ai/db-migration-example/
 
 ## Environment variables
 
-| Variable | Values | Effect |
-|---|---|---|
-| `WRITE_MODE` | `legacy` / `dual` / `new` | Where `POST /orders` writes email data |
-| `READ_MODE` | `legacy` / `new` | Where `GET /orders/{id}` reads email from |
-
-`READ_MODE` is also switchable at runtime via `POST /admin/read-mode` — no restart needed.
+| Variable | Effect |
+|---|---|
+| `DATABASE_URL` | App/test connection string — points to PgBouncer (`localhost:6432` on the host, `pgbouncer:5432` inside Docker) |
+| `BACKFILL_DATABASE_URL` | Worker connection string — points directly to Postgres, bypassing PgBouncer (`localhost:5432` on the host, `db:5432` inside Docker) |
+| `SEED_NUM_CUSTOMERS` | Number of customers to seed (default: 1,000) |
+| `SEED_NUM_ORDERS` | Number of orders to seed (default: 10,000) |
 
 Copy the example env file once:
 
@@ -78,10 +83,11 @@ Copy the example env file once:
 cp .env.example .env
 ```
 
-> **Host vs container `DATABASE_URL`** — `.env` uses `db` as the hostname, which resolves inside Docker. Scripts running on your Mac need `localhost`:
+> **Host vs container hostnames** — `.env` uses Docker service names (`pgbouncer`, `db`). Anything running on your Mac (scripts, tests) must use `localhost` instead:
 > ```bash
-> export DATABASE_URL=postgresql://postgres:postgres@localhost:5432/migration_example
+> export DATABASE_URL=postgresql://postgres:postgres@localhost:6432/migration_example
 > ```
+> The test suite rewrites `BACKFILL_DATABASE_URL` automatically — `conftest.py` loads `.env` at startup (putting the Docker-internal `db:5432` URL into the environment), and `test_backfill.py` unconditionally overwrites it with a `localhost:5432` URL derived from `DATABASE_URL` before spawning the worker subprocess.
 
 ---
 
@@ -93,17 +99,14 @@ cp .env.example .env
 docker compose down -v --remove-orphans
 ```
 
-Destroys all containers and volumes. Start from step 1.
-
-### 1. Start the database
+### 1. Start the database and PgBouncer
 
 ```bash
-cd data-ai/db-migration-example
-docker compose up -d db
-docker compose ps db   # wait until Status shows "healthy"
+docker compose up -d db pgbouncer
+docker compose ps   # wait until db is healthy
 ```
 
-**Connecting with DBeaver or pgAdmin:**
+**Connecting with DBeaver or pgAdmin (direct Postgres):**
 
 | Field | Value |
 |---|---|
@@ -113,15 +116,26 @@ docker compose ps db   # wait until Status shows "healthy"
 | Username | `postgres` |
 | Password | `postgres` |
 
-pgAdmin is also included in the stack — start it with `docker compose up -d pgadmin` and open `http://localhost:5050` (email: `admin@local.dev`, password: `admin`). Register a new server using the same connection details above, but set Host to `db` (the Docker-internal hostname).
+**Connecting via PgBouncer** (mirrors what the app sees):
 
-### 2. Apply migrations (Expand phase)
+| Field | Value |
+|---|---|
+| Host | `localhost` |
+| Port | `6432` |
+
+pgAdmin is available as an optional dev tool:
+```bash
+docker compose --profile tools up -d pgadmin
+```
+Open `http://localhost:5050` (email: `admin@local.dev`, password: `admin`). Use `db` as the host when registering the server inside Docker.
+
+### 2. Apply Liquibase migrations
 
 ```bash
 ./scripts/run_liquibase.sh update
 ```
 
-Applies four changesets. The Contract changeset (`003`) is **skipped** — its precondition fails because `READ_MODE=legacy`.
+Creates `customers` and `orders` tables (bootstrap), `order_contact_email` (expand), and `app_runtime_config` (runtime config).
 
 ### 3. Seed data
 
@@ -131,123 +145,96 @@ export DATABASE_URL=postgresql://postgres:postgres@localhost:5432/migration_exam
 uv run python scripts/seed_data.py
 ```
 
-Inserts 1,000 customers and 10,000 orders by default. ~5% are guest checkouts with no `billing_email`. Idempotent.
+Inserts 1,000 customers and 10,000 orders. ~5% are guest checkouts with no `billing_email`. Idempotent.
 
-To seed a larger volume (e.g. for QA against RDS):
-
-```bash
-SEED_NUM_CUSTOMERS=50000 SEED_NUM_ORDERS=1000000 uv run python scripts/seed_data.py
-```
-
-### 4. Start the app — Legacy phase
-
-`.env` defaults to `WRITE_MODE=legacy`. New orders write only to `orders.billing_email`.
+### 4. Start the app
 
 ```bash
+docker compose build app
 docker compose up -d app
 uv run python scripts/smoke_test.py   # → health ok
 ```
 
-### 5. Enable dual-write
+### 4a. Advance WRITE_MODE to dual
 
-Edit `.env`: set `WRITE_MODE=dual`, then restart:
+Now that `order_contact_email` exists, tell the app to write to both tables. This is done via the admin API — not a direct DB write — so the in-process TTL cache is invalidated immediately across all instances:
 
 ```bash
-docker compose up -d app
+export BASE_URL=http://localhost:8000
+uv run python scripts/set_runtime_config.py write-mode dual
 ```
 
-New orders now write to both `orders.billing_email` and `order_contact_email`. Reads still come from `orders.billing_email`.
-
-**Rollback:** Set `WRITE_MODE=legacy` and restart. Rows already in `order_contact_email` are harmless while `READ_MODE=legacy`.
-
-### 6. Run the backfill worker
+### 5. Run the backfill worker
 
 ```bash
-docker compose build worker   # rebuild if code changed since last run
+docker compose build worker
 docker compose up worker
 ```
 
-The worker reads from `orders.billing_email`, copies rows into `order_contact_email` in batches of 1,000 (configurable via `BACKFILL_BATCH_SIZE`), and exits when done:
+The worker reads from `orders.billing_email`, copies rows into `order_contact_email` in batches, and exits when done:
 
 ```json
-{"last_order_id": 12500, "inserted": 1000, "elapsed_ms": 47.3}
+{"last_order_id": 5000, "inserted": 1000, "elapsed_ms": 42.1}
 ...
 backfill complete
 ```
 
-**Rollback:** The backfill is safe to re-run (`ON CONFLICT DO NOTHING`). To undo:
-```bash
-docker exec db-migration-example-db-1 psql -U postgres -d migration_example \
-  -c "TRUNCATE order_contact_email; UPDATE backfill_progress SET last_order_id=0, rows_processed=0;"
-```
+Safe to re-run (`ON CONFLICT DO NOTHING`). Crash-safe — the checkpoint cursor advances only on successful batch commit.
 
-### 7. Verify readiness, then switch reads
+### 6. Switch READ_MODE and run the test suite
+
+Switch reads to the new table now that the backfill is complete:
 
 ```bash
-uv run python scripts/verify_contract_ready.py
+export BASE_URL=http://localhost:8000
+uv run python scripts/set_runtime_config.py read-mode new
 ```
 
-Before switching you'll see:
-```
-OK: all backfill rows are present in order_contact_email.
-FAIL: READ_MODE is 'legacy', expected 'new'.
-```
-
-Switch reads to the new table (no redeploy — updates `app_runtime_config` in the DB):
+Then run the full suite — phase detection will see `WRITE_MODE=dual`, `READ_MODE=new` → `switch` phase, which exercises the maximum number of tests:
 
 ```bash
-uv run python scripts/switch_read_mode.py new
-uv run python scripts/verify_contract_ready.py
-# OK: all backfill rows are present in order_contact_email.
-# OK: READ_MODE is 'new'.
-# Contract phase is ready.
+export DATABASE_URL=postgresql://postgres:postgres@localhost:6432/migration_example
+uv sync --group test
+uv run pytest tests/ -v
 ```
 
-**Rollback:** Instant, no restart:
+### 7. Advance WRITE_MODE to new (pre-contract)
+
+Once reads are verified on the new table, stop writing to `orders.billing_email`:
+
 ```bash
-uv run python scripts/switch_read_mode.py legacy
+uv run python scripts/set_runtime_config.py write-mode new
 ```
 
-### 8. Apply the Contract migration
+### 8. Apply the Contract migration (drop column)
+
+Once all app instances are running the new code and `WRITE_MODE=new`, apply the contract changeset via Liquibase:
 
 ```bash
 ./scripts/run_liquibase.sh update
 ```
 
-The precondition now passes (`READ_MODE=new`) and `orders.billing_email` is dropped. **Irreversible** — take a DB snapshot before this step.
-
-### 9. Stop dual-writing (cleanup)
-
-`orders.billing_email` no longer exists. Edit `.env`: set `WRITE_MODE=new`, then restart:
-
-```bash
-docker compose up -d app
-```
-
-### 10. Run the test suite
-
-Tests are phase-aware — they skip automatically based on the current `WRITE_MODE` and DB schema state.
-
-```bash
-export DATABASE_URL=postgresql://postgres:postgres@localhost:5432/migration_example
-export BASE_URL=http://localhost:8000
-uv sync --group test
-uv run pytest tests/ -v
-```
+This drops `orders.billing_email`. **Irreversible** — take a DB snapshot before this step in production.
 
 ---
 
 ## Why `CREATE INDEX CONCURRENTLY`
 
-A standard `CREATE INDEX` holds a `ShareLock` for the full build duration, blocking all writes. `CREATE INDEX CONCURRENTLY` builds in multiple passes with no long lock — writes continue uninterrupted. The trade-off: it takes longer and cannot run inside a transaction block, which is why the changeset sets `runInTransaction: false`.
+A standard `CREATE INDEX` holds a `ShareLock` for the full build duration, blocking all writes. `CREATE INDEX CONCURRENTLY` builds in multiple passes with no long lock — writes continue uninterrupted. The trade-off: it takes longer and cannot run inside a transaction block.
 
-For a new empty table the difference is academic. The pattern is shown here because it is the correct default for any index added to a live table.
+---
+
+## Why PgBouncer in transaction mode
+
+SQLAlchemy uses `NullPool` — it does not maintain its own idle connections. Each request opens a pgbouncer client connection, which pgbouncer maps to a pooled server connection for the duration of the transaction.
 
 ---
 
 ## Upgrade-path test
 
-The CI pipeline (`validate-and-test` job in `.github/workflows/deploy.yml`) is the canonical upgrade-path test. It resets to a clean PostgreSQL instance, applies all migrations, seeds data, starts the app, and runs the full test suite on every push to `main`.
+The CI pipeline (`validate-and-test` job in `.github/workflows/deploy.yml`) resets to a clean PostgreSQL instance, runs Liquibase, seeds data, starts the app, and runs the full test suite on every push to `main`.
+
+The `build-and-push` job runs `trivy image --severity CRITICAL` on the app image before pushing to ECR.
 
 ---
 
