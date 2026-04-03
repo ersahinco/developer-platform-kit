@@ -18,10 +18,10 @@ terraform {
   # State key is supplied at init time via -backend-config="key=..." to isolate
   # dev and prod state without Terraform workspaces.
   backend "s3" {
-    bucket         = "db-migration-example-tfstate-691627364817"
-    region         = "eu-central-1"
-    dynamodb_table = "terraform-locks"
-    encrypt        = true
+    bucket       = "db-migration-example-tfstate-691627364817"
+    region       = "eu-central-1"
+    use_lockfile = true
+    encrypt      = true
     # key is intentionally omitted — pass -backend-config="key=db-migration-example/<env>.tfstate"
   }
 }

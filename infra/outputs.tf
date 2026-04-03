@@ -50,7 +50,7 @@ output "app_service_name" {
 
 output "app_task_exec_role_arn" {
   description = "Task execution role ARN. Set as TASK_EXEC_ROLE_ARN in GitHub."
-  value       = module.ecs.task_exec_iam_role_arn
+  value       = aws_iam_role.task_exec.arn
 }
 
 output "app_task_role_arn" {

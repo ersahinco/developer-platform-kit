@@ -15,7 +15,8 @@ data "aws_region" "current" {}
 locals {
   name       = "db-migration-example-${var.environment}"
   account_id = data.aws_caller_identity.current.account_id
-  region     = data.aws_region.current.name
+  # Use var.aws_region directly — data.aws_region.current.name is deprecated in aws provider v6
+  region     = var.aws_region
   azs        = slice(data.aws_availability_zones.available.names, 0, var.az_count)
 
   tags = {
@@ -194,7 +195,7 @@ module "ecr_worker" {
 
 resource "aws_security_group" "rds" {
   name        = "${local.name}-rds"
-  description = "Postgres from ECS app tasks only — no public access"
+  description = "Postgres from ECS app tasks only - no public access"
   vpc_id      = module.vpc.vpc_id
 
   ingress {
@@ -344,6 +345,47 @@ resource "aws_lb_listener" "http" {
 }
 
 ################################################################################
+# ECS task execution role — created explicitly so worker and liquibase task
+# definitions can reference it without depending on module.ecs outputs, which
+# are null during the same plan that creates those resources.
+################################################################################
+
+data "aws_iam_policy_document" "task_exec_assume" {
+  statement {
+    actions = ["sts:AssumeRole"]
+    principals {
+      type        = "Service"
+      identifiers = ["ecs-tasks.amazonaws.com"]
+    }
+  }
+}
+
+resource "aws_iam_role" "task_exec" {
+  name               = "${local.name}-task-exec"
+  assume_role_policy = data.aws_iam_policy_document.task_exec_assume.json
+  tags               = local.tags
+}
+
+resource "aws_iam_role_policy_attachment" "task_exec_managed" {
+  role       = aws_iam_role.task_exec.name
+  policy_arn = "arn:aws:iam::aws:policy/service-role/AmazonECSTaskExecutionRolePolicy"
+}
+
+resource "aws_iam_role_policy" "task_exec_secrets" {
+  name = "rds-secret-access"
+  role = aws_iam_role.task_exec.id
+
+  policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [{
+      Effect   = "Allow"
+      Action   = "secretsmanager:GetSecretValue"
+      Resource = module.rds.db_instance_master_user_secret_arn
+    }]
+  })
+}
+
+################################################################################
 # ECS — terraform-aws-modules/ecs/aws ~> 7.0
 # v7: cluster_capacity_providers must be explicit — no longer inferred.
 # task_exec_secret_arns is top-level — wires the shared execution role to the
@@ -363,8 +405,8 @@ module "ecs" {
     FARGATE = { weight = 1, base = 1 }
   }
 
-  # Top-level in v7 — grants the shared execution role access to the RDS secret
-  task_exec_secret_arns = [module.rds.db_instance_master_user_secret_arn]
+  # Top-level in v7 — grants the shared execution role access to the RDS secret.
+  task_exec_secret_arns  = [module.rds.db_instance_master_user_secret_arn]
 
   services = {
     app = {
@@ -397,16 +439,14 @@ module "ecs" {
             { name = "DB_PASSWORD", valueFrom = "${module.rds.db_instance_master_user_secret_arn}:password::" },
           ]
 
+          # edoburu/pgbouncer reads DB_HOST, DB_PORT, DB_NAME, DB_USER, DB_PASSWORD
+          # directly from the injected secrets above — no need to re-declare them
+          # as environment variables. Only pool config goes here.
           environment = [
-            { name = "DB_HOST",              value = "$(DB_HOST)" },
-            { name = "DB_PORT",              value = "$(DB_PORT)" },
-            { name = "DB_NAME",              value = "$(DB_NAME)" },
-            { name = "DB_USER",              value = "$(DB_USER)" },
-            { name = "DB_PASSWORD",          value = "$(DB_PASSWORD)" },
-            { name = "POOL_MODE",            value = "transaction" },
-            { name = "DEFAULT_POOL_SIZE",    value = tostring(var.pgbouncer_pool_size) },
-            { name = "MAX_CLIENT_CONN",      value = "200" },
-            { name = "AUTH_TYPE",            value = "scram-sha-256" },
+            { name = "POOL_MODE",         value = "transaction" },
+            { name = "DEFAULT_POOL_SIZE", value = tostring(var.pgbouncer_pool_size) },
+            { name = "MAX_CLIENT_CONN",   value = "200" },
+            { name = "AUTH_TYPE",         value = "scram-sha-256" },
           ]
 
           enable_cloudwatch_logging              = true
@@ -420,18 +460,20 @@ module "ecs" {
           # ECS container definition keys are camelCase — they map directly to the ECS API
           portMappings = [{ containerPort = 8000, protocol = "tcp" }]
 
-          # The app container needs its own copy of DB_USER and DB_PASSWORD so that
-          # ECS variable interpolation ($(VAR)) resolves correctly. Interpolation is
-          # per-container — variables injected into pgbouncer are not visible here.
+          # The app container needs DB_USER and DB_PASSWORD to construct DATABASE_URL.
+          # Injected as separate secrets so ECS resolves them at task start.
+          # DATABASE_URL is then composed as a plain env var — no $(VAR) interpolation
+          # needed since the URL is built from the known static username "app" and
+          # the password secret field injected directly.
           secrets = [
-            { name = "DB_USER",     valueFrom = "${module.rds.db_instance_master_user_secret_arn}:username::" },
             { name = "DB_PASSWORD", valueFrom = "${module.rds.db_instance_master_user_secret_arn}:password::" },
           ]
 
           environment = [
-            # App connects to pgbouncer sidecar on localhost — not RDS directly.
-            # DB_USER / DB_PASSWORD are resolved from the secrets block above.
-            { name = "DATABASE_URL", value = "postgresql://$(DB_USER):$(DB_PASSWORD)@localhost:5432/migration_example" },
+            # Username is static ("app" — set in module.rds). Password comes from
+            # the secret injected above. $(DB_PASSWORD) interpolation works here
+            # because DB_PASSWORD is declared in the secrets block of this container.
+            { name = "DATABASE_URL", value = "postgresql://app:$(DB_PASSWORD)@localhost:5432/migration_example" },
           ]
 
           # pgbouncer must be accepting connections before the app starts.
@@ -492,7 +534,7 @@ resource "aws_ecs_task_definition" "worker" {
   network_mode             = "awsvpc"
   cpu                      = var.worker_cpu
   memory                   = var.worker_memory
-  execution_role_arn       = module.ecs.task_exec_iam_role_arn
+  execution_role_arn       = aws_iam_role.task_exec.arn
   task_role_arn            = module.ecs.services["app"].tasks_iam_role_arn
 
   container_definitions = jsonencode([
@@ -551,7 +593,7 @@ resource "aws_ecs_task_definition" "liquibase" {
   cpu    = 512
   memory = 1024
 
-  execution_role_arn = module.ecs.task_exec_iam_role_arn
+  execution_role_arn = aws_iam_role.task_exec.arn
   # No task role needed — Liquibase only talks to RDS, not AWS APIs.
 
   container_definitions = jsonencode([
@@ -691,10 +733,9 @@ data "aws_iam_policy_document" "github_actions_permissions" {
   statement {
     sid     = "PassRoleToECS"
     actions = ["iam:PassRole"]
-    resources = [
-      module.ecs.task_exec_iam_role_arn,
-      module.ecs.services["app"].tasks_iam_role_arn,
-    ]
+    # Scoped to roles created by this project — avoids the null reference that
+    # occurs when referencing module.ecs outputs before the service is created.
+    resources = ["arn:aws:iam::${local.account_id}:role/db-migration-example-*"]
   }
 
   # Terraform infra pipeline — plan and apply for all managed resources.
