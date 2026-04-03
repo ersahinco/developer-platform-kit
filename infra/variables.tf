@@ -31,6 +31,12 @@ variable "vpc_cidr" {
   default     = "10.0.0.0/16"
 }
 
+variable "alb_ingress_cidr" {
+  description = "CIDR allowed to reach the ALB on port 80. Restrict to a known IP in dev (e.g. 89.0.2.102/32). In production, replace with HTTPS + HTTP redirect — making port 80 scope irrelevant."
+  type        = string
+  default     = "0.0.0.0/0"
+}
+
 variable "az_count" {
   description = "Number of availability zones. 2 for non-prod, 3 for prod."
   type        = number
