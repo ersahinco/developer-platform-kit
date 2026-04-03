@@ -1,22 +1,60 @@
 # Checkov skip configuration for known-accepted findings.
-# Each skip must have a documented rationale. Remove the skip if the
-# underlying condition changes (e.g. HTTPS is added to the ALB listener).
+# Each skip must have a documented rationale. Remove the skip when the
+# underlying condition changes (e.g. HTTPS added, WAF attached).
 
 skip-check:
-  # HTTP-only ALB listener — intentional for this demo. In production, add an
-  # HTTPS listener with an ACM certificate and redirect HTTP → HTTPS.
-  - CKV_AWS_2
+  # HTTP-only ALB — intentional for this demo. In production: add ACM cert,
+  # HTTPS listener, and redirect HTTP → HTTPS. These four checks all resolve
+  # together when HTTPS is added.
+  - CKV_AWS_2     # HTTP listener
+  - CKV_AWS_103   # TLS 1.2 on listener
+  - CKV2_AWS_20   # HTTP → HTTPS redirect
+  - CKV_AWS_378   # Target group HTTP protocol
 
-  # ALB access logging disabled — adds S3 cost and operational overhead not
-  # justified for this example. Enable in production for audit trails.
+  # ALB ingress on port 80 — var.alb_ingress_cidr restricts this to a known
+  # CIDR in dev (see dev.tfvars). Checkov flags the rule regardless of CIDR.
+  # Remove when HTTPS replaces the HTTP listener.
+  - CKV_AWS_260
+
+  # ALB access logging — S3 cost not justified for this demo.
   - CKV_AWS_91
 
-  # ALB deletion protection disabled — intentional; this example environment
-  # is designed to be torn down. Enable in production (CKV_AWS_150).
+  # ALB deletion protection — environment is designed to be torn down.
   - CKV_AWS_150
 
-  # Security group egress open to 0.0.0.0/0 — ECS tasks need outbound internet
-  # access to reach ECR, Secrets Manager, and CloudWatch. Locking egress to
-  # specific CIDRs is not practical for Fargate without a NAT allowlist.
+  # WAF — out of scope for this demo. Add in production for public endpoints.
+  - CKV2_AWS_28
+
+  # ECS task egress to 0.0.0.0/0 — tasks need outbound access to ECR,
+  # Secrets Manager, and CloudWatch. Production fix: add VPC endpoints for
+  # those three services and restrict egress to the VPC CIDR.
   - CKV_AWS_25
   - CKV_AWS_277
+  - CKV_AWS_382
+
+  # SG not attached to a resource — checkov cannot see attachments made inside
+  # the ECS and RDS community modules. Both SGs are wired correctly.
+  - CKV2_AWS_5
+
+  # CloudWatch log groups: no KMS encryption, retention < 1 year.
+  # ECS task logs in dev don't warrant KMS cost or 1-year retention.
+  # Enable both in production for compliance.
+  - CKV_AWS_158
+  - CKV_AWS_338
+
+  # Liquibase container read-only filesystem — Liquibase writes temp files
+  # during migration and cannot run with a read-only root filesystem.
+  - CKV_AWS_336
+
+  # IAM * resources — EC2 Describe, ECS Register/Describe, and ECR
+  # GetAuthorizationToken have no resource-level scope in the AWS API.
+  # Each usage is documented inline in main.tf.
+  - CKV_AWS_356
+  - CKV_AWS_111
+  - CKV_AWS_107
+
+  # Module version constraints vs commit hashes — terraform-aws-modules
+  # publishes to the Terraform Registry with semantic versioning. The registry
+  # version pin (~> x.y) is the documented best practice for registry modules.
+  # Commit hash pinning applies to git-sourced modules only.
+  - CKV_TF_1

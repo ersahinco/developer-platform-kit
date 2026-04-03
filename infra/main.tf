@@ -263,13 +263,15 @@ resource "aws_security_group" "alb" {
   vpc_id      = module.vpc.vpc_id
 
   ingress {
+    description = "HTTP from allowed CIDR"
     from_port   = 80
     to_port     = 80
     protocol    = "tcp"
-    cidr_blocks = ["0.0.0.0/0"]
+    cidr_blocks = [var.alb_ingress_cidr]
   }
 
   egress {
+    description = "All egress to app tasks"
     from_port   = 0
     to_port     = 0
     protocol    = "-1"
@@ -293,6 +295,7 @@ resource "aws_security_group" "app" {
   }
 
   egress {
+    description = "All egress for ECR, Secrets Manager, CloudWatch"
     from_port   = 0
     to_port     = 0
     protocol    = "-1"
@@ -308,7 +311,9 @@ resource "aws_lb" "this" {
   load_balancer_type = "application"
   security_groups    = [aws_security_group.alb.id]
   subnets            = module.vpc.public_subnets
-  tags               = local.tags
+  # Drop invalid HTTP headers — prevents header smuggling attacks at no cost.
+  drop_invalid_header_fields = true
+  tags                       = local.tags
 }
 
 resource "aws_lb_target_group" "app" {
