@@ -16,8 +16,8 @@ locals {
   name       = "db-migration-example-${var.environment}"
   account_id = data.aws_caller_identity.current.account_id
   # Use var.aws_region directly — data.aws_region.current.name is deprecated in aws provider v6
-  region     = var.aws_region
-  azs        = slice(data.aws_availability_zones.available.names, 0, var.az_count)
+  region = var.aws_region
+  azs    = slice(data.aws_availability_zones.available.names, 0, var.az_count)
 
   tags = {
     Project     = "db-migration-example"
@@ -406,7 +406,7 @@ module "ecs" {
   }
 
   # Top-level in v7 — grants the shared execution role access to the RDS secret.
-  task_exec_secret_arns  = [module.rds.db_instance_master_user_secret_arn]
+  task_exec_secret_arns = [module.rds.db_instance_master_user_secret_arn]
 
   services = {
     app = {
@@ -432,10 +432,10 @@ module "ecs" {
           essential = true
 
           secrets = [
-            { name = "DB_HOST",     valueFrom = "${module.rds.db_instance_master_user_secret_arn}:host::" },
-            { name = "DB_PORT",     valueFrom = "${module.rds.db_instance_master_user_secret_arn}:port::" },
-            { name = "DB_NAME",     valueFrom = "${module.rds.db_instance_master_user_secret_arn}:dbname::" },
-            { name = "DB_USER",     valueFrom = "${module.rds.db_instance_master_user_secret_arn}:username::" },
+            { name = "DB_HOST", valueFrom = "${module.rds.db_instance_master_user_secret_arn}:host::" },
+            { name = "DB_PORT", valueFrom = "${module.rds.db_instance_master_user_secret_arn}:port::" },
+            { name = "DB_NAME", valueFrom = "${module.rds.db_instance_master_user_secret_arn}:dbname::" },
+            { name = "DB_USER", valueFrom = "${module.rds.db_instance_master_user_secret_arn}:username::" },
             { name = "DB_PASSWORD", valueFrom = "${module.rds.db_instance_master_user_secret_arn}:password::" },
           ]
 
@@ -443,10 +443,10 @@ module "ecs" {
           # directly from the injected secrets above — no need to re-declare them
           # as environment variables. Only pool config goes here.
           environment = [
-            { name = "POOL_MODE",         value = "transaction" },
+            { name = "POOL_MODE", value = "transaction" },
             { name = "DEFAULT_POOL_SIZE", value = tostring(var.pgbouncer_pool_size) },
-            { name = "MAX_CLIENT_CONN",   value = "200" },
-            { name = "AUTH_TYPE",         value = "scram-sha-256" },
+            { name = "MAX_CLIENT_CONN", value = "200" },
+            { name = "AUTH_TYPE", value = "scram-sha-256" },
           ]
 
           enable_cloudwatch_logging              = true
@@ -545,16 +545,16 @@ resource "aws_ecs_task_definition" "worker" {
       secrets = [
         # Inject individual fields from the RDS secret and compose the URL.
         # Worker bypasses pgbouncer — uses the raw RDS endpoint directly.
-        { name = "DB_HOST",     valueFrom = "${module.rds.db_instance_master_user_secret_arn}:host::" },
-        { name = "DB_PORT",     valueFrom = "${module.rds.db_instance_master_user_secret_arn}:port::" },
-        { name = "DB_NAME",     valueFrom = "${module.rds.db_instance_master_user_secret_arn}:dbname::" },
-        { name = "DB_USER",     valueFrom = "${module.rds.db_instance_master_user_secret_arn}:username::" },
+        { name = "DB_HOST", valueFrom = "${module.rds.db_instance_master_user_secret_arn}:host::" },
+        { name = "DB_PORT", valueFrom = "${module.rds.db_instance_master_user_secret_arn}:port::" },
+        { name = "DB_NAME", valueFrom = "${module.rds.db_instance_master_user_secret_arn}:dbname::" },
+        { name = "DB_USER", valueFrom = "${module.rds.db_instance_master_user_secret_arn}:username::" },
         { name = "DB_PASSWORD", valueFrom = "${module.rds.db_instance_master_user_secret_arn}:password::" },
       ]
       environment = [
         { name = "BACKFILL_DATABASE_URL", value = "postgresql://$(DB_USER):$(DB_PASSWORD)@$(DB_HOST):$(DB_PORT)/$(DB_NAME)" },
-        { name = "BACKFILL_BATCH_SIZE",   value = tostring(var.backfill_batch_size) },
-        { name = "BACKFILL_SLEEP_MS",     value = "100" },
+        { name = "BACKFILL_BATCH_SIZE", value = tostring(var.backfill_batch_size) },
+        { name = "BACKFILL_SLEEP_MS", value = "100" },
       ]
       logConfiguration = {
         logDriver = "awslogs"
@@ -598,7 +598,7 @@ resource "aws_ecs_task_definition" "liquibase" {
 
   container_definitions = jsonencode([
     {
-      name      = "liquibase"
+      name = "liquibase"
       # Changelogs are baked into this image at build time (see db/Dockerfile).
       # The image tag matches the app/worker images — all three are built and
       # pushed together from the same commit SHA.
@@ -606,15 +606,15 @@ resource "aws_ecs_task_definition" "liquibase" {
       essential = true
 
       secrets = [
-        { name = "DB_HOST",     valueFrom = "${module.rds.db_instance_master_user_secret_arn}:host::" },
-        { name = "DB_PORT",     valueFrom = "${module.rds.db_instance_master_user_secret_arn}:port::" },
-        { name = "DB_NAME",     valueFrom = "${module.rds.db_instance_master_user_secret_arn}:dbname::" },
-        { name = "DB_USER",     valueFrom = "${module.rds.db_instance_master_user_secret_arn}:username::" },
+        { name = "DB_HOST", valueFrom = "${module.rds.db_instance_master_user_secret_arn}:host::" },
+        { name = "DB_PORT", valueFrom = "${module.rds.db_instance_master_user_secret_arn}:port::" },
+        { name = "DB_NAME", valueFrom = "${module.rds.db_instance_master_user_secret_arn}:dbname::" },
+        { name = "DB_USER", valueFrom = "${module.rds.db_instance_master_user_secret_arn}:username::" },
         { name = "DB_PASSWORD", valueFrom = "${module.rds.db_instance_master_user_secret_arn}:password::" },
       ]
 
       environment = [
-        { name = "LIQUIBASE_COMMAND_URL",      value = "jdbc:postgresql://$(DB_HOST):$(DB_PORT)/$(DB_NAME)" },
+        { name = "LIQUIBASE_COMMAND_URL", value = "jdbc:postgresql://$(DB_HOST):$(DB_PORT)/$(DB_NAME)" },
         { name = "LIQUIBASE_COMMAND_USERNAME", value = "$(DB_USER)" },
         { name = "LIQUIBASE_COMMAND_PASSWORD", value = "$(DB_PASSWORD)" },
       ]
@@ -678,7 +678,7 @@ data "aws_iam_policy_document" "github_actions_assume" {
       # refs/heads/main  — apply jobs (push to main)
       # refs/pull/*/head — plan-dev job runs on PRs; must be allowed to plan
       # Scoped to this repo only — forks from other orgs cannot obtain a token.
-      values   = [
+      values = [
         "repo:ersahinco/db-migration-example:ref:refs/heads/main",
         "repo:ersahinco/db-migration-example:ref:refs/pull/*/head",
       ]
