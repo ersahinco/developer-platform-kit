@@ -921,6 +921,24 @@ data "aws_iam_policy_document" "github_actions_permissions" {
     resources = ["*"] # ELB Describe calls have no resource-level scope — AWS API limitation
   }
 
+  # Application Auto Scaling — used by the ECS module for service auto-scaling.
+  # DescribeScalableTargets has no resource-level scope — AWS API limitation.
+  statement {
+    sid = "AutoScaling"
+    actions = [
+      "application-autoscaling:RegisterScalableTarget",
+      "application-autoscaling:DeregisterScalableTarget",
+      "application-autoscaling:DescribeScalableTargets",
+      "application-autoscaling:PutScalingPolicy",
+      "application-autoscaling:DeleteScalingPolicy",
+      "application-autoscaling:DescribeScalingPolicies",
+      "application-autoscaling:TagResource",
+      "application-autoscaling:UntagResource",
+      "application-autoscaling:ListTagsForResource",
+    ]
+    resources = ["*"] # DescribeScalableTargets has no resource-level scope — AWS API limitation
+  }
+
   # CloudWatch Logs: scoped to this project's log groups.
   # DescribeLogGroups and ListTagsForResource have no resource-level scope — AWS API limitation.
   statement {
