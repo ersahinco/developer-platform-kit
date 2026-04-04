@@ -238,6 +238,22 @@ The `build-and-push` job runs `trivy image --severity CRITICAL` on the app image
 
 ---
 
+## CI/CD pipelines
+
+Two pipelines, separate concerns:
+
+**`infra.yml`** — triggered by changes to `infra/**`
+- PR: lint (`fmt`, `validate`, `tflint`, `checkov`) + `terraform plan` posted as a PR comment
+- Merge to main: `terraform apply` dev (auto) → prod (manual approval)
+
+**`deploy.yml`** — triggered by changes to `app/**`, `db/**`, `tests/**`, `scripts/**`
+- PR: test only
+- Merge to main: test → build + scan → dev migrate → dev deploy → prod migrate (approval) → prod deploy (approval)
+
+See [`DEPLOYMENT.md`](DEPLOYMENT.md) for environment setup and bootstrap steps.
+
+---
+
 ## Production hardening
 
 This example is for local rehearsal. See the [intentionally omitted](ARCHITECTURE.md#whats-intentionally-omitted) section in `ARCHITECTURE.md`.

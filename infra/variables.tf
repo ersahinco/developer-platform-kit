@@ -9,11 +9,6 @@ variable "environment" {
   type        = string
 }
 
-variable "app_image_tag" {
-  description = "Not used by Terraform. Image tag is owned by the release pipeline (deploy.yml) which patches the task definition via amazon-ecs-render-task-definition. Kept as a no-op to avoid breaking existing tfvars that may reference it."
-  type        = string
-  default     = null
-}
 
 # ── Networking ────────────────────────────────────────────────────────────────
 
