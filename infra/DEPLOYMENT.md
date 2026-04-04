@@ -179,6 +179,8 @@ prod-deploy     ← manual approval required  (rolling ECS update)
 You don't need to apply to AWS to validate most changes. Run these locally before pushing a branch:
 
 ```bash
+git add -A && git commit -m "ci: trigger pipeline"
+
 cd infra
 
 # formatting
