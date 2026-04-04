@@ -1,6 +1,7 @@
 name: Infra
 
 on:
+  workflow_dispatch: {}  # manual trigger from GitHub UI or gh CLI
   pull_request:
     paths: ["infra/**"]
   push:
@@ -49,7 +50,7 @@ jobs:
 
     steps:
       - uses: actions/checkout@v4
-        
+
       - uses: hashicorp/setup-terraform@v3
         with:
           terraform_version: ${{ env.TF_VERSION }}

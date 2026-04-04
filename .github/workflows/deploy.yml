@@ -77,6 +77,8 @@ jobs:
 
       # PgBouncer sidecar — app connects here, not to Postgres directly.
       # transaction mode mirrors the production ECS sidecar configuration.
+      # scram-sha-256 matches Postgres 16 default auth method — trust causes
+      # "wrong password type" because PgBouncer cannot forward SCRAM handshakes.
       pgbouncer:
         image: edoburu/pgbouncer:v1.25.1-p0
         env:
@@ -88,7 +90,7 @@ jobs:
           POOL_MODE: transaction
           DEFAULT_POOL_SIZE: 20
           MAX_CLIENT_CONN: 200
-          AUTH_TYPE: trust
+          AUTH_TYPE: scram-sha-256
         ports:
           - 6432:5432
 
