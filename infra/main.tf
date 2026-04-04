@@ -458,7 +458,10 @@ module "ecs" {
         }
 
         app = {
-          image     = "${module.ecr_app.repository_url}:${var.app_image_tag}"
+          # Placeholder — deploy.yml patches this to the real SHA tag at release time
+          # via amazon-ecs-render-task-definition. Infra owns the task definition shape,
+          # not the image tag.
+          image     = "${module.ecr_app.repository_url}:placeholder"
           essential = true
 
           # ECS container definition keys are camelCase — they map directly to the ECS API
@@ -543,8 +546,9 @@ resource "aws_ecs_task_definition" "worker" {
 
   container_definitions = jsonencode([
     {
-      name      = "worker"
-      image     = "${module.ecr_worker.repository_url}:${var.app_image_tag}"
+      name  = "worker"
+      # Placeholder — release pipeline patches this at deploy time.
+      image = "${module.ecr_worker.repository_url}:placeholder"
       essential = true
       secrets = [
         # Inject individual fields from the RDS secret and compose the URL.
@@ -604,9 +608,8 @@ resource "aws_ecs_task_definition" "liquibase" {
     {
       name = "liquibase"
       # Changelogs are baked into this image at build time (see db/Dockerfile).
-      # The image tag matches the app/worker images — all three are built and
-      # pushed together from the same commit SHA.
-      image     = "${module.ecr_liquibase.repository_url}:${var.app_image_tag}"
+      # Placeholder — release pipeline patches this at deploy time.
+      image     = "${module.ecr_liquibase.repository_url}:placeholder"
       essential = true
 
       secrets = [
@@ -919,6 +922,13 @@ data "aws_iam_policy_document" "github_actions_permissions" {
   }
 
   # CloudWatch Logs: scoped to this project's log groups.
+  # DescribeLogGroups requires * — the API does not support resource-level filtering.
+  statement {
+    sid = "LogsDescribe"
+    actions = ["logs:DescribeLogGroups"]
+    resources = ["*"] # DescribeLogGroups has no resource-level scope — AWS API limitation
+  }
+
   statement {
     sid = "LogsManage"
     actions = [
@@ -926,11 +936,13 @@ data "aws_iam_policy_document" "github_actions_permissions" {
       "logs:PutRetentionPolicy", "logs:DeleteRetentionPolicy",
       "logs:TagLogGroup", "logs:UntagLogGroup",
       "logs:TagResource", "logs:UntagResource",
-      "logs:DescribeLogGroups", "logs:ListTagsForResource", "logs:ListTagsLogGroup",
+      "logs:ListTagsForResource", "logs:ListTagsLogGroup",
     ]
     resources = [
       "arn:aws:logs:${local.region}:${local.account_id}:log-group:/ecs/db-migration-example-*",
       "arn:aws:logs:${local.region}:${local.account_id}:log-group:/ecs/db-migration-example-*:*",
+      "arn:aws:logs:${local.region}:${local.account_id}:log-group:/aws/ecs/db-migration-example-*",
+      "arn:aws:logs:${local.region}:${local.account_id}:log-group:/aws/ecs/db-migration-example-*:*",
     ]
   }
 
@@ -972,6 +984,17 @@ data "aws_iam_policy_document" "github_actions_permissions" {
     ]
     # Scoped to roles created by this project
     resources = ["arn:aws:iam::${local.account_id}:role/db-migration-example-*"]
+  }
+
+  statement {
+    sid = "OIDCProviderRead"
+    actions = [
+      # ListOpenIDConnectProviders and GetOpenIDConnectProvider have no resource
+      # scope — required to look up the GitHub OIDC provider by URL in the data source.
+      "iam:ListOpenIDConnectProviders",
+      "iam:GetOpenIDConnectProvider",
+    ]
+    resources = ["*"] # OIDC provider APIs have no resource-level scope — AWS API limitation
   }
 }
 

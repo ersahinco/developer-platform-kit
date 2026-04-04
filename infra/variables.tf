@@ -10,17 +10,9 @@ variable "environment" {
 }
 
 variable "app_image_tag" {
-  description = "ECR image tag to deploy. Set by CI using the Git commit SHA (e.g. sha-abc1234). Never 'latest'."
+  description = "Not used by Terraform. Image tag is owned by the release pipeline (deploy.yml) which patches the task definition via amazon-ecs-render-task-definition. Kept as a no-op to avoid breaking existing tfvars that may reference it."
   type        = string
-  default     = null # must be supplied explicitly — no silent fallback to latest
-
-  validation {
-    # null check must come first — null != "latest" is true in Terraform, so
-    # without it a null value passes validation and fails later at apply time
-    # with a confusing "Invalid template interpolation value" error.
-    condition     = var.app_image_tag != null && var.app_image_tag != "latest"
-    error_message = "app_image_tag must be set to a commit SHA tag (e.g. sha-abc1234). Never null or 'latest'."
-  }
+  default     = null
 }
 
 # ── Networking ────────────────────────────────────────────────────────────────
