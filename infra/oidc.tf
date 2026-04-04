@@ -332,16 +332,20 @@ data "aws_iam_policy_document" "github_actions_permissions" {
   statement {
     sid = "SecretsManagerRDSManaged"
     # RDS calls these on behalf of the caller when manage_master_user_password=true.
-    # The secret is named rds!db-{identifier}-* and created/rotated by RDS automatically.
+    # CreateSecret is evaluated against * at creation time (secret has no ARN yet).
+    # Subsequent operations are scoped to the rds!db-* prefix.
     actions = [
       "secretsmanager:CreateSecret",
       "secretsmanager:TagResource",
       "secretsmanager:PutSecretValue",
       "secretsmanager:DeleteSecret",
     ]
-    resources = [
-      "arn:aws:secretsmanager:${local.region}:${local.account_id}:secret:rds!db-*",
-    ]
+    resources = ["*"]
+    condition {
+      test     = "StringLike"
+      variable = "secretsmanager:Name"
+      values   = ["rds!db-*"]
+    }
   }
 
   # ── Infra pipeline — IAM ──────────────────────────────────────────────────
