@@ -199,6 +199,8 @@ data "aws_iam_policy_document" "github_actions_permissions" {
     resources = [
       "arn:aws:ecs:${local.region}:${local.account_id}:cluster/db-migration-example-*",
       "arn:aws:ecs:${local.region}:${local.account_id}:service/db-migration-example-*/*",
+      # TagResource is called on task definitions during RegisterTaskDefinition
+      "arn:aws:ecs:${local.region}:${local.account_id}:task-definition/db-migration-example-*",
     ]
   }
 
@@ -354,6 +356,7 @@ data "aws_iam_policy_document" "github_actions_permissions" {
     sid = "TerraformManageIAM"
     actions = [
       "iam:CreateRole", "iam:DeleteRole", "iam:UpdateRole",
+      "iam:CreatePolicy", "iam:DeletePolicy",
       "iam:PutRolePolicy", "iam:DeleteRolePolicy",
       "iam:AttachRolePolicy", "iam:DetachRolePolicy",
       "iam:TagRole", "iam:UntagRole",
