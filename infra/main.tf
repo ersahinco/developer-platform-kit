@@ -922,11 +922,11 @@ data "aws_iam_policy_document" "github_actions_permissions" {
   }
 
   # CloudWatch Logs: scoped to this project's log groups.
-  # DescribeLogGroups requires * — the API does not support resource-level filtering.
+  # DescribeLogGroups and ListTagsForResource have no resource-level scope — AWS API limitation.
   statement {
-    sid       = "LogsDescribe"
-    actions   = ["logs:DescribeLogGroups"]
-    resources = ["*"] # DescribeLogGroups has no resource-level scope — AWS API limitation
+    sid     = "LogsDescribe"
+    actions = ["logs:DescribeLogGroups", "logs:ListTagsForResource", "logs:ListTagsLogGroup"]
+    resources = ["*"] # tag and describe APIs have no resource-level scope — AWS API limitation
   }
 
   statement {
@@ -936,13 +936,13 @@ data "aws_iam_policy_document" "github_actions_permissions" {
       "logs:PutRetentionPolicy", "logs:DeleteRetentionPolicy",
       "logs:TagLogGroup", "logs:UntagLogGroup",
       "logs:TagResource", "logs:UntagResource",
-      "logs:ListTagsForResource", "logs:ListTagsLogGroup",
     ]
     resources = [
       "arn:aws:logs:${local.region}:${local.account_id}:log-group:/ecs/db-migration-example-*",
       "arn:aws:logs:${local.region}:${local.account_id}:log-group:/ecs/db-migration-example-*:*",
-      "arn:aws:logs:${local.region}:${local.account_id}:log-group:/aws/ecs/db-migration-example-*",
-      "arn:aws:logs:${local.region}:${local.account_id}:log-group:/aws/ecs/db-migration-example-*:*",
+      # ECS module creates container-level log groups under /aws/ecs/{service}/{container}
+      "arn:aws:logs:${local.region}:${local.account_id}:log-group:/aws/ecs/*",
+      "arn:aws:logs:${local.region}:${local.account_id}:log-group:/aws/ecs/*:*",
     ]
   }
 
@@ -982,8 +982,15 @@ data "aws_iam_policy_document" "github_actions_permissions" {
       "iam:ListAttachedRolePolicies",
       "iam:ListInstanceProfilesForRole",
     ]
-    # Scoped to roles created by this project
-    resources = ["arn:aws:iam::${local.account_id}:role/db-migration-example-*"]
+    resources = [
+      # Roles and policies created directly by this module
+      "arn:aws:iam::${local.account_id}:role/db-migration-example-*",
+      "arn:aws:iam::${local.account_id}:policy/db-migration-example-*",
+      # Roles and policies created by the terraform-aws-modules/ecs module — it uses
+      # the service name ("app") as the prefix, not the cluster name.
+      "arn:aws:iam::${local.account_id}:role/app-*",
+      "arn:aws:iam::${local.account_id}:policy/app-*",
+    ]
   }
 
   statement {
