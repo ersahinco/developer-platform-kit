@@ -22,9 +22,13 @@ on:
 # State isolation: each environment passes a different S3 key at init time.
 # No Terraform workspaces — tfvars + -backend-config is the full isolation.
 #
-# Required GitHub secrets (set per environment):
-#   infra-dev / infra-prod environments:
-#     AWS_ROLE_ARN   — IAM role ARN for OIDC (same role used by deploy.yml)
+# Required GitHub secret (one per environment — dev-infra, prod-infra):
+#   AWS_ROLE_ARN   — IAM role ARN for OIDC (the only secret needed)
+#                    dev:  arn:aws:iam::691627364817:role/db-migration-example-dev-github-actions
+#                    prod: arn:aws:iam::691627364817:role/db-migration-example-prod-github-actions
+#
+# No variables needed — deploy.yml inlines all resource names from the
+# deterministic naming convention: db-migration-example-{env}
 # ---------------------------------------------------------------------------
 
 env:
@@ -86,7 +90,7 @@ jobs:
     needs: lint-and-validate
     if: github.event_name == 'pull_request'
     runs-on: ubuntu-latest
-    environment: infra-dev
+    environment: dev-infra
 
     steps:
       - uses: actions/checkout@v4
@@ -144,7 +148,7 @@ jobs:
     needs: lint-and-validate
     if: github.event_name == 'push'
     runs-on: ubuntu-latest
-    environment: infra-dev
+    environment: dev-infra
 
     steps:
       - uses: actions/checkout@v4
@@ -175,7 +179,7 @@ jobs:
     needs: apply-dev
     if: github.event_name == 'push'
     runs-on: ubuntu-latest
-    environment: infra-prod   # configure Required reviewers in GitHub Environments
+    environment: prod-infra   # configure Required reviewers in GitHub Environments
 
     steps:
       - uses: actions/checkout@v4

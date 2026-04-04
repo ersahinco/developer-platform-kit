@@ -32,31 +32,24 @@ on:
 # prod-deploy       — rolling ECS update + backfill worker (manual approval)
 #
 # Environments (configure in GitHub → Settings → Environments):
-#   dev                  — no approval required
-#   production-migrate   — requires approval
-#   production-deploy    — requires approval
+#   dev-deploy       — no approval required (covers dev migrate + deploy)
+#   prod-migrate     — requires approval
+#   prod-deploy      — requires approval
 #
-# Required GitHub secrets (set per environment or at repo level):
-#   AWS_ROLE_ARN              — IAM role ARN for OIDC federation (no long-lived keys)
-#   ECR_REGISTRY              — registry hostname: 691627364817.dkr.ecr.eu-central-1.amazonaws.com
-#   ECS_CLUSTER               — ECS cluster name (from terraform output ecs_cluster_name)
-#   APP_SERVICE_NAME          — ECS service name (from terraform output app_service_name)
-#   APP_TASK_FAMILY           — ECS task definition family for the app
-#   LIQUIBASE_TASK_DEF_ARN    — Liquibase task definition ARN (from terraform output liquibase_task_definition_arn)
-#   PRIVATE_SUBNET_ID         — One private subnet ID for run-task (migrate + worker tasks)
-#   APP_SG_ID                 — App security group ID for run-task
-#   DB_SECRET_ARN             — Secrets Manager ARN for DB credentials
-#   WORKER_TASK_DEF_ARN       — Worker task definition ARN (from terraform output worker_task_definition_arn)
+# Required GitHub secret (one per environment):
+#   AWS_ROLE_ARN     — IAM role ARN for OIDC federation (the only secret needed)
+#                      dev:  arn:aws:iam::691627364817:role/db-migration-example-dev-github-actions
+#                      prod: arn:aws:iam::691627364817:role/db-migration-example-prod-github-actions
+#
+# All other values (cluster, service, task families) follow the naming
+# convention db-migration-example-{env} and are inlined — no variables needed.
+# Subnet and SG IDs are resolved at runtime by tag — no hardcoded IDs.
 # ---------------------------------------------------------------------------
 
 env:
-  AWS_REGION:                 eu-central-1
-  APP_IMAGE_NAME_DEV:         db-migration-example-dev/app
-  APP_IMAGE_NAME_PROD:        db-migration-example-prod/app
-  WORKER_IMAGE_NAME_DEV:      db-migration-example-dev/worker
-  WORKER_IMAGE_NAME_PROD:     db-migration-example-prod/worker
-  LIQUIBASE_IMAGE_NAME_DEV:   db-migration-example-dev/liquibase
-  LIQUIBASE_IMAGE_NAME_PROD:  db-migration-example-prod/liquibase
+  AWS_REGION:   eu-central-1
+  # ECR registry is account-scoped — same hostname for all repos in the account
+  ECR_REGISTRY: 691627364817.dkr.ecr.eu-central-1.amazonaws.com
 
 jobs:
   # ── 1. Test ──────────────────────────────────────────────────────────────
@@ -82,7 +75,7 @@ jobs:
           --health-retries 10
           --health-start-period 10s
 
-      # PgBouncer service container — app connects here, not to Postgres directly.
+      # PgBouncer sidecar — app connects here, not to Postgres directly.
       # transaction mode mirrors the production ECS sidecar configuration.
       pgbouncer:
         image: edoburu/pgbouncer:v1.25.1-p0
@@ -101,8 +94,8 @@ jobs:
 
     env:
       # App and tests connect via pgbouncer — same topology as production.
-      DATABASE_URL: postgresql://postgres:postgres@localhost:6432/migration_example
-      BASE_URL:     http://localhost:8000
+      DATABASE_URL:       postgresql://postgres:postgres@localhost:6432/migration_example
+      BASE_URL:           http://localhost:8000
       SEED_NUM_CUSTOMERS: 200
       SEED_NUM_ORDERS:    1000
 
@@ -172,97 +165,45 @@ jobs:
           aws-region:     ${{ env.AWS_REGION }}
 
       - name: Log in to ECR
-        id: login-ecr
         uses: aws-actions/amazon-ecr-login@v2
 
-      - name: Build app image
+      - name: Build images
         env:
-          REGISTRY: ${{ steps.login-ecr.outputs.registry }}
-          TAG:      sha-${{ github.sha }}
-        run: docker build -t $REGISTRY/${{ env.APP_IMAGE_NAME_DEV }}:$TAG app/
-
-      - name: Build worker image
-        env:
-          REGISTRY: ${{ steps.login-ecr.outputs.registry }}
-          TAG:      sha-${{ github.sha }}
-        run: docker build -t $REGISTRY/${{ env.WORKER_IMAGE_NAME_DEV }}:$TAG worker/
-
-      # Liquibase image: FROM liquibase/liquibase:4.27 with db/changelog/ baked in.
-      # Built from db/Dockerfile — changelogs are versioned with the same SHA as
-      # the app so migrate and deploy always use matching code and schema.
-      - name: Build liquibase image
-        env:
-          REGISTRY: ${{ steps.login-ecr.outputs.registry }}
-          TAG:      sha-${{ github.sha }}
-        run: docker build -t $REGISTRY/${{ env.LIQUIBASE_IMAGE_NAME_DEV }}:$TAG db/
-
-      # Scan before push — a CRITICAL CVE fails the pipeline before the image lands in ECR.
-      - name: Scan app image for vulnerabilities
-        env:
-          REGISTRY: ${{ steps.login-ecr.outputs.registry }}
-          TAG:      sha-${{ github.sha }}
+          TAG: sha-${{ github.sha }}
         run: |
-          docker run --rm -v /var/run/docker.sock:/var/run/docker.sock \
-            aquasec/trivy:latest image \
-            --exit-code 1 --severity CRITICAL --no-progress \
-            $REGISTRY/${{ env.APP_IMAGE_NAME_DEV }}:$TAG
+          docker build -t ${{ env.ECR_REGISTRY }}/db-migration-example-dev/app:$TAG       app/
+          docker build -t ${{ env.ECR_REGISTRY }}/db-migration-example-dev/worker:$TAG    worker/
+          docker build -t ${{ env.ECR_REGISTRY }}/db-migration-example-dev/liquibase:$TAG db/
 
-      - name: Scan worker image for vulnerabilities
+      # Scan before push — CRITICAL CVE fails the pipeline before images land in ECR.
+      - name: Scan images for vulnerabilities
         env:
-          REGISTRY: ${{ steps.login-ecr.outputs.registry }}
-          TAG:      sha-${{ github.sha }}
+          TAG: sha-${{ github.sha }}
         run: |
-          docker run --rm -v /var/run/docker.sock:/var/run/docker.sock \
-            aquasec/trivy:latest image \
-            --exit-code 1 --severity CRITICAL --no-progress \
-            $REGISTRY/${{ env.WORKER_IMAGE_NAME_DEV }}:$TAG
+          for repo in app worker liquibase; do
+            docker run --rm -v /var/run/docker.sock:/var/run/docker.sock \
+              aquasec/trivy:latest image \
+              --exit-code 1 --severity CRITICAL --no-progress \
+              ${{ env.ECR_REGISTRY }}/db-migration-example-dev/${repo}:$TAG
+          done
 
-      - name: Scan liquibase image for vulnerabilities
+      - name: Push images (dev + prod repos share the same image)
         env:
-          REGISTRY: ${{ steps.login-ecr.outputs.registry }}
-          TAG:      sha-${{ github.sha }}
+          TAG: sha-${{ github.sha }}
         run: |
-          docker run --rm -v /var/run/docker.sock:/var/run/docker.sock \
-            aquasec/trivy:latest image \
-            --exit-code 1 --severity CRITICAL --no-progress \
-            $REGISTRY/${{ env.LIQUIBASE_IMAGE_NAME_DEV }}:$TAG
-
-      - name: Push app image
-        env:
-          REGISTRY: ${{ steps.login-ecr.outputs.registry }}
-          TAG:      sha-${{ github.sha }}
-        run: |
-          docker push $REGISTRY/${{ env.APP_IMAGE_NAME_DEV }}:$TAG
-          docker tag  $REGISTRY/${{ env.APP_IMAGE_NAME_DEV }}:$TAG \
-                      $REGISTRY/${{ env.APP_IMAGE_NAME_PROD }}:$TAG
-          docker push $REGISTRY/${{ env.APP_IMAGE_NAME_PROD }}:$TAG
-
-      - name: Push worker image
-        env:
-          REGISTRY: ${{ steps.login-ecr.outputs.registry }}
-          TAG:      sha-${{ github.sha }}
-        run: |
-          docker push $REGISTRY/${{ env.WORKER_IMAGE_NAME_DEV }}:$TAG
-          docker tag  $REGISTRY/${{ env.WORKER_IMAGE_NAME_DEV }}:$TAG \
-                      $REGISTRY/${{ env.WORKER_IMAGE_NAME_PROD }}:$TAG
-          docker push $REGISTRY/${{ env.WORKER_IMAGE_NAME_PROD }}:$TAG
-
-      - name: Push liquibase image
-        env:
-          REGISTRY: ${{ steps.login-ecr.outputs.registry }}
-          TAG:      sha-${{ github.sha }}
-        run: |
-          docker push $REGISTRY/${{ env.LIQUIBASE_IMAGE_NAME_DEV }}:$TAG
-          docker tag  $REGISTRY/${{ env.LIQUIBASE_IMAGE_NAME_DEV }}:$TAG \
-                      $REGISTRY/${{ env.LIQUIBASE_IMAGE_NAME_PROD }}:$TAG
-          docker push $REGISTRY/${{ env.LIQUIBASE_IMAGE_NAME_PROD }}:$TAG
+          for repo in app worker liquibase; do
+            docker push ${{ env.ECR_REGISTRY }}/db-migration-example-dev/${repo}:$TAG
+            docker tag  ${{ env.ECR_REGISTRY }}/db-migration-example-dev/${repo}:$TAG \
+                        ${{ env.ECR_REGISTRY }}/db-migration-example-prod/${repo}:$TAG
+            docker push ${{ env.ECR_REGISTRY }}/db-migration-example-prod/${repo}:$TAG
+          done
 
   # ── 3. Dev migrate ────────────────────────────────────────────────────────
   dev-migrate:
     name: Dev — Migrate (Liquibase)
     needs: build-and-push
     runs-on: ubuntu-latest
-    environment: dev
+    environment: dev-deploy
     permissions:
       id-token: write
       contents: read
@@ -275,26 +216,39 @@ jobs:
           role-to-assume: ${{ secrets.AWS_ROLE_ARN }}
           aws-region:     ${{ env.AWS_REGION }}
 
-      # Liquibase runs as a one-off ECS task inside the VPC — no public DB exposure.
-      # The liquibase image has changelogs baked in (see db/Dockerfile), so no
-      # command override is needed. Connects directly to RDS — DDL requires a
-      # session connection, not pgbouncer's transaction-mode pool.
+      - name: Resolve network config
+        id: net
+        run: |
+          # Look up by tag — names are stable across destroy/recreate, raw IDs are not.
+          SUBNET_ID=$(aws ec2 describe-subnets \
+            --filters "Name=tag:Name,Values=db-migration-example-dev-private-*" \
+            --query 'Subnets[0].SubnetId' --output text)
+          SG_ID=$(aws ec2 describe-security-groups \
+            --filters "Name=group-name,Values=db-migration-example-dev-app" \
+            --query 'SecurityGroups[0].GroupId' --output text)
+          echo "subnet_id=$SUBNET_ID" >> "$GITHUB_OUTPUT"
+          echo "sg_id=$SG_ID"         >> "$GITHUB_OUTPUT"
+
       - name: Run Liquibase on dev RDS
+        # Liquibase runs as a one-off ECS task inside the VPC — no public DB exposure.
+        # Changelogs are baked into the image (see db/Dockerfile).
+        # Connects directly to RDS — DDL requires a session connection, not pgbouncer's pool.
+        # Family name (no revision) — ECS picks the latest active revision automatically.
         run: |
           TASK_ARN=$(aws ecs run-task \
-            --cluster "${{ secrets.ECS_CLUSTER }}" \
-            --task-definition "${{ secrets.LIQUIBASE_TASK_DEF_ARN }}" \
+            --cluster db-migration-example-dev \
+            --task-definition db-migration-example-dev-liquibase \
             --launch-type FARGATE \
             --network-configuration "awsvpcConfiguration={
-              subnets=[${{ secrets.PRIVATE_SUBNET_ID }}],
-              securityGroups=[${{ secrets.APP_SG_ID }}],
+              subnets=[${{ steps.net.outputs.subnet_id }}],
+              securityGroups=[${{ steps.net.outputs.sg_id }}],
               assignPublicIp=DISABLED}" \
             --query 'tasks[0].taskArn' --output text)
 
-          aws ecs wait tasks-stopped --cluster "${{ secrets.ECS_CLUSTER }}" --tasks "$TASK_ARN"
+          aws ecs wait tasks-stopped --cluster db-migration-example-dev --tasks "$TASK_ARN"
 
           EXIT_CODE=$(aws ecs describe-tasks \
-            --cluster "${{ secrets.ECS_CLUSTER }}" --tasks "$TASK_ARN" \
+            --cluster db-migration-example-dev --tasks "$TASK_ARN" \
             --query 'tasks[0].containers[0].exitCode' --output text)
           [ "$EXIT_CODE" = "0" ] || { echo "Liquibase failed (exit $EXIT_CODE)"; exit 1; }
 
@@ -303,7 +257,7 @@ jobs:
     name: Dev — Deploy App
     needs: dev-migrate
     runs-on: ubuntu-latest
-    environment: dev
+    environment: dev-deploy
     permissions:
       id-token: write
       contents: read
@@ -315,24 +269,22 @@ jobs:
           aws-region:     ${{ env.AWS_REGION }}
 
       - name: Log in to ECR
-        id: login-ecr
         uses: aws-actions/amazon-ecr-login@v2
 
       - name: Render new task definition
         id: render-task-def
         uses: aws-actions/amazon-ecs-render-task-definition@v1
         with:
-          task-definition-family: ${{ secrets.APP_TASK_FAMILY }}
+          task-definition-family: db-migration-example-dev
           container-name:         app
-          image: >-
-            ${{ steps.login-ecr.outputs.registry }}/${{ env.APP_IMAGE_NAME_DEV }}:${{ needs.build-and-push.outputs.image_tag }}
+          image: ${{ env.ECR_REGISTRY }}/db-migration-example-dev/app:${{ needs.build-and-push.outputs.image_tag }}
 
       - name: Deploy to ECS
         uses: aws-actions/amazon-ecs-deploy-task-definition@v2
         with:
-          task-definition:  ${{ steps.render-task-def.outputs.task-definition }}
-          service:          ${{ secrets.APP_SERVICE_NAME }}
-          cluster:          ${{ secrets.ECS_CLUSTER }}
+          task-definition:            ${{ steps.render-task-def.outputs.task-definition }}
+          service:                    db-migration-example-dev-app
+          cluster:                    db-migration-example-dev
           wait-for-service-stability: true
 
   # ── 5. Prod migrate ───────────────────────────────────────────────────────
@@ -340,7 +292,7 @@ jobs:
     name: Prod — Migrate (Liquibase)
     needs: dev-deploy
     runs-on: ubuntu-latest
-    environment: production-migrate
+    environment: prod-migrate
     permissions:
       id-token: write
       contents: read
@@ -353,22 +305,34 @@ jobs:
           role-to-assume: ${{ secrets.AWS_ROLE_ARN }}
           aws-region:     ${{ env.AWS_REGION }}
 
+      - name: Resolve network config
+        id: net
+        run: |
+          SUBNET_ID=$(aws ec2 describe-subnets \
+            --filters "Name=tag:Name,Values=db-migration-example-prod-private-*" \
+            --query 'Subnets[0].SubnetId' --output text)
+          SG_ID=$(aws ec2 describe-security-groups \
+            --filters "Name=group-name,Values=db-migration-example-prod-app" \
+            --query 'SecurityGroups[0].GroupId' --output text)
+          echo "subnet_id=$SUBNET_ID" >> "$GITHUB_OUTPUT"
+          echo "sg_id=$SG_ID"         >> "$GITHUB_OUTPUT"
+
       - name: Run Liquibase on prod RDS
         run: |
           TASK_ARN=$(aws ecs run-task \
-            --cluster "${{ secrets.ECS_CLUSTER }}" \
-            --task-definition "${{ secrets.LIQUIBASE_TASK_DEF_ARN }}" \
+            --cluster db-migration-example-prod \
+            --task-definition db-migration-example-prod-liquibase \
             --launch-type FARGATE \
             --network-configuration "awsvpcConfiguration={
-              subnets=[${{ secrets.PRIVATE_SUBNET_ID }}],
-              securityGroups=[${{ secrets.APP_SG_ID }}],
+              subnets=[${{ steps.net.outputs.subnet_id }}],
+              securityGroups=[${{ steps.net.outputs.sg_id }}],
               assignPublicIp=DISABLED}" \
             --query 'tasks[0].taskArn' --output text)
 
-          aws ecs wait tasks-stopped --cluster "${{ secrets.ECS_CLUSTER }}" --tasks "$TASK_ARN"
+          aws ecs wait tasks-stopped --cluster db-migration-example-prod --tasks "$TASK_ARN"
 
           EXIT_CODE=$(aws ecs describe-tasks \
-            --cluster "${{ secrets.ECS_CLUSTER }}" --tasks "$TASK_ARN" \
+            --cluster db-migration-example-prod --tasks "$TASK_ARN" \
             --query 'tasks[0].containers[0].exitCode' --output text)
           [ "$EXIT_CODE" = "0" ] || { echo "Liquibase failed (exit $EXIT_CODE)"; exit 1; }
 
@@ -377,7 +341,7 @@ jobs:
     name: Prod — Deploy App
     needs: prod-migrate
     runs-on: ubuntu-latest
-    environment: production-deploy
+    environment: prod-deploy
     permissions:
       id-token: write
       contents: read
@@ -389,49 +353,54 @@ jobs:
           aws-region:     ${{ env.AWS_REGION }}
 
       - name: Log in to ECR
-        id: login-ecr
         uses: aws-actions/amazon-ecr-login@v2
+
+      - name: Resolve network config
+        id: net
+        run: |
+          SUBNET_ID=$(aws ec2 describe-subnets \
+            --filters "Name=tag:Name,Values=db-migration-example-prod-private-*" \
+            --query 'Subnets[0].SubnetId' --output text)
+          SG_ID=$(aws ec2 describe-security-groups \
+            --filters "Name=group-name,Values=db-migration-example-prod-app" \
+            --query 'SecurityGroups[0].GroupId' --output text)
+          echo "subnet_id=$SUBNET_ID" >> "$GITHUB_OUTPUT"
+          echo "sg_id=$SG_ID"         >> "$GITHUB_OUTPUT"
 
       - name: Render new task definition
         id: render-task-def
         uses: aws-actions/amazon-ecs-render-task-definition@v1
         with:
-          task-definition-family: ${{ secrets.APP_TASK_FAMILY }}
+          task-definition-family: db-migration-example-prod
           container-name:         app
-          image: >-
-            ${{ steps.login-ecr.outputs.registry }}/${{ env.APP_IMAGE_NAME_PROD }}:${{ needs.build-and-push.outputs.image_tag }}
+          image: ${{ env.ECR_REGISTRY }}/db-migration-example-prod/app:${{ needs.build-and-push.outputs.image_tag }}
 
       - name: Deploy to ECS
         uses: aws-actions/amazon-ecs-deploy-task-definition@v2
         with:
-          task-definition:  ${{ steps.render-task-def.outputs.task-definition }}
-          service:          ${{ secrets.APP_SERVICE_NAME }}
-          cluster:          ${{ secrets.ECS_CLUSTER }}
+          task-definition:            ${{ steps.render-task-def.outputs.task-definition }}
+          service:                    db-migration-example-prod-app
+          cluster:                    db-migration-example-prod
           wait-for-service-stability: true
 
-      # Run the backfill worker as a one-off Fargate task. The worker is idempotent
-      # (ON CONFLICT DO NOTHING) and exits immediately when there are no rows left,
-      # so it is safe to run on every deploy. We wait for it to finish and check
-      # the exit code so a backfill failure surfaces as a pipeline failure rather
-      # than silent data loss.
       - name: Run backfill worker
         run: |
           TASK_ARN=$(aws ecs run-task \
-            --cluster "${{ secrets.ECS_CLUSTER }}" \
-            --task-definition "${{ secrets.WORKER_TASK_DEF_ARN }}" \
+            --cluster db-migration-example-prod \
+            --task-definition db-migration-example-prod-worker \
             --launch-type FARGATE \
             --network-configuration "awsvpcConfiguration={
-              subnets=[${{ secrets.PRIVATE_SUBNET_ID }}],
-              securityGroups=[${{ secrets.APP_SG_ID }}],
+              subnets=[${{ steps.net.outputs.subnet_id }}],
+              securityGroups=[${{ steps.net.outputs.sg_id }}],
               assignPublicIp=DISABLED}" \
             --query 'tasks[0].taskArn' --output text)
 
           echo "Backfill task: $TASK_ARN"
           echo "Monitor: CloudWatch Logs /ecs/db-migration-example-prod/worker"
 
-          aws ecs wait tasks-stopped --cluster "${{ secrets.ECS_CLUSTER }}" --tasks "$TASK_ARN"
+          aws ecs wait tasks-stopped --cluster db-migration-example-prod --tasks "$TASK_ARN"
 
           EXIT_CODE=$(aws ecs describe-tasks \
-            --cluster "${{ secrets.ECS_CLUSTER }}" --tasks "$TASK_ARN" \
+            --cluster db-migration-example-prod --tasks "$TASK_ARN" \
             --query 'tasks[0].containers[0].exitCode' --output text)
           [ "$EXIT_CODE" = "0" ] || { echo "Backfill worker failed (exit $EXIT_CODE)"; exit 1; }
