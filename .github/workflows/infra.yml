@@ -15,7 +15,7 @@ on:
 #   lint-and-validate  — fmt check, validate, tflint, checkov (no AWS needed)
 #   plan-dev           — terraform plan against dev state, posted as PR comment
 #
-# On push to main (infra/** changed):
+# On push to main (infra/** changed) or workflow_dispatch:
 #   lint-and-validate  — same static checks
 #   apply-dev          — terraform apply dev (auto, no approval)
 #   apply-prod         — terraform apply prod (manual approval required)
@@ -147,7 +147,7 @@ jobs:
   apply-dev:
     name: Apply — dev
     needs: lint-and-validate
-    if: github.event_name == 'push'
+    if: github.event_name == 'push' || github.event_name == 'workflow_dispatch'
     runs-on: ubuntu-latest
     environment: dev-infra
 
@@ -178,7 +178,7 @@ jobs:
   apply-prod:
     name: Apply — prod
     needs: apply-dev
-    if: github.event_name == 'push'
+    if: github.event_name == 'push' || github.event_name == 'workflow_dispatch'
     runs-on: ubuntu-latest
     environment: prod-infra   # configure Required reviewers in GitHub Environments
 
