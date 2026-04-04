@@ -924,8 +924,8 @@ data "aws_iam_policy_document" "github_actions_permissions" {
   # CloudWatch Logs: scoped to this project's log groups.
   # DescribeLogGroups and ListTagsForResource have no resource-level scope — AWS API limitation.
   statement {
-    sid     = "LogsDescribe"
-    actions = ["logs:DescribeLogGroups", "logs:ListTagsForResource", "logs:ListTagsLogGroup"]
+    sid       = "LogsDescribe"
+    actions   = ["logs:DescribeLogGroups", "logs:ListTagsForResource", "logs:ListTagsLogGroup"]
     resources = ["*"] # tag and describe APIs have no resource-level scope — AWS API limitation
   }
 
