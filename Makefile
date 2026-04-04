@@ -130,8 +130,9 @@ apply-dev: init-dev ## terraform apply for dev
 	cd infra && terraform apply -var-file=dev.tfvars
 
 .PHONY: apply-iam-dev
-apply-iam-dev: init-dev ## Targeted apply: IAM policy only — use to break bootstrap permission cycle
+apply-iam-dev: init-dev ## Targeted apply: IAM role + policy only — use to break bootstrap permission cycle
 	cd infra && terraform apply -var-file=dev.tfvars \
+		-target=aws_iam_role.github_actions \
 		-target=aws_iam_role_policy.github_actions
 
 .PHONY: destroy-dev
@@ -155,6 +156,7 @@ apply-prod: init-prod ## terraform apply for prod
 	cd infra && terraform apply -var-file=prod.tfvars
 
 .PHONY: apply-iam-prod
-apply-iam-prod: init-prod ## Targeted apply: IAM policy only for prod
+apply-iam-prod: init-prod ## Targeted apply: IAM role + policy only for prod
 	cd infra && terraform apply -var-file=prod.tfvars \
+		-target=aws_iam_role.github_actions \
 		-target=aws_iam_role_policy.github_actions
