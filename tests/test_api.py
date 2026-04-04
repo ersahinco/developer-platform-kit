@@ -27,18 +27,28 @@ def test_order_not_found_returns_404(http_client):
 @pytest.mark.parametrize("status", ["SUBMITTED", "PAID", "CANCELLED"])
 def test_valid_order_statuses_are_accepted(http_client, status):
     """All valid order statuses are accepted by POST /orders."""
-    resp = http_client.post("/orders", json={
-        "customer_id": 1, "total_amount": "10.00", "status": status,
-    })
+    resp = http_client.post(
+        "/orders",
+        json={
+            "customer_id": 1,
+            "total_amount": "10.00",
+            "status": status,
+        },
+    )
     assert resp.status_code == 201
     assert resp.json()["status"] == status
 
 
 def test_invalid_order_status_is_rejected(http_client):
     """POST /orders with an invalid status returns 422."""
-    resp = http_client.post("/orders", json={
-        "customer_id": 1, "total_amount": "10.00", "status": "PENDING",
-    })
+    resp = http_client.post(
+        "/orders",
+        json={
+            "customer_id": 1,
+            "total_amount": "10.00",
+            "status": "PENDING",
+        },
+    )
     assert resp.status_code == 422
 
 

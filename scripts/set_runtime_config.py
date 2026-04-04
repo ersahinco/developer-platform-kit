@@ -23,14 +23,20 @@ _VALID_FLAGS = {"write-mode", "read-mode"}
 
 def main() -> None:
     if len(sys.argv) < 3:
-        print("Usage: python scripts/set_runtime_config.py <flag> <value>", file=sys.stderr)
+        print(
+            "Usage: python scripts/set_runtime_config.py <flag> <value>",
+            file=sys.stderr,
+        )
         print(f"  flag:  {' | '.join(sorted(_VALID_FLAGS))}", file=sys.stderr)
         sys.exit(1)
 
     flag, value = sys.argv[1], sys.argv[2]
 
     if flag not in _VALID_FLAGS:
-        print(f"ERROR: unknown flag {flag!r}. Must be one of: {', '.join(sorted(_VALID_FLAGS))}", file=sys.stderr)
+        print(
+            f"ERROR: unknown flag {flag!r}. Must be one of: {', '.join(sorted(_VALID_FLAGS))}",
+            file=sys.stderr,
+        )
         sys.exit(1)
 
     base_url = os.environ.get("BASE_URL", "http://localhost:8000").rstrip("/")

@@ -26,7 +26,9 @@ def main() -> None:
             print("health ok")
             sys.exit(0)
         else:
-            print(f"ERROR: /health returned HTTP {response.status_code}", file=sys.stderr)
+            print(
+                f"ERROR: /health returned HTTP {response.status_code}", file=sys.stderr
+            )
             sys.exit(1)
     except httpx.RequestError as exc:
         print(f"ERROR: could not reach {url}: {exc}", file=sys.stderr)

@@ -115,10 +115,19 @@ class SQLAlchemyOrderRepository(OrderRepository):
         if billing_email is not None and write_mode in ("dual", "new"):
             stmt = (
                 pg_insert(OrderContactEmailModel)
-                .values(order_id=order_row.id, billing_email=billing_email, source="app", updated_at=now)
+                .values(
+                    order_id=order_row.id,
+                    billing_email=billing_email,
+                    source="app",
+                    updated_at=now,
+                )
                 .on_conflict_do_update(
                     index_elements=["order_id"],
-                    set_={"billing_email": billing_email, "source": "app", "updated_at": now},
+                    set_={
+                        "billing_email": billing_email,
+                        "source": "app",
+                        "updated_at": now,
+                    },
                 )
             )
             self._session.execute(stmt)

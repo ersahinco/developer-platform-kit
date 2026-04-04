@@ -25,11 +25,13 @@ def get_order_repo(db: DbDep) -> OrderRepository:
     # the DB adapter at import time. The port is the compile-time contract;
     # the concrete implementation is wired only at request time.
     from adapters.db.repository import SQLAlchemyOrderRepository
+
     return SQLAlchemyOrderRepository(session=db)
 
 
 def get_config_store(db: DbDep) -> ConfigStore:
     from adapters.db.repository import SQLAlchemyConfigStore
+
     return SQLAlchemyConfigStore(session=db)
 
 

@@ -26,18 +26,30 @@ def _run_worker(**extra_env):
     # into os.environ — that Docker hostname is unreachable from the host machine.
     # Overwrite unconditionally unless the caller explicitly passed one in extra_env.
     if "BACKFILL_DATABASE_URL" not in extra_env:
-        db_url = env.get("DATABASE_URL", "postgresql://postgres:postgres@localhost:6432/migration_example")
+        db_url = env.get(
+            "DATABASE_URL",
+            "postgresql://postgres:postgres@localhost:6432/migration_example",
+        )
         # Parse and replace host/port so the worker subprocess reaches Postgres
         # on localhost rather than the Docker-internal hostname from .env.
         parsed = urlparse(db_url)
-        direct = parsed._replace(netloc=f"{parsed.username}:{parsed.password}@localhost:5432")
+        direct = parsed._replace(
+            netloc=f"{parsed.username}:{parsed.password}@localhost:5432"
+        )
         env["BACKFILL_DATABASE_URL"] = urlunparse(direct)
     # uv run --package resolves the worker's deps from the workspace without
     # hardcoding a venv path. backfill.py is run from its own src directory so
     # relative imports and pydantic-settings .env discovery work identically to
     # how the Docker container runs it.
     return subprocess.run(
-        ["uv", "run", "--package", "db-migration-example-worker", "python", "backfill.py"],
+        [
+            "uv",
+            "run",
+            "--package",
+            "db-migration-example-worker",
+            "python",
+            "backfill.py",
+        ],
         cwd=_WORKER_SRC,
         env=env,
         capture_output=True,
@@ -46,11 +58,17 @@ def _run_worker(**extra_env):
 
 
 def _insert_order(conn, billing_email=None):
-    return conn.execute(
-        text("INSERT INTO orders (customer_id, total_amount, status, submitted_at, billing_email) "
-             "VALUES (1, 10.00, 'SUBMITTED', NOW(), :e) RETURNING id"),
-        {"e": billing_email},
-    ).fetchone().id
+    return (
+        conn.execute(
+            text(
+                "INSERT INTO orders (customer_id, total_amount, status, submitted_at, billing_email) "
+                "VALUES (1, 10.00, 'SUBMITTED', NOW(), :e) RETURNING id"
+            ),
+            {"e": billing_email},
+        )
+        .fetchone()
+        .id
+    )
 
 
 def _reset_checkpoint(conn):
@@ -58,7 +76,9 @@ def _reset_checkpoint(conn):
     conn.commit()
 
 
-def test_rows_with_billing_email_are_backfilled_null_rows_are_skipped(committed_db_session):
+def test_rows_with_billing_email_are_backfilled_null_rows_are_skipped(
+    committed_db_session,
+):
     """Rows with billing_email are copied to order_contact_email; NULL rows are skipped."""
     conn = committed_db_session.connection()
     _reset_checkpoint(conn)
@@ -71,7 +91,8 @@ def test_rows_with_billing_email_are_backfilled_null_rows_are_skipped(committed_
     committed_db_session.expire_all()
 
     inserted = {
-        r.order_id for r in conn.execute(
+        r.order_id
+        for r in conn.execute(
             text("SELECT order_id FROM order_contact_email WHERE order_id IN :ids"),
             {"ids": (id_a, id_null, id_b)},
         ).fetchall()
@@ -92,7 +113,10 @@ def test_running_worker_twice_produces_the_same_row_count(committed_db_session):
 
     assert _run_worker().returncode == 0
     committed_db_session.expire_all()
-    assert conn.execute(text("SELECT COUNT(*) FROM order_contact_email")).fetchone()[0] == count
+    assert (
+        conn.execute(text("SELECT COUNT(*) FROM order_contact_email")).fetchone()[0]
+        == count
+    )
 
 
 def test_checkpoint_advances_after_each_batch(committed_db_session):
@@ -106,7 +130,9 @@ def test_checkpoint_advances_after_each_batch(committed_db_session):
     committed_db_session.expire_all()
 
     row = conn.execute(
-        text("SELECT last_order_id, rows_processed FROM backfill_progress WHERE job_name=:j"),
+        text(
+            "SELECT last_order_id, rows_processed FROM backfill_progress WHERE job_name=:j"
+        ),
         {"j": _JOB},
     ).fetchone()
     assert row.last_order_id >= order_id and row.rows_processed > 0

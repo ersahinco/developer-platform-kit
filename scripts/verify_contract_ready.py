@@ -48,7 +48,9 @@ def main() -> None:
         ).fetchone()
 
         if col_exists is None:
-            print("OK: orders.billing_email has already been dropped (Contract phase complete).")
+            print(
+                "OK: orders.billing_email has already been dropped (Contract phase complete)."
+            )
         else:
             missing_count = conn.execute(
                 text(
@@ -61,7 +63,9 @@ def main() -> None:
             ).scalar()
 
             if missing_count and missing_count > 0:
-                print(f"FAIL: {missing_count:,} order(s) with billing_email have no row in order_contact_email.")
+                print(
+                    f"FAIL: {missing_count:,} order(s) with billing_email have no row in order_contact_email."
+                )
                 ready = False
             else:
                 print("OK: all backfill rows are present in order_contact_email.")

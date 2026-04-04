@@ -17,8 +17,12 @@ class OrderModel(Base):
     total_amount: Mapped[Decimal] = mapped_column(Numeric(12, 2), nullable=False)
     # Physical column name is 'status'; mapped as order_status in Python so application
     # code is stable across any future rename migration.
-    order_status: Mapped[OrderStatus] = mapped_column("status", String(32), nullable=False)
-    submitted_at: Mapped[datetime.datetime] = mapped_column(TIMESTAMP(timezone=True), nullable=False)
+    order_status: Mapped[OrderStatus] = mapped_column(
+        "status", String(32), nullable=False
+    )
+    submitted_at: Mapped[datetime.datetime] = mapped_column(
+        TIMESTAMP(timezone=True), nullable=False
+    )
     created_at: Mapped[datetime.datetime] = mapped_column(
         TIMESTAMP(timezone=True), nullable=False, server_default="NOW()"
     )
@@ -30,7 +34,9 @@ class OrderModel(Base):
 class OrderContactEmailModel(Base):
     __tablename__ = "order_contact_email"
 
-    order_id: Mapped[int] = mapped_column(BigInteger, ForeignKey("orders.id"), primary_key=True)
+    order_id: Mapped[int] = mapped_column(
+        BigInteger, ForeignKey("orders.id"), primary_key=True
+    )
     billing_email: Mapped[str] = mapped_column(String(255), nullable=False)
     source: Mapped[str] = mapped_column(String(32), nullable=False)
     updated_at: Mapped[datetime.datetime] = mapped_column(

@@ -10,7 +10,14 @@ import pytest
 from sqlalchemy import inspect, text
 
 # Columns that must survive the full migration sequence unchanged.
-_ORDERS_STABLE_COLUMNS = {"id", "customer_id", "total_amount", "status", "submitted_at", "created_at"}
+_ORDERS_STABLE_COLUMNS = {
+    "id",
+    "customer_id",
+    "total_amount",
+    "status",
+    "submitted_at",
+    "created_at",
+}
 
 # order_contact_email must exist from the expand phase onward.
 _CONTACT_TABLE_COLUMNS = {"order_id", "billing_email", "source", "updated_at"}
@@ -19,14 +26,18 @@ _CONTACT_TABLE_COLUMNS = {"order_id", "billing_email", "source", "updated_at"}
 def test_orders_stable_columns_present(db_engine):
     """orders table retains all bootstrap-era columns throughout the migration."""
     cols = {c["name"] for c in inspect(db_engine).get_columns("orders")}
-    assert not (_ORDERS_STABLE_COLUMNS - cols), f"missing columns: {_ORDERS_STABLE_COLUMNS - cols}"
+    assert not (
+        _ORDERS_STABLE_COLUMNS - cols
+    ), f"missing columns: {_ORDERS_STABLE_COLUMNS - cols}"
 
 
 @pytest.mark.require_phase("dual", "switch", "new_pre_contract", "post_contract")
 def test_order_contact_email_table_exists_with_expected_columns(db_engine):
     """order_contact_email exists with all expected columns from the expand phase onward."""
     cols = {c["name"] for c in inspect(db_engine).get_columns("order_contact_email")}
-    assert not (_CONTACT_TABLE_COLUMNS - cols), f"missing columns: {_CONTACT_TABLE_COLUMNS - cols}"
+    assert not (
+        _CONTACT_TABLE_COLUMNS - cols
+    ), f"missing columns: {_CONTACT_TABLE_COLUMNS - cols}"
 
 
 @pytest.mark.require_phase("dual", "switch", "new_pre_contract", "post_contract")
@@ -40,8 +51,11 @@ def test_app_runtime_config_table_exists(db_engine):
     """app_runtime_config table exists and contains at least WRITE_MODE and READ_MODE rows."""
     with db_engine.connect() as conn:
         keys = {
-            row[0] for row in conn.execute(
-                text("SELECT key FROM app_runtime_config WHERE key IN ('WRITE_MODE', 'READ_MODE')")
+            row[0]
+            for row in conn.execute(
+                text(
+                    "SELECT key FROM app_runtime_config WHERE key IN ('WRITE_MODE', 'READ_MODE')"
+                )
             ).fetchall()
         }
     assert keys == {"WRITE_MODE", "READ_MODE"}

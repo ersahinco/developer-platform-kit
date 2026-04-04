@@ -45,6 +45,7 @@ load_dotenv(Path(__file__).parent.parent / ".env", override=False)
 # Phase detection
 # ---------------------------------------------------------------------------
 
+
 def _detect_phase(engine: Engine) -> str:
     """Derive the current migration phase from app_runtime_config + schema state."""
     with engine.connect() as conn:
@@ -97,6 +98,7 @@ _BACKFILL_JOB = "order_contact_email_backfill"
 # Fixtures
 # ---------------------------------------------------------------------------
 
+
 @pytest.fixture(scope="session")
 def db_engine():
     # NullPool: tests connect via PgBouncer (transaction mode) — same reason as
@@ -122,10 +124,14 @@ def db_session(db_engine):
 def committed_db_session(db_engine):
     """Commits so the running app and worker subprocess can see data; cleans up afterwards."""
     session = sessionmaker(db_engine)()
-    watermark = session.execute(text("SELECT COALESCE(MAX(id), 0) FROM orders")).scalar()
+    watermark = session.execute(
+        text("SELECT COALESCE(MAX(id), 0) FROM orders")
+    ).scalar()
     ckpt = session.execute(
-        text("SELECT last_order_id, rows_processed FROM backfill_progress "
-             "WHERE job_name=:j"),
+        text(
+            "SELECT last_order_id, rows_processed FROM backfill_progress "
+            "WHERE job_name=:j"
+        ),
         {"j": _BACKFILL_JOB},
     ).fetchone()
     try:
@@ -133,17 +139,29 @@ def committed_db_session(db_engine):
     finally:
         session.close()
         with db_engine.connect() as conn:
-            conn.execute(text("DELETE FROM order_contact_email WHERE order_id > :m"), {"m": watermark})
+            conn.execute(
+                text("DELETE FROM order_contact_email WHERE order_id > :m"),
+                {"m": watermark},
+            )
             conn.execute(text("DELETE FROM orders WHERE id > :m"), {"m": watermark})
             if ckpt:
                 conn.execute(
-                    text("INSERT INTO backfill_progress (job_name, last_order_id, rows_processed) "
-                         "VALUES (:j, :l, :p) "
-                         "ON CONFLICT (job_name) DO UPDATE SET last_order_id=:l, rows_processed=:p"),
-                    {"j": _BACKFILL_JOB, "l": ckpt.last_order_id, "p": ckpt.rows_processed},
+                    text(
+                        "INSERT INTO backfill_progress (job_name, last_order_id, rows_processed) "
+                        "VALUES (:j, :l, :p) "
+                        "ON CONFLICT (job_name) DO UPDATE SET last_order_id=:l, rows_processed=:p"
+                    ),
+                    {
+                        "j": _BACKFILL_JOB,
+                        "l": ckpt.last_order_id,
+                        "p": ckpt.rows_processed,
+                    },
                 )
             else:
-                conn.execute(text("DELETE FROM backfill_progress WHERE job_name=:j"), {"j": _BACKFILL_JOB})
+                conn.execute(
+                    text("DELETE FROM backfill_progress WHERE job_name=:j"),
+                    {"j": _BACKFILL_JOB},
+                )
             conn.commit()
 
 
@@ -161,6 +179,7 @@ def http_client(base_url):
 # ---------------------------------------------------------------------------
 # require_phase marker
 # ---------------------------------------------------------------------------
+
 
 def pytest_collection_modifyitems(config, items):
     """Skip tests whose require_phase marker does not match the live DB phase."""
@@ -189,9 +208,15 @@ def pytest_collection_modifyitems(config, items):
 # Shared helpers
 # ---------------------------------------------------------------------------
 
+
 def post_order(http_client, billing_email="test@example.com", **kwargs):
     # "10.00" as a string so Pydantic parses it as Decimal, not float.
-    payload = {"customer_id": 1, "total_amount": "10.00", "status": "SUBMITTED", **kwargs}
+    payload = {
+        "customer_id": 1,
+        "total_amount": "10.00",
+        "status": "SUBMITTED",
+        **kwargs,
+    }
     if billing_email is not None:
         payload["billing_email"] = billing_email
     resp = http_client.post("/orders", json=payload)

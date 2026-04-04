@@ -45,24 +45,97 @@ BATCH_SIZE = 5_000
 STATUSES = ["SUBMITTED", "PAID", "CANCELLED"]
 
 FIRST_NAMES = [
-    "Alice", "Bob", "Carol", "David", "Eve", "Frank", "Grace", "Henry",
-    "Iris", "Jack", "Karen", "Liam", "Mia", "Noah", "Olivia", "Paul",
-    "Quinn", "Rachel", "Sam", "Tina", "Uma", "Victor", "Wendy", "Xander",
-    "Yara", "Zoe", "Aaron", "Bella", "Carlos", "Diana", "Ethan", "Fiona",
-    "George", "Hannah", "Ivan", "Julia", "Kevin", "Laura", "Mike", "Nina",
+    "Alice",
+    "Bob",
+    "Carol",
+    "David",
+    "Eve",
+    "Frank",
+    "Grace",
+    "Henry",
+    "Iris",
+    "Jack",
+    "Karen",
+    "Liam",
+    "Mia",
+    "Noah",
+    "Olivia",
+    "Paul",
+    "Quinn",
+    "Rachel",
+    "Sam",
+    "Tina",
+    "Uma",
+    "Victor",
+    "Wendy",
+    "Xander",
+    "Yara",
+    "Zoe",
+    "Aaron",
+    "Bella",
+    "Carlos",
+    "Diana",
+    "Ethan",
+    "Fiona",
+    "George",
+    "Hannah",
+    "Ivan",
+    "Julia",
+    "Kevin",
+    "Laura",
+    "Mike",
+    "Nina",
 ]
 
 LAST_NAMES = [
-    "Smith", "Johnson", "Williams", "Brown", "Jones", "Garcia", "Miller",
-    "Davis", "Wilson", "Moore", "Taylor", "Anderson", "Thomas", "Jackson",
-    "White", "Harris", "Martin", "Thompson", "Young", "Allen", "King",
-    "Wright", "Scott", "Green", "Baker", "Adams", "Nelson", "Carter",
-    "Mitchell", "Perez", "Roberts", "Turner", "Phillips", "Campbell",
-    "Parker", "Evans", "Edwards", "Collins", "Stewart", "Morris",
+    "Smith",
+    "Johnson",
+    "Williams",
+    "Brown",
+    "Jones",
+    "Garcia",
+    "Miller",
+    "Davis",
+    "Wilson",
+    "Moore",
+    "Taylor",
+    "Anderson",
+    "Thomas",
+    "Jackson",
+    "White",
+    "Harris",
+    "Martin",
+    "Thompson",
+    "Young",
+    "Allen",
+    "King",
+    "Wright",
+    "Scott",
+    "Green",
+    "Baker",
+    "Adams",
+    "Nelson",
+    "Carter",
+    "Mitchell",
+    "Perez",
+    "Roberts",
+    "Turner",
+    "Phillips",
+    "Campbell",
+    "Parker",
+    "Evans",
+    "Edwards",
+    "Collins",
+    "Stewart",
+    "Morris",
 ]
 
 EMAIL_DOMAINS = [
-    "example.com", "mail.test", "demo.org", "sample.net", "test.io",
+    "example.com",
+    "mail.test",
+    "demo.org",
+    "sample.net",
+    "test.io",
 ]
 
 
@@ -90,18 +163,19 @@ def main() -> None:
         # ------------------------------------------------------------------ #
         customer_count = conn.execute(text("SELECT COUNT(*) FROM customers")).scalar()
         if customer_count and customer_count > 0:
-            print(f"Customers already exist ({customer_count:,} rows) — skipping customer insertion.")
+            print(
+                f"Customers already exist ({customer_count:,} rows) — skipping customer insertion."
+            )
         else:
-            print(f"Inserting {NUM_CUSTOMERS:,} customers in batches of {BATCH_SIZE:,}…")
+            print(
+                f"Inserting {NUM_CUSTOMERS:,} customers in batches of {BATCH_SIZE:,}…"
+            )
             t0 = time.monotonic()
             inserted_customers = 0
 
             for batch_start in range(0, NUM_CUSTOMERS, BATCH_SIZE):
                 batch_end = min(batch_start + BATCH_SIZE, NUM_CUSTOMERS)
-                rows = [
-                    {"name": random_name()}
-                    for _ in range(batch_end - batch_start)
-                ]
+                rows = [{"name": random_name()} for _ in range(batch_end - batch_start)]
                 conn.execute(text("INSERT INTO customers (name) VALUES (:name)"), rows)
                 conn.commit()
                 inserted_customers += len(rows)
@@ -115,7 +189,9 @@ def main() -> None:
         # ------------------------------------------------------------------ #
         order_count = conn.execute(text("SELECT COUNT(*) FROM orders")).scalar()
         if order_count and order_count > 0:
-            print(f"Orders already exist ({order_count:,} rows) — skipping order insertion.")
+            print(
+                f"Orders already exist ({order_count:,} rows) — skipping order insertion."
+            )
         else:
             # Fetch all customer IDs so we can distribute orders across them
             print("Fetching customer IDs…")
@@ -123,7 +199,9 @@ def main() -> None:
             customers = result.fetchall()  # list of (id, name) rows
 
             if not customers:
-                print("ERROR: No customers found. Run seed without existing customers first.")
+                print(
+                    "ERROR: No customers found. Run seed without existing customers first."
+                )
                 raise SystemExit(1)
 
             print(f"Inserting {NUM_ORDERS:,} orders in batches of {BATCH_SIZE:,}…")
@@ -139,16 +217,22 @@ def main() -> None:
                     cust_name = cust[1]
                     # Guest checkouts have no billing_email; registered customers always do.
                     is_guest = random.random() < GUEST_ORDER_RATE
-                    billing_email = None if is_guest else customer_email(cust_name, cust_id)
-                    rows.append({
-                        "customer_id": cust_id,
-                        # Decimal via string avoids float representation noise before
-                        # the value reaches the NUMERIC(12,2) column.
-                        "total_amount": Decimal(f"{random.uniform(1.00, 9999.99):.2f}"),
-                        "status": random.choice(STATUSES),
-                        "submitted_at": random_submitted_at(),
-                        "billing_email": billing_email,
-                    })
+                    billing_email = (
+                        None if is_guest else customer_email(cust_name, cust_id)
+                    )
+                    rows.append(
+                        {
+                            "customer_id": cust_id,
+                            # Decimal via string avoids float representation noise before
+                            # the value reaches the NUMERIC(12,2) column.
+                            "total_amount": Decimal(
+                                f"{random.uniform(1.00, 9999.99):.2f}"
+                            ),
+                            "status": random.choice(STATUSES),
+                            "submitted_at": random_submitted_at(),
+                            "billing_email": billing_email,
+                        }
+                    )
 
                 conn.execute(
                     text(
