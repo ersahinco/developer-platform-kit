@@ -679,10 +679,12 @@ data "aws_iam_policy_document" "github_actions_assume" {
     condition {
       test     = "StringLike"
       variable = "token.actions.githubusercontent.com:sub"
-      # refs/heads/main  — apply jobs (push to main)
-      # refs/pull/*/head — plan-dev job runs on PRs; must be allowed to plan
-      # Scoped to this repo only — forks from other orgs cannot obtain a token.
+      # Jobs with a named environment emit:  repo:{org}/{repo}:environment:{env}
+      # Jobs without an environment emit:    repo:{org}/{repo}:ref:refs/heads/main
+      # PR plan job emits:                   repo:{org}/{repo}:ref:refs/pull/*/head
+      # All three patterns must be allowed — scoped to this repo only.
       values = [
+        "repo:ersahinco/db-migration-example:environment:*",
         "repo:ersahinco/db-migration-example:ref:refs/heads/main",
         "repo:ersahinco/db-migration-example:ref:refs/pull/*/head",
       ]
