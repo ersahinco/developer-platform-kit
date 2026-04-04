@@ -546,9 +546,9 @@ resource "aws_ecs_task_definition" "worker" {
 
   container_definitions = jsonencode([
     {
-      name  = "worker"
+      name = "worker"
       # Placeholder — release pipeline patches this at deploy time.
-      image = "${module.ecr_worker.repository_url}:placeholder"
+      image     = "${module.ecr_worker.repository_url}:placeholder"
       essential = true
       secrets = [
         # Inject individual fields from the RDS secret and compose the URL.
@@ -924,8 +924,8 @@ data "aws_iam_policy_document" "github_actions_permissions" {
   # CloudWatch Logs: scoped to this project's log groups.
   # DescribeLogGroups requires * — the API does not support resource-level filtering.
   statement {
-    sid = "LogsDescribe"
-    actions = ["logs:DescribeLogGroups"]
+    sid       = "LogsDescribe"
+    actions   = ["logs:DescribeLogGroups"]
     resources = ["*"] # DescribeLogGroups has no resource-level scope — AWS API limitation
   }
 
