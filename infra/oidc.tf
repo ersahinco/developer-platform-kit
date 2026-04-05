@@ -80,6 +80,19 @@ data "aws_iam_policy_document" "github_actions_permissions" {
     ]
   }
 
+  # prod-migrate pulls images from dev ECR before pushing to prod ECR.
+  # The ECRPush statement above only covers the current environment's repos.
+  statement {
+    sid = "ECRPullCrossEnv"
+    actions = [
+      "ecr:BatchGetImage",
+      "ecr:GetDownloadUrlForLayer",
+    ]
+    resources = [
+      "arn:aws:ecr:${local.region}:${local.account_id}:repository/db-migration-example-*",
+    ]
+  }
+
   statement {
     sid = "ECSDeployAndRun"
     actions = [

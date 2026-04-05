@@ -484,21 +484,13 @@ module "ecs" {
           # ECS container definition keys are camelCase — they map directly to the ECS API
           portMappings = [{ containerPort = 8000, protocol = "tcp" }]
 
-          # The app container needs DB_USER and DB_PASSWORD to construct DATABASE_URL.
-          # Injected as separate secrets so ECS resolves them at task start.
-          # DATABASE_URL is then composed as a plain env var — no $(VAR) interpolation
-          # needed since the URL is built from the known static username "app" and
-          # the password secret field injected directly.
+          # ECS does not interpolate $(VAR) in environment values. DB_PASSWORD is
+          # injected as a secret; the app's config.py composes DATABASE_URL at startup.
           secrets = [
             { name = "DB_PASSWORD", valueFrom = "${module.rds.db_instance_master_user_secret_arn}:password::" },
           ]
 
-          environment = [
-            # Username is static ("app" — set in module.rds). Password comes from
-            # the secret injected above. $(DB_PASSWORD) interpolation works here
-            # because DB_PASSWORD is declared in the secrets block of this container.
-            { name = "DATABASE_URL", value = "postgresql://app:$(DB_PASSWORD)@localhost:5432/migration_example" },
-          ]
+          environment = []
 
           # pgbouncer must be accepting connections before the app starts.
           dependsOn = [{ containerName = "pgbouncer", condition = "START" }]
@@ -577,12 +569,13 @@ resource "aws_ecs_task_definition" "worker" {
       image     = "${module.ecr_worker.repository_url}:placeholder"
       essential = true
       secrets = [
-        # RDS-managed secret only has username + password. Host/port/dbname are static.
-        { name = "DB_USER", valueFrom = "${module.rds.db_instance_master_user_secret_arn}:username::" },
+        # ECS does not interpolate $(VAR) in environment values. DB_PASSWORD is
+        # injected as a secret; worker's config.py composes BACKFILL_DATABASE_URL at startup.
         { name = "DB_PASSWORD", valueFrom = "${module.rds.db_instance_master_user_secret_arn}:password::" },
       ]
       environment = [
-        { name = "BACKFILL_DATABASE_URL", value = "postgresql://$(DB_USER):$(DB_PASSWORD)@${module.rds.db_instance_address}:${module.rds.db_instance_port}/migration_example" },
+        { name = "DB_HOST", value = module.rds.db_instance_address },
+        { name = "DB_PORT", value = tostring(module.rds.db_instance_port) },
         { name = "BACKFILL_BATCH_SIZE", value = tostring(var.backfill_batch_size) },
         { name = "BACKFILL_SLEEP_MS", value = "100" },
       ]
@@ -632,7 +625,7 @@ resource "aws_iam_role_policy" "task_ssm_exec" {
 }
 ################################################################################
 # Liquibase task definition — one-off Fargate task for schema migrations.
-# Uses a custom image built FROM liquibase/liquibase:4.27 with the db/changelog/
+# Uses a custom image built FROM liquibase/liquibase:4.33.0 with the db/changelog/
 # directory baked in (see db/Dockerfile). The app image stays free of Liquibase
 # and its JVM dependency.
 # Connects directly to RDS (not pgbouncer) — DDL requires a session connection.
@@ -660,14 +653,14 @@ resource "aws_ecs_task_definition" "liquibase" {
 
       secrets = [
         # RDS-managed secret only has username + password. Host/port/dbname are static.
-        { name = "DB_USER", valueFrom = "${module.rds.db_instance_master_user_secret_arn}:username::" },
-        { name = "DB_PASSWORD", valueFrom = "${module.rds.db_instance_master_user_secret_arn}:password::" },
+        # Injected directly as the Liquibase env vars — ECS $(VAR) interpolation only
+        # works in command/entryPoint, not in environment values.
+        { name = "LIQUIBASE_COMMAND_USERNAME", valueFrom = "${module.rds.db_instance_master_user_secret_arn}:username::" },
+        { name = "LIQUIBASE_COMMAND_PASSWORD", valueFrom = "${module.rds.db_instance_master_user_secret_arn}:password::" },
       ]
 
       environment = [
         { name = "LIQUIBASE_COMMAND_URL", value = "jdbc:postgresql://${module.rds.db_instance_address}:${module.rds.db_instance_port}/migration_example" },
-        { name = "LIQUIBASE_COMMAND_USERNAME", value = "$(DB_USER)" },
-        { name = "LIQUIBASE_COMMAND_PASSWORD", value = "$(DB_PASSWORD)" },
       ]
 
       logConfiguration = {
