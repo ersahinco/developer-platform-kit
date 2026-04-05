@@ -101,6 +101,47 @@ Terraform registers task definitions with a `:placeholder` image tag.
 
 ---
 
+## Failure recovery and re-runs
+
+### What happens if prod-deploy fails after prod-migrate
+
+No automatic rollback occurs — and none is needed. The migration is always an
+expand-phase change (additive: new table or column alongside the old one). The
+old app version still running in ECS is fully compatible with the new schema
+because nothing was removed. ECS rolling deploy behaviour:
+
+- If new tasks fail health checks, ECS stops them and keeps the old tasks
+  running. Old app code + new schema = safe.
+- If the backfill worker job times out in CI, the ECS task continues running
+  independently. The worker uses a transactional cursor checkpoint — re-running
+  it on the next pipeline execution resumes from where it stopped.
+
+The contract phase (dropping the old column) is always a separate, later deploy.
+A failed prod-deploy can never leave the DB in a state incompatible with the
+currently running app.
+
+**To recover**: fix the root cause, push a new commit (or re-run the workflow
+manually via `workflow_dispatch`). The pipeline will re-run from
+`validate-and-test`. All steps are safe to repeat:
+
+| Step | Re-run behaviour |
+|---|---|
+| Liquibase migrate | Skips already-applied changesets (`DATABASECHANGELOG`) |
+| ECS service deploy | Detects same image tag already active, no-ops the rolling update |
+| Backfill worker | Resumes from transactional cursor checkpoint |
+
+### Avoiding duplicate resources on re-run
+
+`register-task-definition` always creates a new ECS revision — this is
+expected and harmless. ECS keeps the previous revisions; only the latest active
+revision is used. Old revisions are not billed and do not affect running tasks.
+
+`run-task` for Liquibase and the backfill worker are both safe to call multiple
+times in the same pipeline run or across re-runs — idempotency is guaranteed by
+Liquibase's changeset tracking and the worker's checkpoint cursor respectively.
+
+---
+
 ## Sprint reset (dev environment)
 
 To reset dev to a clean state:

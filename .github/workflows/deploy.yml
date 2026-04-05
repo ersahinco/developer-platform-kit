@@ -57,6 +57,7 @@ jobs:
   validate-and-test:
     name: Validate & Test
     runs-on: ubuntu-latest
+    timeout-minutes: 20
     permissions:
       contents: read
 
@@ -134,7 +135,8 @@ jobs:
 
       - name: Start app
         run: |
-          uv run --directory app uvicorn src.adapters.api.main:app \
+          # PYTHONPATH mirrors the Dockerfile layout: src/ contents are the root package.
+          PYTHONPATH=app/src uv run --directory app uvicorn adapters.api.main:app \
             --host 0.0.0.0 --port 8000 &
           curl --retry 30 --retry-delay 1 --retry-connrefused -sf \
             http://localhost:8000/health
@@ -152,6 +154,7 @@ jobs:
     needs: validate-and-test
     if: github.event_name == 'push' || github.event_name == 'workflow_dispatch'
     runs-on: ubuntu-latest
+    timeout-minutes: 30
     permissions:
       id-token: write
       contents: read
@@ -206,6 +209,7 @@ jobs:
     name: Dev — Migrate (Liquibase)
     needs: build-and-push
     runs-on: ubuntu-latest
+    timeout-minutes: 15
     environment: dev-deploy
     permissions:
       id-token: write
@@ -232,15 +236,30 @@ jobs:
           echo "subnet_id=$SUBNET_ID" >> "$GITHUB_OUTPUT"
           echo "sg_id=$SG_ID"         >> "$GITHUB_OUTPUT"
 
+      - name: Render liquibase task definition
+        id: render-liquibase
+        uses: aws-actions/amazon-ecs-render-task-definition@v1
+        with:
+          task-definition-family: db-migration-example-dev-liquibase
+          container-name:         liquibase
+          image: ${{ env.ECR_REGISTRY }}/db-migration-example-dev/liquibase:${{ needs.build-and-push.outputs.image_tag }}
+
+      - name: Register liquibase task definition
+        id: register-liquibase
+        run: |
+          TASK_DEF_ARN=$(aws ecs register-task-definition \
+            --cli-input-json file://${{ steps.render-liquibase.outputs.task-definition }} \
+            --query 'taskDefinition.taskDefinitionArn' --output text)
+          echo "task_def_arn=$TASK_DEF_ARN" >> "$GITHUB_OUTPUT"
+
       - name: Run Liquibase on dev RDS
         # Liquibase runs as a one-off ECS task inside the VPC — no public DB exposure.
         # Changelogs are baked into the image (see db/Dockerfile).
         # Connects directly to RDS — DDL requires a session connection, not pgbouncer's pool.
-        # Family name (no revision) — ECS picks the latest active revision automatically.
         run: |
           TASK_ARN=$(aws ecs run-task \
             --cluster db-migration-example-dev \
-            --task-definition db-migration-example-dev-liquibase \
+            --task-definition ${{ steps.register-liquibase.outputs.task_def_arn }} \
             --launch-type FARGATE \
             --network-configuration "awsvpcConfiguration={
               subnets=[${{ steps.net.outputs.subnet_id }}],
@@ -258,8 +277,9 @@ jobs:
   # ── 4. Dev deploy ─────────────────────────────────────────────────────────
   dev-deploy:
     name: Dev — Deploy App
-    needs: dev-migrate
+    needs: [build-and-push, dev-migrate]  # build-and-push needed for image_tag output
     runs-on: ubuntu-latest
+    timeout-minutes: 15
     environment: dev-deploy
     permissions:
       id-token: write
@@ -274,8 +294,8 @@ jobs:
       - name: Log in to ECR
         uses: aws-actions/amazon-ecr-login@v2
 
-      - name: Render new task definition
-        id: render-task-def
+      - name: Render app task definition
+        id: render-app
         uses: aws-actions/amazon-ecs-render-task-definition@v1
         with:
           task-definition-family: db-migration-example-dev
@@ -285,7 +305,7 @@ jobs:
       - name: Deploy to ECS
         uses: aws-actions/amazon-ecs-deploy-task-definition@v2
         with:
-          task-definition:            ${{ steps.render-task-def.outputs.task-definition }}
+          task-definition:            ${{ steps.render-app.outputs.task-definition }}
           service:                    db-migration-example-dev-app
           cluster:                    db-migration-example-dev
           wait-for-service-stability: true
@@ -293,8 +313,9 @@ jobs:
   # ── 5. Prod migrate ───────────────────────────────────────────────────────
   prod-migrate:
     name: Prod — Migrate (Liquibase)
-    needs: dev-deploy
+    needs: [build-and-push, dev-deploy]  # build-and-push needed for image_tag output
     runs-on: ubuntu-latest
+    timeout-minutes: 15
     environment: prod-migrate
     permissions:
       id-token: write
@@ -320,11 +341,27 @@ jobs:
           echo "subnet_id=$SUBNET_ID" >> "$GITHUB_OUTPUT"
           echo "sg_id=$SG_ID"         >> "$GITHUB_OUTPUT"
 
+      - name: Render liquibase task definition
+        id: render-liquibase
+        uses: aws-actions/amazon-ecs-render-task-definition@v1
+        with:
+          task-definition-family: db-migration-example-prod-liquibase
+          container-name:         liquibase
+          image: ${{ env.ECR_REGISTRY }}/db-migration-example-prod/liquibase:${{ needs.build-and-push.outputs.image_tag }}
+
+      - name: Register liquibase task definition
+        id: register-liquibase
+        run: |
+          TASK_DEF_ARN=$(aws ecs register-task-definition \
+            --cli-input-json file://${{ steps.render-liquibase.outputs.task-definition }} \
+            --query 'taskDefinition.taskDefinitionArn' --output text)
+          echo "task_def_arn=$TASK_DEF_ARN" >> "$GITHUB_OUTPUT"
+
       - name: Run Liquibase on prod RDS
         run: |
           TASK_ARN=$(aws ecs run-task \
             --cluster db-migration-example-prod \
-            --task-definition db-migration-example-prod-liquibase \
+            --task-definition ${{ steps.register-liquibase.outputs.task_def_arn }} \
             --launch-type FARGATE \
             --network-configuration "awsvpcConfiguration={
               subnets=[${{ steps.net.outputs.subnet_id }}],
@@ -342,8 +379,12 @@ jobs:
   # ── 6. Prod deploy ────────────────────────────────────────────────────────
   prod-deploy:
     name: Prod — Deploy App
-    needs: prod-migrate
+    needs: [build-and-push, prod-migrate]  # build-and-push needed for image_tag output
     runs-on: ubuntu-latest
+    # 60 min: ECS rolling deploy (up to ~10 min) + backfill worker (variable, but
+    # bounded — if it runs longer than this the job fails and the task keeps running
+    # in ECS; check CloudWatch Logs /ecs/db-migration-example-prod/worker to monitor.
+    timeout-minutes: 60
     environment: prod-deploy
     permissions:
       id-token: write
@@ -370,8 +411,8 @@ jobs:
           echo "subnet_id=$SUBNET_ID" >> "$GITHUB_OUTPUT"
           echo "sg_id=$SG_ID"         >> "$GITHUB_OUTPUT"
 
-      - name: Render new task definition
-        id: render-task-def
+      - name: Render app task definition
+        id: render-app
         uses: aws-actions/amazon-ecs-render-task-definition@v1
         with:
           task-definition-family: db-migration-example-prod
@@ -381,16 +422,32 @@ jobs:
       - name: Deploy to ECS
         uses: aws-actions/amazon-ecs-deploy-task-definition@v2
         with:
-          task-definition:            ${{ steps.render-task-def.outputs.task-definition }}
+          task-definition:            ${{ steps.render-app.outputs.task-definition }}
           service:                    db-migration-example-prod-app
           cluster:                    db-migration-example-prod
           wait-for-service-stability: true
+
+      - name: Render worker task definition
+        id: render-worker
+        uses: aws-actions/amazon-ecs-render-task-definition@v1
+        with:
+          task-definition-family: db-migration-example-prod-worker
+          container-name:         worker
+          image: ${{ env.ECR_REGISTRY }}/db-migration-example-prod/worker:${{ needs.build-and-push.outputs.image_tag }}
+
+      - name: Register worker task definition
+        id: register-worker
+        run: |
+          TASK_DEF_ARN=$(aws ecs register-task-definition \
+            --cli-input-json file://${{ steps.render-worker.outputs.task-definition }} \
+            --query 'taskDefinition.taskDefinitionArn' --output text)
+          echo "task_def_arn=$TASK_DEF_ARN" >> "$GITHUB_OUTPUT"
 
       - name: Run backfill worker
         run: |
           TASK_ARN=$(aws ecs run-task \
             --cluster db-migration-example-prod \
-            --task-definition db-migration-example-prod-worker \
+            --task-definition ${{ steps.register-worker.outputs.task_def_arn }} \
             --launch-type FARGATE \
             --network-configuration "awsvpcConfiguration={
               subnets=[${{ steps.net.outputs.subnet_id }}],
@@ -401,7 +458,16 @@ jobs:
           echo "Backfill task: $TASK_ARN"
           echo "Monitor: CloudWatch Logs /ecs/db-migration-example-prod/worker"
 
-          aws ecs wait tasks-stopped --cluster db-migration-example-prod --tasks "$TASK_ARN"
+          # ecs wait tasks-stopped has a 10-minute default. Backfill may run longer —
+          # poll manually so we don't cap a legitimate long-running job.
+          while true; do
+            STATUS=$(aws ecs describe-tasks \
+              --cluster db-migration-example-prod --tasks "$TASK_ARN" \
+              --query 'tasks[0].lastStatus' --output text)
+            [ "$STATUS" = "STOPPED" ] && break
+            echo "Worker status: $STATUS — waiting…"
+            sleep 30
+          done
 
           EXIT_CODE=$(aws ecs describe-tasks \
             --cluster db-migration-example-prod --tasks "$TASK_ARN" \
