@@ -26,10 +26,10 @@ on:
 # On push to main: full pipeline — test → build → migrate → deploy
 #
 # validate-and-test — hermetic: Postgres + pgbouncer service containers, full test suite
-# build-and-push    — builds app + worker + liquibase images, trivy CRITICAL scan, pushes to ECR
+# build-and-push    — builds app + worker + liquibase images, trivy CRITICAL scan, pushes to dev ECR
 # dev-migrate       — Liquibase update on dev RDS (one-off ECS task, waits for exit code)
 # dev-deploy        — rolling ECS update to new image tag
-# prod-migrate      — Liquibase update on prod RDS (manual approval)
+# prod-migrate      — promotes images from dev to prod ECR, Liquibase update on prod RDS (manual approval)
 # prod-deploy       — rolling ECS update + backfill worker (manual approval)
 #
 # Environments (configure in GitHub → Settings → Environments):
@@ -122,7 +122,7 @@ jobs:
         run: |
           docker run --rm --network host \
             -v "${{ github.workspace }}/db:/liquibase/db" \
-            liquibase/liquibase:4.27 \
+            liquibase/liquibase:4.33.0 \
               --changelog-file=changelog/db.changelog-master.yaml \
               --search-path=/liquibase/db \
               --url=jdbc:postgresql://localhost:5432/migration_example \
@@ -219,15 +219,12 @@ jobs:
           severity: CRITICAL
           version: v0.69.3
 
-      - name: Push images (dev + prod repos share the same image)
+      - name: Push images to dev ECR
         env:
           TAG: sha-${{ github.sha }}
         run: |
           for repo in app worker liquibase; do
             docker push ${{ env.ECR_REGISTRY }}/db-migration-example-dev/${repo}:$TAG
-            docker tag  ${{ env.ECR_REGISTRY }}/db-migration-example-dev/${repo}:$TAG \
-                        ${{ env.ECR_REGISTRY }}/db-migration-example-prod/${repo}:$TAG
-            docker push ${{ env.ECR_REGISTRY }}/db-migration-example-prod/${repo}:$TAG
           done
 
   # ── 3. Dev migrate ────────────────────────────────────────────────────────
@@ -354,6 +351,22 @@ jobs:
         with:
           role-to-assume: ${{ secrets.AWS_ROLE_ARN }}
           aws-region:     ${{ env.AWS_REGION }}
+
+      - name: Log in to ECR
+        uses: aws-actions/amazon-ecr-login@v2
+
+      - name: Promote images from dev to prod ECR
+        # Pull the validated dev image and push to prod ECR using the prod role.
+        # The dev role cannot push to prod repos — promotion happens here under prod credentials.
+        env:
+          TAG: ${{ needs.build-and-push.outputs.image_tag }}
+        run: |
+          for repo in app worker liquibase; do
+            docker pull ${{ env.ECR_REGISTRY }}/db-migration-example-dev/${repo}:$TAG
+            docker tag  ${{ env.ECR_REGISTRY }}/db-migration-example-dev/${repo}:$TAG \
+                        ${{ env.ECR_REGISTRY }}/db-migration-example-prod/${repo}:$TAG
+            docker push ${{ env.ECR_REGISTRY }}/db-migration-example-prod/${repo}:$TAG
+          done
 
       - name: Resolve network config
         id: net
