@@ -421,6 +421,9 @@ module "ecs" {
       deployment_minimum_healthy_percent = 100
       deployment_maximum_percent         = 200
       ignore_task_definition_changes     = true
+      # Enables `aws ecs execute-command` for interactive access to running tasks.
+      # Required for DB access via SSM port forwarding — no bastion needed.
+      enable_execute_command = true
 
       container_definitions = {
         # PgBouncer sidecar — runs in the same task network namespace as the app.
@@ -584,6 +587,30 @@ resource "aws_cloudwatch_log_group" "worker" {
   tags              = local.tags
 }
 
+################################################################################
+# ECS Exec — SSM permissions on the app task role
+# Required for `aws ecs execute-command` and SSM port forwarding to RDS.
+# No bastion host needed — SSM tunnels through the running Fargate task.
+################################################################################
+
+resource "aws_iam_role_policy" "task_ssm_exec" {
+  name = "ssm-exec"
+  role = module.ecs.services["app"].tasks_iam_role_name
+
+  policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [{
+      Effect = "Allow"
+      Action = [
+        "ssmmessages:CreateControlChannel",
+        "ssmmessages:CreateDataChannel",
+        "ssmmessages:OpenControlChannel",
+        "ssmmessages:OpenDataChannel",
+      ]
+      Resource = "*" # ssmmessages has no resource-level scope — AWS API limitation
+    }]
+  })
+}
 ################################################################################
 # Liquibase task definition — one-off Fargate task for schema migrations.
 # Uses a custom image built FROM liquibase/liquibase:4.27 with the db/changelog/
