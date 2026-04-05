@@ -1,6 +1,7 @@
 name: Deploy
 
 on:
+  workflow_dispatch: {}  # manual trigger for testing without a code change
   pull_request:
     paths:
       - "app/**"
@@ -149,7 +150,7 @@ jobs:
   build-and-push:
     name: Build & Push to ECR
     needs: validate-and-test
-    if: github.event_name == 'push'
+    if: github.event_name == 'push' || github.event_name == 'workflow_dispatch'
     runs-on: ubuntu-latest
     permissions:
       id-token: write
