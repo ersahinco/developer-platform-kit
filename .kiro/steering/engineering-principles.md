@@ -63,10 +63,10 @@ Use the [terraform-aws-modules](https://github.com/terraform-aws-modules) commun
 
 | Resource | Module |
 |---|---|
-| VPC | `terraform-aws-modules/vpc/aws ~> 5.21` |
-| ECS cluster + service | `terraform-aws-modules/ecs/aws ~> 5.0` |
-| RDS | `terraform-aws-modules/rds/aws ~> 6.0` |
-| ECR | `terraform-aws-modules/ecr/aws ~> 2.0` |
+| VPC | `terraform-aws-modules/vpc/aws ~> 6.0` |
+| ECS cluster + service | `terraform-aws-modules/ecs/aws ~> 7.0` |
+| RDS | `terraform-aws-modules/rds/aws ~> 7.0` |
+| ECR | `terraform-aws-modules/ecr/aws ~> 3.0` |
 
 Rationale: community modules encode AWS best practices (IAM, security groups, subnet routing), are actively maintained, and eliminate hundreds of lines of boilerplate. Hand-rolling these is only justified when the module cannot express a required configuration — document why if that happens.
 
@@ -111,7 +111,7 @@ Managed services are preferred when the management overhead saved exceeds the fe
 - Shift-left security checks in CI, before the image is pushed:
   - Run `trivy image` (or equivalent) on the built image. Fail the pipeline on CRITICAL CVEs.
   - Enable `scan_on_push = true` in ECR for a second pass using AWS Basic Scanning (free).
-  - Pin base image digests (`FROM python:3.12-slim@sha256:...`) in production Dockerfiles to prevent silent base image changes between builds.
+  - Pin base image digests (`FROM python:3.12-slim@sha256:...`) in production Dockerfiles only when digest renewal is automated (e.g. Renovate or Dependabot). Without automation, a stale digest is worse than a fresh tag — use tag + Trivy CVE scan instead.
 - Do not run containers as root. Set `USER` in the Dockerfile to a non-root UID.
 
 ### Secrets and config

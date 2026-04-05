@@ -7,6 +7,9 @@ COPY pyproject.toml uv.lock ./
 RUN uv sync --frozen --no-dev --no-install-project
 
 # ── Runtime ───────────────────────────────────────────────────────────────────
+# Tag-only (no digest) — Trivy scans the built image in CI for CVEs before push.
+# Digest pinning requires automated renewal (Renovate/Dependabot) to stay secure;
+# without it, a stale digest is worse than a fresh tag + CVE scan.
 FROM python:3.12-slim
 
 # Non-root user — do not run application processes as root

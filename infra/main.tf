@@ -424,6 +424,9 @@ module "ecs" {
       # Enables `aws ecs execute-command` for interactive access to running tasks.
       # Required for DB access via SSM port forwarding — no bastion needed.
       enable_execute_command = true
+      # Explicit family name — module default uses the service key ("app") which
+      # is shared across environments. Scoping to local.name isolates dev and prod.
+      family = local.name
 
       container_definitions = {
         # PgBouncer sidecar — runs in the same task network namespace as the app.

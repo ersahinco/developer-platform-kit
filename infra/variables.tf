@@ -5,8 +5,12 @@ variable "aws_region" {
 }
 
 variable "environment" {
-  description = "Environment name — used as a prefix/tag on all resources (e.g. dev, prod)."
+  description = "Environment name — used as a prefix/tag on all resources."
   type        = string
+  validation {
+    condition     = contains(["dev", "prod"], var.environment)
+    error_message = "environment must be 'dev' or 'prod'."
+  }
 }
 
 

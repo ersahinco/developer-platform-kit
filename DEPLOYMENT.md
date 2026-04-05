@@ -80,9 +80,8 @@ source of truth — no variables or secrets are needed in the pipelines beyond
 | Resource | dev | prod |
 |---|---|---|
 | ECS cluster | `db-migration-example-dev` | `db-migration-example-prod` |
-| ECS service | `db-migration-example-dev-app` | `db-migration-example-prod-app` |
-| Task family (app) | `db-migration-example-dev` | `db-migration-example-prod` |
-| Task family (worker) | `db-migration-example-dev-worker` | `db-migration-example-prod-worker` |
+| ECS service | `app` | `app` |
+| Task family (app) | `db-migration-example-dev` | `db-migration-example-prod` || Task family (worker) | `db-migration-example-dev-worker` | `db-migration-example-prod-worker` |
 | Task family (liquibase) | `db-migration-example-dev-liquibase` | `db-migration-example-prod-liquibase` |
 | ECR repos | `db-migration-example-dev/{app,worker,liquibase}` | `db-migration-example-prod/{app,worker,liquibase}` |
 | IAM role | `db-migration-example-dev-github-actions` | `db-migration-example-prod-github-actions` |

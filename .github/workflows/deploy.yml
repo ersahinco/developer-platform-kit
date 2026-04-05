@@ -314,7 +314,7 @@ jobs:
         uses: aws-actions/amazon-ecs-deploy-task-definition@v2
         with:
           task-definition:            ${{ steps.render-app.outputs.task-definition }}
-          service:                    db-migration-example-dev-app
+          service:                    app
           cluster:                    db-migration-example-dev
           wait-for-service-stability: true
 
@@ -431,7 +431,7 @@ jobs:
         uses: aws-actions/amazon-ecs-deploy-task-definition@v2
         with:
           task-definition:            ${{ steps.render-app.outputs.task-definition }}
-          service:                    db-migration-example-prod-app
+          service:                    app
           cluster:                    db-migration-example-prod
           wait-for-service-stability: true
 
