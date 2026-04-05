@@ -2,7 +2,10 @@ FROM liquibase/liquibase:4.33.0
 
 # lpm is a CLI tool for installing Liquibase extensions — never used at runtime.
 # Removing it eliminates CVE-2024-24790 and CVE-2025-68121 in its bundled Go stdlib.
+# Must switch to root temporarily — the base image runs as a non-root user.
+USER root
 RUN rm -f /liquibase/bin/lpm
+USER liquibase
 
 # Bake the changelog files into the image so the ECS task needs no volume
 # mounts or S3 access at runtime. The image is rebuilt and pushed on every
