@@ -163,6 +163,7 @@ jobs:
     if: github.event_name == 'push' || github.event_name == 'workflow_dispatch'
     runs-on: ubuntu-latest
     timeout-minutes: 30
+    environment: dev-deploy  # required — AWS_ROLE_ARN secret is environment-scoped
     permissions:
       id-token: write
       contents: read
