@@ -458,6 +458,9 @@ module "ecs" {
 
           enable_cloudwatch_logging              = true
           cloudwatch_log_group_retention_in_days = 14
+          # Explicit name — module default (/aws/ecs/app/pgbouncer) is shared across
+          # environments because it derives from the service key, not the cluster name.
+          cloudwatch_log_group_name = "/ecs/${local.name}/pgbouncer"
         }
 
         app = {
@@ -499,6 +502,9 @@ module "ecs" {
 
           enable_cloudwatch_logging              = true
           cloudwatch_log_group_retention_in_days = 30
+          # Explicit name — module default (/aws/ecs/app/app) is shared across
+          # environments because it derives from the service key, not the cluster name.
+          cloudwatch_log_group_name = "/ecs/${local.name}/app"
         }
       }
 
