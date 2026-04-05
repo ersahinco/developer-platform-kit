@@ -492,9 +492,11 @@ module "ecs" {
           image     = "${module.ecr_pgbouncer.repository_url}:v1.25.1-p0"
           essential = true
 
-          # pgbouncer's entrypoint writes /etc/pgbouncer/userlist.txt at startup.
-          # tmpfs mount satisfies the write without relaxing readonlyRootFilesystem.
-          mountPoints = [{ sourceVolume = "pgbouncer-etc", containerPath = "/etc/pgbouncer", readOnly = false }]
+          # pgbouncer's entrypoint generates /etc/pgbouncer/userlist.txt and pgbouncer.ini
+          # at startup. readonlyRootFilesystem must be false — the entrypoint writes to
+          # multiple paths (/etc/pgbouncer, /var/run/pgbouncer) that cannot all be covered
+          # by volume mounts without overcomplicating the config.
+          readonlyRootFilesystem = false
 
           # RDS-managed secret only contains username + password.
           # Host, port, dbname are not sensitive — injected as plain env vars below.
@@ -567,12 +569,6 @@ module "ecs" {
 
       subnet_ids = module.vpc.private_subnets
       vpc_id     = module.vpc.vpc_id
-
-      # tmpfs volume for pgbouncer — entrypoint writes userlist.txt here at startup.
-      # Scoped to the task lifetime; no persistent storage needed.
-      volume = {
-        pgbouncer-etc = {}
-      }
 
       security_group_ingress_rules = {
         from_alb = {
