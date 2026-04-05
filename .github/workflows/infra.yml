@@ -28,7 +28,7 @@ on:
 #                    dev:  arn:aws:iam::691627364817:role/db-migration-example-dev-github-actions
 #                    prod: arn:aws:iam::691627364817:role/db-migration-example-prod-github-actions
 #
-# No variables needed — deploy.yml inlines all resource names from the
+# No variables needed — app.yml inlines all resource names from the
 # deterministic naming convention: db-migration-example-{env}
 # ---------------------------------------------------------------------------
 

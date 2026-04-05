@@ -14,9 +14,9 @@ Triggered by changes to `infra/**`.
 | Push to main | lint-and-validate → apply-dev (auto) → apply-prod (manual approval) |
 
 Terraform owns: VPC, ECS cluster/service, RDS, ECR, ALB, IAM, task definition shape.
-It does not own the image tag — that is patched at release time by `deploy.yml`.
+It does not own the image tag — that is patched at release time by `app.yml`.
 
-### deploy.yml — release
+### app.yml — release
 
 Triggered by changes to `app/**`, `db/**`, `tests/**`, `scripts/**`.
 
@@ -37,9 +37,9 @@ Five environments — create these in **Settings → Environments** before the f
 |---|---|---|---|
 | `dev-infra` | infra.yml | none | `AWS_ROLE_ARN` |
 | `prod-infra` | infra.yml | required | `AWS_ROLE_ARN` |
-| `dev-deploy` | deploy.yml | none | `AWS_ROLE_ARN` |
-| `prod-migrate` | deploy.yml | required | `AWS_ROLE_ARN` |
-| `prod-deploy` | deploy.yml | required | `AWS_ROLE_ARN` |
+| `dev-deploy` | app.yml | none | `AWS_ROLE_ARN` |
+| `prod-migrate` | app.yml | required | `AWS_ROLE_ARN` |
+| `prod-deploy` | app.yml | required | `AWS_ROLE_ARN` |
 
 `AWS_ROLE_ARN` values:
 
@@ -60,11 +60,11 @@ These steps are run once before the first `terraform apply`. They create the
 resources Terraform itself depends on (state backend, OIDC provider).
 
 ```bash
-make bootstrap        # creates S3 state bucket, DynamoDB lock table, OIDC provider
-make apply-iam-dev    # targeted apply: IAM role only — required before first full plan
-make apply-dev        # full dev apply
-make apply-iam-prod   # targeted apply: IAM role only for prod
-make apply-prod       # full prod apply
+make bootstrap           # creates S3 state bucket, DynamoDB lock table, OIDC provider
+make infra-apply-iam-dev  # targeted apply: IAM role only — required before first full plan
+make infra-apply-dev      # full dev apply
+make infra-apply-iam-prod # targeted apply: IAM role only for prod
+make infra-apply-prod     # full prod apply
 ```
 
 See `Makefile` for all available targets (`make help`).
@@ -95,7 +95,7 @@ from the same build. `latest` is never used — ECR tag mutability is set to
 `IMMUTABLE`.
 
 Terraform registers task definitions with a `:placeholder` image tag.
-`deploy.yml` patches the real SHA tag at release time via
+`app.yml` patches the real SHA tag at release time via
 `amazon-ecs-render-task-definition` — infra apply never touches the image tag.
 
 ---

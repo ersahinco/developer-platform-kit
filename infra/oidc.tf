@@ -54,7 +54,7 @@ resource "aws_iam_role" "github_actions" {
 }
 
 data "aws_iam_policy_document" "github_actions_permissions" {
-  # ── Deploy pipeline (deploy.yml) ──────────────────────────────────────────
+  # ── Deploy pipeline (app.yml) ──────────────────────────────────────────
 
   statement {
     sid       = "ECRAuth"

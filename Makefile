@@ -2,21 +2,27 @@
 # Makefile — local dev, lint, and infra bootstrap commands
 #
 # Prerequisites (install once):
-#   brew install uv terraform tflint checkov pre-commit
-#   pip install checkov   # or: brew install checkov
+#   brew install uv terraform tflint checkov pre-commit session-manager-plugin
 #
 # Usage:
-#   make help             — list all targets
-#   make dev              — start local stack
-#   make test             — run test suite
-#   make lint             — run all linters (app + infra)
-#   make fmt              — auto-format everything
-#   make bootstrap        — one-time AWS account setup, idempotent (safe to re-run)
-#   make plan-dev         — terraform plan for dev
-#   make apply-dev        — terraform apply for dev
-#   make apply-iam-dev    — targeted apply: IAM policy only (breaks bootstrap cycle)
-#   make plan-prod        — terraform plan for prod
-#   make apply-prod       — terraform apply for prod
+#   make help                — list all targets
+#   make dev                 — start local stack
+#   make test                — run test suite
+#   make lint                — run all linters (app + infra)
+#   make fmt                 — auto-format everything
+#
+#   make bootstrap           — one-time AWS account setup, idempotent
+#
+#   make infra-plan-dev      — terraform plan for dev
+#   make infra-apply-dev     — terraform apply for dev
+#   make infra-plan-prod     — terraform plan for prod
+#   make infra-apply-prod    — terraform apply for prod
+#
+#   make app-deploy-dev      — force new ECS deployment in dev
+#   make app-deploy-prod     — force new ECS deployment in prod
+#
+#   make db-tunnel ENV=dev   — SSM port-forward localhost:LOCAL_PORT → RDS:5432
+#   make db-exec ENV=dev     — open psql inside a running app task
 # ─────────────────────────────────────────────────────────────────────────────
 
 .DEFAULT_GOAL := help
@@ -31,7 +37,7 @@ TF_LOCK_TABLE   := terraform-locks
 .PHONY: help
 help:
 	@grep -E '^[a-zA-Z_-]+:.*?## .*$$' $(MAKEFILE_LIST) \
-		| awk 'BEGIN {FS = ":.*?## "}; {printf "  %-20s %s\n", $$1, $$2}'
+		| awk 'BEGIN {FS = ":.*?## "}; {printf "  %-24s %s\n", $$1, $$2}'
 
 # ── Local dev ─────────────────────────────────────────────────────────────────
 
@@ -115,48 +121,136 @@ bootstrap: ## One-time AWS account setup — idempotent, safe to re-run
 
 # ── Infra — dev ───────────────────────────────────────────────────────────────
 
-.PHONY: init-dev
-init-dev: ## terraform init for dev state
+.PHONY: infra-init-dev
+infra-init-dev:
 	cd infra && terraform init \
 		-backend-config="key=db-migration-example/dev.tfstate" \
 		-reconfigure
 
-.PHONY: plan-dev
-plan-dev: init-dev ## terraform plan for dev
+.PHONY: infra-plan-dev
+infra-plan-dev: infra-init-dev ## Terraform plan — dev
 	cd infra && terraform plan -var-file=dev.tfvars
 
-.PHONY: apply-dev
-apply-dev: init-dev ## terraform apply for dev
+.PHONY: infra-apply-dev
+infra-apply-dev: infra-init-dev ## Terraform apply — dev
 	cd infra && terraform apply -var-file=dev.tfvars
 
-.PHONY: apply-iam-dev
-apply-iam-dev: init-dev ## Targeted apply: IAM role + policy only — use to break bootstrap permission cycle
+.PHONY: infra-apply-iam-dev
+infra-apply-iam-dev: infra-init-dev ## Targeted apply: IAM only — breaks bootstrap permission cycle (dev)
 	cd infra && terraform apply -var-file=dev.tfvars \
 		-target=aws_iam_role.github_actions \
 		-target=aws_iam_role_policy.github_actions
 
-.PHONY: destroy-dev
-destroy-dev: init-dev ## terraform destroy for dev (sprint reset)
+.PHONY: infra-destroy-dev
+infra-destroy-dev: infra-init-dev ## Terraform destroy — dev (sprint reset)
 	cd infra && terraform destroy -var-file=dev.tfvars
 
 # ── Infra — prod ──────────────────────────────────────────────────────────────
 
-.PHONY: init-prod
-init-prod: ## terraform init for prod state
+.PHONY: infra-init-prod
+infra-init-prod:
 	cd infra && terraform init \
 		-backend-config="key=db-migration-example/prod.tfstate" \
 		-reconfigure
 
-.PHONY: plan-prod
-plan-prod: init-prod ## terraform plan for prod
+.PHONY: infra-plan-prod
+infra-plan-prod: infra-init-prod ## Terraform plan — prod
 	cd infra && terraform plan -var-file=prod.tfvars
 
-.PHONY: apply-prod
-apply-prod: init-prod ## terraform apply for prod
+.PHONY: infra-apply-prod
+infra-apply-prod: infra-init-prod ## Terraform apply — prod
 	cd infra && terraform apply -var-file=prod.tfvars
 
-.PHONY: apply-iam-prod
-apply-iam-prod: init-prod ## Targeted apply: IAM role + policy only for prod
+.PHONY: infra-apply-iam-prod
+infra-apply-iam-prod: infra-init-prod ## Targeted apply: IAM only — breaks bootstrap permission cycle (prod)
 	cd infra && terraform apply -var-file=prod.tfvars \
 		-target=aws_iam_role.github_actions \
 		-target=aws_iam_role_policy.github_actions
+
+# ── App — deploy ──────────────────────────────────────────────────────────────
+
+.PHONY: app-deploy-dev
+app-deploy-dev: ## Force new ECS deployment — dev (picks up latest task definition)
+	aws ecs update-service \
+		--cluster db-migration-example-dev \
+		--service app \
+		--task-definition db-migration-example-dev \
+		--force-new-deployment \
+		--region $(AWS_REGION) \
+		--query 'service.taskDefinition' \
+		--output text
+
+.PHONY: app-deploy-prod
+app-deploy-prod: ## Force new ECS deployment — prod (picks up latest task definition)
+	aws ecs update-service \
+		--cluster db-migration-example-prod \
+		--service app \
+		--task-definition db-migration-example-prod \
+		--force-new-deployment \
+		--region $(AWS_REGION) \
+		--query 'service.taskDefinition' \
+		--output text
+
+# ── DB access — no bastion needed ─────────────────────────────────────────────
+#
+#   make db-tunnel ENV=dev            — forward localhost:LOCAL_PORT → RDS:5432
+#   make db-tunnel ENV=prod LOCAL_PORT=25432
+#   make db-exec ENV=dev              — drop into psql inside a running app task
+#
+# Prerequisites:
+#   brew install session-manager-plugin
+#
+# Credentials:
+#   aws secretsmanager get-secret-value \
+#     --secret-id $(shell cd infra && terraform output -raw db_secret_arn) \
+#     --query SecretString --output text | python3 -m json.tool
+# ─────────────────────────────────────────────────────────────────────────────
+
+ENV        ?= dev
+LOCAL_PORT ?= 15432
+
+_TF_INIT = cd infra && terraform init -backend-config="key=db-migration-example/$(ENV).tfstate" -reconfigure -input=false > /dev/null 2>&1
+
+.PHONY: db-exec
+db-exec: ## Open psql inside a running app task  (ENV=dev|prod)
+	@$(_TF_INIT)
+	$(eval CLUSTER  := $(shell cd infra && terraform output -raw ecs_cluster_name))
+	$(eval SERVICE  := $(shell cd infra && terraform output -raw app_service_name))
+	$(eval TASK_ARN := $(shell aws ecs list-tasks \
+		--cluster $(CLUSTER) \
+		--service-name $(SERVICE) \
+		--desired-status RUNNING \
+		--query 'taskArns[0]' \
+		--output text \
+		--region $(AWS_REGION)))
+	@echo "→ exec into task $(TASK_ARN)"
+	aws ecs execute-command \
+		--cluster $(CLUSTER) \
+		--task $(TASK_ARN) \
+		--container app \
+		--interactive \
+		--command "psql \$$DATABASE_URL" \
+		--region $(AWS_REGION)
+
+.PHONY: db-tunnel
+db-tunnel: ## SSM port-forward localhost:$(LOCAL_PORT) → RDS:5432  (ENV=dev|prod, LOCAL_PORT=15432)
+	@$(_TF_INIT)
+	$(eval CLUSTER  := $(shell cd infra && terraform output -raw ecs_cluster_name))
+	$(eval SERVICE  := $(shell cd infra && terraform output -raw app_service_name))
+	$(eval RDS_HOST := $(shell cd infra && terraform output -raw rds_endpoint | cut -d: -f1))
+	$(eval TASK_ARN := $(shell aws ecs list-tasks \
+		--cluster $(CLUSTER) \
+		--service-name $(SERVICE) \
+		--desired-status RUNNING \
+		--query 'taskArns[0]' \
+		--output text \
+		--region $(AWS_REGION)))
+	$(eval TASK_ID  := $(shell echo $(TASK_ARN) | awk -F/ '{print $$NF}'))
+	@echo "→ tunnel localhost:$(LOCAL_PORT) → $(RDS_HOST):5432 via task $(TASK_ID)"
+	@echo "  Connect DBeaver to: host=localhost  port=$(LOCAL_PORT)"
+	@echo "  Credentials: aws secretsmanager get-secret-value --secret-id $$(cd infra && terraform output -raw db_secret_arn) --query SecretString --output text"
+	aws ssm start-session \
+		--target "ecs:$(CLUSTER)_$(TASK_ID)" \
+		--document-name AWS-StartPortForwardingSessionToRemoteHost \
+		--parameters "{\"host\":[\"$(RDS_HOST)\"],\"portNumber\":[\"5432\"],\"localPortNumber\":[\"$(LOCAL_PORT)\"]}" \
+		--region $(AWS_REGION)

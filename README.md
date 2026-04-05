@@ -13,7 +13,7 @@ The concrete migration: moving `orders.billing_email` into a dedicated `order_co
 | Schema bootstrap | Liquibase changesets | `db/changelog/000-bootstrap.yaml`, `002-app-runtime-config.yaml` |
 | Column migration | Expand/contract (dual-write + backfill + switch) | `db/changelog/`, `worker/src/backfill.py` |
 | Connection pooling | PgBouncer (transaction mode) | `docker-compose.yml`, `db/pgbouncer/pgbouncer.ini`, `infra/main.tf` |
-| Zero-downtime deploy | ECS rolling update + WRITE_MODE/READ_MODE flags | `infra/main.tf`, `.github/workflows/deploy.yml` |
+| Zero-downtime deploy | ECS rolling update + WRITE_MODE/READ_MODE flags | `infra/main.tf`, `.github/workflows/app.yml` |
 
 ---
 
@@ -232,7 +232,7 @@ SQLAlchemy uses `NullPool` — it does not maintain its own idle connections. Ea
 
 ## Upgrade-path test
 
-The CI pipeline (`validate-and-test` job in `.github/workflows/deploy.yml`) resets to a clean PostgreSQL instance, runs Liquibase, seeds data, starts the app, and runs the full test suite on every push to `main`.
+The CI pipeline (`validate-and-test` job in `.github/workflows/app.yml`) resets to a clean PostgreSQL instance, runs Liquibase, seeds data, starts the app, and runs the full test suite on every push to `main`.
 
 The `build-and-push` job runs `trivy image --severity CRITICAL` on the app image before pushing to ECR.
 
@@ -246,7 +246,7 @@ Two pipelines, separate concerns:
 - PR: lint (`fmt`, `validate`, `tflint`, `checkov`) + `terraform plan` posted as a PR comment
 - Merge to main: `terraform apply` dev (auto) → prod (manual approval)
 
-**`deploy.yml`** — triggered by changes to `app/**`, `db/**`, `tests/**`, `scripts/**`
+**`app.yml`** — triggered by changes to `app/**`, `db/**`, `tests/**`, `scripts/**`
 - PR: test only
 - Merge to main: test → build + scan → dev migrate → dev deploy → prod migrate (approval) → prod deploy (approval)
 

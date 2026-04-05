@@ -86,7 +86,7 @@ Set `AWS_ROLE_ARN` on each environment (dev and prod roles can be the same role 
 
 ### 2.3 Capture outputs for the app pipeline secrets
 
-After the first apply, collect the values needed for `deploy.yml`:
+After the first apply, collect the values needed for `app.yml`:
 
 ```bash
 cd infra
@@ -144,7 +144,7 @@ lint-and-validate   (fmt, validate, tflint, checkov — no AWS needed)
       └── apply-prod    (merge to main — manual approval required)
 ```
 
-### deploy.yml — app + data pipeline
+### app.yml — app + data pipeline
 
 Triggers on changes to `app/**`, `db/**`, `tests/**`, `scripts/**`.
 

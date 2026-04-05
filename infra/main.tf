@@ -421,6 +421,11 @@ module "ecs" {
       deployment_minimum_healthy_percent = 100
       deployment_maximum_percent         = 200
       ignore_task_definition_changes     = true
+
+      # Use the explicitly managed execution role so our secret policy applies.
+      # Without this the module creates its own role that lacks GetSecretValue.
+      create_task_exec_iam_role = false
+      task_exec_iam_role_arn    = aws_iam_role.task_exec.arn
       # Enables `aws ecs execute-command` for interactive access to running tasks.
       # Required for DB access via SSM port forwarding — no bastion needed.
       enable_execute_command = true
@@ -441,18 +446,21 @@ module "ecs" {
           image     = "edoburu/pgbouncer:v1.25.1-p0"
           essential = true
 
+          # pgbouncer's entrypoint writes /etc/pgbouncer/userlist.txt at startup.
+          # tmpfs mount satisfies the write without relaxing readonlyRootFilesystem.
+          mountPoints = [{ sourceVolume = "pgbouncer-etc", containerPath = "/etc/pgbouncer", readOnly = false }]
+
+          # RDS-managed secret only contains username + password.
+          # Host, port, dbname are not sensitive — injected as plain env vars below.
           secrets = [
-            { name = "DB_HOST", valueFrom = "${module.rds.db_instance_master_user_secret_arn}:host::" },
-            { name = "DB_PORT", valueFrom = "${module.rds.db_instance_master_user_secret_arn}:port::" },
-            { name = "DB_NAME", valueFrom = "${module.rds.db_instance_master_user_secret_arn}:dbname::" },
             { name = "DB_USER", valueFrom = "${module.rds.db_instance_master_user_secret_arn}:username::" },
             { name = "DB_PASSWORD", valueFrom = "${module.rds.db_instance_master_user_secret_arn}:password::" },
           ]
 
-          # edoburu/pgbouncer reads DB_HOST, DB_PORT, DB_NAME, DB_USER, DB_PASSWORD
-          # directly from the injected secrets above — no need to re-declare them
-          # as environment variables. Only pool config goes here.
           environment = [
+            { name = "DB_HOST", value = module.rds.db_instance_address },
+            { name = "DB_PORT", value = tostring(module.rds.db_instance_port) },
+            { name = "DB_NAME", value = "migration_example" },
             { name = "POOL_MODE", value = "transaction" },
             { name = "DEFAULT_POOL_SIZE", value = tostring(var.pgbouncer_pool_size) },
             { name = "MAX_CLIENT_CONN", value = "200" },
@@ -467,7 +475,7 @@ module "ecs" {
         }
 
         app = {
-          # Placeholder — deploy.yml patches this to the real SHA tag at release time
+          # Placeholder — app.yml patches this to the real SHA tag at release time
           # via amazon-ecs-render-task-definition. Infra owns the task definition shape,
           # not the image tag.
           image     = "${module.ecr_app.repository_url}:placeholder"
@@ -522,6 +530,12 @@ module "ecs" {
       subnet_ids = module.vpc.private_subnets
       vpc_id     = module.vpc.vpc_id
 
+      # tmpfs volume for pgbouncer — entrypoint writes userlist.txt here at startup.
+      # Scoped to the task lifetime; no persistent storage needed.
+      volume = {
+        pgbouncer-etc = {}
+      }
+
       security_group_ingress_rules = {
         from_alb = {
           description                  = "From ALB on container port"
@@ -563,16 +577,12 @@ resource "aws_ecs_task_definition" "worker" {
       image     = "${module.ecr_worker.repository_url}:placeholder"
       essential = true
       secrets = [
-        # Inject individual fields from the RDS secret and compose the URL.
-        # Worker bypasses pgbouncer — uses the raw RDS endpoint directly.
-        { name = "DB_HOST", valueFrom = "${module.rds.db_instance_master_user_secret_arn}:host::" },
-        { name = "DB_PORT", valueFrom = "${module.rds.db_instance_master_user_secret_arn}:port::" },
-        { name = "DB_NAME", valueFrom = "${module.rds.db_instance_master_user_secret_arn}:dbname::" },
+        # RDS-managed secret only has username + password. Host/port/dbname are static.
         { name = "DB_USER", valueFrom = "${module.rds.db_instance_master_user_secret_arn}:username::" },
         { name = "DB_PASSWORD", valueFrom = "${module.rds.db_instance_master_user_secret_arn}:password::" },
       ]
       environment = [
-        { name = "BACKFILL_DATABASE_URL", value = "postgresql://$(DB_USER):$(DB_PASSWORD)@$(DB_HOST):$(DB_PORT)/$(DB_NAME)" },
+        { name = "BACKFILL_DATABASE_URL", value = "postgresql://$(DB_USER):$(DB_PASSWORD)@${module.rds.db_instance_address}:${module.rds.db_instance_port}/migration_example" },
         { name = "BACKFILL_BATCH_SIZE", value = tostring(var.backfill_batch_size) },
         { name = "BACKFILL_SLEEP_MS", value = "100" },
       ]
@@ -649,15 +659,13 @@ resource "aws_ecs_task_definition" "liquibase" {
       essential = true
 
       secrets = [
-        { name = "DB_HOST", valueFrom = "${module.rds.db_instance_master_user_secret_arn}:host::" },
-        { name = "DB_PORT", valueFrom = "${module.rds.db_instance_master_user_secret_arn}:port::" },
-        { name = "DB_NAME", valueFrom = "${module.rds.db_instance_master_user_secret_arn}:dbname::" },
+        # RDS-managed secret only has username + password. Host/port/dbname are static.
         { name = "DB_USER", valueFrom = "${module.rds.db_instance_master_user_secret_arn}:username::" },
         { name = "DB_PASSWORD", valueFrom = "${module.rds.db_instance_master_user_secret_arn}:password::" },
       ]
 
       environment = [
-        { name = "LIQUIBASE_COMMAND_URL", value = "jdbc:postgresql://$(DB_HOST):$(DB_PORT)/$(DB_NAME)" },
+        { name = "LIQUIBASE_COMMAND_URL", value = "jdbc:postgresql://${module.rds.db_instance_address}:${module.rds.db_instance_port}/migration_example" },
         { name = "LIQUIBASE_COMMAND_USERNAME", value = "$(DB_USER)" },
         { name = "LIQUIBASE_COMMAND_PASSWORD", value = "$(DB_PASSWORD)" },
       ]
