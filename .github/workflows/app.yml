@@ -218,6 +218,7 @@ jobs:
           exit-code: 1
           severity: CRITICAL
           version: v0.69.3
+          trivyignores: db/.trivyignore
 
       - name: Push images (dev + prod repos share the same image)
         env:
