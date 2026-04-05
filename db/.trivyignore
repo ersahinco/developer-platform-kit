@@ -1,7 +1,0 @@
-# liquibase/bin/lpm is a CLI tool bundled in the upstream liquibase base image,
-# used only to install extensions interactively. It is never executed at runtime
-# in the ECS task (which only runs `liquibase update`). These CVEs are in the Go
-# stdlib that lpm was compiled against — not fixable by bumping the Liquibase
-# version. Accept until upstream ships lpm recompiled against a patched Go runtime.
-CVE-2024-24790
-CVE-2025-68121
