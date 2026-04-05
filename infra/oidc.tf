@@ -199,8 +199,10 @@ data "aws_iam_policy_document" "github_actions_permissions" {
     resources = [
       "arn:aws:ecs:${local.region}:${local.account_id}:cluster/db-migration-example-*",
       "arn:aws:ecs:${local.region}:${local.account_id}:service/db-migration-example-*/*",
-      # TagResource is called on task definitions during RegisterTaskDefinition
-      "arn:aws:ecs:${local.region}:${local.account_id}:task-definition/db-migration-example-*",
+      # TagResource is called on task definitions during RegisterTaskDefinition.
+      # The ECS module names the service task definition after the service key ("app"),
+      # not the cluster — so we cannot scope to db-migration-example-* here.
+      "arn:aws:ecs:${local.region}:${local.account_id}:task-definition/*",
     ]
   }
 
