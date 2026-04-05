@@ -185,6 +185,52 @@ module "ecr_worker" {
 }
 
 ################################################################################
+# ECR — pgbouncer sidecar image (mirrored from Docker Hub)
+# Avoids Docker Hub unauthenticated pull rate limits (100 pulls/6h per NAT IP).
+# CI mirrors the upstream tag once; ECS pulls from ECR with no rate limit.
+################################################################################
+
+module "ecr_pgbouncer" {
+  source  = "terraform-aws-modules/ecr/aws"
+  version = "~> 3.0"
+
+  repository_name                 = "${local.name}/pgbouncer"
+  repository_image_tag_mutability = "IMMUTABLE"
+  repository_image_scan_on_push   = true
+
+  repository_read_write_access_arns = [aws_iam_role.github_actions.arn]
+
+  repository_lifecycle_policy = jsonencode({
+    rules = [
+      {
+        rulePriority = 1
+        description  = "Expire untagged images after 1 day"
+        selection = {
+          tagStatus   = "untagged"
+          countType   = "sinceImagePushed"
+          countUnit   = "days"
+          countNumber = 1
+        }
+        action = { type = "expire" }
+      },
+      {
+        rulePriority = 2
+        description  = "Keep last 5 tagged images"
+        selection = {
+          tagStatus     = "tagged"
+          tagPrefixList = ["v"]
+          countType     = "imageCountMoreThan"
+          countNumber   = 5
+        }
+        action = { type = "expire" }
+      }
+    ]
+  })
+
+  tags = local.tags
+}
+
+################################################################################
 # RDS — terraform-aws-modules/rds/aws ~> 7.0
 # manage_master_user_password=true: RDS generates and rotates the password in
 # Secrets Manager automatically. v7 drops `password` in favour of write-only
@@ -441,9 +487,9 @@ module "ecs" {
         # pgbouncer connects to RDS using the secret injected via DB_HOST / DB_PORT /
         # DB_NAME / DB_USER / DB_PASSWORD environment variables.
         pgbouncer = {
-          # edoburu/pgbouncer:v1.25.1-p0 — versioned tag, multi-arch (amd64 + arm64).
-          # Pin to digest in prod: edoburu/pgbouncer@sha256:cf8ba55692e4818e983dc047acf1711f17dd4ab1da7d47bdab8b9b2cc14337dc
-          image     = "edoburu/pgbouncer:v1.25.1-p0"
+          # Mirrored to ECR by CI to avoid Docker Hub unauthenticated pull rate limits.
+          # Upstream: edoburu/pgbouncer:v1.25.1-p0
+          image     = "${module.ecr_pgbouncer.repository_url}:v1.25.1-p0"
           essential = true
 
           # pgbouncer's entrypoint writes /etc/pgbouncer/userlist.txt at startup.

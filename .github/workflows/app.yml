@@ -190,6 +190,24 @@ jobs:
           docker build -t ${{ env.ECR_REGISTRY }}/db-migration-example-dev/worker:$TAG    worker/
           docker build -t ${{ env.ECR_REGISTRY }}/db-migration-example-dev/liquibase:$TAG db/
 
+      # Mirror pgbouncer from Docker Hub to ECR — avoids unauthenticated pull rate
+      # limits (100/6h per NAT IP) when ECS starts tasks. Only pushes if the tag
+      # doesn't already exist (IMMUTABLE repos reject duplicate tags).
+      - name: Mirror pgbouncer to ECR
+        env:
+          PGBOUNCER_TAG: v1.25.1-p0
+        run: |
+          if aws ecr describe-images \
+            --repository-name db-migration-example-dev/pgbouncer \
+            --image-ids imageTag=$PGBOUNCER_TAG 2>/dev/null; then
+            echo "pgbouncer:$PGBOUNCER_TAG already in ECR — skipping"
+          else
+            docker pull edoburu/pgbouncer:$PGBOUNCER_TAG
+            docker tag  edoburu/pgbouncer:$PGBOUNCER_TAG \
+                        ${{ env.ECR_REGISTRY }}/db-migration-example-dev/pgbouncer:$PGBOUNCER_TAG
+            docker push ${{ env.ECR_REGISTRY }}/db-migration-example-dev/pgbouncer:$PGBOUNCER_TAG
+          fi
+
       # Scan before push — CRITICAL CVE fails the pipeline before images land in ECR.
       # Pinned to commit SHA (not tag) — tags are mutable and were weaponised in the
       # March 2026 TeamPCP supply chain attack (GHSA-69fq-xp46-6x23). SHA = v0.35.0.
@@ -367,6 +385,21 @@ jobs:
                         ${{ env.ECR_REGISTRY }}/db-migration-example-prod/${repo}:$TAG
             docker push ${{ env.ECR_REGISTRY }}/db-migration-example-prod/${repo}:$TAG
           done
+
+      - name: Mirror pgbouncer to prod ECR
+        env:
+          PGBOUNCER_TAG: v1.25.1-p0
+        run: |
+          if aws ecr describe-images \
+            --repository-name db-migration-example-prod/pgbouncer \
+            --image-ids imageTag=$PGBOUNCER_TAG 2>/dev/null; then
+            echo "pgbouncer:$PGBOUNCER_TAG already in prod ECR — skipping"
+          else
+            docker pull ${{ env.ECR_REGISTRY }}/db-migration-example-dev/pgbouncer:$PGBOUNCER_TAG
+            docker tag  ${{ env.ECR_REGISTRY }}/db-migration-example-dev/pgbouncer:$PGBOUNCER_TAG \
+                        ${{ env.ECR_REGISTRY }}/db-migration-example-prod/pgbouncer:$PGBOUNCER_TAG
+            docker push ${{ env.ECR_REGISTRY }}/db-migration-example-prod/pgbouncer:$PGBOUNCER_TAG
+          fi
 
       - name: Resolve network config
         id: net

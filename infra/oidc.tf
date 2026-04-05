@@ -77,6 +77,7 @@ data "aws_iam_policy_document" "github_actions_permissions" {
       module.ecr_app.repository_arn,
       module.ecr_worker.repository_arn,
       module.ecr_liquibase.repository_arn,
+      module.ecr_pgbouncer.repository_arn,
     ]
   }
 
