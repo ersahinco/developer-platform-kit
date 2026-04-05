@@ -142,6 +142,13 @@ jobs:
           curl --retry 30 --retry-delay 1 --retry-connrefused -sf \
             http://localhost:8000/health
 
+      - name: Advance to dual-write phase
+        # Liquibase seeds WRITE_MODE=legacy. order_contact_email exists after 001-expand,
+        # so conftest.py detects phase=dual and runs dual-write tests — but the app is
+        # still writing legacy. Advance WRITE_MODE to dual so app behaviour matches the
+        # phase the tests expect. This mirrors step 3 of the production runbook.
+        run: uv run python scripts/set_runtime_config.py write-mode dual
+
       - name: Run tests
         run: uv run pytest tests/ -v
 
