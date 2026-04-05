@@ -1,4 +1,4 @@
-name: Deploy
+name: App
 
 on:
   workflow_dispatch: {}  # manual trigger for testing without a code change
