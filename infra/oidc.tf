@@ -360,6 +360,7 @@ data "aws_iam_policy_document" "github_actions_permissions" {
       "iam:PutRolePolicy", "iam:DeleteRolePolicy",
       "iam:AttachRolePolicy", "iam:DetachRolePolicy",
       "iam:TagRole", "iam:UntagRole",
+      "iam:TagPolicy", "iam:UntagPolicy",
       "iam:PassRole",
       "iam:GetRole", "iam:GetRolePolicy",
       "iam:GetPolicy", "iam:GetPolicyVersion",
