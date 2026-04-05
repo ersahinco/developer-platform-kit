@@ -136,7 +136,8 @@ jobs:
       - name: Start app
         run: |
           # PYTHONPATH mirrors the Dockerfile layout: src/ contents are the root package.
-          PYTHONPATH=app/src uv run --directory app uvicorn adapters.api.main:app \
+          # Use absolute path — uv changes cwd to app/ so a relative path would resolve wrong.
+          PYTHONPATH="${{ github.workspace }}/app/src" uv run --directory app uvicorn adapters.api.main:app \
             --host 0.0.0.0 --port 8000 &
           curl --retry 30 --retry-delay 1 --retry-connrefused -sf \
             http://localhost:8000/health
