@@ -191,16 +191,33 @@ jobs:
           docker build -t ${{ env.ECR_REGISTRY }}/db-migration-example-dev/liquibase:$TAG db/
 
       # Scan before push — CRITICAL CVE fails the pipeline before images land in ECR.
-      - name: Scan images for vulnerabilities
-        env:
-          TAG: sha-${{ github.sha }}
-        run: |
-          for repo in app worker liquibase; do
-            docker run --rm -v /var/run/docker.sock:/var/run/docker.sock \
-              aquasec/trivy:latest image \
-              --exit-code 1 --severity CRITICAL --no-progress \
-              ${{ env.ECR_REGISTRY }}/db-migration-example-dev/${repo}:$TAG
-          done
+      # Pinned to commit SHA (not tag) — tags are mutable and were weaponised in the
+      # March 2026 TeamPCP supply chain attack (GHSA-69fq-xp46-6x23). SHA = v0.35.0.
+      # Trivy binary pinned to v0.69.3 — last safe version before the compromised
+      # v0.69.4/5/6 releases. Do not bump without verifying the advisory is resolved.
+      - name: Scan app image
+        uses: aquasecurity/trivy-action@57a97c7e7821a5776cebc9bb87c984fa69cba8f1
+        with:
+          image-ref: ${{ env.ECR_REGISTRY }}/db-migration-example-dev/app:sha-${{ github.sha }}
+          exit-code: 1
+          severity: CRITICAL
+          version: v0.69.3
+
+      - name: Scan worker image
+        uses: aquasecurity/trivy-action@57a97c7e7821a5776cebc9bb87c984fa69cba8f1
+        with:
+          image-ref: ${{ env.ECR_REGISTRY }}/db-migration-example-dev/worker:sha-${{ github.sha }}
+          exit-code: 1
+          severity: CRITICAL
+          version: v0.69.3
+
+      - name: Scan liquibase image
+        uses: aquasecurity/trivy-action@57a97c7e7821a5776cebc9bb87c984fa69cba8f1
+        with:
+          image-ref: ${{ env.ECR_REGISTRY }}/db-migration-example-dev/liquibase:sha-${{ github.sha }}
+          exit-code: 1
+          severity: CRITICAL
+          version: v0.69.3
 
       - name: Push images (dev + prod repos share the same image)
         env:
