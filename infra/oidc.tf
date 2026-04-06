@@ -288,6 +288,8 @@ data "aws_iam_policy_document" "github_actions_permissions" {
       "wafv2:ListAvailableManagedRuleGroupVersions",
       "wafv2:DescribeManagedRuleGroup",
       "wafv2:CheckCapacity",
+      "wafv2:GetWebACLForResource",
+      "wafv2:ListResourcesForWebACL",
     ]
     resources = ["*"]
   }
