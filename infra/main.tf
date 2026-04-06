@@ -74,7 +74,7 @@ module "ecr_app" {
     rules = [
       {
         rulePriority = 1
-        description  = "Expire untagged images after 1 day "
+        description  = "Expire untagged images after 1 day"
         selection = {
           tagStatus   = "untagged"
           countType   = "sinceImagePushed"
