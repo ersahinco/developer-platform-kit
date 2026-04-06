@@ -64,7 +64,7 @@ output "private_subnet_ids" {
 }
 
 output "app_security_group_id" {
-  description = "App security group ID for run-task. Set as APP_SG_ID in GitHub."
+  description = "App security group ID — used for run-task (worker, liquibase). Set as APP_SG_ID in GitHub."
   value       = aws_security_group.app.id
 }
 

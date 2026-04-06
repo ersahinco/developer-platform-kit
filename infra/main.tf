@@ -244,10 +244,13 @@ resource "aws_security_group" "rds" {
   vpc_id      = module.vpc.vpc_id
 
   ingress {
-    description     = "Postgres from app security group"
-    from_port       = 5432
-    to_port         = 5432
-    protocol        = "tcp"
+    description = "Postgres from ECS app tasks"
+    from_port   = 5432
+    to_port     = 5432
+    protocol    = "tcp"
+    # aws_security_group.app is pre-created so both RDS and ECS module can
+    # reference it without a circular dependency. The ECS module is told to
+    # use it via security_group_ids + create_security_group=false.
     security_groups = [aws_security_group.app.id]
   }
 
@@ -581,18 +584,10 @@ module "ecs" {
       subnet_ids = module.vpc.private_subnets
       vpc_id     = module.vpc.vpc_id
 
-      security_group_ingress_rules = {
-        from_alb = {
-          description                  = "From ALB on container port"
-          from_port                    = "8000"
-          to_port                      = "8000"
-          ip_protocol                  = "tcp"
-          referenced_security_group_id = aws_security_group.alb.id
-        }
-      }
-      security_group_egress_rules = {
-        all = { ip_protocol = "-1", cidr_ipv4 = "0.0.0.0/0" }
-      }
+      # Use the pre-created SG so RDS can reference it without a circular
+      # dependency (RDS SG → app SG → ECS module → RDS endpoint → RDS → RDS SG).
+      create_security_group = false
+      security_group_ids    = [aws_security_group.app.id]
     }
   }
 

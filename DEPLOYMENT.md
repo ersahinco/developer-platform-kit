@@ -153,3 +153,61 @@ terraform apply  -var-file=dev.tfvars
 ```
 
 Then re-run the full runbook from step 2 in `README.md` against the fresh RDS instance.
+
+---
+
+## DB access and data seeding (deployed environments)
+
+RDS is in intra subnets with no internet route. Access is via SSM port forwarding through a running ECS task — no bastion host needed.
+
+### Prerequisites
+
+```bash
+brew install session-manager-plugin
+```
+
+### Open the tunnel
+
+```bash
+make db-tunnel ENV=dev        # forwards localhost:15432 → RDS:5432
+make db-tunnel ENV=prod LOCAL_PORT=25432
+```
+
+The tunnel stays open until you Ctrl+C. Keep it running in a dedicated terminal.
+
+### Get credentials
+
+```bash
+aws secretsmanager get-secret-value \
+  --secret-id $(cd infra && terraform output -raw db_secret_arn) \
+  --query SecretString --output text | python3 -m json.tool
+```
+
+### Connect with psql
+
+```bash
+SECRET=$(aws secretsmanager get-secret-value \
+  --secret-id $(cd infra && terraform output -raw db_secret_arn) \
+  --query SecretString --output text)
+
+PGPASSWORD=$(echo $SECRET | python3 -c "import sys,json; print(json.load(sys.stdin)['password'])") \
+  psql -h localhost -p 15432 -U app -d migration_example
+```
+
+### Seed data through the tunnel
+
+With the tunnel open in another terminal:
+
+```bash
+SECRET=$(aws secretsmanager get-secret-value \
+  --secret-id $(cd infra && terraform output -raw db_secret_arn) \
+  --query SecretString --output text)
+
+DB_USER=$(echo $SECRET | python3 -c "import sys,json; print(json.load(sys.stdin)['username'])")
+DB_PASS=$(echo $SECRET | python3 -c "import sys,json; print(json.load(sys.stdin)['password'])")
+
+DATABASE_URL="postgresql://${DB_USER}:${DB_PASS}@localhost:15432/migration_example" \
+  uv run python scripts/seed_data.py
+```
+
+`seed_data.py` is idempotent — it skips insertion if rows already exist. Volume is controlled by `SEED_NUM_CUSTOMERS` and `SEED_NUM_ORDERS` env vars (defaults: 1,000 / 10,000).

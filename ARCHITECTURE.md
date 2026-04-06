@@ -107,3 +107,49 @@ Data volume on dev can be smaller than prod (seed defaults: 1,000 customers / 10
 - Secrets management (`DATABASE_URL` in `.env` is local-only; ECS injects credentials via Secrets Manager)
 - DB snapshot before the contract phase (drop column)
 - Pub/sub cache invalidation for any remaining runtime config flags across multiple instances
+
+---
+
+## Infrastructure design notes
+
+### ECS service security group — pre-create to break circular dependency
+
+The `terraform-aws-modules/ecs` module creates its own security group for the service when `security_group_ingress_rules` / `security_group_egress_rules` are defined. This creates a circular dependency when RDS also needs to reference the app SG:
+
+```
+aws_security_group.rds → module.ecs SG → module.ecs → module.rds endpoint → module.rds → aws_security_group.rds
+```
+
+The pattern to break this: pre-create `aws_security_group.app` before either module, pass it to the ECS module via `create_security_group = false` + `security_group_ids`, and reference it from the RDS SG ingress rule. Both modules can then reference the same SG ID without a cycle. This is the standard pattern when two modules need to reference each other's security groups.
+
+### ECS Exec and readonlyRootFilesystem
+
+The `terraform-aws-modules/ecs` module defaults `readonlyRootFilesystem = true` for all containers. The SSM managed agent (used by `enable_execute_command`) requires write access to `/var/lib/amazon` and `/var/log/amazon` at startup — it does not support readonly root on Fargate 1.4, even with tmpfs mounts covering `/tmp`. The agent starts but immediately stops with no error reason.
+
+The fix is `readonlyRootFilesystem = false` on any container that needs ECS Exec. The meaningful security boundary in this architecture is IAM + private subnet + security groups, not filesystem immutability. If readonly root is a hard requirement, the only supported workaround requires modifying the Dockerfile to declare volumes for those two paths and defining matching bind-mount volumes in the task definition — see the [upstream issue](https://github.com/aws/containers-roadmap/issues/1359).
+
+### SSM port forwarding target format
+
+`aws ssm start-session` with `AWS-StartPortForwardingSessionToRemoteHost` requires the full three-part target for ECS Fargate tasks:
+
+```
+ecs:<cluster-name>_<task-id>_<container-runtime-id>
+```
+
+The runtime ID is distinct from the task ID and is only available after the task is fully running. Query it via:
+
+```bash
+aws ecs describe-tasks \
+  --cluster <cluster> --tasks <task-arn> \
+  --query 'tasks[0].containers[?name==`app`].runtimeId' \
+  --output text
+```
+
+The `make db-tunnel` target fetches this automatically.
+
+### Log noise on ECS
+
+Two sources of high-frequency log noise in a typical ECS + ALB setup:
+
+- ALB health checks — fire every `interval` seconds from each AZ plus the ECS container health check. Filtered at the Uvicorn access logger level in `adapters/api/main.py` using a `logging.Filter` subclass. Non-200 responses on `/health` still pass through.
+- PgBouncer stats logs — fire every `stats_period` seconds (default 60s) regardless of traffic. Controlled via the `STATS_PERIOD` environment variable. Set to 3600 (hourly) — low enough to preserve pool pressure signal, high enough to eliminate per-minute noise. Set to 0 to disable entirely.

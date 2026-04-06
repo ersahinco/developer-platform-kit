@@ -244,11 +244,17 @@ db-tunnel: ## SSM port-forward localhost:$(LOCAL_PORT) → RDS:5432  (ENV=dev|pr
 		--output text \
 		--region $(AWS_REGION)))
 	$(eval TASK_ID  := $(shell echo $(TASK_ARN) | awk -F/ '{print $$NF}'))
+	$(eval RUNTIME_ID := $(shell aws ecs describe-tasks \
+		--cluster $(CLUSTER) \
+		--tasks $(TASK_ARN) \
+		--region $(AWS_REGION) \
+		--query 'tasks[0].containers[?name==`app`].runtimeId' \
+		--output text))
 	@echo "→ tunnel localhost:$(LOCAL_PORT) → $(RDS_HOST):5432 via task $(TASK_ID)"
 	@echo "  Connect DBeaver/psql to: host=localhost  port=$(LOCAL_PORT)  dbname=migration_example"
 	@echo "  Get credentials: aws secretsmanager get-secret-value --secret-id \$$(cd infra && $(_TF_INIT_CMD) && terraform output -raw db_secret_arn) --query SecretString --output text | python3 -m json.tool"
 	aws ssm start-session \
-		--target "ecs:$(CLUSTER)_$(TASK_ID)" \
+		--target "ecs:$(CLUSTER)_$(TASK_ID)_$(RUNTIME_ID)" \
 		--document-name AWS-StartPortForwardingSessionToRemoteHost \
 		--parameters "{\"host\":[\"$(RDS_HOST)\"],\"portNumber\":[\"5432\"],\"localPortNumber\":[\"$(LOCAL_PORT)\"]}" \
 		--region $(AWS_REGION)
