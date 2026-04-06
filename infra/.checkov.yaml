@@ -16,6 +16,13 @@ skip-check:
   # via HTTPS with a valid bearer token.
   - CKV_AWS_260
 
+  # Target group uses HTTP — TLS terminates at the ALB. Traffic from the ALB
+  # to the app container is plain HTTP inside the VPC private subnet, protected
+  # by security groups (inbound from ALB SG only). End-to-end TLS to the
+  # container would require a cert on the app with no security benefit inside
+  # a private subnet behind WAF + ALB.
+  - CKV_AWS_378
+
   # WAF full logging to Kinesis Firehose — CloudWatch metrics and sampled
   # requests are enabled on all rules instead. Full logging adds ~$0.10/GB
   # ingested via Firehose and is not justified for this demo.
