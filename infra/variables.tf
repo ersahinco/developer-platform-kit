@@ -23,9 +23,15 @@ variable "vpc_cidr" {
 }
 
 variable "alb_ingress_cidr" {
-  description = "CIDR allowed to reach the ALB on port 80. Restrict to a known IP in dev (e.g. 89.0.2.102/32). In production, replace with HTTPS + HTTP redirect — making port 80 scope irrelevant."
+  description = "CIDR allowed to reach the ALB on ports 80/443. Open to 0.0.0.0/0 — HTTPS + fixed-token auth is the access control layer."
   type        = string
   default     = "0.0.0.0/0"
+}
+
+variable "api_token_secret_name" {
+  description = "Secrets Manager secret name holding the API bearer token. Created by `make create-api-token` — never stored in state or tfvars."
+  type        = string
+  default     = "db-migration-example/api-token"
 }
 
 variable "az_count" {

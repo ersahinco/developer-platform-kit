@@ -13,6 +13,9 @@
 #
 #   make bootstrap           — one-time AWS account setup, idempotent
 #
+#   make tls-import-dev      — generate + import self-signed cert for dev (run once before first apply)
+#   make tls-import-prod     — generate + import self-signed cert for prod (run once before first apply)
+#
 #   make infra-plan-dev      — terraform plan for dev
 #   make infra-apply-dev     — terraform apply for dev
 #   make infra-plan-prod     — terraform plan for prod
@@ -119,6 +122,24 @@ bootstrap: ## One-time AWS account setup — idempotent, safe to re-run
 			--client-id-list sts.amazonaws.com \
 			--thumbprint-list 6938fd4d98bab03faadb97b34396831e3780aea1
 	@echo "Bootstrap complete."
+
+# ── TLS — self-signed cert import (run once per environment before first apply) ──
+#
+# Generates a self-signed certificate for the ALB's built-in DNS name and
+# imports it into ACM. The resulting ARN is written to infra/.tls-cert-arn-ENV
+# which Terraform reads via file() — keeping the ARN out of state and tfvars.
+#
+# Callers must pass --insecure / -k when hitting the HTTPS endpoint.
+# Re-running is idempotent: if the ARN file already exists the target exits early.
+# ─────────────────────────────────────────────────────────────────────────────
+
+.PHONY: tls-import-dev
+tls-import-dev: ## Generate + import self-signed TLS cert for dev ALB into ACM
+	@bash scripts/tls_import.sh dev $(AWS_REGION)
+
+.PHONY: tls-import-prod
+tls-import-prod: ## Generate + import self-signed TLS cert for prod ALB into ACM
+	@bash scripts/tls_import.sh prod $(AWS_REGION)
 
 # ── Infra — dev ───────────────────────────────────────────────────────────────
 

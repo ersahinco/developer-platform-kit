@@ -4,6 +4,7 @@ single_nat_gateway = false # one NAT per AZ — required for HA
 rds_instance_class = "db.t4g.medium"
 rds_multi_az       = true
 app_desired_count  = 2
-# ALB open to the internet — prod serves real traffic. Restrict to HTTPS via
-# ACM + redirect rule once a certificate is provisioned.
-alb_ingress_cidr = "0.0.0.0/0"
+
+# Run `make tls-import-prod` once before the first apply to generate and import
+# the self-signed cert. The ARN is written to infra/.tls-cert-arn-prod.
+api_token_secret_name = "db-migration-example/api-token"

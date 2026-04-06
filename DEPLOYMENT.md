@@ -54,16 +54,57 @@ Subnet and security group IDs are resolved at runtime by tag.
 
 ---
 
+## API access — TLS and authentication
+
+The ALB exposes HTTPS only. HTTP (port 80) redirects to HTTPS with a 301.
+
+### TLS
+
+A self-signed certificate is generated locally and imported into ACM. There is no trusted CA — callers must pass `--insecure` / `-k`. The certificate CN is `alb-self-signed`; the SAN contains the full ALB DNS name.
+
+The certificate ARN is written to `infra/.tls-cert-arn-{env}` by `make tls-import-{env}` and read by Terraform via `file()`. It is gitignored — run the target once per environment before the first `terraform apply`.
+
+```bash
+make tls-import-dev   # writes infra/.tls-cert-arn-dev
+make tls-import-prod  # writes infra/.tls-cert-arn-prod
+```
+
+To rotate: delete the ARN file, run the target again, then `terraform apply`.
+
+### Authentication
+
+All routes require a bearer token in the `Authorization` header. The ALB evaluates the header before the request reaches the app — unauthenticated requests receive `401 {"detail":"Unauthorized"}` from the ALB directly.
+
+The token is stored in Secrets Manager under `db-migration-example/api-token` (created by `make bootstrap`, shared across environments). Terraform reads it at apply time to configure the ALB listener rule.
+
+**Calling the API:**
+
+```bash
+TOKEN=$(aws secretsmanager get-secret-value \
+  --secret-id db-migration-example/api-token \
+  --region eu-central-1 \
+  --query SecretString --output text)
+
+curl -sk -H "Authorization: Bearer $TOKEN" \
+  https://<alb-dns-name>/orders/1
+```
+
+The ALB DNS name is available from `terraform output alb_url` after apply.
+
+---
+
 ## Bootstrap — one-time setup per AWS account
 
 These steps are run once before the first `terraform apply`. They create the
 resources Terraform itself depends on (state backend, OIDC provider).
 
 ```bash
-make bootstrap           # creates S3 state bucket, DynamoDB lock table, OIDC provider
+make bootstrap            # creates S3 state bucket, DynamoDB lock table, OIDC provider
 make infra-apply-iam-dev  # targeted apply: IAM role only — required before first full plan
+make tls-import-dev       # generate + import self-signed cert for dev ALB
 make infra-apply-dev      # full dev apply
 make infra-apply-iam-prod # targeted apply: IAM role only for prod
+make tls-import-prod      # generate + import self-signed cert for prod ALB
 make infra-apply-prod     # full prod apply
 ```
 

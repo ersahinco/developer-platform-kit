@@ -3,6 +3,16 @@ output "alb_dns_name" {
   value       = aws_lb.this.dns_name
 }
 
+output "alb_url" {
+  description = "HTTPS base URL for the API. Callers must pass --insecure (self-signed cert)."
+  value       = "https://${aws_lb.this.dns_name}"
+}
+
+output "acm_certificate_arn" {
+  description = "ACM certificate ARN attached to the HTTPS listener."
+  value       = local.acm_certificate_arn
+}
+
 output "ecr_app_repository_url" {
   description = "ECR URL for the app image. Push target in CI: $ECR_APP_URL:sha-$GITHUB_SHA"
   value       = module.ecr_app.repository_url

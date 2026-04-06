@@ -307,12 +307,28 @@ module "rds" {
 ################################################################################
 
 resource "aws_security_group" "alb" {
-  name        = "${local.name}-alb"
-  description = "ALB: HTTP from internet, egress to app tasks"
+  # name_prefix instead of name: description changes force SG replacement.
+  # name_prefix lets AWS generate a unique name so create_before_destroy can
+  # create the new SG before destroying the old one — a fixed name would cause
+  # a duplicate-name collision in the same VPC.
+  name_prefix = "${local.name}-alb-"
+  description = "ALB: HTTPS from internet, HTTP redirect, egress to app tasks (port 80 redirects to 443)"
   vpc_id      = module.vpc.vpc_id
 
+  lifecycle {
+    create_before_destroy = true
+  }
+
   ingress {
-    description = "HTTP from allowed CIDR"
+    description = "HTTPS from internet"
+    from_port   = 443
+    to_port     = 443
+    protocol    = "tcp"
+    cidr_blocks = [var.alb_ingress_cidr]
+  }
+
+  ingress {
+    description = "HTTP port 80 - redirects to HTTPS"
     from_port   = 80
     to_port     = 80
     protocol    = "tcp"
@@ -393,7 +409,90 @@ resource "aws_lb_listener" "http" {
   port              = 80
   protocol          = "HTTP"
 
+  # Redirect all HTTP to HTTPS — the HTTPS listener is the only entry point.
   default_action {
+    type = "redirect"
+    redirect {
+      port        = "443"
+      protocol    = "HTTPS"
+      status_code = "HTTP_301"
+    }
+  }
+}
+
+################################################################################
+# TLS — self-signed certificate imported into ACM by `make tls-import-ENV`.
+# The make target generates a cert for the ALB's built-in DNS name, imports it,
+# and writes the ARN to infra/.tls-cert-arn-ENV. Terraform reads that file here.
+# Callers must pass --insecure / -k (self-signed, no trusted CA).
+# Run `make tls-import-dev` (or prod) once before the first `terraform apply`.
+################################################################################
+
+locals {
+  # Read the ARN written by `make tls-import-ENV`. Fails fast with a clear
+  # message if the file is missing — prevents a silent plan with no cert.
+  acm_certificate_arn = trimspace(file("${path.module}/.tls-cert-arn-${var.environment}"))
+}
+
+################################################################################
+# API token — read from Secrets Manager (created out-of-band, never in state).
+# Run once before applying:
+#   aws secretsmanager create-secret \
+#     --name db-migration-example/api-token \
+#     --secret-string "$(openssl rand -hex 32)"
+# Or use: make create-api-token
+################################################################################
+
+data "aws_secretsmanager_secret_version" "api_token" {
+  secret_id = var.api_token_secret_name
+}
+
+################################################################################
+# HTTPS listener — fixed-token auth on all routes.
+# The ALB evaluates rules top-to-bottom. Rule 1 checks the Authorization header
+# against the token stored in Secrets Manager. Any request without the exact
+# header value receives a 401 before it reaches the app.
+################################################################################
+
+resource "aws_lb_listener" "https" {
+  load_balancer_arn = aws_lb.this.arn
+  port              = 443
+  protocol          = "HTTPS"
+  ssl_policy        = "ELBSecurityPolicy-TLS13-1-2-2021-06"
+  certificate_arn   = local.acm_certificate_arn
+
+  # Default action: deny — safety net for any request that misses rule 1.
+  default_action {
+    type = "fixed-response"
+    fixed_response {
+      content_type = "application/json"
+      message_body = "{\"detail\":\"Unauthorized\"}"
+      status_code  = "401"
+    }
+  }
+}
+
+resource "aws_lb_listener_rule" "auth" {
+  listener_arn = aws_lb_listener.https.arn
+  priority     = 1
+
+  # Match all paths — auth applies to every route.
+  condition {
+    path_pattern {
+      values = ["/*"]
+    }
+  }
+
+  # Forward only if the Authorization header matches the token exactly.
+  # ALB evaluates both conditions with AND logic — path AND header must match.
+  condition {
+    http_header {
+      http_header_name = "Authorization"
+      values           = ["Bearer ${data.aws_secretsmanager_secret_version.api_token.secret_string}"]
+    }
+  }
+
+  action {
     type             = "forward"
     target_group_arn = aws_lb_target_group.app.arn
   }
