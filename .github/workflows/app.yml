@@ -213,29 +213,20 @@ jobs:
       # March 2026 TeamPCP supply chain attack (GHSA-69fq-xp46-6x23). SHA = v0.35.0.
       # Trivy binary pinned to v0.69.3 — last safe version before the compromised
       # v0.69.4/5/6 releases. Do not bump without verifying the advisory is resolved.
-      - name: Scan app image
-        uses: aquasecurity/trivy-action@57a97c7e7821a5776cebc9bb87c984fa69cba8f1
-        with:
-          image-ref: ${{ env.ECR_REGISTRY }}/db-migration-example-dev/app:sha-${{ github.sha }}
-          exit-code: 1
-          severity: CRITICAL
-          version: v0.69.3
-
-      - name: Scan worker image
-        uses: aquasecurity/trivy-action@57a97c7e7821a5776cebc9bb87c984fa69cba8f1
-        with:
-          image-ref: ${{ env.ECR_REGISTRY }}/db-migration-example-dev/worker:sha-${{ github.sha }}
-          exit-code: 1
-          severity: CRITICAL
-          version: v0.69.3
-
-      - name: Scan liquibase image
-        uses: aquasecurity/trivy-action@57a97c7e7821a5776cebc9bb87c984fa69cba8f1
-        with:
-          image-ref: ${{ env.ECR_REGISTRY }}/db-migration-example-dev/liquibase:sha-${{ github.sha }}
-          exit-code: 1
-          severity: CRITICAL
-          version: v0.69.3
+      # Scans run in parallel across all three images to minimise wall time.
+      - name: Scan images (parallel)
+        run: |
+          scan() {
+            docker run --rm \
+              -v /var/run/docker.sock:/var/run/docker.sock \
+              -v "$HOME/.cache/trivy:/root/.cache/trivy" \
+              ghcr.io/aquasecurity/trivy:0.69.3 image \
+              --exit-code 1 --severity CRITICAL --no-progress "$1"
+          }
+          scan ${{ env.ECR_REGISTRY }}/db-migration-example-dev/app:sha-${{ github.sha }} &
+          scan ${{ env.ECR_REGISTRY }}/db-migration-example-dev/worker:sha-${{ github.sha }} &
+          scan ${{ env.ECR_REGISTRY }}/db-migration-example-dev/liquibase:sha-${{ github.sha }} &
+          wait
 
       - name: Push images to dev ECR
         env:
@@ -538,7 +529,7 @@ jobs:
               --query 'tasks[0].lastStatus' --output text)
             [ "$STATUS" = "STOPPED" ] && break
             echo "Worker status: $STATUS — waiting…"
-            sleep 30
+            sleep 10
           done
 
           EXIT_CODE=$(aws ecs describe-tasks \
