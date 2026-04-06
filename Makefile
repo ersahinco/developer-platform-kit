@@ -37,8 +37,8 @@ TF_LOCK_TABLE   := terraform-locks
 
 .PHONY: help
 help:
-	@grep -E '^[a-zA-Z_-]+:.*?## .*$$' $(MAKEFILE_LIST) \
-		| awk 'BEGIN {FS = ":.*?## "}; {printf "  %-24s %s\n", $$1, $$2}'
+	@grep -E '^[a-zA-Z_-]+:.*?## .*$' $(MAKEFILE_LIST) \
+		| awk 'BEGIN {FS = ":.*?## "}; {printf "  %-24s %s\n", $1, $2}'
 
 # ── Local dev ─────────────────────────────────────────────────────────────────
 
@@ -194,74 +194,26 @@ app-deploy-prod: ## Force new ECS deployment — prod (picks up latest task defi
 
 # ── DB access — no bastion needed ─────────────────────────────────────────────
 #
-#   make db-tunnel ENV=dev            — forward localhost:LOCAL_PORT → RDS:5432
-#   make db-tunnel ENV=prod LOCAL_PORT=25432
-#   make db-exec ENV=dev              — drop into psql inside a running app task
+# All three targets delegate to shell scripts under scripts/ to avoid Make's
+# $(shell ...) quoting limitations with JMESPath backtick filters.
 #
 # Prerequisites:
 #   brew install session-manager-plugin
-#
-# Each $(shell ...) call spawns an independent subshell — a shared _TF_INIT run
-# via @$(...) does not persist state across them. The init is inlined into every
-# shell call so each subshell initialises against the correct backend for $(ENV)
-# before running terraform output.
 # ─────────────────────────────────────────────────────────────────────────────
 
-ENV        ?= dev
-LOCAL_PORT ?= 15432
+ENV                ?= dev
+LOCAL_PORT         ?= 15432
 SEED_NUM_CUSTOMERS ?= 1000
 SEED_NUM_ORDERS    ?= 10000
 
-_TF_INIT_CMD = terraform init -backend-config="key=db-migration-example/$(ENV).tfstate" -reconfigure -input=false > /dev/null 2>&1
+.PHONY: db-tunnel
+db-tunnel: ## SSM port-forward localhost:$(LOCAL_PORT) → RDS:5432  (ENV=dev|prod, LOCAL_PORT=15432)
+	@bash scripts/db_tunnel.sh $(ENV) $(LOCAL_PORT) $(AWS_REGION)
+
+.PHONY: db-exec
+db-exec: ## Open psql inside a running app task  (ENV=dev|prod)
+	@bash scripts/db_exec.sh $(ENV) $(AWS_REGION)
 
 .PHONY: db-seed
 db-seed: ## Seed DB via SSM tunnel  (ENV=dev|prod, SEED_NUM_CUSTOMERS=1000, SEED_NUM_ORDERS=10000)
 	@bash scripts/db_seed_tunnel.sh $(ENV) $(SEED_NUM_CUSTOMERS) $(SEED_NUM_ORDERS) $(AWS_REGION)
-
-.PHONY: db-exec
-db-exec: ## Open psql inside a running app task  (ENV=dev|prod)
-	$(eval CLUSTER  := $(shell cd infra && $(_TF_INIT_CMD) && terraform output -raw ecs_cluster_name))
-	$(eval SERVICE  := $(shell cd infra && $(_TF_INIT_CMD) && terraform output -raw app_service_name))
-	$(eval TASK_ARN := $(shell aws ecs list-tasks \
-		--cluster $(CLUSTER) \
-		--service-name $(SERVICE) \
-		--desired-status RUNNING \
-		--query 'taskArns[0]' \
-		--output text \
-		--region $(AWS_REGION)))
-	@echo "→ exec into task $(TASK_ARN)"
-	aws ecs execute-command \
-		--cluster $(CLUSTER) \
-		--task $(TASK_ARN) \
-		--container app \
-		--interactive \
-		--command "psql \$$DATABASE_URL" \
-		--region $(AWS_REGION)
-
-.PHONY: db-tunnel
-db-tunnel: ## SSM port-forward localhost:$(LOCAL_PORT) → RDS:5432  (ENV=dev|prod, LOCAL_PORT=15432)
-	$(eval CLUSTER  := $(shell cd infra && $(_TF_INIT_CMD) && terraform output -raw ecs_cluster_name))
-	$(eval SERVICE  := $(shell cd infra && $(_TF_INIT_CMD) && terraform output -raw app_service_name))
-	$(eval RDS_HOST := $(shell cd infra && $(_TF_INIT_CMD) && terraform output -raw rds_endpoint | cut -d: -f1))
-	$(eval TASK_ARN := $(shell aws ecs list-tasks \
-		--cluster $(CLUSTER) \
-		--service-name $(SERVICE) \
-		--desired-status RUNNING \
-		--query 'taskArns[0]' \
-		--output text \
-		--region $(AWS_REGION)))
-	$(eval TASK_ID  := $(shell echo $(TASK_ARN) | awk -F/ '{print $$NF}'))
-	$(eval RUNTIME_ID := $(shell aws ecs describe-tasks \
-		--cluster $(CLUSTER) \
-		--tasks $(TASK_ARN) \
-		--region $(AWS_REGION) \
-		--query 'tasks[0].containers[?name==\`app\`].runtimeId' \
-		--output text))
-	@echo "→ tunnel localhost:$(LOCAL_PORT) → $(RDS_HOST):5432 via task $(TASK_ID)"
-	@echo "  Connect DBeaver/psql to: host=localhost  port=$(LOCAL_PORT)  dbname=migration_example"
-	@echo "  Get credentials: aws secretsmanager get-secret-value --secret-id \$$(cd infra && $(_TF_INIT_CMD) && terraform output -raw db_secret_arn) --query SecretString --output text | python3 -m json.tool"
-	aws ssm start-session \
-		--target "ecs:$(CLUSTER)_$(TASK_ID)_$(RUNTIME_ID)" \
-		--document-name AWS-StartPortForwardingSessionToRemoteHost \
-		--parameters "{\"host\":[\"$(RDS_HOST)\"],\"portNumber\":[\"5432\"],\"localPortNumber\":[\"$(LOCAL_PORT)\"]}" \
-		--region $(AWS_REGION)
