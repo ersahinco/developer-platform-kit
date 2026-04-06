@@ -239,9 +239,15 @@ module "ecr_pgbouncer" {
 ################################################################################
 
 resource "aws_security_group" "rds" {
-  name        = "${local.name}-rds"
+  # name_prefix + create_before_destroy: same reason as alb SG — description
+  # changes force replacement and a fixed name collides in the same VPC.
+  name_prefix = "${local.name}-rds-"
   description = "Postgres from ECS app tasks only - no public access"
   vpc_id      = module.vpc.vpc_id
+
+  lifecycle {
+    create_before_destroy = true
+  }
 
   ingress {
     description = "Postgres from ECS app tasks"
@@ -341,9 +347,15 @@ resource "aws_security_group" "alb" {
 }
 
 resource "aws_security_group" "app" {
-  name        = "${local.name}-app"
+  # name_prefix + create_before_destroy: same reason as alb SG — description
+  # changes force replacement and a fixed name collides in the same VPC.
+  name_prefix = "${local.name}-app-"
   description = "App tasks: inbound from ALB only, egress to VPC (VPC endpoints for ECR/SM/CW)"
   vpc_id      = module.vpc.vpc_id
+
+  lifecycle {
+    create_before_destroy = true
+  }
 
   ingress {
     description     = "From ALB on container port"
@@ -949,9 +961,15 @@ resource "aws_wafv2_web_acl_association" "this" {
 ################################################################################
 
 resource "aws_security_group" "vpc_endpoints" {
-  name        = "${local.name}-vpc-endpoints"
+  # name_prefix + create_before_destroy: same reason as alb SG — description
+  # changes force replacement and a fixed name collides in the same VPC.
+  name_prefix = "${local.name}-vpc-endpoints-"
   description = "Allow HTTPS from private subnets to AWS Interface Endpoints"
   vpc_id      = module.vpc.vpc_id
+
+  lifecycle {
+    create_before_destroy = true
+  }
 
   ingress {
     description = "HTTPS from ECS tasks"
