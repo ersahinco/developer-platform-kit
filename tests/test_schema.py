@@ -26,18 +26,16 @@ _CONTACT_TABLE_COLUMNS = {"order_id", "billing_email", "source", "updated_at"}
 def test_orders_stable_columns_present(db_engine):
     """orders table retains all bootstrap-era columns throughout the migration."""
     cols = {c["name"] for c in inspect(db_engine).get_columns("orders")}
-    assert not (
-        _ORDERS_STABLE_COLUMNS - cols
-    ), f"missing columns: {_ORDERS_STABLE_COLUMNS - cols}"
+    missing = _ORDERS_STABLE_COLUMNS - cols
+    assert not missing, f"missing columns: {missing}"
 
 
 @pytest.mark.require_phase("dual", "switch", "new_pre_contract", "post_contract")
 def test_order_contact_email_table_exists_with_expected_columns(db_engine):
     """order_contact_email exists with all expected columns from the expand phase onward."""
     cols = {c["name"] for c in inspect(db_engine).get_columns("order_contact_email")}
-    assert not (
-        _CONTACT_TABLE_COLUMNS - cols
-    ), f"missing columns: {_CONTACT_TABLE_COLUMNS - cols}"
+    missing = _CONTACT_TABLE_COLUMNS - cols
+    assert not missing, f"missing columns: {missing}"
 
 
 @pytest.mark.require_phase("dual", "switch", "new_pre_contract", "post_contract")

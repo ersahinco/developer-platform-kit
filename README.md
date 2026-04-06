@@ -254,6 +254,27 @@ See [`DEPLOYMENT.md`](DEPLOYMENT.md) for environment setup and bootstrap steps.
 
 ---
 
+## Committing changes
+
+Pre-commit hooks run automatically on `git commit` and auto-format Python and
+Terraform in place. If a hook modifies files, the commit is blocked — stage the
+changes and commit again:
+
+```bash
+make fmt                  # format everything upfront to avoid the extra round-trip
+make lint                 # catch any remaining issues before committing
+git add -A
+git commit -m "your message"
+# if pre-commit modifies files:
+git add -A
+git commit -m "your message"
+```
+
+Running `make fmt` before committing means pre-commit finds nothing to change
+and the commit goes through on the first attempt.
+
+---
+
 ## Production hardening
 
 This example is for local rehearsal. See the [intentionally omitted](ARCHITECTURE.md#whats-intentionally-omitted) section in `ARCHITECTURE.md`.
