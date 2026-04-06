@@ -35,6 +35,8 @@ services:
       DEFAULT_POOL_SIZE: 20
       MAX_CLIENT_CONN: 200
       AUTH_TYPE: scram-sha-256
+      # Log pool stats once per hour — same as ECS. Reduces noise during local dev.
+      STATS_PERIOD: 3600
     ports:
       - "${PGBOUNCER_PORT:-6432}:5432"
     depends_on:

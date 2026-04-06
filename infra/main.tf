@@ -513,6 +513,10 @@ module "ecs" {
             { name = "DEFAULT_POOL_SIZE", value = tostring(var.pgbouncer_pool_size) },
             { name = "MAX_CLIENT_CONN", value = "200" },
             { name = "AUTH_TYPE", value = "scram-sha-256" },
+            # Log pool stats once per hour instead of every 60 s — reduces CloudWatch
+            # noise when traffic is low while preserving the signal for pool pressure
+            # diagnosis. Set to 0 to disable entirely if stats are never needed.
+            { name = "STATS_PERIOD", value = "3600" },
           ]
 
           enable_cloudwatch_logging              = true
@@ -550,6 +554,13 @@ module "ecs" {
             retries     = 3
             startPeriod = 15
           }
+
+          # readonlyRootFilesystem = false: ECS Exec (SSM agent) requires write access to
+          # /var/lib/amazon and /var/log/amazon at startup — it does not support readonly
+          # root even with tmpfs mounts on Fargate 1.4. The module defaults to true, so
+          # we explicitly opt out. The meaningful security boundary here is IAM + network
+          # (private subnet, security groups), not filesystem immutability.
+          readonlyRootFilesystem = false
 
           enable_cloudwatch_logging              = true
           cloudwatch_log_group_retention_in_days = 30

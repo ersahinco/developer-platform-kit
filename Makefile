@@ -200,22 +200,21 @@ app-deploy-prod: ## Force new ECS deployment — prod (picks up latest task defi
 # Prerequisites:
 #   brew install session-manager-plugin
 #
-# Credentials:
-#   aws secretsmanager get-secret-value \
-#     --secret-id $(shell cd infra && terraform output -raw db_secret_arn) \
-#     --query SecretString --output text | python3 -m json.tool
+# Each $(shell ...) call spawns an independent subshell — a shared _TF_INIT run
+# via @$(...) does not persist state across them. The init is inlined into every
+# shell call so each subshell initialises against the correct backend for $(ENV)
+# before running terraform output.
 # ─────────────────────────────────────────────────────────────────────────────
 
 ENV        ?= dev
 LOCAL_PORT ?= 15432
 
-_TF_INIT = cd infra && terraform init -backend-config="key=db-migration-example/$(ENV).tfstate" -reconfigure -input=false > /dev/null 2>&1
+_TF_INIT_CMD = terraform init -backend-config="key=db-migration-example/$(ENV).tfstate" -reconfigure -input=false > /dev/null 2>&1
 
 .PHONY: db-exec
 db-exec: ## Open psql inside a running app task  (ENV=dev|prod)
-	@$(_TF_INIT)
-	$(eval CLUSTER  := $(shell cd infra && terraform output -raw ecs_cluster_name))
-	$(eval SERVICE  := $(shell cd infra && terraform output -raw app_service_name))
+	$(eval CLUSTER  := $(shell cd infra && $(_TF_INIT_CMD) && terraform output -raw ecs_cluster_name))
+	$(eval SERVICE  := $(shell cd infra && $(_TF_INIT_CMD) && terraform output -raw app_service_name))
 	$(eval TASK_ARN := $(shell aws ecs list-tasks \
 		--cluster $(CLUSTER) \
 		--service-name $(SERVICE) \
@@ -234,10 +233,9 @@ db-exec: ## Open psql inside a running app task  (ENV=dev|prod)
 
 .PHONY: db-tunnel
 db-tunnel: ## SSM port-forward localhost:$(LOCAL_PORT) → RDS:5432  (ENV=dev|prod, LOCAL_PORT=15432)
-	@$(_TF_INIT)
-	$(eval CLUSTER  := $(shell cd infra && terraform output -raw ecs_cluster_name))
-	$(eval SERVICE  := $(shell cd infra && terraform output -raw app_service_name))
-	$(eval RDS_HOST := $(shell cd infra && terraform output -raw rds_endpoint | cut -d: -f1))
+	$(eval CLUSTER  := $(shell cd infra && $(_TF_INIT_CMD) && terraform output -raw ecs_cluster_name))
+	$(eval SERVICE  := $(shell cd infra && $(_TF_INIT_CMD) && terraform output -raw app_service_name))
+	$(eval RDS_HOST := $(shell cd infra && $(_TF_INIT_CMD) && terraform output -raw rds_endpoint | cut -d: -f1))
 	$(eval TASK_ARN := $(shell aws ecs list-tasks \
 		--cluster $(CLUSTER) \
 		--service-name $(SERVICE) \
@@ -247,8 +245,8 @@ db-tunnel: ## SSM port-forward localhost:$(LOCAL_PORT) → RDS:5432  (ENV=dev|pr
 		--region $(AWS_REGION)))
 	$(eval TASK_ID  := $(shell echo $(TASK_ARN) | awk -F/ '{print $$NF}'))
 	@echo "→ tunnel localhost:$(LOCAL_PORT) → $(RDS_HOST):5432 via task $(TASK_ID)"
-	@echo "  Connect DBeaver to: host=localhost  port=$(LOCAL_PORT)"
-	@echo "  Credentials: aws secretsmanager get-secret-value --secret-id $$(cd infra && terraform output -raw db_secret_arn) --query SecretString --output text"
+	@echo "  Connect DBeaver/psql to: host=localhost  port=$(LOCAL_PORT)  dbname=migration_example"
+	@echo "  Get credentials: aws secretsmanager get-secret-value --secret-id \$$(cd infra && $(_TF_INIT_CMD) && terraform output -raw db_secret_arn) --query SecretString --output text | python3 -m json.tool"
 	aws ssm start-session \
 		--target "ecs:$(CLUSTER)_$(TASK_ID)" \
 		--document-name AWS-StartPortForwardingSessionToRemoteHost \

@@ -1,3 +1,4 @@
+import logging
 from typing import Annotated
 
 from fastapi import Depends, FastAPI, HTTPException
@@ -14,6 +15,23 @@ from adapters.api.schemas import (
 )
 from db import get_db
 from domain.ports import ConfigStore, OrderRepository
+
+
+class _SuppressHealthChecks(logging.Filter):
+    """Drop GET /health 200 from access logs.
+
+    ALB probes every 15 s from each AZ, and the ECS container health check adds
+    a third hit from 127.0.0.1 — together they produce ~4 log lines/min with no
+    signal. Real errors on /health (non-200) still pass through.
+    """
+
+    def filter(self, record: logging.LogRecord) -> bool:
+        msg = record.getMessage()
+        return not ("GET /health" in msg and "200" in msg)
+
+
+# Installed at module load time — runs once for the lifetime of the process.
+logging.getLogger("uvicorn.access").addFilter(_SuppressHealthChecks())
 
 app = FastAPI(title="db-migration-example")
 
