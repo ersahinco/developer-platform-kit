@@ -33,10 +33,10 @@ Triggered by changes to `app/**`, `db/**`, `tests/**`, `scripts/**`.
 
 Five environments — create these in **Settings → Environments** before the first run.
 
-| Environment | Pipeline | Approval | Secret |
+| Environment | Pipeline | Approval | Secrets |
 |---|---|---|---|
-| `dev-infra` | infra.yml | none | `AWS_ROLE_ARN` |
-| `prod-infra` | infra.yml | required | `AWS_ROLE_ARN` |
+| `dev-infra` | infra.yml | none | `AWS_ROLE_ARN`, `TLS_CERT_ARN_DEV` |
+| `prod-infra` | infra.yml | required | `AWS_ROLE_ARN`, `TLS_CERT_ARN_PROD` |
 | `dev-deploy` | app.yml | none | `AWS_ROLE_ARN` |
 | `prod-migrate` | app.yml | required | `AWS_ROLE_ARN` |
 | `prod-deploy` | app.yml | required | `AWS_ROLE_ARN` |
@@ -48,9 +48,11 @@ Five environments — create these in **Settings → Environments** before the f
 | `dev-infra`, `dev-deploy` | `arn:aws:iam::691627364817:role/db-migration-example-dev-github-actions` |
 | `prod-infra`, `prod-migrate`, `prod-deploy` | `arn:aws:iam::691627364817:role/db-migration-example-prod-github-actions` |
 
-No other secrets or variables are needed. All resource names follow the
-`db-migration-example-{env}` convention and are inlined in the workflows.
-Subnet and security group IDs are resolved at runtime by tag.
+`TLS_CERT_ARN_DEV` and `TLS_CERT_ARN_PROD` are the ACM certificate ARNs written by `make tls-import-dev` / `make tls-import-prod`. Print them with:
+
+```bash
+make tls-print-arns
+```
 
 ---
 

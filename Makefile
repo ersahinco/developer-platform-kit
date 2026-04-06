@@ -142,6 +142,11 @@ tls-import-dev: ## Generate + import self-signed TLS cert for dev ALB into ACM
 tls-import-prod: ## Generate + import self-signed TLS cert for prod ALB into ACM
 	@bash scripts/tls_import.sh prod $(AWS_REGION)
 
+.PHONY: tls-print-arns
+tls-print-arns: ## Print TLS cert ARNs to add as GitHub secrets (TLS_CERT_ARN_DEV, TLS_CERT_ARN_PROD)
+	@echo "TLS_CERT_ARN_DEV=$(shell cat infra/.tls-cert-arn-dev 2>/dev/null || echo 'run make tls-import-dev first')"
+	@echo "TLS_CERT_ARN_PROD=$(shell cat infra/.tls-cert-arn-prod 2>/dev/null || echo 'run make tls-import-prod first')"
+
 # ── Infra — dev ───────────────────────────────────────────────────────────────
 
 .PHONY: infra-init-dev

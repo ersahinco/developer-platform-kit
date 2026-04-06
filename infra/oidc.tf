@@ -348,6 +348,16 @@ data "aws_iam_policy_document" "github_actions_permissions" {
   }
 
   statement {
+    # Terraform reads the api-token at plan/apply time to embed it in the ALB
+    # listener rule condition. Scoped to the single secret by name prefix.
+    sid     = "SecretsManagerAPIToken"
+    actions = ["secretsmanager:GetSecretValue"]
+    resources = [
+      "arn:aws:secretsmanager:${local.region}:${local.account_id}:secret:db-migration-example/api-token*",
+    ]
+  }
+
+  statement {
     sid = "SecretsManagerRDSManaged"
     # RDS calls these on behalf of the caller when manage_master_user_password=true.
     # CreateSecret is evaluated against * at creation time (secret has no ARN yet).
