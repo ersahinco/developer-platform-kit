@@ -110,7 +110,44 @@ Data volume on dev can be smaller than prod (seed defaults: 1,000 customers / 10
 
 ---
 
-## Infrastructure design notes
+## Request security — TLS and authentication
+
+### Request flow
+
+```
+caller
+  │  HTTPS (TLS 1.2+, self-signed cert)
+  ▼
+ALB (public subnet)
+  │  checks Authorization: Bearer <token>
+  │  ✗ missing/wrong → 401 fixed-response (app never sees the request)
+  │  ✓ match → forward
+  ▼
+app container (private subnet, port 8000, plain HTTP)
+  │
+  ▼
+pgbouncer → RDS (intra subnet, no internet route)
+```
+
+TLS terminates at the ALB. Traffic from the ALB to the app container is plain HTTP inside the VPC — the private subnet and security group (inbound from ALB SG only) are the network boundary.
+
+### Why fixed-token auth at the ALB, not in the app
+
+The ALB listener rule rejects unauthenticated requests before they reach the app. This means:
+
+- No auth middleware in the app — the HTTP layer stays focused on domain concerns.
+- The 401 is returned by AWS infrastructure, not application code — no risk of an auth bypass from an unhandled exception in the app.
+- The token is read from Secrets Manager at `terraform apply` time and embedded in the listener rule condition. It is never stored in the app's environment or logs.
+
+The trade-off: the token is a shared secret with no per-caller identity. Suitable for a demo or internal tool; replace with Cognito/OIDC on the ALB for multi-caller identity.
+
+### Why a self-signed certificate
+
+ACM only issues certificates for domains you control via DNS or email validation. The ALB's built-in `*.elb.amazonaws.com` DNS name is owned by AWS — ACM cannot validate it. A self-signed cert imported into ACM is the only free option for HTTPS on an ALB without a registered domain. Callers pass `--insecure` / `-k`. For production with a real domain, replace with an ACM-managed cert and DNS validation — see `DEPLOYMENT.md`.
+
+### ALB security group
+
+Port 443 open to `0.0.0.0/0` — the fixed-token header check is the access control layer. Port 80 open only to redirect to HTTPS. The app SG allows inbound on port 8000 from the ALB SG only — direct access to the app container from outside the VPC is not possible.
 
 ### ECS service security group — pre-create to break circular dependency
 
