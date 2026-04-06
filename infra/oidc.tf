@@ -258,6 +258,40 @@ data "aws_iam_policy_document" "github_actions_permissions" {
     ]
   }
 
+  # ── Infra pipeline — WAF ──────────────────────────────────────────────────
+
+  statement {
+    sid = "WAFManage"
+    actions = [
+      "wafv2:CreateWebACL", "wafv2:DeleteWebACL", "wafv2:UpdateWebACL",
+      "wafv2:GetWebACL", "wafv2:ListWebACLs",
+      "wafv2:AssociateWebACL", "wafv2:DisassociateWebACL", "wafv2:GetWebACLForResource",
+      "wafv2:ListResourcesForWebACL",
+      "wafv2:TagResource", "wafv2:UntagResource", "wafv2:ListTagsForResource",
+      "wafv2:CheckCapacity",
+      "wafv2:DescribeManagedRuleGroup",
+      "wafv2:ListAvailableManagedRuleGroups",
+      "wafv2:ListAvailableManagedRuleGroupVersions",
+    ]
+    resources = [
+      "arn:aws:wafv2:${local.region}:${local.account_id}:regional/webacl/db-migration-example-*/*",
+      "arn:aws:wafv2:${local.region}:${local.account_id}:regional/managedruleset/*/*",
+    ]
+  }
+
+  statement {
+    # wafv2 List/Describe calls have no resource-level scope — AWS API limitation
+    sid = "WAFDescribe"
+    actions = [
+      "wafv2:ListWebACLs",
+      "wafv2:ListAvailableManagedRuleGroups",
+      "wafv2:ListAvailableManagedRuleGroupVersions",
+      "wafv2:DescribeManagedRuleGroup",
+      "wafv2:CheckCapacity",
+    ]
+    resources = ["*"]
+  }
+
   # ── Infra pipeline — ALB ──────────────────────────────────────────────────
 
   statement {

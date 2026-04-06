@@ -1,20 +1,8 @@
 # Checkov skip configuration for known-accepted findings.
 # Each skip must have a documented rationale. Remove the skip when the
-# underlying condition changes (e.g. HTTPS added, WAF attached).
+# underlying condition changes.
 
 skip-check:
-  # HTTP-only ALB — intentional for this demo. In production: add ACM cert,
-  # HTTPS listener, and redirect HTTP → HTTPS. These four checks all resolve
-  # together when HTTPS is added.
-  - CKV_AWS_2     # HTTP listener
-  - CKV_AWS_103   # TLS 1.2 on listener
-  - CKV2_AWS_20   # HTTP → HTTPS redirect
-  - CKV_AWS_378   # Target group HTTP protocol
-
-  # ALB ingress on port 80 — var.alb_ingress_cidr restricts this to a known
-  # CIDR in dev (see dev.tfvars). Checkov flags the rule regardless of CIDR.
-  # Remove when HTTPS replaces the HTTP listener.
-  - CKV_AWS_260
 
   # ALB access logging — S3 cost not justified for this demo.
   - CKV_AWS_91
@@ -22,8 +10,10 @@ skip-check:
   # ALB deletion protection — environment is designed to be torn down.
   - CKV_AWS_150
 
-  # WAF — out of scope for this demo. Add in production for public endpoints.
-  - CKV2_AWS_28
+  # WAF full logging to Kinesis Firehose — CloudWatch metrics and sampled
+  # requests are enabled on all rules instead. Full logging adds ~$0.10/GB
+  # ingested via Firehose and is not justified for this demo.
+  - CKV2_AWS_31
 
   # ECS task egress to 0.0.0.0/0 — tasks need outbound access to ECR,
   # Secrets Manager, and CloudWatch. Production fix: add VPC endpoints for
