@@ -10,6 +10,12 @@ skip-check:
   # ALB deletion protection — environment is designed to be torn down.
   - CKV_AWS_150
 
+  # ALB port 80 open to 0.0.0.0/0 — the listener immediately redirects to
+  # HTTPS (301). Blocking port 80 entirely would break clients that follow
+  # the redirect from http:// bookmarks. The actual API is only reachable
+  # via HTTPS with a valid bearer token.
+  - CKV_AWS_260
+
   # WAF full logging to Kinesis Firehose — CloudWatch metrics and sampled
   # requests are enabled on all rules instead. Full logging adds ~$0.10/GB
   # ingested via Firehose and is not justified for this demo.
