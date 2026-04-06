@@ -109,6 +109,7 @@ jobs:
       - uses: astral-sh/setup-uv@v4
         with:
           version: "0.6.16"
+          enable-cache: true
 
       - name: Install dependencies
         run: uv sync --frozen --group test
@@ -120,6 +121,7 @@ jobs:
 
       - name: Run Liquibase migrations
         run: |
+          docker pull liquibase/liquibase:4.33.0
           docker run --rm --network host \
             -v "${{ github.workspace }}/db:/liquibase/db" \
             liquibase/liquibase:4.33.0 \
@@ -186,9 +188,12 @@ jobs:
         env:
           TAG: sha-${{ github.sha }}
         run: |
-          docker build -t ${{ env.ECR_REGISTRY }}/db-migration-example-dev/app:$TAG       app/
-          docker build -t ${{ env.ECR_REGISTRY }}/db-migration-example-dev/worker:$TAG    worker/
-          docker build -t ${{ env.ECR_REGISTRY }}/db-migration-example-dev/liquibase:$TAG db/
+          # Build all three images in parallel — each writes to a separate tag so
+          # there is no shared layer cache contention between them.
+          docker build -t ${{ env.ECR_REGISTRY }}/db-migration-example-dev/app:$TAG       app/    &
+          docker build -t ${{ env.ECR_REGISTRY }}/db-migration-example-dev/worker:$TAG    worker/ &
+          docker build -t ${{ env.ECR_REGISTRY }}/db-migration-example-dev/liquibase:$TAG db/     &
+          wait
 
       # Mirror pgbouncer from Docker Hub to ECR — avoids unauthenticated pull rate
       # limits (100/6h per NAT IP) when ECS starts tasks. Only pushes if the tag
@@ -233,8 +238,9 @@ jobs:
           TAG: sha-${{ github.sha }}
         run: |
           for repo in app worker liquibase; do
-            docker push ${{ env.ECR_REGISTRY }}/db-migration-example-dev/${repo}:$TAG
+            docker push ${{ env.ECR_REGISTRY }}/db-migration-example-dev/${repo}:$TAG &
           done
+          wait
 
   # ── 3. Dev migrate ────────────────────────────────────────────────────────
   dev-migrate:
@@ -370,12 +376,17 @@ jobs:
         env:
           TAG: ${{ needs.build-and-push.outputs.image_tag }}
         run: |
-          for repo in app worker liquibase; do
+          promote() {
+            local repo=$1
             docker pull ${{ env.ECR_REGISTRY }}/db-migration-example-dev/${repo}:$TAG
             docker tag  ${{ env.ECR_REGISTRY }}/db-migration-example-dev/${repo}:$TAG \
                         ${{ env.ECR_REGISTRY }}/db-migration-example-prod/${repo}:$TAG
             docker push ${{ env.ECR_REGISTRY }}/db-migration-example-prod/${repo}:$TAG
-          done
+          }
+          promote app &
+          promote worker &
+          promote liquibase &
+          wait
 
       - name: Mirror pgbouncer to prod ECR
         env:
