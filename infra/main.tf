@@ -312,7 +312,7 @@ resource "aws_security_group" "alb" {
   # create the new SG before destroying the old one — a fixed name would cause
   # a duplicate-name collision in the same VPC.
   name_prefix = "${local.name}-alb-"
-  description = "ALB: HTTPS from internet, HTTP redirect, egress to app tasks (port 80 redirects to 443)"
+  description = "ALB: HTTPS from internet only, egress to app tasks"
   vpc_id      = module.vpc.vpc_id
 
   lifecycle {
@@ -327,13 +327,7 @@ resource "aws_security_group" "alb" {
     cidr_blocks = [var.alb_ingress_cidr]
   }
 
-  ingress {
-    description = "HTTP port 80 - redirects to HTTPS"
-    from_port   = 80
-    to_port     = 80
-    protocol    = "tcp"
-    cidr_blocks = [var.alb_ingress_cidr]
-  }
+  # Port 80 removed — callers connect directly on HTTPS. No redirect listener.
 
   egress {
     description = "All egress to app tasks"
@@ -348,7 +342,7 @@ resource "aws_security_group" "alb" {
 
 resource "aws_security_group" "app" {
   name        = "${local.name}-app"
-  description = "App tasks: inbound from ALB only, all egress"
+  description = "App tasks: inbound from ALB only, egress to VPC (VPC endpoints for ECR/SM/CW)"
   vpc_id      = module.vpc.vpc_id
 
   ingress {
@@ -359,12 +353,15 @@ resource "aws_security_group" "app" {
     security_groups = [aws_security_group.alb.id]
   }
 
+  # Egress restricted to VPC CIDR — tasks reach ECR, Secrets Manager, and
+  # CloudWatch Logs via VPC Interface Endpoints (no NAT required for AWS APIs).
+  # RDS is in intra subnets within the same VPC CIDR.
   egress {
-    description = "All egress for ECR, Secrets Manager, CloudWatch"
+    description = "All egress within VPC (VPC endpoints + RDS)"
     from_port   = 0
     to_port     = 0
     protocol    = "-1"
-    cidr_blocks = ["0.0.0.0/0"]
+    cidr_blocks = [var.vpc_cidr]
   }
 
   tags = local.tags
@@ -404,22 +401,6 @@ resource "aws_lb_target_group" "app" {
   }
 
   tags = local.tags
-}
-
-resource "aws_lb_listener" "http" {
-  load_balancer_arn = aws_lb.this.arn
-  port              = 80
-  protocol          = "HTTP"
-
-  # Redirect all HTTP to HTTPS — the HTTPS listener is the only entry point.
-  default_action {
-    type = "redirect"
-    redirect {
-      port        = "443"
-      protocol    = "HTTPS"
-      status_code = "HTTP_301"
-    }
-  }
 }
 
 ################################################################################
@@ -955,4 +936,83 @@ resource "aws_wafv2_web_acl" "this" {
 resource "aws_wafv2_web_acl_association" "this" {
   resource_arn = aws_lb.this.arn
   web_acl_arn  = aws_wafv2_web_acl.this.arn
+}
+
+################################################################################
+# VPC Interface Endpoints — ECR, Secrets Manager, CloudWatch Logs
+# Allows ECS tasks to reach AWS APIs without traversing the NAT Gateway.
+# With these endpoints the app SG egress can be restricted to the VPC CIDR,
+# satisfying CKV_AWS_25 / CKV_AWS_277 / CKV_AWS_382.
+# Cost: ~$7.30/mo per endpoint per AZ (Interface endpoints are billed hourly).
+# 4 endpoints × 2 AZs = ~$58/mo — offset by reduced NAT data-processing charges
+# at any meaningful request volume.
+################################################################################
+
+resource "aws_security_group" "vpc_endpoints" {
+  name        = "${local.name}-vpc-endpoints"
+  description = "Allow HTTPS from private subnets to AWS Interface Endpoints"
+  vpc_id      = module.vpc.vpc_id
+
+  ingress {
+    description = "HTTPS from ECS tasks"
+    from_port   = 443
+    to_port     = 443
+    protocol    = "tcp"
+    cidr_blocks = [var.vpc_cidr]
+  }
+
+  tags = local.tags
+}
+
+# ECR API — image manifest and auth calls
+resource "aws_vpc_endpoint" "ecr_api" {
+  vpc_id              = module.vpc.vpc_id
+  service_name        = "com.amazonaws.${local.region}.ecr.api"
+  vpc_endpoint_type   = "Interface"
+  subnet_ids          = module.vpc.private_subnets
+  security_group_ids  = [aws_security_group.vpc_endpoints.id]
+  private_dns_enabled = true
+  tags                = merge(local.tags, { Name = "${local.name}-ecr-api" })
+}
+
+# ECR DKR — image layer pulls
+resource "aws_vpc_endpoint" "ecr_dkr" {
+  vpc_id              = module.vpc.vpc_id
+  service_name        = "com.amazonaws.${local.region}.ecr.dkr"
+  vpc_endpoint_type   = "Interface"
+  subnet_ids          = module.vpc.private_subnets
+  security_group_ids  = [aws_security_group.vpc_endpoints.id]
+  private_dns_enabled = true
+  tags                = merge(local.tags, { Name = "${local.name}-ecr-dkr" })
+}
+
+# Secrets Manager — DB password injection at task startup
+resource "aws_vpc_endpoint" "secretsmanager" {
+  vpc_id              = module.vpc.vpc_id
+  service_name        = "com.amazonaws.${local.region}.secretsmanager"
+  vpc_endpoint_type   = "Interface"
+  subnet_ids          = module.vpc.private_subnets
+  security_group_ids  = [aws_security_group.vpc_endpoints.id]
+  private_dns_enabled = true
+  tags                = merge(local.tags, { Name = "${local.name}-secretsmanager" })
+}
+
+# CloudWatch Logs — container log delivery from awslogs driver
+resource "aws_vpc_endpoint" "logs" {
+  vpc_id              = module.vpc.vpc_id
+  service_name        = "com.amazonaws.${local.region}.logs"
+  vpc_endpoint_type   = "Interface"
+  subnet_ids          = module.vpc.private_subnets
+  security_group_ids  = [aws_security_group.vpc_endpoints.id]
+  private_dns_enabled = true
+  tags                = merge(local.tags, { Name = "${local.name}-logs" })
+}
+
+# S3 Gateway Endpoint — ECR stores image layers in S3; Gateway endpoints are free
+resource "aws_vpc_endpoint" "s3" {
+  vpc_id            = module.vpc.vpc_id
+  service_name      = "com.amazonaws.${local.region}.s3"
+  vpc_endpoint_type = "Gateway"
+  route_table_ids   = module.vpc.private_route_table_ids
+  tags              = merge(local.tags, { Name = "${local.name}-s3" })
 }

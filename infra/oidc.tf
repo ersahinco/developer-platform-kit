@@ -172,11 +172,11 @@ data "aws_iam_policy_document" "github_actions_permissions" {
       "ec2:CreateNetworkAclEntry", "ec2:DeleteNetworkAclEntry", "ec2:ReplaceNetworkAclEntry",
       "ec2:CreateNetworkAcl", "ec2:DeleteNetworkAcl", "ec2:ReplaceNetworkAclAssociation",
       "ec2:CreateTags", "ec2:DeleteTags",
+      # VPC Interface and Gateway Endpoints
+      "ec2:CreateVpcEndpoint", "ec2:DeleteVpcEndpoints", "ec2:ModifyVpcEndpoint",
     ]
     resources = ["*"] # EC2 resource ARNs are not available at creation time — AWS API limitation
   }
-
-  # ── Infra pipeline — RDS ──────────────────────────────────────────────────
 
   statement {
     sid = "RDSManage"

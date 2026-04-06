@@ -10,11 +10,10 @@ skip-check:
   # ALB deletion protection — environment is designed to be torn down.
   - CKV_AWS_150
 
-  # ALB port 80 open to 0.0.0.0/0 — the listener immediately redirects to
-  # HTTPS (301). Blocking port 80 entirely would break clients that follow
-  # the redirect from http:// bookmarks. The actual API is only reachable
-  # via HTTPS with a valid bearer token.
-  - CKV_AWS_260
+  # ALB port 80 open to 0.0.0.0/0 — port 80 has been removed. Callers connect
+  # directly on HTTPS (443). No redirect listener exists.
+  # Skip retained as a no-op guard; remove once checkov confirms clean.
+  # - CKV_AWS_260 — resolved: port 80 ingress and HTTP listener removed
 
   # Target group uses HTTP — TLS terminates at the ALB. Traffic from the ALB
   # to the app container is plain HTTP inside the VPC private subnet, protected
@@ -34,12 +33,10 @@ skip-check:
   # ingested via Firehose and is not justified for this demo.
   - CKV2_AWS_31
 
-  # ECS task egress to 0.0.0.0/0 — tasks need outbound access to ECR,
-  # Secrets Manager, and CloudWatch. Production fix: add VPC endpoints for
-  # those three services and restrict egress to the VPC CIDR.
-  - CKV_AWS_25
-  - CKV_AWS_277
-  - CKV_AWS_382
+  # ECS task egress — restricted to VPC CIDR. AWS APIs (ECR, Secrets Manager,
+  # CloudWatch Logs) are reachable via VPC Interface Endpoints. S3 (ECR layers)
+  # via a Gateway Endpoint. No 0.0.0.0/0 egress on the app SG.
+  # - CKV_AWS_25 / CKV_AWS_277 / CKV_AWS_382 — resolved: VPC endpoints added
 
   # SG not attached to a resource — checkov cannot see attachments made inside
   # the ECS and RDS community modules. Both SGs are wired correctly.
