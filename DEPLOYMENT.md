@@ -194,20 +194,16 @@ PGPASSWORD=$(echo $SECRET | python3 -c "import sys,json; print(json.load(sys.std
   psql -h localhost -p 15432 -U app -d migration_example
 ```
 
-### Seed data through the tunnel
+### Seed data
 
-With the tunnel open in another terminal:
+`make db-seed` opens the SSM tunnel, fetches credentials from Secrets Manager, runs the seed script, and closes the tunnel — no manual steps needed:
 
 ```bash
-SECRET=$(aws secretsmanager get-secret-value \
-  --secret-id $(cd infra && terraform output -raw db_secret_arn) \
-  --query SecretString --output text)
+make db-seed ENV=dev
+make db-seed ENV=prod
 
-DB_USER=$(echo $SECRET | python3 -c "import sys,json; print(json.load(sys.stdin)['username'])")
-DB_PASS=$(echo $SECRET | python3 -c "import sys,json; print(json.load(sys.stdin)['password'])")
-
-DATABASE_URL="postgresql://${DB_USER}:${DB_PASS}@localhost:15432/migration_example" \
-  uv run python scripts/seed_data.py
+# larger volume
+make db-seed ENV=prod SEED_NUM_CUSTOMERS=50000 SEED_NUM_ORDERS=500000
 ```
 
-`seed_data.py` is idempotent — it skips insertion if rows already exist. Volume is controlled by `SEED_NUM_CUSTOMERS` and `SEED_NUM_ORDERS` env vars (defaults: 1,000 / 10,000).
+`seed_data.py` is idempotent — it skips insertion if rows already exist. Volume is controlled by `SEED_NUM_CUSTOMERS` and `SEED_NUM_ORDERS` (defaults: 1,000 / 10,000). The tunnel uses port 15433 to avoid colliding with an open `db-tunnel` session on 15432.

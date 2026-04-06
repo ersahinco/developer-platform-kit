@@ -23,6 +23,7 @@
 #
 #   make db-tunnel ENV=dev   — SSM port-forward localhost:LOCAL_PORT → RDS:5432
 #   make db-exec ENV=dev     — open psql inside a running app task
+#   make db-seed ENV=prod    — seed prod DB via SSM tunnel (idempotent)
 # ─────────────────────────────────────────────────────────────────────────────
 
 .DEFAULT_GOAL := help
@@ -208,8 +209,14 @@ app-deploy-prod: ## Force new ECS deployment — prod (picks up latest task defi
 
 ENV        ?= dev
 LOCAL_PORT ?= 15432
+SEED_NUM_CUSTOMERS ?= 1000
+SEED_NUM_ORDERS    ?= 10000
 
 _TF_INIT_CMD = terraform init -backend-config="key=db-migration-example/$(ENV).tfstate" -reconfigure -input=false > /dev/null 2>&1
+
+.PHONY: db-seed
+db-seed: ## Seed DB via SSM tunnel  (ENV=dev|prod, SEED_NUM_CUSTOMERS=1000, SEED_NUM_ORDERS=10000)
+	@bash scripts/db_seed_tunnel.sh $(ENV) $(SEED_NUM_CUSTOMERS) $(SEED_NUM_ORDERS) $(AWS_REGION)
 
 .PHONY: db-exec
 db-exec: ## Open psql inside a running app task  (ENV=dev|prod)
@@ -248,7 +255,7 @@ db-tunnel: ## SSM port-forward localhost:$(LOCAL_PORT) → RDS:5432  (ENV=dev|pr
 		--cluster $(CLUSTER) \
 		--tasks $(TASK_ARN) \
 		--region $(AWS_REGION) \
-		--query 'tasks[0].containers[?name==`app`].runtimeId' \
+		--query 'tasks[0].containers[?name==\`app\`].runtimeId' \
 		--output text))
 	@echo "→ tunnel localhost:$(LOCAL_PORT) → $(RDS_HOST):5432 via task $(TASK_ID)"
 	@echo "  Connect DBeaver/psql to: host=localhost  port=$(LOCAL_PORT)  dbname=migration_example"
