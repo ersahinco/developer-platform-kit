@@ -27,6 +27,7 @@
 #   make db-tunnel ENV=dev   — SSM port-forward localhost:LOCAL_PORT → RDS:5432
 #   make db-exec ENV=dev     — open psql inside a running app task
 #   make db-seed ENV=prod    — seed prod DB via SSM tunnel (idempotent)
+#   make api-get-order ENV=dev ORDER_ID=1 FIELD=billing_email
 # ─────────────────────────────────────────────────────────────────────────────
 
 .DEFAULT_GOAL := help
@@ -238,3 +239,38 @@ db-exec: ## Open psql inside a running app task  (ENV=dev|prod)
 .PHONY: db-seed
 db-seed: ## Seed DB via SSM tunnel  (ENV=dev|prod, SEED_NUM_CUSTOMERS=1000, SEED_NUM_ORDERS=10000)
 	@bash scripts/db_seed_tunnel.sh $(ENV) $(SEED_NUM_CUSTOMERS) $(SEED_NUM_ORDERS) $(AWS_REGION)
+
+# ── API smoke query ───────────────────────────────────────────────────────────
+#
+# Fetches a single order from the live API and prints the full response or a
+# single field. Requires the HTTPS listener and fixed-token auth to be in place.
+#
+# Usage:
+#   make api-get-order ENV=dev ORDER_ID=1           — full order JSON
+#   make api-get-order ENV=prod ORDER_ID=42 FIELD=billing_email
+#
+# FIELD can be any top-level key in the OrderResponse schema:
+#   id, customer_id, total_amount, status, submitted_at, created_at, billing_email
+# ─────────────────────────────────────────────────────────────────────────────
+
+ORDER_ID ?= 1
+FIELD    ?=
+
+.PHONY: api-get-order
+api-get-order: ## Query a live order by ID  (ENV=dev|prod, ORDER_ID=1, FIELD=billing_email)
+	@ALB=$$(aws elbv2 describe-load-balancers \
+		--names db-migration-example-$(ENV) \
+		--region $(AWS_REGION) \
+		--query 'LoadBalancers[0].DNSName' --output text) && \
+	TOKEN=$$(aws secretsmanager get-secret-value \
+		--secret-id db-migration-example/api-token \
+		--region $(AWS_REGION) \
+		--query SecretString --output text) && \
+	RESPONSE=$$(curl -sf --insecure \
+		-H "Authorization: Bearer $$TOKEN" \
+		"https://$$ALB/orders/$(ORDER_ID)") && \
+	if [ -n "$(FIELD)" ]; then \
+		echo "$$RESPONSE" | python3 -c "import sys,json; print(json.load(sys.stdin).get('$(FIELD)', 'field not found'))"; \
+	else \
+		echo "$$RESPONSE" | python3 -m json.tool; \
+	fi
