@@ -388,16 +388,18 @@ resource "aws_lb_target_group" "app" {
   vpc_id      = module.vpc.vpc_id
   target_type = "ip" # required for Fargate — each task gets its own ENI
 
-  deregistration_delay = 10
+  # 5s: faster than the default 300s. Keep above 0 — ECS needs a moment to
+  # deregister the task from the ALB before the rolling update completes.
+  deregistration_delay = 5
 
   health_check {
     path                = "/health"
     healthy_threshold   = 2
     unhealthy_threshold = 3
-    # 10s interval: 2 consecutive successes = ~20s after task is healthy.
-    # Default is 30s (60s to mark healthy) — this alone saves ~40s per deploy.
-    interval = 10
-    timeout  = 5
+    # 5s interval: 2 consecutive successes = ~10s after task is healthy.
+    # Default is 30s (60s to mark healthy) — this alone saves ~50s per deploy.
+    interval = 5
+    timeout  = 3
     matcher  = "200"
   }
 
@@ -574,8 +576,9 @@ module "ecs" {
       # Grace period prevents the ALB from health-checking the new task before the
       # app is listening. Without this (default 0), the ALB marks the task unhealthy
       # immediately on registration and ECS stalls the deploy waiting for recovery.
-      # 30s covers Fargate cold start + secret fetch + app startup for this service.
-      health_check_grace_period_seconds = 30
+      # 15s: Fargate cold start is typically 10-20s; app starts in <2s after that.
+      # Lower than 15s risks false-unhealthy on cold starts and stalls the deploy.
+      health_check_grace_period_seconds = 15
 
       # Use the explicitly managed execution role so our secret policy applies.
       # Without this the module creates its own role that lacks GetSecretValue.
@@ -658,12 +661,12 @@ module "ecs" {
 
           healthCheck = {
             command = ["CMD-SHELL", "python -c \"import urllib.request; urllib.request.urlopen('http://localhost:8000/health')\""]
-            # Tight intervals — app starts in <2s. startPeriod covers Fargate cold start
-            # (~30s). After that, 5s interval means ECS marks healthy within 10s of ready.
+            # 5s interval, startPeriod covers Fargate cold start (~15s).
+            # After startPeriod, 2 × 5s = 10s to mark healthy.
             interval    = 5
             timeout     = 3
             retries     = 3
-            startPeriod = 30
+            startPeriod = 15
           }
 
           # readonlyRootFilesystem = false: ECS Exec (SSM agent) requires write access to
