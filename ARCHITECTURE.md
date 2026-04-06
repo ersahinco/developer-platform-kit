@@ -224,3 +224,43 @@ Two sources of high-frequency log noise in a typical ECS + ALB setup:
 
 - ALB health checks — fire every `interval` seconds from each AZ plus the ECS container health check. Filtered at the Uvicorn access logger level in `adapters/api/main.py` using a `logging.Filter` subclass. Non-200 responses on `/health` still pass through.
 - PgBouncer stats logs — fire every `stats_period` seconds (default 60s) regardless of traffic. Controlled via the `STATS_PERIOD` environment variable. Set to 3600 (hourly) — low enough to preserve pool pressure signal, high enough to eliminate per-minute noise. Set to 0 to disable entirely.
+
+---
+
+## Cost estimate
+
+All prices are us-east-1 on-demand as a reference baseline. eu-central-1 (the configured region) runs ~10% higher. Figures are per-month unless noted.
+
+### Dev environment
+
+| Resource | Config | $/mo (approx) |
+|---|---|---|
+| ECS Fargate — app + pgbouncer | 1 task × 0.5 vCPU / 1 GiB, ~730 h | ~$15 |
+| RDS Postgres | db.t4g.small, Single-AZ, 20 GB gp3 | ~$25 |
+| ALB | 1 ALB + ~0 LCU at idle | ~$17 |
+| NAT Gateway | 1 shared × $0.045/h + data | ~$33 |
+| ECR | 4 repos, ~10 images each, <1 GB total | ~$1 |
+| CloudWatch Logs | app + pgbouncer, 14–30 day retention, low volume | ~$2 |
+| Secrets Manager | 1 RDS secret + 1 API token | ~$1 |
+| **Dev total** | | **~$94/mo** |
+
+### Prod environment
+
+| Resource | Config | $/mo (approx) |
+|---|---|---|
+| ECS Fargate — app + pgbouncer | 2 tasks × 0.5 vCPU / 1 GiB, ~730 h | ~$30 |
+| RDS Postgres | db.t4g.small, Single-AZ, 20 GB gp3 | ~$25 |
+| ALB | 1 ALB + LCU at moderate traffic | ~$20 |
+| NAT Gateway | 1 shared × $0.045/h + data | ~$33 |
+| ECR | 4 repos, same lifecycle policy | ~$1 |
+| CloudWatch Logs | app + pgbouncer, 30 day retention | ~$5 |
+| Secrets Manager | 1 RDS secret + 1 API token | ~$1 |
+| **Prod total** | | **~$115/mo** |
+
+### Notes
+
+- NAT Gateway dominates non-compute cost. If ECR pulls are the main egress driver, [VPC endpoints for ECR and Secrets Manager](https://docs.aws.amazon.com/AmazonECR/latest/userguide/vpc-endpoints.html) can cut NAT data charges significantly.
+- RDS Performance Insights (7-day retention) is free. Extending to 731 days adds ~$20/mo per instance.
+- Worker and Liquibase tasks are one-off Fargate runs (seconds to minutes per migration cycle) — cost is negligible (<$0.01/run) and not included above.
+- CloudWatch Container Insights (optional, not currently enabled) adds ~$0.35/node/hour if turned on.
+- These are idle/low-traffic baselines. ALB LCU and NAT data charges scale with actual request volume.
