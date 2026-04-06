@@ -33,10 +33,16 @@ skip-check:
   # ingested via Firehose and is not justified for this demo.
   - CKV2_AWS_31
 
-  # ECS task egress — restricted to VPC CIDR. AWS APIs (ECR, Secrets Manager,
-  # CloudWatch Logs) are reachable via VPC Interface Endpoints. S3 (ECR layers)
-  # via a Gateway Endpoint. No 0.0.0.0/0 egress on the app SG.
-  # - CKV_AWS_25 / CKV_AWS_277 / CKV_AWS_382 — resolved: VPC endpoints added
+  # ECS task egress — app SG egress restricted to VPC CIDR. AWS APIs (ECR,
+  # Secrets Manager, CloudWatch Logs) reachable via VPC Interface Endpoints.
+  # S3 (ECR layers) via a Gateway Endpoint.
+  # - CKV_AWS_25 / CKV_AWS_277 — resolved: app SG egress now scoped to vpc_cidr
+
+  # ALB SG egress to 0.0.0.0/0 — the ALB must reach app tasks in private subnets.
+  # The app SG already restricts inbound to ALB SG only; this egress is the
+  # necessary counterpart. Restricting to vpc_cidr is equivalent but the ALB
+  # module does not expose that granularity without overcomplicating the config.
+  - CKV_AWS_382
 
   # SG not attached to a resource — checkov cannot see attachments made inside
   # the ECS and RDS community modules. Both SGs are wired correctly.

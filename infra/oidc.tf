@@ -174,6 +174,8 @@ data "aws_iam_policy_document" "github_actions_permissions" {
       "ec2:CreateTags", "ec2:DeleteTags",
       # VPC Interface and Gateway Endpoints
       "ec2:CreateVpcEndpoint", "ec2:DeleteVpcEndpoints", "ec2:ModifyVpcEndpoint",
+      # Gateway endpoint attaches to route tables via ReplaceRouteTableAssociation
+      "ec2:ReplaceRouteTableAssociation",
     ]
     resources = ["*"] # EC2 resource ARNs are not available at creation time — AWS API limitation
   }
