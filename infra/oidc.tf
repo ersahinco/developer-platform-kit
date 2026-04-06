@@ -304,6 +304,7 @@ data "aws_iam_policy_document" "github_actions_permissions" {
       "elasticloadbalancing:CreateLoadBalancer",
       "elasticloadbalancing:DeleteLoadBalancer",
       "elasticloadbalancing:ModifyLoadBalancerAttributes",
+      "elasticloadbalancing:SetSecurityGroups",
       "elasticloadbalancing:CreateTargetGroup",
       "elasticloadbalancing:DeleteTargetGroup",
       "elasticloadbalancing:ModifyTargetGroup",
