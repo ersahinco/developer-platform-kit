@@ -183,6 +183,35 @@ aws secretsmanager get-secret-value \
   --query SecretString --output text | python3 -m json.tool
 ```
 
+### Connect with DBeaver
+
+1. Open the tunnel in a terminal and leave it running:
+   ```bash
+   make db-tunnel ENV=dev        # localhost:15432
+   make db-tunnel ENV=prod LOCAL_PORT=25432
+   ```
+
+2. Get credentials:
+   ```bash
+   aws secretsmanager get-secret-value \
+     --secret-id $(cd infra && terraform output -raw db_secret_arn) \
+     --query SecretString --output text | python3 -m json.tool
+   ```
+
+3. In DBeaver: **New Connection → PostgreSQL**, then set:
+
+   | Field | Value |
+   |---|---|
+   | Host | `localhost` |
+   | Port | `15432` (dev) or `25432` (prod) |
+   | Database | `migration_example` |
+   | Username | value of `username` from the secret |
+   | Password | value of `password` from the secret |
+
+4. Under **SSL** tab: disable SSL (the tunnel is already encrypted end-to-end via SSM).
+
+5. Click **Test Connection** — should connect immediately while the tunnel is open.
+
 ### Connect with psql
 
 ```bash
