@@ -145,6 +145,22 @@ The trade-off: the token is a shared secret with no per-caller identity. Suitabl
 
 ACM only issues certificates for domains you control via DNS or email validation. The ALB's built-in `*.elb.amazonaws.com` DNS name is owned by AWS — ACM cannot validate it. A self-signed cert imported into ACM is the only free option for HTTPS on an ALB without a registered domain. Callers pass `--insecure` / `-k`. For production with a real domain, replace with an ACM-managed cert and DNS validation — see `DEPLOYMENT.md`.
 
+### How the certificate is created and wired
+
+`make tls-import-ENV` runs `scripts/tls_import.sh`, which:
+
+1. Looks up the ALB DNS name via `aws elbv2 describe-load-balancers` — no Terraform output dependency.
+2. Generates a 2048-bit RSA key and a self-signed X.509 certificate with `openssl req -x509`:
+   - CN is set to `alb-self-signed` (the ALB DNS name exceeds the 64-char X.509 CN limit).
+   - The full ALB DNS name is placed in the SAN (`subjectAltName=DNS:<alb-dns>`), which is what TLS clients actually validate.
+   - Validity: 825 days (Apple/browser cap for trusted certs; irrelevant here but avoids surprises).
+3. Imports the cert + private key into ACM via `aws acm import-certificate`. ACM stores the private key encrypted — it is never written to disk beyond the script's `mktemp` working directory, which is cleaned up on exit.
+4. Writes the resulting ACM certificate ARN to `infra/.tls-cert-arn-{env}`.
+
+Terraform reads the ARN file via `file("${path.module}/.tls-cert-arn-${var.environment}")` in a `locals` block and passes it to `aws_lb_listener.https`. The file is gitignored — it is account-specific and must be regenerated after a `terraform destroy`.
+
+The script is idempotent: if the ARN file already exists it exits early. To rotate, delete the file and re-run the target.
+
 ### ALB security group
 
 Port 443 open to `0.0.0.0/0` — the fixed-token header check is the access control layer. Port 80 open only to redirect to HTTPS. The app SG allows inbound on port 8000 from the ALB SG only — direct access to the app container from outside the VPC is not possible.
