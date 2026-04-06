@@ -175,6 +175,24 @@ aws_security_group.rds → module.ecs SG → module.ecs → module.rds endpoint 
 
 The pattern to break this: pre-create `aws_security_group.app` before either module, pass it to the ECS module via `create_security_group = false` + `security_group_ids`, and reference it from the RDS SG ingress rule. Both modules can then reference the same SG ID without a cycle. This is the standard pattern when two modules need to reference each other's security groups.
 
+### Shared ECS task execution role — pre-create to avoid null module outputs
+
+The `terraform-aws-modules/ecs` module creates its own execution role internally. The liquibase and worker task definitions need the same role (with `GetSecretValue` on the RDS secret), but they are defined as standalone `aws_ecs_task_definition` resources outside the module. Referencing `module.ecs.services["app"].task_exec_iam_role_arn` from those resources would produce a null value during the same plan that creates the ECS service — Terraform cannot resolve a module output that doesn't exist yet.
+
+The fix: pre-create `aws_iam_role.task_exec` (plus its policy attachment and inline policies) before the ECS module, then pass it to the module via `create_task_exec_iam_role = false` + `task_exec_iam_role_arn`. All three task definitions (app, liquibase, worker) reference the same role ARN without any module output dependency.
+
+### Liquibase and worker as standalone task definitions
+
+The ECS module's `services` block is designed for long-running services: ALB integration, desired count, health checks, service scheduler. Liquibase and the worker are one-off Fargate tasks — no listener, no desired count, no service. The module has no concept of a one-off task. Native `aws_ecs_task_definition` resources are the correct tool; the CI pipeline runs them via `aws ecs run-task`.
+
+### CloudWatch log groups for liquibase and worker
+
+The ECS module auto-creates log groups only for containers defined inside its `services` block. Because liquibase and worker containers are defined in standalone task definitions, the module never sees them. Their log groups must be created explicitly — the `awslogs` log driver fails at task startup if the group does not already exist.
+
+### SSM exec policy attached outside the module
+
+`aws_iam_role_policy.task_ssm_exec` attaches SSM permissions to the app task's runtime role (`tasks_iam_role`). That role is created by the ECS module, so its name is only available as `module.ecs.services["app"].tasks_iam_role_name` — a post-apply output. The policy cannot be passed into the module; it must be attached after the module creates the role. This is a standard post-module attachment pattern for permissions that depend on a module-managed role.
+
 ### ECS Exec and readonlyRootFilesystem
 
 The `terraform-aws-modules/ecs` module defaults `readonlyRootFilesystem = true` for all containers. The SSM managed agent (used by `enable_execute_command`) requires write access to `/var/lib/amazon` and `/var/log/amazon` at startup — it does not support readonly root on Fargate 1.4, even with tmpfs mounts covering `/tmp`. The agent starts but immediately stops with no error reason.
