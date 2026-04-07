@@ -238,8 +238,21 @@ data "aws_iam_policy_document" "github_actions_permissions" {
       "ecs:RunTask",
       "ecs:StopTask",
       "ecs:PutClusterCapacityProviders",
+      "ecs:ExecuteCommand", # required for ECS Exec (db-tunnel, db-exec)
     ]
     resources = ["*"] # Describe/Register calls have no resource-level scope — AWS API limitation
+  }
+
+  statement {
+    # SSM Session Manager — required for ECS Exec to establish sessions via ssmmessages endpoint.
+    sid = "SSMExec"
+    actions = [
+      "ssmmessages:CreateControlChannel",
+      "ssmmessages:CreateDataChannel",
+      "ssmmessages:OpenControlChannel",
+      "ssmmessages:OpenDataChannel",
+    ]
+    resources = ["*"] # ssmmessages has no resource-level scope — AWS API limitation
   }
 
   # ── Infra pipeline — ECR ──────────────────────────────────────────────────

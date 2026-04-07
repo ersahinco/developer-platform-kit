@@ -1034,3 +1034,15 @@ resource "aws_vpc_endpoint" "s3" {
   route_table_ids   = module.vpc.private_route_table_ids
   tags              = merge(local.tags, { Name = "${local.name}-s3" })
 }
+
+# SSM Messages — required for ECS Exec (db-tunnel, db-exec) and SSM Session Manager.
+# Without this, tasks in private subnets cannot establish SSM sessions (TargetNotConnected).
+resource "aws_vpc_endpoint" "ssmmessages" {
+  vpc_id              = module.vpc.vpc_id
+  service_name        = "com.amazonaws.${local.region}.ssmmessages"
+  vpc_endpoint_type   = "Interface"
+  subnet_ids          = module.vpc.private_subnets
+  security_group_ids  = [aws_security_group.vpc_endpoints.id]
+  private_dns_enabled = true
+  tags                = merge(local.tags, { Name = "${local.name}-ssmmessages" })
+}

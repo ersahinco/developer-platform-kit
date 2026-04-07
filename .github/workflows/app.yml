@@ -265,11 +265,12 @@ jobs:
         id: net
         run: |
           # Look up by tag — names are stable across destroy/recreate, raw IDs are not.
+          # group-name uses a wildcard because name_prefix appends a timestamp suffix.
           SUBNET_ID=$(aws ec2 describe-subnets \
             --filters "Name=tag:Name,Values=db-migration-example-dev-private-*" \
             --query 'Subnets[0].SubnetId' --output text)
           SG_ID=$(aws ec2 describe-security-groups \
-            --filters "Name=group-name,Values=db-migration-example-dev-app" \
+            --filters "Name=group-name,Values=db-migration-example-dev-app-*" \
             --query 'SecurityGroups[0].GroupId' --output text)
           echo "subnet_id=$SUBNET_ID" >> "$GITHUB_OUTPUT"
           echo "sg_id=$SG_ID"         >> "$GITHUB_OUTPUT"
@@ -410,7 +411,7 @@ jobs:
             --filters "Name=tag:Name,Values=db-migration-example-prod-private-*" \
             --query 'Subnets[0].SubnetId' --output text)
           SG_ID=$(aws ec2 describe-security-groups \
-            --filters "Name=group-name,Values=db-migration-example-prod-app" \
+            --filters "Name=group-name,Values=db-migration-example-prod-app-*" \
             --query 'SecurityGroups[0].GroupId' --output text)
           echo "subnet_id=$SUBNET_ID" >> "$GITHUB_OUTPUT"
           echo "sg_id=$SG_ID"         >> "$GITHUB_OUTPUT"
@@ -480,7 +481,7 @@ jobs:
             --filters "Name=tag:Name,Values=db-migration-example-prod-private-*" \
             --query 'Subnets[0].SubnetId' --output text)
           SG_ID=$(aws ec2 describe-security-groups \
-            --filters "Name=group-name,Values=db-migration-example-prod-app" \
+            --filters "Name=group-name,Values=db-migration-example-prod-app-*" \
             --query 'SecurityGroups[0].GroupId' --output text)
           echo "subnet_id=$SUBNET_ID" >> "$GITHUB_OUTPUT"
           echo "sg_id=$SG_ID"         >> "$GITHUB_OUTPUT"
