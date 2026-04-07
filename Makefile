@@ -13,9 +13,6 @@
 #
 #   make bootstrap           — one-time AWS account setup, idempotent
 #
-#   make tls-import-dev      — generate + import self-signed cert for dev (run once before first apply)
-#   make tls-import-prod     — generate + import self-signed cert for prod (run once before first apply)
-#
 #   make infra-plan-dev      — terraform plan for dev
 #   make infra-apply-dev     — terraform apply for dev
 #   make infra-plan-prod     — terraform plan for prod
@@ -36,6 +33,7 @@ AWS_REGION      := eu-central-1
 ACCOUNT_ID      := 691627364817
 TF_STATE_BUCKET := db-migration-example-tfstate-$(ACCOUNT_ID)
 TF_LOCK_TABLE   := terraform-locks
+ROOT_DOMAIN     ?= ersahinco-sandbox.eu
 
 # ── Help ──────────────────────────────────────────────────────────────────────
 
@@ -124,29 +122,6 @@ bootstrap: ## One-time AWS account setup — idempotent, safe to re-run
 			--thumbprint-list 6938fd4d98bab03faadb97b34396831e3780aea1
 	@echo "Bootstrap complete."
 
-# ── TLS — self-signed cert import (run once per environment before first apply) ──
-#
-# Generates a self-signed certificate for the ALB's built-in DNS name and
-# imports it into ACM. The resulting ARN is written to infra/.tls-cert-arn-ENV
-# which Terraform reads via file() — keeping the ARN out of state and tfvars.
-#
-# Callers must pass --insecure / -k when hitting the HTTPS endpoint.
-# Re-running is idempotent: if the ARN file already exists the target exits early.
-# ─────────────────────────────────────────────────────────────────────────────
-
-.PHONY: tls-import-dev
-tls-import-dev: ## Generate + import self-signed TLS cert for dev ALB into ACM
-	@bash scripts/tls_import.sh dev $(AWS_REGION)
-
-.PHONY: tls-import-prod
-tls-import-prod: ## Generate + import self-signed TLS cert for prod ALB into ACM
-	@bash scripts/tls_import.sh prod $(AWS_REGION)
-
-.PHONY: tls-print-arns
-tls-print-arns: ## Print TLS cert ARNs to add as GitHub secrets (TLS_CERT_ARN_DEV, TLS_CERT_ARN_PROD)
-	@echo "TLS_CERT_ARN_DEV=$(shell cat infra/.tls-cert-arn-dev 2>/dev/null || echo 'run make tls-import-dev first')"
-	@echo "TLS_CERT_ARN_PROD=$(shell cat infra/.tls-cert-arn-prod 2>/dev/null || echo 'run make tls-import-prod first')"
-
 # ── Infra — dev ───────────────────────────────────────────────────────────────
 
 .PHONY: infra-init-dev
@@ -167,7 +142,16 @@ infra-apply-dev: infra-init-dev ## Terraform apply — dev
 infra-apply-iam-dev: infra-init-dev ## Targeted apply: IAM only — breaks bootstrap permission cycle (dev)
 	cd infra && terraform apply -var-file=dev.tfvars \
 		-target=aws_iam_role.github_actions \
-		-target=aws_iam_role_policy.github_actions
+		-target=aws_iam_policy.github_actions_app \
+		-target=aws_iam_policy.github_actions_state_and_network \
+		-target=aws_iam_policy.github_actions_platform \
+		-target=aws_iam_policy.github_actions_security \
+		-target=aws_iam_policy.github_actions_dns \
+		-target=aws_iam_role_policy_attachment.github_actions_app \
+		-target=aws_iam_role_policy_attachment.github_actions_state_and_network \
+		-target=aws_iam_role_policy_attachment.github_actions_platform \
+		-target=aws_iam_role_policy_attachment.github_actions_security \
+		-target=aws_iam_role_policy_attachment.github_actions_dns
 
 .PHONY: infra-destroy-dev
 infra-destroy-dev: infra-init-dev ## Terraform destroy — dev (sprint reset)
@@ -193,7 +177,16 @@ infra-apply-prod: infra-init-prod ## Terraform apply — prod
 infra-apply-iam-prod: infra-init-prod ## Targeted apply: IAM only — breaks bootstrap permission cycle (prod)
 	cd infra && terraform apply -var-file=prod.tfvars \
 		-target=aws_iam_role.github_actions \
-		-target=aws_iam_role_policy.github_actions
+		-target=aws_iam_policy.github_actions_app \
+		-target=aws_iam_policy.github_actions_state_and_network \
+		-target=aws_iam_policy.github_actions_platform \
+		-target=aws_iam_policy.github_actions_security \
+		-target=aws_iam_policy.github_actions_dns \
+		-target=aws_iam_role_policy_attachment.github_actions_app \
+		-target=aws_iam_role_policy_attachment.github_actions_state_and_network \
+		-target=aws_iam_role_policy_attachment.github_actions_platform \
+		-target=aws_iam_role_policy_attachment.github_actions_security \
+		-target=aws_iam_role_policy_attachment.github_actions_dns
 
 # ── App — deploy ──────────────────────────────────────────────────────────────
 
@@ -263,17 +256,17 @@ FIELD    ?=
 
 .PHONY: api-get-order
 api-get-order: ## Query a live order by ID  (ENV=dev|prod, ORDER_ID=1, FIELD=billing_email)
-	@ALB=$$(aws elbv2 describe-load-balancers \
-		--names db-migration-example-$(ENV) \
-		--region $(AWS_REGION) \
-		--query 'LoadBalancers[0].DNSName' --output text) && \
-	TOKEN=$$(aws secretsmanager get-secret-value \
-		--secret-id db-migration-example/api-token \
-		--region $(AWS_REGION) \
-		--query SecretString --output text) && \
-	RESPONSE=$$(curl -sf --insecure \
-		-H "Authorization: Bearer $$TOKEN" \
-		"https://$$ALB/orders/$(ORDER_ID)") && \
+	@API_HOST=$$(if [ "$(ENV)" = "dev" ]; then echo "api-dev.$(ROOT_DOMAIN)"; else echo "api-prod.$(ROOT_DOMAIN)"; fi) && \
+	AUTH_TOKEN="$${TOKEN:-}" && \
+	if [ -z "$$AUTH_TOKEN" ]; then \
+		AUTH_TOKEN=$$(aws secretsmanager get-secret-value \
+			--secret-id db-migration-example/api-token \
+			--region $(AWS_REGION) \
+			--query SecretString --output text); \
+	fi && \
+	RESPONSE=$$(curl -sf \
+		-H "Authorization: Bearer $$AUTH_TOKEN" \
+		"https://$$API_HOST/orders/$(ORDER_ID)") && \
 	if [ -n "$(FIELD)" ]; then \
 		echo "$$RESPONSE" | python3 -c "import sys,json; print(json.load(sys.stdin).get('$(FIELD)', 'field not found'))"; \
 	else \

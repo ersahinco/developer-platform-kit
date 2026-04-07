@@ -112,11 +112,6 @@ jobs:
             -reconfigure
         working-directory: infra
 
-      # The cert ARN is generated once by `make tls-import-dev` and stored as a
-      # GitHub secret. Write it to the file Terraform reads via file() at plan time.
-      - name: Write TLS cert ARN
-        run: echo -n "${{ secrets.TLS_CERT_ARN_DEV }}" > infra/.tls-cert-arn-dev
-
       - name: terraform plan
         id: plan
         run: |
@@ -175,11 +170,6 @@ jobs:
             -reconfigure
         working-directory: infra
 
-      # The cert ARN is generated once by `make tls-import-dev` and stored as a
-      # GitHub secret. Write it to the file Terraform reads via file() at plan time.
-      - name: Write TLS cert ARN
-        run: echo -n "${{ secrets.TLS_CERT_ARN_DEV }}" > infra/.tls-cert-arn-dev
-
       - name: terraform apply
         run: terraform apply -var-file=dev.tfvars -auto-approve
         working-directory: infra
@@ -210,11 +200,6 @@ jobs:
             -backend-config="key=db-migration-example/prod.tfstate" \
             -reconfigure
         working-directory: infra
-
-      # The cert ARN is generated once by `make tls-import-prod` and stored as a
-      # GitHub secret. Write it to the file Terraform reads via file() at plan time.
-      - name: Write TLS cert ARN
-        run: echo -n "${{ secrets.TLS_CERT_ARN_PROD }}" > infra/.tls-cert-arn-prod
 
       - name: terraform apply
         run: terraform apply -var-file=prod.tfvars -auto-approve

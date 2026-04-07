@@ -34,6 +34,11 @@ variable "api_token_secret_name" {
   default     = "db-migration-example/api-token"
 }
 
+variable "root_domain" {
+  description = "Public Route 53 root domain registered in this AWS account (for example: example-sandbox.click). Dev and prod receive separate API hostnames under this zone."
+  type        = string
+}
+
 variable "az_count" {
   description = "Number of availability zones. 2 for non-prod, 3 for prod."
   type        = number

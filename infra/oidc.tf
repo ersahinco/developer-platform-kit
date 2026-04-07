@@ -53,13 +53,11 @@ resource "aws_iam_role" "github_actions" {
   tags               = local.tags
 }
 
-data "aws_iam_policy_document" "github_actions_permissions" {
-  # ── Deploy pipeline (app.yml) ──────────────────────────────────────────
-
+data "aws_iam_policy_document" "github_actions_app" {
   statement {
     sid       = "ECRAuth"
     actions   = ["ecr:GetAuthorizationToken"]
-    resources = ["*"] # GetAuthorizationToken has no resource scope — AWS API limitation
+    resources = ["*"]
   }
 
   statement {
@@ -81,8 +79,6 @@ data "aws_iam_policy_document" "github_actions_permissions" {
     ]
   }
 
-  # prod-migrate pulls images from dev ECR before pushing to prod ECR.
-  # The ECRPush statement above only covers the current environment's repos.
   statement {
     sid = "ECRPullCrossEnv"
     actions = [
@@ -104,7 +100,7 @@ data "aws_iam_policy_document" "github_actions_permissions" {
       "ecs:RunTask",
       "ecs:DescribeTasks",
     ]
-    resources = ["*"] # RegisterTaskDefinition/DescribeTaskDefinition have no resource scope
+    resources = ["*"]
   }
 
   statement {
@@ -112,9 +108,9 @@ data "aws_iam_policy_document" "github_actions_permissions" {
     actions   = ["iam:PassRole"]
     resources = ["arn:aws:iam::${local.account_id}:role/db-migration-example-*"]
   }
+}
 
-  # ── Infra pipeline (infra.yml) — Terraform state ──────────────────────────
-
+data "aws_iam_policy_document" "github_actions_state_and_network" {
   statement {
     sid = "TerraformState"
     actions = [
@@ -139,8 +135,6 @@ data "aws_iam_policy_document" "github_actions_permissions" {
     resources = ["arn:aws:dynamodb:${local.region}:${local.account_id}:table/terraform-locks"]
   }
 
-  # ── Infra pipeline — EC2 / VPC ────────────────────────────────────────────
-
   statement {
     sid = "EC2Describe"
     actions = [
@@ -148,7 +142,7 @@ data "aws_iam_policy_document" "github_actions_permissions" {
       "ec2:Get*",
       "ec2:List*",
     ]
-    resources = ["*"] # EC2 Describe/Get/List have no resource-level scope — AWS API limitation
+    resources = ["*"]
   }
 
   statement {
@@ -168,16 +162,13 @@ data "aws_iam_policy_document" "github_actions_permissions" {
       "ec2:AuthorizeSecurityGroupEgress", "ec2:RevokeSecurityGroupEgress",
       "ec2:UpdateSecurityGroupRuleDescriptionsIngress",
       "ec2:UpdateSecurityGroupRuleDescriptionsEgress",
-      # VPC module manages the default Network ACL
       "ec2:CreateNetworkAclEntry", "ec2:DeleteNetworkAclEntry", "ec2:ReplaceNetworkAclEntry",
       "ec2:CreateNetworkAcl", "ec2:DeleteNetworkAcl", "ec2:ReplaceNetworkAclAssociation",
       "ec2:CreateTags", "ec2:DeleteTags",
-      # VPC Interface and Gateway Endpoints
       "ec2:CreateVpcEndpoint", "ec2:DeleteVpcEndpoints", "ec2:ModifyVpcEndpoint",
-      # Gateway endpoint attaches to route tables via ReplaceRouteTableAssociation
       "ec2:ReplaceRouteTableAssociation",
     ]
-    resources = ["*"] # EC2 resource ARNs are not available at creation time — AWS API limitation
+    resources = ["*"]
   }
 
   statement {
@@ -200,11 +191,11 @@ data "aws_iam_policy_document" "github_actions_permissions" {
   statement {
     sid       = "RDSDescribe"
     actions   = ["rds:Describe*"]
-    resources = ["*"] # RDS Describe calls have no resource-level scope — AWS API limitation
+    resources = ["*"]
   }
+}
 
-  # ── Infra pipeline — ECS ──────────────────────────────────────────────────
-
+data "aws_iam_policy_document" "github_actions_platform" {
   statement {
     sid = "ECSManage"
     actions = [
@@ -215,9 +206,6 @@ data "aws_iam_policy_document" "github_actions_permissions" {
     resources = [
       "arn:aws:ecs:${local.region}:${local.account_id}:cluster/db-migration-example-*",
       "arn:aws:ecs:${local.region}:${local.account_id}:service/db-migration-example-*/*",
-      # TagResource is called on task definitions during RegisterTaskDefinition.
-      # The ECS module names the service task definition after the service key ("app"),
-      # not the cluster — so we cannot scope to db-migration-example-* here.
       "arn:aws:ecs:${local.region}:${local.account_id}:task-definition/*",
     ]
   }
@@ -225,9 +213,9 @@ data "aws_iam_policy_document" "github_actions_permissions" {
   statement {
     sid = "ECSDescribeAndRegister"
     actions = [
-      "ecs:RegisterTaskDefinition",   # no resource scope — AWS API limitation
-      "ecs:DeregisterTaskDefinition", # no resource scope — AWS API limitation
-      "ecs:DescribeTaskDefinition",   # no resource scope — AWS API limitation
+      "ecs:RegisterTaskDefinition",
+      "ecs:DeregisterTaskDefinition",
+      "ecs:DescribeTaskDefinition",
       "ecs:DescribeClusters",
       "ecs:DescribeServices",
       "ecs:DescribeTasks",
@@ -238,13 +226,12 @@ data "aws_iam_policy_document" "github_actions_permissions" {
       "ecs:RunTask",
       "ecs:StopTask",
       "ecs:PutClusterCapacityProviders",
-      "ecs:ExecuteCommand", # required for ECS Exec (db-tunnel, db-exec)
+      "ecs:ExecuteCommand",
     ]
-    resources = ["*"] # Describe/Register calls have no resource-level scope — AWS API limitation
+    resources = ["*"]
   }
 
   statement {
-    # SSM Session Manager — required for ECS Exec to establish sessions via ssmmessages endpoint.
     sid = "SSMExec"
     actions = [
       "ssmmessages:CreateControlChannel",
@@ -252,10 +239,8 @@ data "aws_iam_policy_document" "github_actions_permissions" {
       "ssmmessages:OpenControlChannel",
       "ssmmessages:OpenDataChannel",
     ]
-    resources = ["*"] # ssmmessages has no resource-level scope — AWS API limitation
+    resources = ["*"]
   }
-
-  # ── Infra pipeline — ECR ──────────────────────────────────────────────────
 
   statement {
     sid = "ECRManage"
@@ -272,44 +257,6 @@ data "aws_iam_policy_document" "github_actions_permissions" {
       "arn:aws:ecr:${local.region}:${local.account_id}:repository/db-migration-example-*",
     ]
   }
-
-  # ── Infra pipeline — WAF ──────────────────────────────────────────────────
-
-  statement {
-    sid = "WAFManage"
-    actions = [
-      "wafv2:CreateWebACL", "wafv2:DeleteWebACL", "wafv2:UpdateWebACL",
-      "wafv2:GetWebACL", "wafv2:ListWebACLs",
-      "wafv2:AssociateWebACL", "wafv2:DisassociateWebACL", "wafv2:GetWebACLForResource",
-      "wafv2:ListResourcesForWebACL",
-      "wafv2:TagResource", "wafv2:UntagResource", "wafv2:ListTagsForResource",
-      "wafv2:CheckCapacity",
-      "wafv2:DescribeManagedRuleGroup",
-      "wafv2:ListAvailableManagedRuleGroups",
-      "wafv2:ListAvailableManagedRuleGroupVersions",
-    ]
-    resources = [
-      "arn:aws:wafv2:${local.region}:${local.account_id}:regional/webacl/db-migration-example-*/*",
-      "arn:aws:wafv2:${local.region}:${local.account_id}:regional/managedruleset/*/*",
-    ]
-  }
-
-  statement {
-    # wafv2 List/Describe calls have no resource-level scope — AWS API limitation
-    sid = "WAFDescribe"
-    actions = [
-      "wafv2:ListWebACLs",
-      "wafv2:ListAvailableManagedRuleGroups",
-      "wafv2:ListAvailableManagedRuleGroupVersions",
-      "wafv2:DescribeManagedRuleGroup",
-      "wafv2:CheckCapacity",
-      "wafv2:GetWebACLForResource",
-      "wafv2:ListResourcesForWebACL",
-    ]
-    resources = ["*"]
-  }
-
-  # ── Infra pipeline — ALB ──────────────────────────────────────────────────
 
   statement {
     sid = "ALBManage"
@@ -338,10 +285,8 @@ data "aws_iam_policy_document" "github_actions_permissions" {
   statement {
     sid       = "ALBDescribe"
     actions   = ["elasticloadbalancing:Describe*"]
-    resources = ["*"] # ELB Describe calls have no resource-level scope — AWS API limitation
+    resources = ["*"]
   }
-
-  # ── Infra pipeline — Auto Scaling ─────────────────────────────────────────
 
   statement {
     sid = "AutoScaling"
@@ -356,15 +301,13 @@ data "aws_iam_policy_document" "github_actions_permissions" {
       "application-autoscaling:UntagResource",
       "application-autoscaling:ListTagsForResource",
     ]
-    resources = ["*"] # DescribeScalableTargets has no resource-level scope — AWS API limitation
+    resources = ["*"]
   }
-
-  # ── Infra pipeline — CloudWatch Logs ──────────────────────────────────────
 
   statement {
     sid       = "LogsDescribe"
     actions   = ["logs:DescribeLogGroups", "logs:ListTagsForResource", "logs:ListTagsLogGroup"]
-    resources = ["*"] # tag and describe APIs have no resource-level scope — AWS API limitation
+    resources = ["*"]
   }
 
   statement {
@@ -378,13 +321,45 @@ data "aws_iam_policy_document" "github_actions_permissions" {
     resources = [
       "arn:aws:logs:${local.region}:${local.account_id}:log-group:/ecs/db-migration-example-*",
       "arn:aws:logs:${local.region}:${local.account_id}:log-group:/ecs/db-migration-example-*:*",
-      # ECS module names container log groups after service/container, not cluster
       "arn:aws:logs:${local.region}:${local.account_id}:log-group:/aws/ecs/*",
       "arn:aws:logs:${local.region}:${local.account_id}:log-group:/aws/ecs/*:*",
     ]
   }
+}
 
-  # ── Infra pipeline — Secrets Manager ─────────────────────────────────────
+data "aws_iam_policy_document" "github_actions_security" {
+  statement {
+    sid = "WAFManage"
+    actions = [
+      "wafv2:CreateWebACL", "wafv2:DeleteWebACL", "wafv2:UpdateWebACL",
+      "wafv2:GetWebACL", "wafv2:ListWebACLs",
+      "wafv2:AssociateWebACL", "wafv2:DisassociateWebACL", "wafv2:GetWebACLForResource",
+      "wafv2:ListResourcesForWebACL",
+      "wafv2:TagResource", "wafv2:UntagResource", "wafv2:ListTagsForResource",
+      "wafv2:CheckCapacity",
+      "wafv2:DescribeManagedRuleGroup",
+      "wafv2:ListAvailableManagedRuleGroups",
+      "wafv2:ListAvailableManagedRuleGroupVersions",
+    ]
+    resources = [
+      "arn:aws:wafv2:${local.region}:${local.account_id}:regional/webacl/db-migration-example-*/*",
+      "arn:aws:wafv2:${local.region}:${local.account_id}:regional/managedruleset/*/*",
+    ]
+  }
+
+  statement {
+    sid = "WAFDescribe"
+    actions = [
+      "wafv2:ListWebACLs",
+      "wafv2:ListAvailableManagedRuleGroups",
+      "wafv2:ListAvailableManagedRuleGroupVersions",
+      "wafv2:DescribeManagedRuleGroup",
+      "wafv2:CheckCapacity",
+      "wafv2:GetWebACLForResource",
+      "wafv2:ListResourcesForWebACL",
+    ]
+    resources = ["*"]
+  }
 
   statement {
     sid = "SecretsManagerDescribe"
@@ -400,8 +375,6 @@ data "aws_iam_policy_document" "github_actions_permissions" {
   }
 
   statement {
-    # Terraform reads the api-token at plan/apply time to embed it in the ALB
-    # listener rule condition. Scoped to the single secret by name prefix.
     sid     = "SecretsManagerAPIToken"
     actions = ["secretsmanager:GetSecretValue"]
     resources = [
@@ -411,9 +384,6 @@ data "aws_iam_policy_document" "github_actions_permissions" {
 
   statement {
     sid = "SecretsManagerRDSManaged"
-    # RDS calls these on behalf of the caller when manage_master_user_password=true.
-    # CreateSecret is evaluated against * at creation time (secret has no ARN yet).
-    # Subsequent operations are scoped to the rds!db-* prefix.
     actions = [
       "secretsmanager:CreateSecret",
       "secretsmanager:TagResource",
@@ -427,8 +397,6 @@ data "aws_iam_policy_document" "github_actions_permissions" {
       values   = ["rds!db-*"]
     }
   }
-
-  # ── Infra pipeline — IAM ──────────────────────────────────────────────────
 
   statement {
     sid = "TerraformManageIAM"
@@ -448,7 +416,6 @@ data "aws_iam_policy_document" "github_actions_permissions" {
     resources = [
       "arn:aws:iam::${local.account_id}:role/db-migration-example-*",
       "arn:aws:iam::${local.account_id}:policy/db-migration-example-*",
-      # ECS module names task exec roles/policies after the service name ("app")
       "arn:aws:iam::${local.account_id}:role/app-*",
       "arn:aws:iam::${local.account_id}:policy/app-*",
     ]
@@ -460,15 +427,13 @@ data "aws_iam_policy_document" "github_actions_permissions" {
       "iam:ListOpenIDConnectProviders",
       "iam:GetOpenIDConnectProvider",
     ]
-    resources = ["*"] # OIDC provider APIs have no resource-level scope — AWS API limitation
+    resources = ["*"]
   }
-
-  # ── Infra pipeline — KMS ──────────────────────────────────────────────────
 
   statement {
     sid       = "KMSDescribe"
     actions   = ["kms:DescribeKey", "kms:ListKeys", "kms:ListAliases"]
-    resources = ["*"] # KMS Describe/List have no resource-level scope — AWS API limitation
+    resources = ["*"]
   }
 
   statement {
@@ -482,7 +447,6 @@ data "aws_iam_policy_document" "github_actions_permissions" {
       "kms:ReEncryptFrom",
       "kms:ReEncryptTo",
     ]
-    # aws/rds managed key — used when storage_encrypted=true without a custom key
     resources = ["arn:aws:kms:${local.region}:${local.account_id}:key/*"]
     condition {
       test     = "StringLike"
@@ -492,8 +456,101 @@ data "aws_iam_policy_document" "github_actions_permissions" {
   }
 }
 
-resource "aws_iam_role_policy" "github_actions" {
-  name   = "github-actions-permissions"
-  role   = aws_iam_role.github_actions.id
-  policy = data.aws_iam_policy_document.github_actions_permissions.json
+data "aws_iam_policy_document" "github_actions_dns" {
+  statement {
+    sid = "ACMRequestAndList"
+    actions = [
+      "acm:RequestCertificate",
+      "acm:ListCertificates",
+    ]
+    resources = ["*"]
+  }
+
+  statement {
+    sid = "ACMManageIssuedCerts"
+    actions = [
+      "acm:DeleteCertificate",
+      "acm:DescribeCertificate",
+      "acm:AddTagsToCertificate",
+      "acm:RemoveTagsFromCertificate",
+      "acm:ListTagsForCertificate",
+      "acm:GetCertificate",
+    ]
+    resources = [
+      "arn:aws:acm:${local.region}:${local.account_id}:certificate/*",
+    ]
+  }
+
+  statement {
+    sid = "Route53Read"
+    actions = [
+      "route53:GetHostedZone",
+      "route53:ListHostedZones",
+      "route53:ListHostedZonesByName",
+      "route53:ListResourceRecordSets",
+      "route53:GetChange",
+    ]
+    resources = ["*"]
+  }
+
+  statement {
+    sid       = "Route53ChangeRecords"
+    actions   = ["route53:ChangeResourceRecordSets"]
+    resources = ["arn:aws:route53:::hostedzone/*"]
+  }
+}
+
+resource "aws_iam_policy" "github_actions_app" {
+  name   = "${local.name}-github-actions-app"
+  policy = data.aws_iam_policy_document.github_actions_app.json
+  tags   = local.tags
+}
+
+resource "aws_iam_policy" "github_actions_state_and_network" {
+  name   = "${local.name}-github-actions-state-network"
+  policy = data.aws_iam_policy_document.github_actions_state_and_network.json
+  tags   = local.tags
+}
+
+resource "aws_iam_policy" "github_actions_platform" {
+  name   = "${local.name}-github-actions-platform"
+  policy = data.aws_iam_policy_document.github_actions_platform.json
+  tags   = local.tags
+}
+
+resource "aws_iam_policy" "github_actions_security" {
+  name   = "${local.name}-github-actions-security"
+  policy = data.aws_iam_policy_document.github_actions_security.json
+  tags   = local.tags
+}
+
+resource "aws_iam_policy" "github_actions_dns" {
+  name   = "${local.name}-github-actions-dns"
+  policy = data.aws_iam_policy_document.github_actions_dns.json
+  tags   = local.tags
+}
+
+resource "aws_iam_role_policy_attachment" "github_actions_app" {
+  role       = aws_iam_role.github_actions.name
+  policy_arn = aws_iam_policy.github_actions_app.arn
+}
+
+resource "aws_iam_role_policy_attachment" "github_actions_state_and_network" {
+  role       = aws_iam_role.github_actions.name
+  policy_arn = aws_iam_policy.github_actions_state_and_network.arn
+}
+
+resource "aws_iam_role_policy_attachment" "github_actions_platform" {
+  role       = aws_iam_role.github_actions.name
+  policy_arn = aws_iam_policy.github_actions_platform.arn
+}
+
+resource "aws_iam_role_policy_attachment" "github_actions_security" {
+  role       = aws_iam_role.github_actions.name
+  policy_arn = aws_iam_policy.github_actions_security.arn
+}
+
+resource "aws_iam_role_policy_attachment" "github_actions_dns" {
+  role       = aws_iam_role.github_actions.name
+  policy_arn = aws_iam_policy.github_actions_dns.arn
 }

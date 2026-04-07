@@ -35,8 +35,8 @@ Five environments — create these in **Settings → Environments** before the f
 
 | Environment | Pipeline | Approval | Secrets |
 |---|---|---|---|
-| `dev-infra` | infra.yml | none | `AWS_ROLE_ARN`, `TLS_CERT_ARN_DEV` |
-| `prod-infra` | infra.yml | required | `AWS_ROLE_ARN`, `TLS_CERT_ARN_PROD` |
+| `dev-infra` | infra.yml | none | `AWS_ROLE_ARN` |
+| `prod-infra` | infra.yml | required | `AWS_ROLE_ARN` |
 | `dev-deploy` | app.yml | none | `AWS_ROLE_ARN` |
 | `prod-migrate` | app.yml | required | `AWS_ROLE_ARN` |
 | `prod-deploy` | app.yml | required | `AWS_ROLE_ARN` |
@@ -48,30 +48,20 @@ Five environments — create these in **Settings → Environments** before the f
 | `dev-infra`, `dev-deploy` | `arn:aws:iam::691627364817:role/db-migration-example-dev-github-actions` |
 | `prod-infra`, `prod-migrate`, `prod-deploy` | `arn:aws:iam::691627364817:role/db-migration-example-prod-github-actions` |
 
-`TLS_CERT_ARN_DEV` and `TLS_CERT_ARN_PROD` are the ACM certificate ARNs written by `make tls-import-dev` / `make tls-import-prod`. Print them with:
-
-```bash
-make tls-print-arns
-```
-
 ---
 
 ## API access — TLS and authentication
 
-The ALB exposes HTTPS only. HTTP (port 80) redirects to HTTPS with a 301.
+The ALB exposes HTTPS only.
 
 ### TLS
 
-A self-signed certificate is generated locally and imported into ACM. There is no trusted CA — callers must pass `--insecure` / `-k`. The certificate CN is `alb-self-signed`; the SAN contains the full ALB DNS name.
+Terraform requests a DNS-validated ACM public certificate in `eu-central-1` for an environment-specific hostname under one shared public Route 53 domain:
 
-The certificate ARN is written to `infra/.tls-cert-arn-{env}` by `make tls-import-{env}` and read by Terraform via `file()`. It is gitignored — run the target once per environment before the first `terraform apply`.
+- dev: `api-dev.<root_domain>`
+- prod: `api-prod.<root_domain>`
 
-```bash
-make tls-import-dev   # writes infra/.tls-cert-arn-dev
-make tls-import-prod  # writes infra/.tls-cert-arn-prod
-```
-
-To rotate: delete the ARN file, run the target again, then `terraform apply`.
+Before the first apply, register a cheap public domain in Route 53 and set `root_domain` in both `infra/dev.tfvars` and `infra/prod.tfvars`. Terraform looks up the public hosted zone, creates the ACM validation records automatically, and creates an alias record pointing the hostname at the ALB.
 
 ### Authentication
 
@@ -87,11 +77,11 @@ TOKEN=$(aws secretsmanager get-secret-value \
   --region eu-central-1 \
   --query SecretString --output text)
 
-curl -sk -H "Authorization: Bearer $TOKEN" \
-  https://<alb-dns-name>/orders/1
+curl -s -H "Authorization: Bearer $TOKEN" \
+  https://<api-hostname>/orders/1
 ```
 
-The ALB DNS name is available from `terraform output alb_url` after apply.
+The hostname is available from `terraform output api_fqdn` after apply.
 
 ---
 
@@ -103,10 +93,8 @@ resources Terraform itself depends on (state backend, OIDC provider).
 ```bash
 make bootstrap            # creates S3 state bucket, DynamoDB lock table, OIDC provider
 make infra-apply-iam-dev  # targeted apply: IAM role only — required before first full plan
-make tls-import-dev       # generate + import self-signed cert for dev ALB
 make infra-apply-dev      # full dev apply
 make infra-apply-iam-prod # targeted apply: IAM role only for prod
-make tls-import-prod      # generate + import self-signed cert for prod ALB
 make infra-apply-prod     # full prod apply
 ```
 

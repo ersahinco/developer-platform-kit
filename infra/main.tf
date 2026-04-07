@@ -15,8 +15,10 @@ locals {
   name       = "db-migration-example-${var.environment}"
   account_id = data.aws_caller_identity.current.account_id
   # Use var.aws_region directly — data.aws_region.current.name is deprecated in aws provider v6
-  region = var.aws_region
-  azs    = slice(data.aws_availability_zones.available.names, 0, var.az_count)
+  region        = var.aws_region
+  azs           = slice(data.aws_availability_zones.available.names, 0, var.az_count)
+  api_subdomain = var.environment == "dev" ? "api-dev" : "api-prod"
+  api_fqdn      = "${local.api_subdomain}.${var.root_domain}"
 
   tags = {
     Project     = "db-migration-example"
@@ -426,18 +428,42 @@ resource "aws_lb_target_group" "app" {
   tags = local.tags
 }
 
-################################################################################
-# TLS — self-signed certificate imported into ACM by `make tls-import-ENV`.
-# The make target generates a cert for the ALB's built-in DNS name, imports it,
-# and writes the ARN to infra/.tls-cert-arn-ENV. Terraform reads that file here.
-# Callers must pass --insecure / -k (self-signed, no trusted CA).
-# Run `make tls-import-dev` (or prod) once before the first `terraform apply`.
-################################################################################
+data "aws_route53_zone" "public" {
+  name         = "${var.root_domain}."
+  private_zone = false
+}
 
-locals {
-  # Read the ARN written by `make tls-import-ENV`. Fails fast with a clear
-  # message if the file is missing — prevents a silent plan with no cert.
-  acm_certificate_arn = trimspace(file("${path.module}/.tls-cert-arn-${var.environment}"))
+resource "aws_acm_certificate" "api" {
+  domain_name       = local.api_fqdn
+  validation_method = "DNS"
+
+  lifecycle {
+    create_before_destroy = true
+  }
+
+  tags = local.tags
+}
+
+resource "aws_route53_record" "api_cert_validation" {
+  for_each = {
+    for dvo in aws_acm_certificate.api.domain_validation_options : dvo.domain_name => {
+      name   = dvo.resource_record_name
+      record = dvo.resource_record_value
+      type   = dvo.resource_record_type
+    }
+  }
+
+  zone_id         = data.aws_route53_zone.public.zone_id
+  name            = each.value.name
+  type            = each.value.type
+  ttl             = 60
+  records         = [each.value.record]
+  allow_overwrite = true
+}
+
+resource "aws_acm_certificate_validation" "api" {
+  certificate_arn         = aws_acm_certificate.api.arn
+  validation_record_fqdns = [for record in aws_route53_record.api_cert_validation : record.fqdn]
 }
 
 ################################################################################
@@ -465,7 +491,7 @@ resource "aws_lb_listener" "https" {
   port              = 443
   protocol          = "HTTPS"
   ssl_policy        = "ELBSecurityPolicy-TLS13-1-2-2021-06"
-  certificate_arn   = local.acm_certificate_arn
+  certificate_arn   = aws_acm_certificate_validation.api.certificate_arn
 
   # Default action: deny — safety net for any request that misses rule 1.
   default_action {
@@ -501,6 +527,18 @@ resource "aws_lb_listener_rule" "auth" {
   action {
     type             = "forward"
     target_group_arn = aws_lb_target_group.app.arn
+  }
+}
+
+resource "aws_route53_record" "api_alias" {
+  zone_id = data.aws_route53_zone.public.zone_id
+  name    = local.api_fqdn
+  type    = "A"
+
+  alias {
+    name                   = aws_lb.this.dns_name
+    zone_id                = aws_lb.this.zone_id
+    evaluate_target_health = true
   }
 }
 

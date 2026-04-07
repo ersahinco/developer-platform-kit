@@ -3,14 +3,19 @@ output "alb_dns_name" {
   value       = aws_lb.this.dns_name
 }
 
+output "api_fqdn" {
+  description = "Public DNS name for the API in Route 53."
+  value       = local.api_fqdn
+}
+
 output "alb_url" {
-  description = "HTTPS base URL for the API. Callers must pass --insecure (self-signed cert)."
-  value       = "https://${aws_lb.this.dns_name}"
+  description = "HTTPS base URL for the API on the environment-specific public DNS name."
+  value       = "https://${local.api_fqdn}"
 }
 
 output "acm_certificate_arn" {
   description = "ACM certificate ARN attached to the HTTPS listener."
-  value       = local.acm_certificate_arn
+  value       = aws_acm_certificate_validation.api.certificate_arn
 }
 
 output "ecr_app_repository_url" {
