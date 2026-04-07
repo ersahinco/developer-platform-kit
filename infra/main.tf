@@ -350,7 +350,7 @@ resource "aws_security_group" "app" {
   # name_prefix + create_before_destroy: same reason as alb SG — description
   # changes force replacement and a fixed name collides in the same VPC.
   name_prefix = "${local.name}-app-"
-  description = "App tasks: inbound from ALB only, egress to VPC (VPC endpoints for ECR/SM/CW)"
+  description = "App tasks: inbound from ALB only, HTTPS egress to AWS APIs, Postgres to RDS"
   vpc_id      = module.vpc.vpc_id
 
   lifecycle {
@@ -365,14 +365,25 @@ resource "aws_security_group" "app" {
     security_groups = [aws_security_group.alb.id]
   }
 
-  # Egress restricted to VPC CIDR — tasks reach ECR, Secrets Manager, and
-  # CloudWatch Logs via VPC Interface Endpoints (no NAT required for AWS APIs).
-  # RDS is in intra subnets within the same VPC CIDR.
+  # Egress: HTTPS to anywhere covers both VPC Interface Endpoints (ECR, Secrets
+  # Manager, CloudWatch Logs, SSM) and the S3 Gateway Endpoint (ECR layers).
+  # Restricting to vpc_cidr breaks tasks in AZs where an endpoint ENI is absent —
+  # the task resolves ECR to a public IP and the connection times out with no NAT path.
+  # The meaningful security boundary is IAM + ingress rules, not egress CIDR.
   egress {
-    description = "All egress within VPC (VPC endpoints + RDS)"
-    from_port   = 0
-    to_port     = 0
-    protocol    = "-1"
+    description = "HTTPS to AWS APIs (VPC endpoints + fallback)"
+    from_port   = 443
+    to_port     = 443
+    protocol    = "tcp"
+    cidr_blocks = ["0.0.0.0/0"]
+  }
+
+  # RDS is in intra subnets — Postgres egress stays scoped to the VPC CIDR.
+  egress {
+    description = "Postgres to RDS in intra subnets"
+    from_port   = 5432
+    to_port     = 5432
+    protocol    = "tcp"
     cidr_blocks = [var.vpc_cidr]
   }
 
