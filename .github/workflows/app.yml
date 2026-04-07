@@ -308,10 +308,16 @@ jobs:
 
           aws ecs wait tasks-stopped --cluster db-migration-example-dev --tasks "$TASK_ARN"
 
-          EXIT_CODE=$(aws ecs describe-tasks \
-            --cluster db-migration-example-dev --tasks "$TASK_ARN" \
-            --query 'tasks[0].containers[0].exitCode' --output text)
-          [ "$EXIT_CODE" = "0" ] || { echo "Liquibase failed (exit $EXIT_CODE)"; exit 1; }
+          # exitCode is null when the container never started (image pull failure,
+          # resource constraint, etc). Fetch stoppedReason to surface the cause.
+          TASK_JSON=$(aws ecs describe-tasks \
+            --cluster db-migration-example-dev --tasks "$TASK_ARN")
+          EXIT_CODE=$(echo "$TASK_JSON" | jq -r '.tasks[0].containers[0].exitCode')
+          if [ "$EXIT_CODE" = "null" ] || [ "$EXIT_CODE" != "0" ]; then
+            REASON=$(echo "$TASK_JSON" | jq -r '.tasks[0].stoppedReason // "unknown"')
+            echo "Liquibase failed (exit $EXIT_CODE) — stoppedReason: $REASON"
+            exit 1
+          fi
 
   # ── 4. Dev deploy ─────────────────────────────────────────────────────────
   dev-deploy:
@@ -446,10 +452,16 @@ jobs:
 
           aws ecs wait tasks-stopped --cluster db-migration-example-prod --tasks "$TASK_ARN"
 
-          EXIT_CODE=$(aws ecs describe-tasks \
-            --cluster db-migration-example-prod --tasks "$TASK_ARN" \
-            --query 'tasks[0].containers[0].exitCode' --output text)
-          [ "$EXIT_CODE" = "0" ] || { echo "Liquibase failed (exit $EXIT_CODE)"; exit 1; }
+          # exitCode is null when the container never started (image pull failure,
+          # resource constraint, etc). Fetch stoppedReason to surface the cause.
+          TASK_JSON=$(aws ecs describe-tasks \
+            --cluster db-migration-example-prod --tasks "$TASK_ARN")
+          EXIT_CODE=$(echo "$TASK_JSON" | jq -r '.tasks[0].containers[0].exitCode')
+          if [ "$EXIT_CODE" = "null" ] || [ "$EXIT_CODE" != "0" ]; then
+            REASON=$(echo "$TASK_JSON" | jq -r '.tasks[0].stoppedReason // "unknown"')
+            echo "Liquibase failed (exit $EXIT_CODE) — stoppedReason: $REASON"
+            exit 1
+          fi
 
   # ── 6. Prod deploy ────────────────────────────────────────────────────────
   prod-deploy:
