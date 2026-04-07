@@ -488,6 +488,7 @@ data "aws_iam_policy_document" "github_actions_dns" {
       "route53:ListHostedZones",
       "route53:ListHostedZonesByName",
       "route53:ListResourceRecordSets",
+      "route53:ListTagsForResource",
       "route53:GetChange",
     ]
     resources = ["*"]
