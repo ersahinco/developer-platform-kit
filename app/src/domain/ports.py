@@ -1,6 +1,7 @@
 import abc
 from decimal import Decimal
 
+from domain.customer import Customer
 from domain.order import Order, OrderStatus
 
 
@@ -16,6 +17,11 @@ class OrderRepository(abc.ABC):
 
     @abc.abstractmethod
     def get_order(self, order_id: int) -> Order | None: ...
+
+
+class CustomerRepository(abc.ABC):
+    @abc.abstractmethod
+    def get_customer(self, customer_id: int) -> Customer | None: ...
 
 
 class ConfigStore(abc.ABC):

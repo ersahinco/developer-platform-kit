@@ -7,9 +7,15 @@ from typing import cast
 from sqlalchemy.dialects.postgresql import insert as pg_insert
 from sqlalchemy.orm import Session
 
-from adapters.db.models import AppRuntimeConfigModel, OrderContactEmailModel, OrderModel
+from adapters.db.models import (
+    AppRuntimeConfigModel,
+    CustomerModel,
+    OrderContactEmailModel,
+    OrderModel,
+)
+from domain.customer import Customer
 from domain.order import Order, OrderStatus, ReadModeValue, WriteModeValue
-from domain.ports import ConfigStore, OrderRepository
+from domain.ports import ConfigStore, CustomerRepository, OrderRepository
 
 _TTL_SECONDS = 5  # re-read app_runtime_config at most every 5 seconds
 
@@ -179,3 +185,14 @@ class SQLAlchemyOrderRepository(OrderRepository):
             created_at=order_row.created_at,
             billing_email=billing_email,
         )
+
+
+class SQLAlchemyCustomerRepository(CustomerRepository):
+    def __init__(self, session: Session) -> None:
+        self._session = session
+
+    def get_customer(self, customer_id: int) -> Customer | None:
+        row = self._session.get(CustomerModel, customer_id)
+        if row is None:
+            return None
+        return Customer(id=row.id, name=row.name, created_at=row.created_at)

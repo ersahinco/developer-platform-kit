@@ -27,6 +27,12 @@ class HealthResponse(BaseModel):
     status: str
 
 
+class CustomerResponse(BaseModel):
+    id: int
+    name: str
+    created_at: datetime.datetime
+
+
 class ReadModeRequest(BaseModel):
     mode: ReadModeValue
 

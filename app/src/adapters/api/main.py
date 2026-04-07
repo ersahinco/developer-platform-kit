@@ -6,6 +6,7 @@ from sqlalchemy.orm import Session
 
 from adapters.api.schemas import (
     CreateOrderRequest,
+    CustomerResponse,
     HealthResponse,
     OrderResponse,
     ReadModeRequest,
@@ -14,7 +15,7 @@ from adapters.api.schemas import (
     WriteModeResponse,
 )
 from db import get_db
-from domain.ports import ConfigStore, OrderRepository
+from domain.ports import ConfigStore, CustomerRepository, OrderRepository
 
 
 class _SuppressHealthChecks(logging.Filter):
@@ -47,6 +48,12 @@ def get_order_repo(db: DbDep) -> OrderRepository:
     return SQLAlchemyOrderRepository(session=db)
 
 
+def get_customer_repo(db: DbDep) -> CustomerRepository:
+    from adapters.db.repository import SQLAlchemyCustomerRepository
+
+    return SQLAlchemyCustomerRepository(session=db)
+
+
 def get_config_store(db: DbDep) -> ConfigStore:
     from adapters.db.repository import SQLAlchemyConfigStore
 
@@ -54,12 +61,25 @@ def get_config_store(db: DbDep) -> ConfigStore:
 
 
 OrderRepoDep = Annotated[OrderRepository, Depends(get_order_repo)]
+CustomerRepoDep = Annotated[CustomerRepository, Depends(get_customer_repo)]
 ConfigStoreDep = Annotated[ConfigStore, Depends(get_config_store)]
 
 
 @app.get("/health", response_model=HealthResponse)
 def health() -> HealthResponse:
     return HealthResponse(status="ok")
+
+
+@app.get("/customers/{customer_id}", response_model=CustomerResponse)
+def get_customer(customer_id: int, repo: CustomerRepoDep) -> CustomerResponse:
+    customer = repo.get_customer(customer_id)
+    if customer is None:
+        raise HTTPException(status_code=404, detail=f"Customer {customer_id} not found")
+    return CustomerResponse(
+        id=customer.id,
+        name=customer.name,
+        created_at=customer.created_at,
+    )
 
 
 @app.post("/orders", response_model=OrderResponse, status_code=201)
