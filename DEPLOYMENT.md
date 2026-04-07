@@ -137,9 +137,15 @@ Images are tagged `sha-{git-sha}` and pushed to both dev and prod ECR repos
 from the same build. `latest` is never used — ECR tag mutability is set to
 `IMMUTABLE`.
 
-Terraform registers task definitions with a `:placeholder` image tag.
-`app.yml` patches the real SHA tag at release time via
-`amazon-ecs-render-task-definition` — infra apply never touches the image tag.
+Terraform registers all task definitions (app, worker, liquibase) with
+`var.initial_image_tag` (default `"bootstrap"`) on the first apply. After
+that, Terraform never touches the image tag:
+
+- App service: `ignore_task_definition_changes = true` on the ECS service
+  prevents Terraform from registering new revisions after bootstrap.
+- Worker and liquibase: CI always calls `amazon-ecs-render-task-definition` +
+  `register-task-definition` with the real SHA before running these one-off
+  tasks — the Terraform-registered revision is never used after bootstrap.
 
 ---
 

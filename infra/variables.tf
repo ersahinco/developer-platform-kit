@@ -109,3 +109,9 @@ variable "rds_allocated_storage_gb" {
   type        = number
   default     = 20
 }
+
+variable "initial_image_tag" {
+  description = "Image tag used in task definitions on first apply. CI always registers a new task definition revision with the real SHA before deploying or running one-off tasks — this value is never used after the first apply."
+  type        = string
+  default     = "sha-7e0fa31a82d7d2a6e302e0904abb79d1dff3492d"
+}

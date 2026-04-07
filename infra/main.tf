@@ -632,10 +632,10 @@ module "ecs" {
         }
 
         app = {
-          # Placeholder — app.yml patches this to the real SHA tag at release time
-          # via amazon-ecs-render-task-definition. Infra owns the task definition shape,
-          # not the image tag.
-          image     = "${module.ecr_app.repository_url}:placeholder"
+          # var.initial_image_tag is used only on the first apply (bootstrap).
+          # ignore_task_definition_changes = true on the service means Terraform
+          # never registers a new revision after that — CI owns the image tag.
+          image     = "${module.ecr_app.repository_url}:${var.initial_image_tag}"
           essential = true
 
           # ECS container definition keys are camelCase — they map directly to the ECS API
@@ -717,8 +717,11 @@ resource "aws_ecs_task_definition" "worker" {
   container_definitions = jsonencode([
     {
       name = "worker"
-      # Placeholder — release pipeline patches this at deploy time.
-      image     = "${module.ecr_worker.repository_url}:placeholder"
+      # var.initial_image_tag is used only on the first apply (bootstrap).
+      # CI always calls render-task-definition + register-task-definition
+      # with the real SHA before running this one-off task — Terraform's
+      # registered revision is never used directly after bootstrap.
+      image     = "${module.ecr_worker.repository_url}:${var.initial_image_tag}"
       essential = true
       secrets = [
         # ECS does not interpolate $(VAR) in environment values. DB_PASSWORD is
@@ -799,8 +802,11 @@ resource "aws_ecs_task_definition" "liquibase" {
     {
       name = "liquibase"
       # Changelogs are baked into this image at build time (see db/Dockerfile).
-      # Placeholder — release pipeline patches this at deploy time.
-      image     = "${module.ecr_liquibase.repository_url}:placeholder"
+      # var.initial_image_tag is used only on the first apply (bootstrap).
+      # CI always calls render-task-definition + register-task-definition
+      # with the real SHA before running this one-off task — Terraform's
+      # registered revision is never used directly after bootstrap.
+      image     = "${module.ecr_liquibase.repository_url}:${var.initial_image_tag}"
       essential = true
 
       secrets = [
