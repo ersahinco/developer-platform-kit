@@ -207,15 +207,7 @@ jobs:
 
       - name: Resolve network config
         id: net
-        run: |
-          SUBNET_ID=$(aws ec2 describe-subnets \
-            --filters "Name=tag:Name,Values=${{ env.STACK_NAME }}-private-*" \
-            --query 'Subnets[0].SubnetId' --output text)
-          SG_ID=$(aws ec2 describe-security-groups \
-            --filters "Name=group-name,Values=${{ env.STACK_NAME }}-app-*" \
-            --query 'SecurityGroups[0].GroupId' --output text)
-          echo "subnet_id=$SUBNET_ID" >> "$GITHUB_OUTPUT"
-          echo "sg_id=$SG_ID" >> "$GITHUB_OUTPUT"
+        run: scripts/gha_resolve_ecs_network.sh "${{ env.STACK_NAME }}"
 
       - name: Render liquibase task definition
         id: render-liquibase
@@ -227,34 +219,17 @@ jobs:
 
       - name: Register liquibase task definition
         id: register-liquibase
-        run: |
-          TASK_DEF_ARN=$(aws ecs register-task-definition \
-            --cli-input-json file://${{ steps.render-liquibase.outputs.task-definition }} \
-            --query 'taskDefinition.taskDefinitionArn' --output text)
-          echo "task_def_arn=$TASK_DEF_ARN" >> "$GITHUB_OUTPUT"
+        run: scripts/gha_register_task_definition.sh "${{ steps.render-liquibase.outputs.task-definition }}"
 
       - name: Run Liquibase
         run: |
-          TASK_ARN=$(aws ecs run-task \
-            --cluster aws-sdlc-containers \
-            --task-definition ${{ steps.register-liquibase.outputs.task_def_arn }} \
-            --launch-type FARGATE \
-            --network-configuration "awsvpcConfiguration={
-              subnets=[${{ steps.net.outputs.subnet_id }}],
-              securityGroups=[${{ steps.net.outputs.sg_id }}],
-              assignPublicIp=DISABLED}" \
-            --query 'tasks[0].taskArn' --output text)
-
-          aws ecs wait tasks-stopped --cluster aws-sdlc-containers --tasks "$TASK_ARN"
-
-          TASK_JSON=$(aws ecs describe-tasks \
-            --cluster aws-sdlc-containers --tasks "$TASK_ARN")
-          EXIT_CODE=$(echo "$TASK_JSON" | jq -r '.tasks[0].containers[0].exitCode')
-          if [ "$EXIT_CODE" = "null" ] || [ "$EXIT_CODE" != "0" ]; then
-            REASON=$(echo "$TASK_JSON" | jq -r '.tasks[0].stoppedReason // "unknown"')
-            echo "Liquibase failed (exit $EXIT_CODE) — stoppedReason: $REASON"
-            exit 1
-          fi
+          TASK_ARN=$(scripts/gha_run_ecs_task.sh \
+            aws-sdlc-containers \
+            "${{ steps.register-liquibase.outputs.task_def_arn }}" \
+            "${{ steps.net.outputs.subnet_id }}" \
+            "${{ steps.net.outputs.sg_id }}")
+          scripts/gha_wait_for_task_stopped.sh aws-sdlc-containers "$TASK_ARN"
+          scripts/gha_assert_task_succeeded.sh aws-sdlc-containers "$TASK_ARN" Liquibase
 
   deploy:
     name: Deploy
@@ -267,6 +242,8 @@ jobs:
       contents: read
 
     steps:
+      - uses: actions/checkout@v4
+
       - uses: aws-actions/configure-aws-credentials@v4
         with:
           role-to-assume: ${{ secrets.AWS_ROLE_ARN }}
@@ -274,15 +251,7 @@ jobs:
 
       - name: Resolve network config
         id: net
-        run: |
-          SUBNET_ID=$(aws ec2 describe-subnets \
-            --filters "Name=tag:Name,Values=${{ env.STACK_NAME }}-private-*" \
-            --query 'Subnets[0].SubnetId' --output text)
-          SG_ID=$(aws ec2 describe-security-groups \
-            --filters "Name=group-name,Values=${{ env.STACK_NAME }}-app-*" \
-            --query 'SecurityGroups[0].GroupId' --output text)
-          echo "subnet_id=$SUBNET_ID" >> "$GITHUB_OUTPUT"
-          echo "sg_id=$SG_ID" >> "$GITHUB_OUTPUT"
+        run: scripts/gha_resolve_ecs_network.sh "${{ env.STACK_NAME }}"
 
       - name: Render app task definition
         id: render-app
@@ -293,12 +262,7 @@ jobs:
           image: ${{ env.ECR_REGISTRY }}/${{ env.STACK_NAME }}/app:${{ needs.build-and-push.outputs.image_tag }}
 
       - name: Deploy app service
-        uses: aws-actions/amazon-ecs-deploy-task-definition@v2
-        with:
-          task-definition: ${{ steps.render-app.outputs.task-definition }}
-          service: app
-          cluster: aws-sdlc-containers
-          wait-for-service-stability: true
+        run: scripts/gha_deploy_ecs_service.sh aws-sdlc-containers app "${{ steps.render-app.outputs.task-definition }}"
 
       - name: Render worker task definition
         id: render-worker
@@ -310,37 +274,16 @@ jobs:
 
       - name: Register worker task definition
         id: register-worker
-        run: |
-          TASK_DEF_ARN=$(aws ecs register-task-definition \
-            --cli-input-json file://${{ steps.render-worker.outputs.task-definition }} \
-            --query 'taskDefinition.taskDefinitionArn' --output text)
-          echo "task_def_arn=$TASK_DEF_ARN" >> "$GITHUB_OUTPUT"
+        run: scripts/gha_register_task_definition.sh "${{ steps.render-worker.outputs.task-definition }}"
 
       - name: Run backfill worker
         run: |
-          TASK_ARN=$(aws ecs run-task \
-            --cluster aws-sdlc-containers \
-            --task-definition ${{ steps.register-worker.outputs.task_def_arn }} \
-            --launch-type FARGATE \
-            --network-configuration "awsvpcConfiguration={
-              subnets=[${{ steps.net.outputs.subnet_id }}],
-              securityGroups=[${{ steps.net.outputs.sg_id }}],
-              assignPublicIp=DISABLED}" \
-            --query 'tasks[0].taskArn' --output text)
-
+          TASK_ARN=$(scripts/gha_run_ecs_task.sh \
+            aws-sdlc-containers \
+            "${{ steps.register-worker.outputs.task_def_arn }}" \
+            "${{ steps.net.outputs.subnet_id }}" \
+            "${{ steps.net.outputs.sg_id }}")
           echo "Backfill task: $TASK_ARN"
           echo "Monitor: CloudWatch Logs /ecs/aws-sdlc-containers/worker"
-
-          while true; do
-            STATUS=$(aws ecs describe-tasks \
-              --cluster aws-sdlc-containers --tasks "$TASK_ARN" \
-              --query 'tasks[0].lastStatus' --output text)
-            [ "$STATUS" = "STOPPED" ] && break
-            echo "Worker status: $STATUS — waiting..."
-            sleep 10
-          done
-
-          EXIT_CODE=$(aws ecs describe-tasks \
-            --cluster aws-sdlc-containers --tasks "$TASK_ARN" \
-            --query 'tasks[0].containers[0].exitCode' --output text)
-          [ "$EXIT_CODE" = "0" ] || { echo "Backfill worker failed (exit $EXIT_CODE)"; exit 1; }
+          scripts/gha_poll_task_until_stopped.sh aws-sdlc-containers "$TASK_ARN" Worker
+          scripts/gha_assert_task_succeeded.sh aws-sdlc-containers "$TASK_ARN" "Backfill worker"
