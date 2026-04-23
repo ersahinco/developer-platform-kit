@@ -1,12 +1,15 @@
 ################################################################################
-# Optional IAM boundaries
+# Optional GitHub Actions policy extensions
 #
-# These policies line up with the optional infrastructure files so the base
-# deployment role stays focused on the lean stack and the extras remain
-# explicitly opt-in, even though they default to enabled in this phase.
+# These attach to the same single GitHub Actions role, but stay separate from
+# the base concern policies so optional infrastructure remains easy to review.
 ################################################################################
 
-data "aws_iam_policy_document" "github_actions_vpc_endpoints" {
+################################################################################
+# Networking extension — VPC endpoints
+################################################################################
+
+data "aws_iam_policy_document" "github_actions_networking_vpc_endpoints" {
   statement {
     sid = "VpcEndpointsManage"
     actions = [
@@ -18,18 +21,22 @@ data "aws_iam_policy_document" "github_actions_vpc_endpoints" {
   }
 }
 
-resource "aws_iam_policy" "github_actions_vpc_endpoints" {
-  name   = "${local.name}-github-actions-vpc-endpoints"
-  policy = data.aws_iam_policy_document.github_actions_vpc_endpoints.json
+resource "aws_iam_policy" "github_actions_networking_vpc_endpoints" {
+  name   = "${local.name}-github-actions-networking-vpc-endpoints"
+  policy = data.aws_iam_policy_document.github_actions_networking_vpc_endpoints.json
   tags   = local.tags
 }
 
-resource "aws_iam_role_policy_attachment" "github_actions_vpc_endpoints" {
+resource "aws_iam_role_policy_attachment" "github_actions_networking_vpc_endpoints" {
   role       = aws_iam_role.github_actions.name
-  policy_arn = aws_iam_policy.github_actions_vpc_endpoints.arn
+  policy_arn = aws_iam_policy.github_actions_networking_vpc_endpoints.arn
 }
 
-data "aws_iam_policy_document" "github_actions_ecs_exec" {
+################################################################################
+# Compute extension — ECS Exec from CI
+################################################################################
+
+data "aws_iam_policy_document" "github_actions_compute_ecs_exec" {
   statement {
     sid       = "ECSExec"
     actions   = ["ecs:ExecuteCommand"]
@@ -48,18 +55,22 @@ data "aws_iam_policy_document" "github_actions_ecs_exec" {
   }
 }
 
-resource "aws_iam_policy" "github_actions_ecs_exec" {
-  name   = "${local.name}-github-actions-ecs-exec"
-  policy = data.aws_iam_policy_document.github_actions_ecs_exec.json
+resource "aws_iam_policy" "github_actions_compute_ecs_exec" {
+  name   = "${local.name}-github-actions-compute-ecs-exec"
+  policy = data.aws_iam_policy_document.github_actions_compute_ecs_exec.json
   tags   = local.tags
 }
 
-resource "aws_iam_role_policy_attachment" "github_actions_ecs_exec" {
+resource "aws_iam_role_policy_attachment" "github_actions_compute_ecs_exec" {
   role       = aws_iam_role.github_actions.name
-  policy_arn = aws_iam_policy.github_actions_ecs_exec.arn
+  policy_arn = aws_iam_policy.github_actions_compute_ecs_exec.arn
 }
 
-data "aws_iam_policy_document" "github_actions_waf" {
+################################################################################
+# Edge extension — WAF
+################################################################################
+
+data "aws_iam_policy_document" "github_actions_edge_waf" {
   statement {
     sid = "WAFManage"
     actions = [
@@ -94,15 +105,15 @@ data "aws_iam_policy_document" "github_actions_waf" {
   }
 }
 
-resource "aws_iam_policy" "github_actions_waf" {
-  name   = "${local.name}-github-actions-waf"
-  policy = data.aws_iam_policy_document.github_actions_waf.json
+resource "aws_iam_policy" "github_actions_edge_waf" {
+  name   = "${local.name}-github-actions-edge-waf"
+  policy = data.aws_iam_policy_document.github_actions_edge_waf.json
   tags   = local.tags
 }
 
-resource "aws_iam_role_policy_attachment" "github_actions_waf" {
+resource "aws_iam_role_policy_attachment" "github_actions_edge_waf" {
   role       = aws_iam_role.github_actions.name
-  policy_arn = aws_iam_policy.github_actions_waf.arn
+  policy_arn = aws_iam_policy.github_actions_edge_waf.arn
 }
 
 ################################################################################
