@@ -1,7 +1,7 @@
 databaseChangeLog:
   - changeSet:
       id: 003-create-backfill-progress
-      author: db-migration-example
+      author: aws-sdlc-containers
       comment: >
         Move backfill_progress table under Liquibase ownership.
         Previously created via docker-entrypoint-initdb.d/observability.sql,
@@ -20,7 +20,7 @@ databaseChangeLog:
 
   - changeSet:
       id: 003-seed-backfill-progress
-      author: db-migration-example
+      author: aws-sdlc-containers
       comment: "Seed the initial checkpoint row — ON CONFLICT DO NOTHING makes this idempotent."
       changes:
         - sql:

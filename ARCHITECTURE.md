@@ -1,5 +1,7 @@
 # Architecture
 
+`aws-sdlc-containers` uses this workload to exercise the platform patterns that will later expand into observability, network security, and broader SDLC automation.
+
 ## Why hexagonal architecture?
 
 The HTTP layer (`main.py`) never touches SQL directly. It calls abstract ports (`OrderRepository`), and the concrete implementation in `repository.py` handles all storage concerns. This boundary is what makes the migration transparent to the HTTP layer — the route handler for `GET /orders/{id}` is unchanged whether `billing_email` lives in `orders` or `order_contact_email`.
@@ -87,7 +89,7 @@ The project uses a long-lived dev environment on AWS (same account, Terraform-is
 
 ```bash
 cd infra
-terraform init -backend-config="key=db-migration-example/dev.tfstate" -reconfigure
+terraform init -backend-config="key=aws-sdlc-containers/dev.tfstate" -reconfigure
 terraform destroy -var-file=dev.tfvars
 terraform apply   -var-file=dev.tfvars
 ```

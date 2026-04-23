@@ -25,11 +25,11 @@ on:
 #
 # Required GitHub secret (one per environment — dev-infra, prod-infra):
 #   AWS_ROLE_ARN   — IAM role ARN for OIDC (the only secret needed)
-#                    dev:  arn:aws:iam::691627364817:role/db-migration-example-dev-github-actions
-#                    prod: arn:aws:iam::691627364817:role/db-migration-example-prod-github-actions
+#                    dev:  arn:aws:iam::691627364817:role/aws-sdlc-containers-dev-github-actions
+#                    prod: arn:aws:iam::691627364817:role/aws-sdlc-containers-prod-github-actions
 #
 # No variables needed — app.yml inlines all resource names from the
-# deterministic naming convention: db-migration-example-{env}
+# deterministic naming convention: aws-sdlc-containers-{env}
 # ---------------------------------------------------------------------------
 
 env:
@@ -108,7 +108,7 @@ jobs:
       - name: terraform init (dev state)
         run: |
           terraform init \
-            -backend-config="key=db-migration-example/dev.tfstate" \
+            -backend-config="key=aws-sdlc-containers/dev.tfstate" \
             -reconfigure
         working-directory: infra
 
@@ -166,7 +166,7 @@ jobs:
       - name: terraform init (dev state)
         run: |
           terraform init \
-            -backend-config="key=db-migration-example/dev.tfstate" \
+            -backend-config="key=aws-sdlc-containers/dev.tfstate" \
             -reconfigure
         working-directory: infra
 
@@ -197,7 +197,7 @@ jobs:
       - name: terraform init (prod state)
         run: |
           terraform init \
-            -backend-config="key=db-migration-example/prod.tfstate" \
+            -backend-config="key=aws-sdlc-containers/prod.tfstate" \
             -reconfigure
         working-directory: infra
 

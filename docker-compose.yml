@@ -2,7 +2,7 @@ services:
   db:
     image: postgres:16
     environment:
-      POSTGRES_DB: ${POSTGRES_DB:-migration_example}
+      POSTGRES_DB: ${POSTGRES_DB:-aws_sdlc_containers}
       POSTGRES_USER: ${POSTGRES_USER:-postgres}
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-postgres}
     ports:
@@ -12,7 +12,7 @@ services:
       - ./db/sql/bootstrap.sql:/docker-entrypoint-initdb.d/01-bootstrap.sql
       # observability.sql removed — backfill_progress is owned by Liquibase changeset 003.
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-postgres} -d ${POSTGRES_DB:-migration_example}"]
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-postgres} -d ${POSTGRES_DB:-aws_sdlc_containers}"]
       interval: 5s
       timeout: 5s
       retries: 10
@@ -28,7 +28,7 @@ services:
     environment:
       DB_HOST: db
       DB_PORT: 5432
-      DB_NAME: ${POSTGRES_DB:-migration_example}
+      DB_NAME: ${POSTGRES_DB:-aws_sdlc_containers}
       DB_USER: ${POSTGRES_USER:-postgres}
       DB_PASSWORD: ${POSTGRES_PASSWORD:-postgres}
       POOL_MODE: transaction
@@ -58,7 +58,7 @@ services:
       LIQUIBASE_SEARCH_PATH: /liquibase/db
       # Liquibase connects directly to Postgres, not pgbouncer — DDL statements
       # require session mode and must not be proxied through a transaction-mode pool.
-      LIQUIBASE_COMMAND_URL: jdbc:postgresql://db:5432/${POSTGRES_DB:-migration_example}
+      LIQUIBASE_COMMAND_URL: jdbc:postgresql://db:5432/${POSTGRES_DB:-aws_sdlc_containers}
       LIQUIBASE_COMMAND_USERNAME: ${POSTGRES_USER:-postgres}
       LIQUIBASE_COMMAND_PASSWORD: ${POSTGRES_PASSWORD:-postgres}
     depends_on:
@@ -87,7 +87,7 @@ services:
       dockerfile: Dockerfile
     environment:
       # Worker bypasses pgbouncer — connects directly to Postgres.
-      BACKFILL_DATABASE_URL: postgresql://${POSTGRES_USER:-postgres}:${POSTGRES_PASSWORD:-postgres}@db:5432/${POSTGRES_DB:-migration_example}
+      BACKFILL_DATABASE_URL: postgresql://${POSTGRES_USER:-postgres}:${POSTGRES_PASSWORD:-postgres}@db:5432/${POSTGRES_DB:-aws_sdlc_containers}
       BACKFILL_BATCH_SIZE: ${BACKFILL_BATCH_SIZE:-1000}
       BACKFILL_SLEEP_MS: ${BACKFILL_SLEEP_MS:-100}
     depends_on:

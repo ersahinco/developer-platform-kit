@@ -28,7 +28,7 @@ def _run_worker(**extra_env):
     if "BACKFILL_DATABASE_URL" not in extra_env:
         db_url = env.get(
             "DATABASE_URL",
-            "postgresql://postgres:postgres@localhost:6432/migration_example",
+            "postgresql://postgres:postgres@localhost:6432/aws_sdlc_containers",
         )
         # Parse and replace host/port so the worker subprocess reaches Postgres
         # on localhost rather than the Docker-internal hostname from .env.
@@ -46,7 +46,7 @@ def _run_worker(**extra_env):
             "uv",
             "run",
             "--package",
-            "db-migration-example-worker",
+            "aws-sdlc-containers-worker",
             "python",
             "backfill.py",
         ],

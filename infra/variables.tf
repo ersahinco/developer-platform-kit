@@ -31,7 +31,7 @@ variable "alb_ingress_cidr" {
 variable "api_token_secret_name" {
   description = "Secrets Manager secret name holding the API bearer token. Created by `make create-api-token` — never stored in state or tfvars."
   type        = string
-  default     = "db-migration-example/api-token"
+  default     = "aws-sdlc-containers/api-token"
 }
 
 variable "root_domain" {

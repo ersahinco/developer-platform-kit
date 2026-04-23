@@ -27,11 +27,11 @@ fi
 echo "--- Resolving ALB DNS name for ${ENV} ---"
 ALB_DNS=$(aws elbv2 describe-load-balancers \
   --region "$REGION" \
-  --query "LoadBalancers[?LoadBalancerName=='db-migration-example-${ENV}'].DNSName | [0]" \
+  --query "LoadBalancers[?LoadBalancerName=='aws-sdlc-containers-${ENV}'].DNSName | [0]" \
   --output text)
 
 if [[ -z "$ALB_DNS" || "$ALB_DNS" == "None" ]]; then
-  echo "ERROR: could not find ALB 'db-migration-example-${ENV}' in ${REGION}."
+  echo "ERROR: could not find ALB 'aws-sdlc-containers-${ENV}' in ${REGION}."
   echo "Apply the ALB resources first: make infra-apply-${ENV}"
   exit 1
 fi
@@ -57,7 +57,7 @@ CERT_ARN=$(aws acm import-certificate \
   --certificate  fileb://"$CERT_FILE" \
   --private-key  fileb://"$KEY_FILE" \
   --region       "$REGION" \
-  --tags         Key=Project,Value=db-migration-example Key=Environment,Value="$ENV" Key=ManagedBy,Value=make \
+  --tags         Key=Project,Value=aws-sdlc-containers Key=Environment,Value="$ENV" Key=ManagedBy,Value=make \
   --query        'CertificateArn' \
   --output       text)
 

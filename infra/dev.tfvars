@@ -6,4 +6,4 @@ rds_multi_az       = false
 app_desired_count  = 1
 root_domain        = "ersahinco-sandbox.eu"
 
-api_token_secret_name = "db-migration-example/api-token"
+api_token_secret_name = "aws-sdlc-containers/api-token"

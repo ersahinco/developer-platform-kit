@@ -1,7 +1,7 @@
 databaseChangeLog:
   - changeSet:
       id: 001-create-order-contact-email
-      author: db-migration-example
+      author: aws-sdlc-containers
       comment: "Expand: create order_contact_email table (new home for billing_email)"
       changes:
         - createTable:

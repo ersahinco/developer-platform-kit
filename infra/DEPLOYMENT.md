@@ -1,6 +1,6 @@
 # Deployment Guide
 
-This document covers everything needed to go from a clean AWS account to a running environment, and how the CI/CD pipeline operates day-to-day.
+This document covers everything needed to bootstrap and operate the `aws-sdlc-containers` platform in AWS, and how the CI/CD pipeline operates day-to-day.
 
 ---
 
@@ -19,11 +19,11 @@ These steps run once per AWS account, not per environment.
 ### 1.1 Terraform remote state
 
 ```bash
-aws s3 mb s3://db-migration-example-tfstate-691627364817 \
+aws s3 mb s3://aws-sdlc-containers-tfstate-691627364817 \
   --region eu-central-1
 
 aws s3api put-bucket-versioning \
-  --bucket db-migration-example-tfstate-691627364817 \
+  --bucket aws-sdlc-containers-tfstate-691627364817 \
   --versioning-configuration Status=Enabled
 
 aws dynamodb create-table \
@@ -63,12 +63,12 @@ The only time you run Terraform locally is the one-time bootstrap before CI exis
 cd infra
 
 # dev
-terraform init -backend-config="key=db-migration-example/dev.tfstate" -reconfigure
+terraform init -backend-config="key=aws-sdlc-containers/dev.tfstate" -reconfigure
 terraform plan -var-file=dev.tfvars -out=dev.tfplan
 terraform apply dev.tfplan
 
 # prod (when ready)
-terraform init -backend-config="key=db-migration-example/prod.tfstate" -reconfigure
+terraform init -backend-config="key=aws-sdlc-containers/prod.tfstate" -reconfigure
 terraform plan -var-file=prod.tfvars -out=prod.tfplan
 terraform apply prod.tfplan
 ```
@@ -90,7 +90,7 @@ After the first apply, collect the values needed for `app.yml`:
 
 ```bash
 cd infra
-terraform init -backend-config="key=db-migration-example/dev.tfstate" -reconfigure
+terraform init -backend-config="key=aws-sdlc-containers/dev.tfstate" -reconfigure
 terraform output -json
 ```
 
@@ -106,7 +106,7 @@ terraform output -json
 | `app_security_group_id` | `APP_SG_ID` |
 | `db_secret_arn` | `DB_SECRET_ARN` |
 
-`APP_TASK_FAMILY` is not a Terraform output — it is deterministic: `db-migration-example-<environment>-app` (e.g. `db-migration-example-dev-app`). Set this as a secret manually after the first apply.
+`APP_TASK_FAMILY` is not a Terraform output — it is deterministic: `aws-sdlc-containers-<environment>` (e.g. `aws-sdlc-containers-dev`). Set this as a secret manually after the first apply.
 
 ---
 
@@ -170,7 +170,7 @@ prod-deploy     ← manual approval required  (rolling ECS update)
 
 **dev-migrate / prod-migrate** — a one-off ECS task inside the VPC that runs `liquibase update`. Connects directly to RDS (not via PgBouncer) — DDL requires a persistent session connection.
 
-**prod-deploy** — rolling ECS update. Also triggers the backfill worker as a one-off Fargate task. The worker connects directly to RDS (bypasses pgbouncer — backfill transactions are long-running and incompatible with transaction-mode pooling) and exits when done. Monitor in CloudWatch Logs at `/ecs/db-migration-example-prod/worker`.
+**prod-deploy** — rolling ECS update. Also triggers the backfill worker as a one-off Fargate task. The worker connects directly to RDS (bypasses pgbouncer — backfill transactions are long-running and incompatible with transaction-mode pooling) and exits when done. Monitor in CloudWatch Logs at `/ecs/aws-sdlc-containers-prod/worker`.
 
 ---
 
@@ -224,7 +224,7 @@ The ECS service has `ignore_task_definition_changes = true` — Terraform will n
 
 ```bash
 cd infra
-terraform init -backend-config="key=db-migration-example/dev.tfstate" -reconfigure
+terraform init -backend-config="key=aws-sdlc-containers/dev.tfstate" -reconfigure
 
 # Disable deletion protection first if it was enabled
 terraform apply -var-file=dev.tfvars -var="rds_multi_az=false"

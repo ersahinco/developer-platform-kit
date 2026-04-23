@@ -18,7 +18,7 @@ class Settings(BaseSettings):
     db_user: str = "app"
     db_host: str = "localhost"
     db_port: int = 5432
-    db_name: str = "migration_example"
+    db_name: str = "aws_sdlc_containers"
 
     @model_validator(mode="after")
     def compose_database_url(self) -> "Settings":

@@ -11,7 +11,7 @@ cd "$(dirname "$0")/.."
 
 cd infra
 terraform init \
-  -backend-config="key=db-migration-example/${ENV}.tfstate" \
+  -backend-config="key=aws-sdlc-containers/${ENV}.tfstate" \
   -reconfigure -input=false > /dev/null 2>&1
 
 CLUSTER=$(terraform output -raw ecs_cluster_name)
@@ -44,7 +44,7 @@ RUNTIME_ID=$(aws ecs describe-tasks \
   || { echo "ERROR: could not resolve runtimeId for app container in task $TASK_ID"; exit 1; }
 
 echo "→ tunnel localhost:$LOCAL_PORT → $RDS_HOST:5432 via task $TASK_ID"
-echo "  Connect DBeaver/psql to: host=localhost  port=$LOCAL_PORT  dbname=migration_example"
+echo "  Connect DBeaver/psql to: host=localhost  port=$LOCAL_PORT  dbname=aws_sdlc_containers"
 echo "  Get credentials: aws secretsmanager get-secret-value --secret-id $SECRET_ARN --query SecretString --output text | python3 -m json.tool"
 
 aws ssm start-session \

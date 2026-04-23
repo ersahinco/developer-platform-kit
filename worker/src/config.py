@@ -18,7 +18,7 @@ class Settings(BaseSettings):
     db_user: str = "app"
     db_host: str | None = None
     db_port: int = 5432
-    db_name: str = "migration_example"
+    db_name: str = "aws_sdlc_containers"
 
     backfill_batch_size: int = 1000
     backfill_sleep_ms: int = 100

@@ -1,8 +1,8 @@
-# db-migration-example
+# aws-sdlc-containers
 
-A fully-runnable local example of zero-downtime schema migration using the **expand/contract** pattern and **PgBouncer** for connection pooling across all environments.
+`aws-sdlc-containers` is a container-first AWS delivery sandbox for practicing the software development lifecycle end to end: local development, CI/CD, immutable images, reproducible Terraform, and workload operations on ECS.
 
-The concrete migration: moving `orders.billing_email` into a dedicated `order_contact_email` table — without downtime, without locking the table, without a flag day.
+The current reference workload is a zero-downtime schema evolution exercise: moving `orders.billing_email` into a dedicated `order_contact_email` table using **expand/contract**, **PgBouncer**, runtime feature switches, and one-off worker tasks.
 
 ---
 
@@ -10,14 +10,27 @@ The concrete migration: moving `orders.billing_email` into a dedicated `order_co
 
 | Concern | Mechanism | Key files |
 |---|---|---|
+| SDLC baseline | GitHub Actions, immutable ECR tags, environment approvals, reproducible Terraform state | `.github/workflows/`, `infra/`, `Makefile` |
 | Schema bootstrap | Liquibase changesets | `db/changelog/000-bootstrap.yaml`, `002-app-runtime-config.yaml` |
-| Column migration | Expand/contract (dual-write + backfill + switch) | `db/changelog/`, `worker/src/backfill.py` |
+| Reference workload | Expand/contract migration (dual-write + backfill + switch) | `db/changelog/`, `worker/src/backfill.py` |
 | Connection pooling | PgBouncer (transaction mode) | `docker-compose.yml`, `db/pgbouncer/pgbouncer.ini`, `infra/main.tf` |
 | Zero-downtime deploy | ECS rolling update + WRITE_MODE/READ_MODE flags | `infra/main.tf`, `.github/workflows/app.yml` |
 
 ---
 
-## How it works
+## Project direction
+
+This repository is being positioned as the base for the next AWS SDLC container practices:
+
+- Complete DevOps toolchain with git-based workflows, promotion gates, and reproducible Terraform modules.
+- Observability practice with Grafana, Loki, and Prometheus layered onto the ECS and database workflow.
+- Network and platform practice around VPN, DNS, routing, security boundaries, authentication, and authorization.
+
+The migration flow stays in the repo as the first realistic workload because it exercises app delivery, database change management, background jobs, and rollback-safe sequencing in one place.
+
+---
+
+## Reference workload
 
 The migration follows the **expand → dual-write → backfill → switch → contract** pattern:
 
@@ -31,7 +44,7 @@ The migration follows the **expand → dual-write → backfill → switch → co
 
 Liquibase connects directly to Postgres (not via PgBouncer) — DDL statements require a persistent session connection.
 
-See [`ARCHITECTURE.md`](ARCHITECTURE.md) for the full design rationale.
+See [`ARCHITECTURE.md`](ARCHITECTURE.md) for the full design rationale and platform boundaries.
 
 ---
 
@@ -46,7 +59,7 @@ See [`ARCHITECTURE.md`](ARCHITECTURE.md) for the full design rationale.
 ## Project layout
 
 ```
-db-migration-example/
+aws-sdlc-containers/
 ├── app/src/
 │   ├── config.py                 # pydantic-settings: DATABASE_URL
 │   ├── db.py                     # SQLAlchemy engine (NullPool — pgbouncer owns pooling)
@@ -85,7 +98,7 @@ cp .env.example .env
 
 > **Host vs container hostnames** — `.env` uses Docker service names (`pgbouncer`, `db`). Anything running on your Mac (scripts, tests) must use `localhost` instead:
 > ```bash
-> export DATABASE_URL=postgresql://postgres:postgres@localhost:6432/migration_example
+> export DATABASE_URL=postgresql://postgres:postgres@localhost:6432/aws_sdlc_containers
 > ```
 > The test suite rewrites `BACKFILL_DATABASE_URL` automatically — `conftest.py` loads `.env` at startup (putting the Docker-internal `db:5432` URL into the environment), and `test_backfill.py` unconditionally overwrites it with a `localhost:5432` URL derived from `DATABASE_URL` before spawning the worker subprocess.
 
@@ -112,7 +125,7 @@ docker compose ps   # wait until db is healthy
 |---|---|
 | Host | `localhost` |
 | Port | `5432` |
-| Database | `migration_example` |
+| Database | `aws_sdlc_containers` |
 | Username | `postgres` |
 | Password | `postgres` |
 
@@ -141,7 +154,7 @@ Creates `customers` and `orders` tables (bootstrap), `order_contact_email` (expa
 
 ```bash
 uv sync
-export DATABASE_URL=postgresql://postgres:postgres@localhost:5432/migration_example
+export DATABASE_URL=postgresql://postgres:postgres@localhost:5432/aws_sdlc_containers
 uv run python scripts/seed_data.py
 ```
 
@@ -193,7 +206,7 @@ uv run python scripts/set_runtime_config.py read-mode new
 Then run the full suite — phase detection will see `WRITE_MODE=dual`, `READ_MODE=new` → `switch` phase, which exercises the maximum number of tests:
 
 ```bash
-export DATABASE_URL=postgresql://postgres:postgres@localhost:6432/migration_example
+export DATABASE_URL=postgresql://postgres:postgres@localhost:6432/aws_sdlc_containers
 uv sync --group test
 uv run pytest tests/ -v
 ```

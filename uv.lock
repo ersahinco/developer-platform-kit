@@ -4,9 +4,9 @@ requires-python = ">=3.12"
 
 [manifest]
 members = [
-    "db-migration-example",
-    "db-migration-example-app",
-    "db-migration-example-worker",
+    "aws-sdlc-containers",
+    "aws-sdlc-containers-app",
+    "aws-sdlc-containers-worker",
 ]
 
 [[package]]
@@ -144,7 +144,7 @@ wheels = [
 ]
 
 [[package]]
-name = "db-migration-example"
+name = "aws-sdlc-containers"
 version = "0.1.0"
 source = { virtual = "." }
 dependencies = [
@@ -175,7 +175,7 @@ test = [
 ]
 
 [[package]]
-name = "db-migration-example-app"
+name = "aws-sdlc-containers-app"
 version = "0.1.0"
 source = { virtual = "app" }
 dependencies = [
@@ -198,7 +198,7 @@ requires-dist = [
 ]
 
 [[package]]
-name = "db-migration-example-worker"
+name = "aws-sdlc-containers-worker"
 version = "0.1.0"
 source = { virtual = "worker" }
 dependencies = [

@@ -34,7 +34,7 @@ class _SuppressHealthChecks(logging.Filter):
 # Installed at module load time — runs once for the lifetime of the process.
 logging.getLogger("uvicorn.access").addFilter(_SuppressHealthChecks())
 
-app = FastAPI(title="db-migration-example")
+app = FastAPI(title="aws-sdlc-containers")
 
 DbDep = Annotated[Session, Depends(get_db)]
 

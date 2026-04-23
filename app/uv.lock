@@ -55,7 +55,7 @@ wheels = [
 ]
 
 [[package]]
-name = "db-migration-example-app"
+name = "aws-sdlc-containers-app"
 version = "0.1.0"
 source = { virtual = "." }
 dependencies = [

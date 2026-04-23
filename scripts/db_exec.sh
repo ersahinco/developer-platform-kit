@@ -10,7 +10,7 @@ cd "$(dirname "$0")/.."
 
 cd infra
 terraform init \
-  -backend-config="key=db-migration-example/${ENV}.tfstate" \
+  -backend-config="key=aws-sdlc-containers/${ENV}.tfstate" \
   -reconfigure -input=false > /dev/null 2>&1
 
 CLUSTER=$(terraform output -raw ecs_cluster_name)

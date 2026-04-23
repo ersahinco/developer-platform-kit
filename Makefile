@@ -31,7 +31,7 @@
 
 AWS_REGION      := eu-central-1
 ACCOUNT_ID      := 691627364817
-TF_STATE_BUCKET := db-migration-example-tfstate-$(ACCOUNT_ID)
+TF_STATE_BUCKET := aws-sdlc-containers-tfstate-$(ACCOUNT_ID)
 TF_LOCK_TABLE   := terraform-locks
 ROOT_DOMAIN     ?= ersahinco-sandbox.eu
 
@@ -127,7 +127,7 @@ bootstrap: ## One-time AWS account setup — idempotent, safe to re-run
 .PHONY: infra-init-dev
 infra-init-dev:
 	cd infra && terraform init \
-		-backend-config="key=db-migration-example/dev.tfstate" \
+		-backend-config="key=aws-sdlc-containers/dev.tfstate" \
 		-reconfigure
 
 .PHONY: infra-plan-dev
@@ -162,7 +162,7 @@ infra-destroy-dev: infra-init-dev ## Terraform destroy — dev (sprint reset)
 .PHONY: infra-init-prod
 infra-init-prod:
 	cd infra && terraform init \
-		-backend-config="key=db-migration-example/prod.tfstate" \
+		-backend-config="key=aws-sdlc-containers/prod.tfstate" \
 		-reconfigure
 
 .PHONY: infra-plan-prod
@@ -193,9 +193,9 @@ infra-apply-iam-prod: infra-init-prod ## Targeted apply: IAM only — breaks boo
 .PHONY: app-deploy-dev
 app-deploy-dev: ## Force new ECS deployment — dev (picks up latest task definition)
 	aws ecs update-service \
-		--cluster db-migration-example-dev \
+		--cluster aws-sdlc-containers-dev \
 		--service app \
-		--task-definition db-migration-example-dev \
+		--task-definition aws-sdlc-containers-dev \
 		--force-new-deployment \
 		--region $(AWS_REGION) \
 		--query 'service.taskDefinition' \
@@ -204,9 +204,9 @@ app-deploy-dev: ## Force new ECS deployment — dev (picks up latest task defini
 .PHONY: app-deploy-prod
 app-deploy-prod: ## Force new ECS deployment — prod (picks up latest task definition)
 	aws ecs update-service \
-		--cluster db-migration-example-prod \
+		--cluster aws-sdlc-containers-prod \
 		--service app \
-		--task-definition db-migration-example-prod \
+		--task-definition aws-sdlc-containers-prod \
 		--force-new-deployment \
 		--region $(AWS_REGION) \
 		--query 'service.taskDefinition' \
@@ -260,7 +260,7 @@ api-get-order: ## Query a live order by ID  (ENV=dev|prod, ORDER_ID=1, FIELD=bil
 	AUTH_TOKEN="$${TOKEN:-}" && \
 	if [ -z "$$AUTH_TOKEN" ]; then \
 		AUTH_TOKEN=$$(aws secretsmanager get-secret-value \
-			--secret-id db-migration-example/api-token \
+			--secret-id aws-sdlc-containers/api-token \
 			--region $(AWS_REGION) \
 			--query SecretString --output text); \
 	fi && \

@@ -12,7 +12,7 @@ data "aws_availability_zones" "available" {
 data "aws_caller_identity" "current" {}
 
 locals {
-  name       = "db-migration-example-${var.environment}"
+  name       = "aws-sdlc-containers-${var.environment}"
   account_id = data.aws_caller_identity.current.account_id
   # Use var.aws_region directly — data.aws_region.current.name is deprecated in aws provider v6
   region        = var.aws_region
@@ -21,7 +21,7 @@ locals {
   api_fqdn      = "${local.api_subdomain}.${var.root_domain}"
 
   tags = {
-    Project     = "db-migration-example"
+    Project     = "aws-sdlc-containers"
     Environment = var.environment
     ManagedBy   = "terraform"
   }
@@ -282,7 +282,7 @@ module "rds" {
   storage_type          = "gp3"
   storage_encrypted     = true
 
-  db_name  = "migration_example"
+  db_name  = "aws_sdlc_containers"
   username = "app"
   port     = "5432"
 
@@ -470,7 +470,7 @@ resource "aws_acm_certificate_validation" "api" {
 # API token — read from Secrets Manager (created out-of-band, never in state).
 # Run once before applying:
 #   aws secretsmanager create-secret \
-#     --name db-migration-example/api-token \
+#     --name aws-sdlc-containers/api-token \
 #     --secret-string "$(openssl rand -hex 32)"
 # Or use: make create-api-token
 ################################################################################
@@ -662,7 +662,7 @@ module "ecs" {
           environment = [
             { name = "DB_HOST", value = module.rds.db_instance_address },
             { name = "DB_PORT", value = tostring(module.rds.db_instance_port) },
-            { name = "DB_NAME", value = "migration_example" },
+            { name = "DB_NAME", value = "aws_sdlc_containers" },
             { name = "POOL_MODE", value = "transaction" },
             { name = "DEFAULT_POOL_SIZE", value = tostring(var.pgbouncer_pool_size) },
             { name = "MAX_CLIENT_CONN", value = "200" },
@@ -867,7 +867,7 @@ resource "aws_ecs_task_definition" "liquibase" {
       ]
 
       environment = [
-        { name = "LIQUIBASE_COMMAND_URL", value = "jdbc:postgresql://${module.rds.db_instance_address}:${module.rds.db_instance_port}/migration_example" },
+        { name = "LIQUIBASE_COMMAND_URL", value = "jdbc:postgresql://${module.rds.db_instance_address}:${module.rds.db_instance_port}/aws_sdlc_containers" },
       ]
 
       logConfiguration = {

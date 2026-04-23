@@ -1,5 +1,7 @@
 # Deployment
 
+This guide covers the `aws-sdlc-containers` platform pipeline and the current reference workload deployment flow.
+
 ## Pipelines
 
 Two pipelines with separate triggers and responsibilities.
@@ -45,8 +47,8 @@ Five environments — create these in **Settings → Environments** before the f
 
 | Environment | Value |
 |---|---|
-| `dev-infra`, `dev-deploy` | `arn:aws:iam::691627364817:role/db-migration-example-dev-github-actions` |
-| `prod-infra`, `prod-migrate`, `prod-deploy` | `arn:aws:iam::691627364817:role/db-migration-example-prod-github-actions` |
+| `dev-infra`, `dev-deploy` | `arn:aws:iam::691627364817:role/aws-sdlc-containers-dev-github-actions` |
+| `prod-infra`, `prod-migrate`, `prod-deploy` | `arn:aws:iam::691627364817:role/aws-sdlc-containers-prod-github-actions` |
 
 ---
 
@@ -67,13 +69,13 @@ Before the first apply, register a cheap public domain in Route 53 and set `root
 
 All routes require a bearer token in the `Authorization` header. The ALB evaluates the header before the request reaches the app — unauthenticated requests receive `401 {"detail":"Unauthorized"}` from the ALB directly.
 
-The token is stored in Secrets Manager under `db-migration-example/api-token` (created by `make bootstrap`, shared across environments). Terraform reads it at apply time to configure the ALB listener rule.
+The token is stored in Secrets Manager under `aws-sdlc-containers/api-token` (created by `make bootstrap`, shared across environments). Terraform reads it at apply time to configure the ALB listener rule.
 
 **Calling the API:**
 
 ```bash
 TOKEN=$(aws secretsmanager get-secret-value \
-  --secret-id db-migration-example/api-token \
+  --secret-id aws-sdlc-containers/api-token \
   --region eu-central-1 \
   --query SecretString --output text)
 
@@ -104,18 +106,18 @@ See `Makefile` for all available targets (`make help`).
 
 ## Naming convention
 
-All AWS resources follow `db-migration-example-{env}`. This is the single
+All AWS resources follow `aws-sdlc-containers-{env}`. This is the single
 source of truth — no variables or secrets are needed in the pipelines beyond
 `AWS_ROLE_ARN`.
 
 | Resource | dev | prod |
 |---|---|---|
-| ECS cluster | `db-migration-example-dev` | `db-migration-example-prod` |
+| ECS cluster | `aws-sdlc-containers-dev` | `aws-sdlc-containers-prod` |
 | ECS service | `app` | `app` |
-| Task family (app) | `db-migration-example-dev` | `db-migration-example-prod` || Task family (worker) | `db-migration-example-dev-worker` | `db-migration-example-prod-worker` |
-| Task family (liquibase) | `db-migration-example-dev-liquibase` | `db-migration-example-prod-liquibase` |
-| ECR repos | `db-migration-example-dev/{app,worker,liquibase}` | `db-migration-example-prod/{app,worker,liquibase}` |
-| IAM role | `db-migration-example-dev-github-actions` | `db-migration-example-prod-github-actions` |
+| Task family (app) | `aws-sdlc-containers-dev` | `aws-sdlc-containers-prod` || Task family (worker) | `aws-sdlc-containers-dev-worker` | `aws-sdlc-containers-prod-worker` |
+| Task family (liquibase) | `aws-sdlc-containers-dev-liquibase` | `aws-sdlc-containers-prod-liquibase` |
+| ECR repos | `aws-sdlc-containers-dev/{app,worker,liquibase}` | `aws-sdlc-containers-prod/{app,worker,liquibase}` |
+| IAM role | `aws-sdlc-containers-dev-github-actions` | `aws-sdlc-containers-prod-github-actions` |
 
 ---
 
@@ -184,7 +186,7 @@ To reset dev to a clean state:
 
 ```bash
 cd infra
-terraform init -backend-config="key=db-migration-example/dev.tfstate" -reconfigure
+terraform init -backend-config="key=aws-sdlc-containers/dev.tfstate" -reconfigure
 terraform destroy -var-file=dev.tfvars
 terraform apply  -var-file=dev.tfvars
 ```
@@ -241,7 +243,7 @@ aws secretsmanager get-secret-value \
    |---|---|
    | Host | `localhost` |
    | Port | `15432` (dev) or `25432` (prod) |
-   | Database | `migration_example` |
+   | Database | `aws_sdlc_containers` |
    | Username | value of `username` from the secret |
    | Password | value of `password` from the secret |
 
@@ -257,7 +259,7 @@ SECRET=$(aws secretsmanager get-secret-value \
   --query SecretString --output text)
 
 PGPASSWORD=$(echo $SECRET | python3 -c "import sys,json; print(json.load(sys.stdin)['password'])") \
-  psql -h localhost -p 15432 -U app -d migration_example
+  psql -h localhost -p 15432 -U app -d aws_sdlc_containers
 ```
 
 ### Seed data

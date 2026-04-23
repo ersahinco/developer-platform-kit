@@ -39,11 +39,11 @@ on:
 #
 # Required GitHub secret (one per environment):
 #   AWS_ROLE_ARN     — IAM role ARN for OIDC federation (the only secret needed)
-#                      dev:  arn:aws:iam::691627364817:role/db-migration-example-dev-github-actions
-#                      prod: arn:aws:iam::691627364817:role/db-migration-example-prod-github-actions
+#                      dev:  arn:aws:iam::691627364817:role/aws-sdlc-containers-dev-github-actions
+#                      prod: arn:aws:iam::691627364817:role/aws-sdlc-containers-prod-github-actions
 #
 # All other values (cluster, service, task families) follow the naming
-# convention db-migration-example-{env} and are inlined — no variables needed.
+# convention aws-sdlc-containers-{env} and are inlined — no variables needed.
 # Subnet and SG IDs are resolved at runtime by tag — no hardcoded IDs.
 # ---------------------------------------------------------------------------
 
@@ -65,13 +65,13 @@ jobs:
       postgres:
         image: postgres:16
         env:
-          POSTGRES_DB: migration_example
+          POSTGRES_DB: aws_sdlc_containers
           POSTGRES_USER: postgres
           POSTGRES_PASSWORD: postgres
         ports:
           - 5432:5432
         options: >-
-          --health-cmd "pg_isready -U postgres -d migration_example"
+          --health-cmd "pg_isready -U postgres -d aws_sdlc_containers"
           --health-interval 5s
           --health-timeout 5s
           --health-retries 10
@@ -86,7 +86,7 @@ jobs:
         env:
           DB_HOST: postgres
           DB_PORT: 5432
-          DB_NAME: migration_example
+          DB_NAME: aws_sdlc_containers
           DB_USER: postgres
           DB_PASSWORD: postgres
           POOL_MODE: transaction
@@ -98,7 +98,7 @@ jobs:
 
     env:
       # App and tests connect via pgbouncer — same topology as production.
-      DATABASE_URL:       postgresql://postgres:postgres@localhost:6432/migration_example
+      DATABASE_URL:       postgresql://postgres:postgres@localhost:6432/aws_sdlc_containers
       BASE_URL:           http://localhost:8000
       SEED_NUM_CUSTOMERS: 200
       SEED_NUM_ORDERS:    1000
@@ -116,7 +116,7 @@ jobs:
 
       - name: Init DB schema (bootstrap SQL)
         run: |
-          PGPASSWORD=postgres psql -h localhost -U postgres -d migration_example \
+          PGPASSWORD=postgres psql -h localhost -U postgres -d aws_sdlc_containers \
             -f db/sql/bootstrap.sql
 
       - name: Run Liquibase migrations
@@ -127,7 +127,7 @@ jobs:
             liquibase/liquibase:4.33.0 \
               --changelog-file=changelog/db.changelog-master.yaml \
               --search-path=/liquibase/db \
-              --url=jdbc:postgresql://localhost:5432/migration_example \
+              --url=jdbc:postgresql://localhost:5432/aws_sdlc_containers \
               --username=postgres \
               --password=postgres \
               update
@@ -190,9 +190,9 @@ jobs:
         run: |
           # Build all three images in parallel — each writes to a separate tag so
           # there is no shared layer cache contention between them.
-          docker build -t ${{ env.ECR_REGISTRY }}/db-migration-example-dev/app:$TAG       app/    &
-          docker build -t ${{ env.ECR_REGISTRY }}/db-migration-example-dev/worker:$TAG    worker/ &
-          docker build -t ${{ env.ECR_REGISTRY }}/db-migration-example-dev/liquibase:$TAG db/     &
+          docker build -t ${{ env.ECR_REGISTRY }}/aws-sdlc-containers-dev/app:$TAG       app/    &
+          docker build -t ${{ env.ECR_REGISTRY }}/aws-sdlc-containers-dev/worker:$TAG    worker/ &
+          docker build -t ${{ env.ECR_REGISTRY }}/aws-sdlc-containers-dev/liquibase:$TAG db/     &
           wait
 
       # Mirror pgbouncer from Docker Hub to ECR — avoids unauthenticated pull rate
@@ -203,14 +203,14 @@ jobs:
           PGBOUNCER_TAG: v1.25.1-p0
         run: |
           if aws ecr describe-images \
-            --repository-name db-migration-example-dev/pgbouncer \
+            --repository-name aws-sdlc-containers-dev/pgbouncer \
             --image-ids imageTag=$PGBOUNCER_TAG 2>/dev/null; then
             echo "pgbouncer:$PGBOUNCER_TAG already in ECR — skipping"
           else
             docker pull edoburu/pgbouncer:$PGBOUNCER_TAG
             docker tag  edoburu/pgbouncer:$PGBOUNCER_TAG \
-                        ${{ env.ECR_REGISTRY }}/db-migration-example-dev/pgbouncer:$PGBOUNCER_TAG
-            docker push ${{ env.ECR_REGISTRY }}/db-migration-example-dev/pgbouncer:$PGBOUNCER_TAG
+                        ${{ env.ECR_REGISTRY }}/aws-sdlc-containers-dev/pgbouncer:$PGBOUNCER_TAG
+            docker push ${{ env.ECR_REGISTRY }}/aws-sdlc-containers-dev/pgbouncer:$PGBOUNCER_TAG
           fi
 
       # Scan before push — CRITICAL CVE fails the pipeline before images land in ECR.
@@ -228,9 +228,9 @@ jobs:
               ghcr.io/aquasecurity/trivy:0.69.3 image \
               --exit-code 1 --severity CRITICAL --no-progress "$1"
           }
-          scan ${{ env.ECR_REGISTRY }}/db-migration-example-dev/app:sha-${{ github.sha }} &
-          scan ${{ env.ECR_REGISTRY }}/db-migration-example-dev/worker:sha-${{ github.sha }} &
-          scan ${{ env.ECR_REGISTRY }}/db-migration-example-dev/liquibase:sha-${{ github.sha }} &
+          scan ${{ env.ECR_REGISTRY }}/aws-sdlc-containers-dev/app:sha-${{ github.sha }} &
+          scan ${{ env.ECR_REGISTRY }}/aws-sdlc-containers-dev/worker:sha-${{ github.sha }} &
+          scan ${{ env.ECR_REGISTRY }}/aws-sdlc-containers-dev/liquibase:sha-${{ github.sha }} &
           wait
 
       - name: Push images to dev ECR
@@ -238,7 +238,7 @@ jobs:
           TAG: sha-${{ github.sha }}
         run: |
           for repo in app worker liquibase; do
-            docker push ${{ env.ECR_REGISTRY }}/db-migration-example-dev/${repo}:$TAG &
+            docker push ${{ env.ECR_REGISTRY }}/aws-sdlc-containers-dev/${repo}:$TAG &
           done
           wait
 
@@ -267,10 +267,10 @@ jobs:
           # Look up by tag — names are stable across destroy/recreate, raw IDs are not.
           # group-name uses a wildcard because name_prefix appends a timestamp suffix.
           SUBNET_ID=$(aws ec2 describe-subnets \
-            --filters "Name=tag:Name,Values=db-migration-example-dev-private-*" \
+            --filters "Name=tag:Name,Values=aws-sdlc-containers-dev-private-*" \
             --query 'Subnets[0].SubnetId' --output text)
           SG_ID=$(aws ec2 describe-security-groups \
-            --filters "Name=group-name,Values=db-migration-example-dev-app-*" \
+            --filters "Name=group-name,Values=aws-sdlc-containers-dev-app-*" \
             --query 'SecurityGroups[0].GroupId' --output text)
           echo "subnet_id=$SUBNET_ID" >> "$GITHUB_OUTPUT"
           echo "sg_id=$SG_ID"         >> "$GITHUB_OUTPUT"
@@ -279,9 +279,9 @@ jobs:
         id: render-liquibase
         uses: aws-actions/amazon-ecs-render-task-definition@v1
         with:
-          task-definition-family: db-migration-example-dev-liquibase
+          task-definition-family: aws-sdlc-containers-dev-liquibase
           container-name:         liquibase
-          image: ${{ env.ECR_REGISTRY }}/db-migration-example-dev/liquibase:${{ needs.build-and-push.outputs.image_tag }}
+          image: ${{ env.ECR_REGISTRY }}/aws-sdlc-containers-dev/liquibase:${{ needs.build-and-push.outputs.image_tag }}
 
       - name: Register liquibase task definition
         id: register-liquibase
@@ -297,7 +297,7 @@ jobs:
         # Connects directly to RDS — DDL requires a session connection, not pgbouncer's pool.
         run: |
           TASK_ARN=$(aws ecs run-task \
-            --cluster db-migration-example-dev \
+            --cluster aws-sdlc-containers-dev \
             --task-definition ${{ steps.register-liquibase.outputs.task_def_arn }} \
             --launch-type FARGATE \
             --network-configuration "awsvpcConfiguration={
@@ -306,12 +306,12 @@ jobs:
               assignPublicIp=DISABLED}" \
             --query 'tasks[0].taskArn' --output text)
 
-          aws ecs wait tasks-stopped --cluster db-migration-example-dev --tasks "$TASK_ARN"
+          aws ecs wait tasks-stopped --cluster aws-sdlc-containers-dev --tasks "$TASK_ARN"
 
           # exitCode is null when the container never started (image pull failure,
           # resource constraint, etc). Fetch stoppedReason to surface the cause.
           TASK_JSON=$(aws ecs describe-tasks \
-            --cluster db-migration-example-dev --tasks "$TASK_ARN")
+            --cluster aws-sdlc-containers-dev --tasks "$TASK_ARN")
           EXIT_CODE=$(echo "$TASK_JSON" | jq -r '.tasks[0].containers[0].exitCode')
           if [ "$EXIT_CODE" = "null" ] || [ "$EXIT_CODE" != "0" ]; then
             REASON=$(echo "$TASK_JSON" | jq -r '.tasks[0].stoppedReason // "unknown"')
@@ -343,16 +343,16 @@ jobs:
         id: render-app
         uses: aws-actions/amazon-ecs-render-task-definition@v1
         with:
-          task-definition-family: db-migration-example-dev
+          task-definition-family: aws-sdlc-containers-dev
           container-name:         app
-          image: ${{ env.ECR_REGISTRY }}/db-migration-example-dev/app:${{ needs.build-and-push.outputs.image_tag }}
+          image: ${{ env.ECR_REGISTRY }}/aws-sdlc-containers-dev/app:${{ needs.build-and-push.outputs.image_tag }}
 
       - name: Deploy to ECS
         uses: aws-actions/amazon-ecs-deploy-task-definition@v2
         with:
           task-definition:            ${{ steps.render-app.outputs.task-definition }}
           service:                    app
-          cluster:                    db-migration-example-dev
+          cluster:                    aws-sdlc-containers-dev
           wait-for-service-stability: true
 
   # ── 5. Prod migrate ───────────────────────────────────────────────────────
@@ -385,10 +385,10 @@ jobs:
         run: |
           promote() {
             local repo=$1
-            docker pull ${{ env.ECR_REGISTRY }}/db-migration-example-dev/${repo}:$TAG
-            docker tag  ${{ env.ECR_REGISTRY }}/db-migration-example-dev/${repo}:$TAG \
-                        ${{ env.ECR_REGISTRY }}/db-migration-example-prod/${repo}:$TAG
-            docker push ${{ env.ECR_REGISTRY }}/db-migration-example-prod/${repo}:$TAG
+            docker pull ${{ env.ECR_REGISTRY }}/aws-sdlc-containers-dev/${repo}:$TAG
+            docker tag  ${{ env.ECR_REGISTRY }}/aws-sdlc-containers-dev/${repo}:$TAG \
+                        ${{ env.ECR_REGISTRY }}/aws-sdlc-containers-prod/${repo}:$TAG
+            docker push ${{ env.ECR_REGISTRY }}/aws-sdlc-containers-prod/${repo}:$TAG
           }
           promote app &
           promote worker &
@@ -400,24 +400,24 @@ jobs:
           PGBOUNCER_TAG: v1.25.1-p0
         run: |
           if aws ecr describe-images \
-            --repository-name db-migration-example-prod/pgbouncer \
+            --repository-name aws-sdlc-containers-prod/pgbouncer \
             --image-ids imageTag=$PGBOUNCER_TAG 2>/dev/null; then
             echo "pgbouncer:$PGBOUNCER_TAG already in prod ECR — skipping"
           else
-            docker pull ${{ env.ECR_REGISTRY }}/db-migration-example-dev/pgbouncer:$PGBOUNCER_TAG
-            docker tag  ${{ env.ECR_REGISTRY }}/db-migration-example-dev/pgbouncer:$PGBOUNCER_TAG \
-                        ${{ env.ECR_REGISTRY }}/db-migration-example-prod/pgbouncer:$PGBOUNCER_TAG
-            docker push ${{ env.ECR_REGISTRY }}/db-migration-example-prod/pgbouncer:$PGBOUNCER_TAG
+            docker pull ${{ env.ECR_REGISTRY }}/aws-sdlc-containers-dev/pgbouncer:$PGBOUNCER_TAG
+            docker tag  ${{ env.ECR_REGISTRY }}/aws-sdlc-containers-dev/pgbouncer:$PGBOUNCER_TAG \
+                        ${{ env.ECR_REGISTRY }}/aws-sdlc-containers-prod/pgbouncer:$PGBOUNCER_TAG
+            docker push ${{ env.ECR_REGISTRY }}/aws-sdlc-containers-prod/pgbouncer:$PGBOUNCER_TAG
           fi
 
       - name: Resolve network config
         id: net
         run: |
           SUBNET_ID=$(aws ec2 describe-subnets \
-            --filters "Name=tag:Name,Values=db-migration-example-prod-private-*" \
+            --filters "Name=tag:Name,Values=aws-sdlc-containers-prod-private-*" \
             --query 'Subnets[0].SubnetId' --output text)
           SG_ID=$(aws ec2 describe-security-groups \
-            --filters "Name=group-name,Values=db-migration-example-prod-app-*" \
+            --filters "Name=group-name,Values=aws-sdlc-containers-prod-app-*" \
             --query 'SecurityGroups[0].GroupId' --output text)
           echo "subnet_id=$SUBNET_ID" >> "$GITHUB_OUTPUT"
           echo "sg_id=$SG_ID"         >> "$GITHUB_OUTPUT"
@@ -426,9 +426,9 @@ jobs:
         id: render-liquibase
         uses: aws-actions/amazon-ecs-render-task-definition@v1
         with:
-          task-definition-family: db-migration-example-prod-liquibase
+          task-definition-family: aws-sdlc-containers-prod-liquibase
           container-name:         liquibase
-          image: ${{ env.ECR_REGISTRY }}/db-migration-example-prod/liquibase:${{ needs.build-and-push.outputs.image_tag }}
+          image: ${{ env.ECR_REGISTRY }}/aws-sdlc-containers-prod/liquibase:${{ needs.build-and-push.outputs.image_tag }}
 
       - name: Register liquibase task definition
         id: register-liquibase
@@ -441,7 +441,7 @@ jobs:
       - name: Run Liquibase on prod RDS
         run: |
           TASK_ARN=$(aws ecs run-task \
-            --cluster db-migration-example-prod \
+            --cluster aws-sdlc-containers-prod \
             --task-definition ${{ steps.register-liquibase.outputs.task_def_arn }} \
             --launch-type FARGATE \
             --network-configuration "awsvpcConfiguration={
@@ -450,12 +450,12 @@ jobs:
               assignPublicIp=DISABLED}" \
             --query 'tasks[0].taskArn' --output text)
 
-          aws ecs wait tasks-stopped --cluster db-migration-example-prod --tasks "$TASK_ARN"
+          aws ecs wait tasks-stopped --cluster aws-sdlc-containers-prod --tasks "$TASK_ARN"
 
           # exitCode is null when the container never started (image pull failure,
           # resource constraint, etc). Fetch stoppedReason to surface the cause.
           TASK_JSON=$(aws ecs describe-tasks \
-            --cluster db-migration-example-prod --tasks "$TASK_ARN")
+            --cluster aws-sdlc-containers-prod --tasks "$TASK_ARN")
           EXIT_CODE=$(echo "$TASK_JSON" | jq -r '.tasks[0].containers[0].exitCode')
           if [ "$EXIT_CODE" = "null" ] || [ "$EXIT_CODE" != "0" ]; then
             REASON=$(echo "$TASK_JSON" | jq -r '.tasks[0].stoppedReason // "unknown"')
@@ -470,7 +470,7 @@ jobs:
     runs-on: ubuntu-latest
     # 60 min: ECS rolling deploy (up to ~10 min) + backfill worker (variable, but
     # bounded — if it runs longer than this the job fails and the task keeps running
-    # in ECS; check CloudWatch Logs /ecs/db-migration-example-prod/worker to monitor.
+    # in ECS; check CloudWatch Logs /ecs/aws-sdlc-containers-prod/worker to monitor.
     timeout-minutes: 60
     environment: prod-deploy
     permissions:
@@ -490,10 +490,10 @@ jobs:
         id: net
         run: |
           SUBNET_ID=$(aws ec2 describe-subnets \
-            --filters "Name=tag:Name,Values=db-migration-example-prod-private-*" \
+            --filters "Name=tag:Name,Values=aws-sdlc-containers-prod-private-*" \
             --query 'Subnets[0].SubnetId' --output text)
           SG_ID=$(aws ec2 describe-security-groups \
-            --filters "Name=group-name,Values=db-migration-example-prod-app-*" \
+            --filters "Name=group-name,Values=aws-sdlc-containers-prod-app-*" \
             --query 'SecurityGroups[0].GroupId' --output text)
           echo "subnet_id=$SUBNET_ID" >> "$GITHUB_OUTPUT"
           echo "sg_id=$SG_ID"         >> "$GITHUB_OUTPUT"
@@ -502,25 +502,25 @@ jobs:
         id: render-app
         uses: aws-actions/amazon-ecs-render-task-definition@v1
         with:
-          task-definition-family: db-migration-example-prod
+          task-definition-family: aws-sdlc-containers-prod
           container-name:         app
-          image: ${{ env.ECR_REGISTRY }}/db-migration-example-prod/app:${{ needs.build-and-push.outputs.image_tag }}
+          image: ${{ env.ECR_REGISTRY }}/aws-sdlc-containers-prod/app:${{ needs.build-and-push.outputs.image_tag }}
 
       - name: Deploy to ECS
         uses: aws-actions/amazon-ecs-deploy-task-definition@v2
         with:
           task-definition:            ${{ steps.render-app.outputs.task-definition }}
           service:                    app
-          cluster:                    db-migration-example-prod
+          cluster:                    aws-sdlc-containers-prod
           wait-for-service-stability: true
 
       - name: Render worker task definition
         id: render-worker
         uses: aws-actions/amazon-ecs-render-task-definition@v1
         with:
-          task-definition-family: db-migration-example-prod-worker
+          task-definition-family: aws-sdlc-containers-prod-worker
           container-name:         worker
-          image: ${{ env.ECR_REGISTRY }}/db-migration-example-prod/worker:${{ needs.build-and-push.outputs.image_tag }}
+          image: ${{ env.ECR_REGISTRY }}/aws-sdlc-containers-prod/worker:${{ needs.build-and-push.outputs.image_tag }}
 
       - name: Register worker task definition
         id: register-worker
@@ -533,7 +533,7 @@ jobs:
       - name: Run backfill worker
         run: |
           TASK_ARN=$(aws ecs run-task \
-            --cluster db-migration-example-prod \
+            --cluster aws-sdlc-containers-prod \
             --task-definition ${{ steps.register-worker.outputs.task_def_arn }} \
             --launch-type FARGATE \
             --network-configuration "awsvpcConfiguration={
@@ -543,13 +543,13 @@ jobs:
             --query 'tasks[0].taskArn' --output text)
 
           echo "Backfill task: $TASK_ARN"
-          echo "Monitor: CloudWatch Logs /ecs/db-migration-example-prod/worker"
+          echo "Monitor: CloudWatch Logs /ecs/aws-sdlc-containers-prod/worker"
 
           # ecs wait tasks-stopped has a 10-minute default. Backfill may run longer —
           # poll manually so we don't cap a legitimate long-running job.
           while true; do
             STATUS=$(aws ecs describe-tasks \
-              --cluster db-migration-example-prod --tasks "$TASK_ARN" \
+              --cluster aws-sdlc-containers-prod --tasks "$TASK_ARN" \
               --query 'tasks[0].lastStatus' --output text)
             [ "$STATUS" = "STOPPED" ] && break
             echo "Worker status: $STATUS — waiting…"
@@ -557,6 +557,6 @@ jobs:
           done
 
           EXIT_CODE=$(aws ecs describe-tasks \
-            --cluster db-migration-example-prod --tasks "$TASK_ARN" \
+            --cluster aws-sdlc-containers-prod --tasks "$TASK_ARN" \
             --query 'tasks[0].containers[0].exitCode' --output text)
           [ "$EXIT_CODE" = "0" ] || { echo "Backfill worker failed (exit $EXIT_CODE)"; exit 1; }

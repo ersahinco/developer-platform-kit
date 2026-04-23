@@ -12,7 +12,7 @@ wheels = [
 ]
 
 [[package]]
-name = "db-migration-example-worker"
+name = "aws-sdlc-containers-worker"
 version = "0.1.0"
 source = { virtual = "." }
 dependencies = [

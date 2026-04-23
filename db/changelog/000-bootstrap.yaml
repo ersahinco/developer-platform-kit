@@ -1,7 +1,7 @@
 databaseChangeLog:
   - changeSet:
       id: 000-create-customers
-      author: db-migration-example
+      author: aws-sdlc-containers
       comment: "Bootstrap: create customers table"
       changes:
         - createTable:
@@ -27,7 +27,7 @@ databaseChangeLog:
 
   - changeSet:
       id: 000-create-orders
-      author: db-migration-example
+      author: aws-sdlc-containers
       comment: "Bootstrap: create orders table with billing_email (dropped in Contract phase)"
       changes:
         - createTable:
@@ -75,7 +75,7 @@ databaseChangeLog:
 
   - changeSet:
       id: 000-index-orders-customer-id
-      author: db-migration-example
+      author: aws-sdlc-containers
       comment: "Bootstrap: index on orders.customer_id for FK lookups"
       changes:
         - createIndex:
@@ -87,7 +87,7 @@ databaseChangeLog:
 
   - changeSet:
       id: 000-index-orders-status
-      author: db-migration-example
+      author: aws-sdlc-containers
       comment: "Bootstrap: index on orders.status for filtering"
       changes:
         - createIndex:

@@ -13,7 +13,7 @@ cd "$(dirname "$0")/.."
 echo "→ resolving infra outputs for env=$ENV"
 cd infra
 terraform init \
-  -backend-config="key=db-migration-example/${ENV}.tfstate" \
+  -backend-config="key=aws-sdlc-containers/${ENV}.tfstate" \
   -reconfigure -input=false > /dev/null 2>&1
 
 CLUSTER=$(terraform output -raw ecs_cluster_name)
@@ -68,7 +68,7 @@ nc -z localhost 15433 2>/dev/null \
   || { echo "ERROR: tunnel did not open"; kill $SSM_PID 2>/dev/null; exit 1; }
 
 echo "→ seeding $ENV DB (SEED_NUM_CUSTOMERS=$SEED_NUM_CUSTOMERS, SEED_NUM_ORDERS=$SEED_NUM_ORDERS)"
-DATABASE_URL="postgresql://${DB_USER}:${DB_PASS}@localhost:15433/migration_example" \
+DATABASE_URL="postgresql://${DB_USER}:${DB_PASS}@localhost:15433/aws_sdlc_containers" \
   SEED_NUM_CUSTOMERS="$SEED_NUM_CUSTOMERS" \
   SEED_NUM_ORDERS="$SEED_NUM_ORDERS" \
   uv run python scripts/seed_data.py
