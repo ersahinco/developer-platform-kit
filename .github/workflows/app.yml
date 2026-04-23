@@ -1,7 +1,7 @@
 name: App
 
 on:
-  workflow_dispatch: {}  # manual trigger for testing without a code change
+  workflow_dispatch: {}
   pull_request:
     paths:
       - "app/**"
@@ -16,44 +16,12 @@ on:
       - "tests/**"
       - "scripts/**"
 
-# ---------------------------------------------------------------------------
-# Pipeline overview
-#
-# Triggers on changes to app/**, db/**, tests/**, scripts/**
-# (infra changes are handled by infra.yml — separate pipeline)
-#
-# On pull_request: validate-and-test only — fast feedback before merge
-# On push to main: full pipeline — test → build → migrate → deploy
-#
-# validate-and-test — hermetic: Postgres + pgbouncer service containers, full test suite
-# build-and-push    — builds app + worker + liquibase images, trivy CRITICAL scan, pushes to dev ECR
-# dev-migrate       — Liquibase update on dev RDS (one-off ECS task, waits for exit code)
-# dev-deploy        — rolling ECS update to new image tag
-# prod-migrate      — promotes images from dev to prod ECR, Liquibase update on prod RDS (manual approval)
-# prod-deploy       — rolling ECS update + backfill worker (manual approval)
-#
-# Environments (configure in GitHub → Settings → Environments):
-#   dev-deploy       — no approval required (covers dev migrate + deploy)
-#   prod-migrate     — requires approval
-#   prod-deploy      — requires approval
-#
-# Required GitHub secret (one per environment):
-#   AWS_ROLE_ARN     — IAM role ARN for OIDC federation (the only secret needed)
-#                      dev:  arn:aws:iam::691627364817:role/aws-sdlc-containers-dev-github-actions
-#                      prod: arn:aws:iam::691627364817:role/aws-sdlc-containers-prod-github-actions
-#
-# All other values (cluster, service, task families) follow the naming
-# convention aws-sdlc-containers-{env} and are inlined — no variables needed.
-# Subnet and SG IDs are resolved at runtime by tag — no hardcoded IDs.
-# ---------------------------------------------------------------------------
-
 env:
-  AWS_REGION:   eu-central-1
-  # ECR registry is account-scoped — same hostname for all repos in the account
+  AWS_REGION: eu-central-1
   ECR_REGISTRY: 691627364817.dkr.ecr.eu-central-1.amazonaws.com
+  STACK_NAME: aws-sdlc-containers
 
 jobs:
-  # ── 1. Test ──────────────────────────────────────────────────────────────
   validate-and-test:
     name: Validate & Test
     runs-on: ubuntu-latest
@@ -77,10 +45,6 @@ jobs:
           --health-retries 10
           --health-start-period 10s
 
-      # PgBouncer sidecar — app connects here, not to Postgres directly.
-      # transaction mode mirrors the production ECS sidecar configuration.
-      # scram-sha-256 matches Postgres 16 default auth method — trust causes
-      # "wrong password type" because PgBouncer cannot forward SCRAM handshakes.
       pgbouncer:
         image: edoburu/pgbouncer:v1.25.1-p0
         env:
@@ -97,11 +61,10 @@ jobs:
           - 6432:5432
 
     env:
-      # App and tests connect via pgbouncer — same topology as production.
-      DATABASE_URL:       postgresql://postgres:postgres@localhost:6432/aws_sdlc_containers
-      BASE_URL:           http://localhost:8000
+      DATABASE_URL: postgresql://postgres:postgres@localhost:6432/aws_sdlc_containers
+      BASE_URL: http://localhost:8000
       SEED_NUM_CUSTOMERS: 200
-      SEED_NUM_ORDERS:    1000
+      SEED_NUM_ORDERS: 1000
 
     steps:
       - uses: actions/checkout@v4
@@ -114,7 +77,7 @@ jobs:
       - name: Install dependencies
         run: uv sync --frozen --group test
 
-      - name: Init DB schema (bootstrap SQL)
+      - name: Init DB schema
         run: |
           PGPASSWORD=postgres psql -h localhost -U postgres -d aws_sdlc_containers \
             -f db/sql/bootstrap.sql
@@ -137,18 +100,12 @@ jobs:
 
       - name: Start app
         run: |
-          # PYTHONPATH mirrors the Dockerfile layout: src/ contents are the root package.
-          # Use absolute path — uv changes cwd to app/ so a relative path would resolve wrong.
           PYTHONPATH="${{ github.workspace }}/app/src" uv run --directory app uvicorn adapters.api.main:app \
             --host 0.0.0.0 --port 8000 &
           curl --retry 30 --retry-delay 1 --retry-connrefused -sf \
             http://localhost:8000/health
 
       - name: Advance to dual-write phase
-        # Liquibase seeds WRITE_MODE=legacy. order_contact_email exists after 001-expand,
-        # so conftest.py detects phase=dual and runs dual-write tests — but the app is
-        # still writing legacy. Advance WRITE_MODE to dual so app behaviour matches the
-        # phase the tests expect. This mirrors step 3 of the production runbook.
         run: uv run python scripts/set_runtime_config.py write-mode dual
 
       - name: Run tests
@@ -158,14 +115,13 @@ jobs:
         if: always()
         run: pkill -f "uvicorn" || true
 
-  # ── 2. Build & Push ───────────────────────────────────────────────────────
   build-and-push:
     name: Build & Push to ECR
     needs: validate-and-test
     if: github.event_name == 'push' || github.event_name == 'workflow_dispatch'
     runs-on: ubuntu-latest
     timeout-minutes: 30
-    environment: dev-deploy  # required — AWS_ROLE_ARN secret is environment-scoped
+    environment: aws
     permissions:
       id-token: write
       contents: read
@@ -175,11 +131,11 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - name: Configure AWS credentials (OIDC — no long-lived keys)
+      - name: Configure AWS credentials
         uses: aws-actions/configure-aws-credentials@v4
         with:
           role-to-assume: ${{ secrets.AWS_ROLE_ARN }}
-          aws-region:     ${{ env.AWS_REGION }}
+          aws-region: ${{ env.AWS_REGION }}
 
       - name: Log in to ECR
         uses: aws-actions/amazon-ecr-login@v2
@@ -188,38 +144,27 @@ jobs:
         env:
           TAG: sha-${{ github.sha }}
         run: |
-          # Build all three images in parallel — each writes to a separate tag so
-          # there is no shared layer cache contention between them.
-          docker build -t ${{ env.ECR_REGISTRY }}/aws-sdlc-containers-dev/app:$TAG       app/    &
-          docker build -t ${{ env.ECR_REGISTRY }}/aws-sdlc-containers-dev/worker:$TAG    worker/ &
-          docker build -t ${{ env.ECR_REGISTRY }}/aws-sdlc-containers-dev/liquibase:$TAG db/     &
+          docker build -t ${{ env.ECR_REGISTRY }}/${{ env.STACK_NAME }}/app:$TAG app/ &
+          docker build -t ${{ env.ECR_REGISTRY }}/${{ env.STACK_NAME }}/worker:$TAG worker/ &
+          docker build -t ${{ env.ECR_REGISTRY }}/${{ env.STACK_NAME }}/liquibase:$TAG db/ &
           wait
 
-      # Mirror pgbouncer from Docker Hub to ECR — avoids unauthenticated pull rate
-      # limits (100/6h per NAT IP) when ECS starts tasks. Only pushes if the tag
-      # doesn't already exist (IMMUTABLE repos reject duplicate tags).
       - name: Mirror pgbouncer to ECR
         env:
           PGBOUNCER_TAG: v1.25.1-p0
         run: |
           if aws ecr describe-images \
-            --repository-name aws-sdlc-containers-dev/pgbouncer \
+            --repository-name ${{ env.STACK_NAME }}/pgbouncer \
             --image-ids imageTag=$PGBOUNCER_TAG 2>/dev/null; then
             echo "pgbouncer:$PGBOUNCER_TAG already in ECR — skipping"
           else
             docker pull edoburu/pgbouncer:$PGBOUNCER_TAG
             docker tag  edoburu/pgbouncer:$PGBOUNCER_TAG \
-                        ${{ env.ECR_REGISTRY }}/aws-sdlc-containers-dev/pgbouncer:$PGBOUNCER_TAG
-            docker push ${{ env.ECR_REGISTRY }}/aws-sdlc-containers-dev/pgbouncer:$PGBOUNCER_TAG
+                        ${{ env.ECR_REGISTRY }}/${{ env.STACK_NAME }}/pgbouncer:$PGBOUNCER_TAG
+            docker push ${{ env.ECR_REGISTRY }}/${{ env.STACK_NAME }}/pgbouncer:$PGBOUNCER_TAG
           fi
 
-      # Scan before push — CRITICAL CVE fails the pipeline before images land in ECR.
-      # Pinned to commit SHA (not tag) — tags are mutable and were weaponised in the
-      # March 2026 TeamPCP supply chain attack (GHSA-69fq-xp46-6x23). SHA = v0.35.0.
-      # Trivy binary pinned to v0.69.3 — last safe version before the compromised
-      # v0.69.4/5/6 releases. Do not bump without verifying the advisory is resolved.
-      # Scans run in parallel across all three images to minimise wall time.
-      - name: Scan images (parallel)
+      - name: Scan images
         run: |
           scan() {
             docker run --rm \
@@ -228,27 +173,26 @@ jobs:
               ghcr.io/aquasecurity/trivy:0.69.3 image \
               --exit-code 1 --severity CRITICAL --no-progress "$1"
           }
-          scan ${{ env.ECR_REGISTRY }}/aws-sdlc-containers-dev/app:sha-${{ github.sha }} &
-          scan ${{ env.ECR_REGISTRY }}/aws-sdlc-containers-dev/worker:sha-${{ github.sha }} &
-          scan ${{ env.ECR_REGISTRY }}/aws-sdlc-containers-dev/liquibase:sha-${{ github.sha }} &
+          scan ${{ env.ECR_REGISTRY }}/${{ env.STACK_NAME }}/app:sha-${{ github.sha }} &
+          scan ${{ env.ECR_REGISTRY }}/${{ env.STACK_NAME }}/worker:sha-${{ github.sha }} &
+          scan ${{ env.ECR_REGISTRY }}/${{ env.STACK_NAME }}/liquibase:sha-${{ github.sha }} &
           wait
 
-      - name: Push images to dev ECR
+      - name: Push images
         env:
           TAG: sha-${{ github.sha }}
         run: |
           for repo in app worker liquibase; do
-            docker push ${{ env.ECR_REGISTRY }}/aws-sdlc-containers-dev/${repo}:$TAG &
+            docker push ${{ env.ECR_REGISTRY }}/${{ env.STACK_NAME }}/${repo}:$TAG &
           done
           wait
 
-  # ── 3. Dev migrate ────────────────────────────────────────────────────────
-  dev-migrate:
-    name: Dev — Migrate (Liquibase)
+  migrate:
+    name: Migrate
     needs: build-and-push
     runs-on: ubuntu-latest
     timeout-minutes: 15
-    environment: dev-deploy
+    environment: aws
     permissions:
       id-token: write
       contents: read
@@ -259,29 +203,27 @@ jobs:
       - uses: aws-actions/configure-aws-credentials@v4
         with:
           role-to-assume: ${{ secrets.AWS_ROLE_ARN }}
-          aws-region:     ${{ env.AWS_REGION }}
+          aws-region: ${{ env.AWS_REGION }}
 
       - name: Resolve network config
         id: net
         run: |
-          # Look up by tag — names are stable across destroy/recreate, raw IDs are not.
-          # group-name uses a wildcard because name_prefix appends a timestamp suffix.
           SUBNET_ID=$(aws ec2 describe-subnets \
-            --filters "Name=tag:Name,Values=aws-sdlc-containers-dev-private-*" \
+            --filters "Name=tag:Name,Values=${{ env.STACK_NAME }}-private-*" \
             --query 'Subnets[0].SubnetId' --output text)
           SG_ID=$(aws ec2 describe-security-groups \
-            --filters "Name=group-name,Values=aws-sdlc-containers-dev-app-*" \
+            --filters "Name=group-name,Values=${{ env.STACK_NAME }}-app-*" \
             --query 'SecurityGroups[0].GroupId' --output text)
           echo "subnet_id=$SUBNET_ID" >> "$GITHUB_OUTPUT"
-          echo "sg_id=$SG_ID"         >> "$GITHUB_OUTPUT"
+          echo "sg_id=$SG_ID" >> "$GITHUB_OUTPUT"
 
       - name: Render liquibase task definition
         id: render-liquibase
         uses: aws-actions/amazon-ecs-render-task-definition@v1
         with:
-          task-definition-family: aws-sdlc-containers-dev-liquibase
-          container-name:         liquibase
-          image: ${{ env.ECR_REGISTRY }}/aws-sdlc-containers-dev/liquibase:${{ needs.build-and-push.outputs.image_tag }}
+          task-definition-family: aws-sdlc-containers-liquibase
+          container-name: liquibase
+          image: ${{ env.ECR_REGISTRY }}/${{ env.STACK_NAME }}/liquibase:${{ needs.build-and-push.outputs.image_tag }}
 
       - name: Register liquibase task definition
         id: register-liquibase
@@ -291,13 +233,10 @@ jobs:
             --query 'taskDefinition.taskDefinitionArn' --output text)
           echo "task_def_arn=$TASK_DEF_ARN" >> "$GITHUB_OUTPUT"
 
-      - name: Run Liquibase on dev RDS
-        # Liquibase runs as a one-off ECS task inside the VPC — no public DB exposure.
-        # Changelogs are baked into the image (see db/Dockerfile).
-        # Connects directly to RDS — DDL requires a session connection, not pgbouncer's pool.
+      - name: Run Liquibase
         run: |
           TASK_ARN=$(aws ecs run-task \
-            --cluster aws-sdlc-containers-dev \
+            --cluster aws-sdlc-containers \
             --task-definition ${{ steps.register-liquibase.outputs.task_def_arn }} \
             --launch-type FARGATE \
             --network-configuration "awsvpcConfiguration={
@@ -306,12 +245,10 @@ jobs:
               assignPublicIp=DISABLED}" \
             --query 'tasks[0].taskArn' --output text)
 
-          aws ecs wait tasks-stopped --cluster aws-sdlc-containers-dev --tasks "$TASK_ARN"
+          aws ecs wait tasks-stopped --cluster aws-sdlc-containers --tasks "$TASK_ARN"
 
-          # exitCode is null when the container never started (image pull failure,
-          # resource constraint, etc). Fetch stoppedReason to surface the cause.
           TASK_JSON=$(aws ecs describe-tasks \
-            --cluster aws-sdlc-containers-dev --tasks "$TASK_ARN")
+            --cluster aws-sdlc-containers --tasks "$TASK_ARN")
           EXIT_CODE=$(echo "$TASK_JSON" | jq -r '.tasks[0].containers[0].exitCode')
           if [ "$EXIT_CODE" = "null" ] || [ "$EXIT_CODE" != "0" ]; then
             REASON=$(echo "$TASK_JSON" | jq -r '.tasks[0].stoppedReason // "unknown"')
@@ -319,160 +256,12 @@ jobs:
             exit 1
           fi
 
-  # ── 4. Dev deploy ─────────────────────────────────────────────────────────
-  dev-deploy:
-    name: Dev — Deploy App
-    needs: [build-and-push, dev-migrate]  # build-and-push needed for image_tag output
+  deploy:
+    name: Deploy
+    needs: [build-and-push, migrate]
     runs-on: ubuntu-latest
-    timeout-minutes: 15
-    environment: dev-deploy
-    permissions:
-      id-token: write
-      contents: read
-
-    steps:
-      - uses: aws-actions/configure-aws-credentials@v4
-        with:
-          role-to-assume: ${{ secrets.AWS_ROLE_ARN }}
-          aws-region:     ${{ env.AWS_REGION }}
-
-      - name: Log in to ECR
-        uses: aws-actions/amazon-ecr-login@v2
-
-      - name: Render app task definition
-        id: render-app
-        uses: aws-actions/amazon-ecs-render-task-definition@v1
-        with:
-          task-definition-family: aws-sdlc-containers-dev
-          container-name:         app
-          image: ${{ env.ECR_REGISTRY }}/aws-sdlc-containers-dev/app:${{ needs.build-and-push.outputs.image_tag }}
-
-      - name: Deploy to ECS
-        uses: aws-actions/amazon-ecs-deploy-task-definition@v2
-        with:
-          task-definition:            ${{ steps.render-app.outputs.task-definition }}
-          service:                    app
-          cluster:                    aws-sdlc-containers-dev
-          wait-for-service-stability: true
-
-  # ── 5. Prod migrate ───────────────────────────────────────────────────────
-  prod-migrate:
-    name: Prod — Migrate (Liquibase)
-    needs: [build-and-push, dev-deploy]  # build-and-push needed for image_tag output
-    runs-on: ubuntu-latest
-    timeout-minutes: 15
-    environment: prod-migrate
-    permissions:
-      id-token: write
-      contents: read
-
-    steps:
-      - uses: actions/checkout@v4
-
-      - uses: aws-actions/configure-aws-credentials@v4
-        with:
-          role-to-assume: ${{ secrets.AWS_ROLE_ARN }}
-          aws-region:     ${{ env.AWS_REGION }}
-
-      - name: Log in to ECR
-        uses: aws-actions/amazon-ecr-login@v2
-
-      - name: Promote images from dev to prod ECR
-        # Pull the validated dev image and push to prod ECR using the prod role.
-        # The dev role cannot push to prod repos — promotion happens here under prod credentials.
-        env:
-          TAG: ${{ needs.build-and-push.outputs.image_tag }}
-        run: |
-          promote() {
-            local repo=$1
-            docker pull ${{ env.ECR_REGISTRY }}/aws-sdlc-containers-dev/${repo}:$TAG
-            docker tag  ${{ env.ECR_REGISTRY }}/aws-sdlc-containers-dev/${repo}:$TAG \
-                        ${{ env.ECR_REGISTRY }}/aws-sdlc-containers-prod/${repo}:$TAG
-            docker push ${{ env.ECR_REGISTRY }}/aws-sdlc-containers-prod/${repo}:$TAG
-          }
-          promote app &
-          promote worker &
-          promote liquibase &
-          wait
-
-      - name: Mirror pgbouncer to prod ECR
-        env:
-          PGBOUNCER_TAG: v1.25.1-p0
-        run: |
-          if aws ecr describe-images \
-            --repository-name aws-sdlc-containers-prod/pgbouncer \
-            --image-ids imageTag=$PGBOUNCER_TAG 2>/dev/null; then
-            echo "pgbouncer:$PGBOUNCER_TAG already in prod ECR — skipping"
-          else
-            docker pull ${{ env.ECR_REGISTRY }}/aws-sdlc-containers-dev/pgbouncer:$PGBOUNCER_TAG
-            docker tag  ${{ env.ECR_REGISTRY }}/aws-sdlc-containers-dev/pgbouncer:$PGBOUNCER_TAG \
-                        ${{ env.ECR_REGISTRY }}/aws-sdlc-containers-prod/pgbouncer:$PGBOUNCER_TAG
-            docker push ${{ env.ECR_REGISTRY }}/aws-sdlc-containers-prod/pgbouncer:$PGBOUNCER_TAG
-          fi
-
-      - name: Resolve network config
-        id: net
-        run: |
-          SUBNET_ID=$(aws ec2 describe-subnets \
-            --filters "Name=tag:Name,Values=aws-sdlc-containers-prod-private-*" \
-            --query 'Subnets[0].SubnetId' --output text)
-          SG_ID=$(aws ec2 describe-security-groups \
-            --filters "Name=group-name,Values=aws-sdlc-containers-prod-app-*" \
-            --query 'SecurityGroups[0].GroupId' --output text)
-          echo "subnet_id=$SUBNET_ID" >> "$GITHUB_OUTPUT"
-          echo "sg_id=$SG_ID"         >> "$GITHUB_OUTPUT"
-
-      - name: Render liquibase task definition
-        id: render-liquibase
-        uses: aws-actions/amazon-ecs-render-task-definition@v1
-        with:
-          task-definition-family: aws-sdlc-containers-prod-liquibase
-          container-name:         liquibase
-          image: ${{ env.ECR_REGISTRY }}/aws-sdlc-containers-prod/liquibase:${{ needs.build-and-push.outputs.image_tag }}
-
-      - name: Register liquibase task definition
-        id: register-liquibase
-        run: |
-          TASK_DEF_ARN=$(aws ecs register-task-definition \
-            --cli-input-json file://${{ steps.render-liquibase.outputs.task-definition }} \
-            --query 'taskDefinition.taskDefinitionArn' --output text)
-          echo "task_def_arn=$TASK_DEF_ARN" >> "$GITHUB_OUTPUT"
-
-      - name: Run Liquibase on prod RDS
-        run: |
-          TASK_ARN=$(aws ecs run-task \
-            --cluster aws-sdlc-containers-prod \
-            --task-definition ${{ steps.register-liquibase.outputs.task_def_arn }} \
-            --launch-type FARGATE \
-            --network-configuration "awsvpcConfiguration={
-              subnets=[${{ steps.net.outputs.subnet_id }}],
-              securityGroups=[${{ steps.net.outputs.sg_id }}],
-              assignPublicIp=DISABLED}" \
-            --query 'tasks[0].taskArn' --output text)
-
-          aws ecs wait tasks-stopped --cluster aws-sdlc-containers-prod --tasks "$TASK_ARN"
-
-          # exitCode is null when the container never started (image pull failure,
-          # resource constraint, etc). Fetch stoppedReason to surface the cause.
-          TASK_JSON=$(aws ecs describe-tasks \
-            --cluster aws-sdlc-containers-prod --tasks "$TASK_ARN")
-          EXIT_CODE=$(echo "$TASK_JSON" | jq -r '.tasks[0].containers[0].exitCode')
-          if [ "$EXIT_CODE" = "null" ] || [ "$EXIT_CODE" != "0" ]; then
-            REASON=$(echo "$TASK_JSON" | jq -r '.tasks[0].stoppedReason // "unknown"')
-            echo "Liquibase failed (exit $EXIT_CODE) — stoppedReason: $REASON"
-            exit 1
-          fi
-
-  # ── 6. Prod deploy ────────────────────────────────────────────────────────
-  prod-deploy:
-    name: Prod — Deploy App
-    needs: [build-and-push, prod-migrate]  # build-and-push needed for image_tag output
-    runs-on: ubuntu-latest
-    # 60 min: ECS rolling deploy (up to ~10 min) + backfill worker (variable, but
-    # bounded — if it runs longer than this the job fails and the task keeps running
-    # in ECS; check CloudWatch Logs /ecs/aws-sdlc-containers-prod/worker to monitor.
     timeout-minutes: 60
-    environment: prod-deploy
+    environment: aws
     permissions:
       id-token: write
       contents: read
@@ -481,46 +270,43 @@ jobs:
       - uses: aws-actions/configure-aws-credentials@v4
         with:
           role-to-assume: ${{ secrets.AWS_ROLE_ARN }}
-          aws-region:     ${{ env.AWS_REGION }}
-
-      - name: Log in to ECR
-        uses: aws-actions/amazon-ecr-login@v2
+          aws-region: ${{ env.AWS_REGION }}
 
       - name: Resolve network config
         id: net
         run: |
           SUBNET_ID=$(aws ec2 describe-subnets \
-            --filters "Name=tag:Name,Values=aws-sdlc-containers-prod-private-*" \
+            --filters "Name=tag:Name,Values=${{ env.STACK_NAME }}-private-*" \
             --query 'Subnets[0].SubnetId' --output text)
           SG_ID=$(aws ec2 describe-security-groups \
-            --filters "Name=group-name,Values=aws-sdlc-containers-prod-app-*" \
+            --filters "Name=group-name,Values=${{ env.STACK_NAME }}-app-*" \
             --query 'SecurityGroups[0].GroupId' --output text)
           echo "subnet_id=$SUBNET_ID" >> "$GITHUB_OUTPUT"
-          echo "sg_id=$SG_ID"         >> "$GITHUB_OUTPUT"
+          echo "sg_id=$SG_ID" >> "$GITHUB_OUTPUT"
 
       - name: Render app task definition
         id: render-app
         uses: aws-actions/amazon-ecs-render-task-definition@v1
         with:
-          task-definition-family: aws-sdlc-containers-prod
-          container-name:         app
-          image: ${{ env.ECR_REGISTRY }}/aws-sdlc-containers-prod/app:${{ needs.build-and-push.outputs.image_tag }}
+          task-definition-family: aws-sdlc-containers
+          container-name: app
+          image: ${{ env.ECR_REGISTRY }}/${{ env.STACK_NAME }}/app:${{ needs.build-and-push.outputs.image_tag }}
 
-      - name: Deploy to ECS
+      - name: Deploy app service
         uses: aws-actions/amazon-ecs-deploy-task-definition@v2
         with:
-          task-definition:            ${{ steps.render-app.outputs.task-definition }}
-          service:                    app
-          cluster:                    aws-sdlc-containers-prod
+          task-definition: ${{ steps.render-app.outputs.task-definition }}
+          service: app
+          cluster: aws-sdlc-containers
           wait-for-service-stability: true
 
       - name: Render worker task definition
         id: render-worker
         uses: aws-actions/amazon-ecs-render-task-definition@v1
         with:
-          task-definition-family: aws-sdlc-containers-prod-worker
-          container-name:         worker
-          image: ${{ env.ECR_REGISTRY }}/aws-sdlc-containers-prod/worker:${{ needs.build-and-push.outputs.image_tag }}
+          task-definition-family: aws-sdlc-containers-worker
+          container-name: worker
+          image: ${{ env.ECR_REGISTRY }}/${{ env.STACK_NAME }}/worker:${{ needs.build-and-push.outputs.image_tag }}
 
       - name: Register worker task definition
         id: register-worker
@@ -533,7 +319,7 @@ jobs:
       - name: Run backfill worker
         run: |
           TASK_ARN=$(aws ecs run-task \
-            --cluster aws-sdlc-containers-prod \
+            --cluster aws-sdlc-containers \
             --task-definition ${{ steps.register-worker.outputs.task_def_arn }} \
             --launch-type FARGATE \
             --network-configuration "awsvpcConfiguration={
@@ -543,20 +329,18 @@ jobs:
             --query 'tasks[0].taskArn' --output text)
 
           echo "Backfill task: $TASK_ARN"
-          echo "Monitor: CloudWatch Logs /ecs/aws-sdlc-containers-prod/worker"
+          echo "Monitor: CloudWatch Logs /ecs/aws-sdlc-containers/worker"
 
-          # ecs wait tasks-stopped has a 10-minute default. Backfill may run longer —
-          # poll manually so we don't cap a legitimate long-running job.
           while true; do
             STATUS=$(aws ecs describe-tasks \
-              --cluster aws-sdlc-containers-prod --tasks "$TASK_ARN" \
+              --cluster aws-sdlc-containers --tasks "$TASK_ARN" \
               --query 'tasks[0].lastStatus' --output text)
             [ "$STATUS" = "STOPPED" ] && break
-            echo "Worker status: $STATUS — waiting…"
+            echo "Worker status: $STATUS — waiting..."
             sleep 10
           done
 
           EXIT_CODE=$(aws ecs describe-tasks \
-            --cluster aws-sdlc-containers-prod --tasks "$TASK_ARN" \
+            --cluster aws-sdlc-containers --tasks "$TASK_ARN" \
             --query 'tasks[0].containers[0].exitCode' --output text)
           [ "$EXIT_CODE" = "0" ] || { echo "Backfill worker failed (exit $EXIT_CODE)"; exit 1; }

@@ -63,7 +63,7 @@ PgBouncer runs as a sidecar in every environment:
 
 **Why `NullPool` in SQLAlchemy**: stacking SQLAlchemy's own pool on top of PgBouncer's pool would hold server connections idle inside SQLAlchemy between requests, defeating PgBouncer's multiplexing. `NullPool` means SQLAlchemy opens and closes a pgbouncer client connection per request. PgBouncer maps that to a pooled server connection for the transaction duration.
 
-**Pool sizing**: `default_pool_size=20` server connections to RDS. RDS `db.t4g.small` has `max_connections ≈ 97`. 20 server connections leaves headroom for superuser, monitoring, and Liquibase connections. Adjust `pgbouncer_pool_size` in `dev.tfvars` / `prod.tfvars` if connection wait times appear in pgbouncer logs.
+**Pool sizing**: `default_pool_size=20` server connections to RDS. RDS `db.t4g.small` has `max_connections ≈ 97`. 20 server connections leaves headroom for superuser, monitoring, and Liquibase connections. Adjust `pgbouncer_pool_size` in `stack.tfvars` if connection wait times appear in pgbouncer logs.
 
 **Liquibase bypasses PgBouncer**: it uses DDL that requires a persistent session. It connects directly to the RDS endpoint, not via PgBouncer.
 
@@ -77,26 +77,24 @@ Tests connect to the live DB via PgBouncer (same `DATABASE_URL` as the app) and 
 
 ---
 
-## Dev environment strategy
+## Single stack strategy
 
-The project uses a long-lived dev environment on AWS (same account, Terraform-isolated from prod via separate state keys and tfvars) rather than ephemeral per-PR environments. The rationale:
+The project uses one long-lived AWS stack rather than separate dev/prod stacks or ephemeral preview environments. The rationale:
 
-- Ephemeral envs add 5–10 min of RDS provisioning per PR and require teardown automation that itself needs maintenance.
-- A long-lived dev env catches infra-level behavior — IAM boundary conditions, security group rules, ALB health check timing, ECS cold-start, PgBouncer pool exhaustion under load — that CI service containers cannot simulate.
-- The risk of dev diverging from prod is managed by: append-only Liquibase changesets, no manual schema edits on dev, and periodic resets at sprint boundaries.
+- The safe rollout mechanism already exists inside the workload: additive Liquibase changes, independent task definitions, runtime read/write switches, and a checkpointed worker.
+- Separate stacks would add naming, state, workflow, and documentation overhead without improving the migration behavior being demonstrated here.
+- The project stays easier to understand when the interesting part is the in-place migration sequence, not environment promotion choreography.
 
-**Sprint reset procedure**:
+**Reset procedure**:
 
 ```bash
 cd infra
-terraform init -backend-config="key=aws-sdlc-containers/dev.tfstate" -reconfigure
-terraform destroy -var-file=dev.tfvars
-terraform apply   -var-file=dev.tfvars
+terraform init -backend-config="key=aws-sdlc-containers/stack.tfstate" -reconfigure
+terraform destroy -var-file=stack.tfvars
+terraform apply   -var-file=stack.tfvars
 ```
 
-Then re-run the full runbook from step 2 against the fresh dev RDS. If any step fails, it fails here — not in prod.
-
-Data volume on dev can be smaller than prod (seed defaults: 1,000 customers / 10,000 orders), but the data shape should match: same schema state, same `DATABASECHANGELOG` history, representative guest-checkout ratio (~5%).
+Then re-run the full runbook from step 2 against the fresh RDS instance.
 
 ---
 
@@ -118,7 +116,7 @@ Data volume on dev can be smaller than prod (seed defaults: 1,000 customers / 10
 
 ```
 caller
-  │  HTTPS (TLS 1.2+, self-signed cert)
+  │  HTTPS (TLS 1.2+, ACM-managed cert)
   ▼
 ALB (public subnet)
   │  checks Authorization: Bearer <token>
@@ -143,25 +141,20 @@ The ALB listener rule rejects unauthenticated requests before they reach the app
 
 The trade-off: the token is a shared secret with no per-caller identity. Suitable for a demo or internal tool; replace with Cognito/OIDC on the ALB for multi-caller identity.
 
-### Why a self-signed certificate
+### Why an ACM-managed certificate
 
-ACM only issues certificates for domains you control via DNS or email validation. The ALB's built-in `*.elb.amazonaws.com` DNS name is owned by AWS — ACM cannot validate it. A self-signed cert imported into ACM is the only free option for HTTPS on an ALB without a registered domain. Callers pass `--insecure` / `-k`. For production with a real domain, replace with an ACM-managed cert and DNS validation — see `DEPLOYMENT.md`.
+The lean stack still uses a real DNS name: `api.<root_domain>`. Because the domain lives in Route 53, Terraform can request an ACM certificate, create the validation records automatically, and attach the certificate to the ALB without any out-of-band certificate handling.
 
-### How the certificate is created and wired
+### How the certificate is wired
 
-`make tls-import-ENV` runs `scripts/tls_import.sh`, which:
+Terraform creates:
 
-1. Looks up the ALB DNS name via `aws elbv2 describe-load-balancers` — no Terraform output dependency.
-2. Generates a 2048-bit RSA key and a self-signed X.509 certificate with `openssl req -x509`:
-   - CN is set to `alb-self-signed` (the ALB DNS name exceeds the 64-char X.509 CN limit).
-   - The full ALB DNS name is placed in the SAN (`subjectAltName=DNS:<alb-dns>`), which is what TLS clients actually validate.
-   - Validity: 825 days (Apple/browser cap for trusted certs; irrelevant here but avoids surprises).
-3. Imports the cert + private key into ACM via `aws acm import-certificate`. ACM stores the private key encrypted — it is never written to disk beyond the script's `mktemp` working directory, which is cleaned up on exit.
-4. Writes the resulting ACM certificate ARN to `infra/.tls-cert-arn-{env}`.
+1. An ACM certificate for `api.<root_domain>`.
+2. The Route 53 validation records ACM requires.
+3. The validation resource that waits for issuance.
+4. The HTTPS listener using the validated ACM certificate.
 
-Terraform reads the ARN file via `file("${path.module}/.tls-cert-arn-${var.environment}")` in a `locals` block and passes it to `aws_lb_listener.https`. The file is gitignored — it is account-specific and must be regenerated after a `terraform destroy`.
-
-The script is idempotent: if the ARN file already exists it exits early. To rotate, delete the file and re-run the target.
+That keeps TLS fully declarative and removes the need for account-specific helper files or manual certificate import steps.
 
 ### ALB security group
 
@@ -233,7 +226,7 @@ Two sources of high-frequency log noise in a typical ECS + ALB setup:
 
 All prices are us-east-1 on-demand as a reference baseline. eu-central-1 (the configured region) runs ~10% higher. Figures are per-month unless noted.
 
-### Dev environment
+### Lean AWS stack
 
 | Resource | Config | $/mo (approx) |
 |---|---|---|
@@ -244,20 +237,7 @@ All prices are us-east-1 on-demand as a reference baseline. eu-central-1 (the co
 | ECR | 4 repos, ~10 images each, <1 GB total | ~$1 |
 | CloudWatch Logs | app + pgbouncer, 14–30 day retention, low volume | ~$2 |
 | Secrets Manager | 1 RDS secret + 1 API token | ~$1 |
-| **Dev total** | | **~$94/mo** |
-
-### Prod environment
-
-| Resource | Config | $/mo (approx) |
-|---|---|---|
-| ECS Fargate — app + pgbouncer | 2 tasks × 0.5 vCPU / 1 GiB, ~730 h | ~$30 |
-| RDS Postgres | db.t4g.small, Single-AZ, 20 GB gp3 | ~$25 |
-| ALB | 1 ALB + LCU at moderate traffic | ~$20 |
-| NAT Gateway | 1 shared × $0.045/h + data | ~$33 |
-| ECR | 4 repos, same lifecycle policy | ~$1 |
-| CloudWatch Logs | app + pgbouncer, 30 day retention | ~$5 |
-| Secrets Manager | 1 RDS secret + 1 API token | ~$1 |
-| **Prod total** | | **~$115/mo** |
+| **Estimated total** | | **~$94/mo** |
 
 ### Notes
 

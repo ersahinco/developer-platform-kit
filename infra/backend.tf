@@ -15,13 +15,13 @@ terraform {
   #                         --key-schema AttributeName=LockID,KeyType=HASH \
   #                         --billing-mode PAY_PER_REQUEST --region eu-central-1
   #
-  # State key is supplied at init time via -backend-config="key=..." to isolate
-  # dev and prod state without Terraform workspaces.
+  # State key is supplied at init time via -backend-config="key=..." for the
+  # single stack without relying on Terraform workspaces.
   backend "s3" {
     bucket       = "aws-sdlc-containers-tfstate-691627364817"
     region       = "eu-central-1"
     use_lockfile = true
     encrypt      = true
-    # key is intentionally omitted — pass -backend-config="key=aws-sdlc-containers/<env>.tfstate"
+    # key is intentionally omitted — pass -backend-config="key=aws-sdlc-containers/stack.tfstate"
   }
 }

@@ -5,6 +5,3 @@ terraform.tfstate.backup
 *.tfplan
 override.tf
 override.tf.json
-
-# Self-signed cert ARNs written by `make tls-import-ENV` — account-specific, not committed.
-.tls-cert-arn-*

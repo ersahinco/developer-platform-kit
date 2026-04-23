@@ -13,18 +13,15 @@
 #
 #   make bootstrap           — one-time AWS account setup, idempotent
 #
-#   make infra-plan-dev      — terraform plan for dev
-#   make infra-apply-dev     — terraform apply for dev
-#   make infra-plan-prod     — terraform plan for prod
-#   make infra-apply-prod    — terraform apply for prod
+#   make infra-plan          — terraform plan for the single stack
+#   make infra-apply         — terraform apply for the single stack
 #
-#   make app-deploy-dev      — force new ECS deployment in dev
-#   make app-deploy-prod     — force new ECS deployment in prod
+#   make app-deploy          — force new ECS deployment
 #
-#   make db-tunnel ENV=dev   — SSM port-forward localhost:LOCAL_PORT → RDS:5432
-#   make db-exec ENV=dev     — open psql inside a running app task
-#   make db-seed ENV=prod    — seed prod DB via SSM tunnel (idempotent)
-#   make api-get-order ENV=dev ORDER_ID=1 FIELD=billing_email
+#   make db-tunnel           — SSM port-forward localhost:LOCAL_PORT → RDS:5432
+#   make db-exec             — open psql inside a running app task
+#   make db-seed             — seed DB via SSM tunnel (idempotent)
+#   make api-get-order ORDER_ID=1 FIELD=billing_email
 # ─────────────────────────────────────────────────────────────────────────────
 
 .DEFAULT_GOAL := help
@@ -34,6 +31,8 @@ ACCOUNT_ID      := 691627364817
 TF_STATE_BUCKET := aws-sdlc-containers-tfstate-$(ACCOUNT_ID)
 TF_LOCK_TABLE   := terraform-locks
 ROOT_DOMAIN     ?= ersahinco-sandbox.eu
+TF_STATE_KEY    := aws-sdlc-containers/stack.tfstate
+TF_VARS_FILE    := stack.tfvars
 
 # ── Help ──────────────────────────────────────────────────────────────────────
 
@@ -122,25 +121,25 @@ bootstrap: ## One-time AWS account setup — idempotent, safe to re-run
 			--thumbprint-list 6938fd4d98bab03faadb97b34396831e3780aea1
 	@echo "Bootstrap complete."
 
-# ── Infra — dev ───────────────────────────────────────────────────────────────
+# ── Infra — single stack ──────────────────────────────────────────────────────
 
-.PHONY: infra-init-dev
-infra-init-dev:
+.PHONY: infra-init
+infra-init:
 	cd infra && terraform init \
-		-backend-config="key=aws-sdlc-containers/dev.tfstate" \
+		-backend-config="key=$(TF_STATE_KEY)" \
 		-reconfigure
 
-.PHONY: infra-plan-dev
-infra-plan-dev: infra-init-dev ## Terraform plan — dev
-	cd infra && terraform plan -var-file=dev.tfvars
+.PHONY: infra-plan
+infra-plan: infra-init ## Terraform plan — single stack
+	cd infra && terraform plan -var-file=$(TF_VARS_FILE)
 
-.PHONY: infra-apply-dev
-infra-apply-dev: infra-init-dev ## Terraform apply — dev
-	cd infra && terraform apply -var-file=dev.tfvars
+.PHONY: infra-apply
+infra-apply: infra-init ## Terraform apply — single stack
+	cd infra && terraform apply -var-file=$(TF_VARS_FILE)
 
-.PHONY: infra-apply-iam-dev
-infra-apply-iam-dev: infra-init-dev ## Targeted apply: IAM only — breaks bootstrap permission cycle (dev)
-	cd infra && terraform apply -var-file=dev.tfvars \
+.PHONY: infra-apply-iam
+infra-apply-iam: infra-init ## Targeted apply: IAM only — breaks bootstrap permission cycle
+	cd infra && terraform apply -var-file=$(TF_VARS_FILE) \
 		-target=aws_iam_role.github_actions \
 		-target=aws_iam_policy.github_actions_app \
 		-target=aws_iam_policy.github_actions_state_and_network \
@@ -153,60 +152,18 @@ infra-apply-iam-dev: infra-init-dev ## Targeted apply: IAM only — breaks boots
 		-target=aws_iam_role_policy_attachment.github_actions_security \
 		-target=aws_iam_role_policy_attachment.github_actions_dns
 
-.PHONY: infra-destroy-dev
-infra-destroy-dev: infra-init-dev ## Terraform destroy — dev (sprint reset)
-	cd infra && terraform destroy -var-file=dev.tfvars
-
-# ── Infra — prod ──────────────────────────────────────────────────────────────
-
-.PHONY: infra-init-prod
-infra-init-prod:
-	cd infra && terraform init \
-		-backend-config="key=aws-sdlc-containers/prod.tfstate" \
-		-reconfigure
-
-.PHONY: infra-plan-prod
-infra-plan-prod: infra-init-prod ## Terraform plan — prod
-	cd infra && terraform plan -var-file=prod.tfvars
-
-.PHONY: infra-apply-prod
-infra-apply-prod: infra-init-prod ## Terraform apply — prod
-	cd infra && terraform apply -var-file=prod.tfvars
-
-.PHONY: infra-apply-iam-prod
-infra-apply-iam-prod: infra-init-prod ## Targeted apply: IAM only — breaks bootstrap permission cycle (prod)
-	cd infra && terraform apply -var-file=prod.tfvars \
-		-target=aws_iam_role.github_actions \
-		-target=aws_iam_policy.github_actions_app \
-		-target=aws_iam_policy.github_actions_state_and_network \
-		-target=aws_iam_policy.github_actions_platform \
-		-target=aws_iam_policy.github_actions_security \
-		-target=aws_iam_policy.github_actions_dns \
-		-target=aws_iam_role_policy_attachment.github_actions_app \
-		-target=aws_iam_role_policy_attachment.github_actions_state_and_network \
-		-target=aws_iam_role_policy_attachment.github_actions_platform \
-		-target=aws_iam_role_policy_attachment.github_actions_security \
-		-target=aws_iam_role_policy_attachment.github_actions_dns
+.PHONY: infra-destroy
+infra-destroy: infra-init ## Terraform destroy — single stack
+	cd infra && terraform destroy -var-file=$(TF_VARS_FILE)
 
 # ── App — deploy ──────────────────────────────────────────────────────────────
 
-.PHONY: app-deploy-dev
-app-deploy-dev: ## Force new ECS deployment — dev (picks up latest task definition)
+.PHONY: app-deploy
+app-deploy: ## Force new ECS deployment (picks up latest task definition)
 	aws ecs update-service \
-		--cluster aws-sdlc-containers-dev \
+		--cluster aws-sdlc-containers \
 		--service app \
-		--task-definition aws-sdlc-containers-dev \
-		--force-new-deployment \
-		--region $(AWS_REGION) \
-		--query 'service.taskDefinition' \
-		--output text
-
-.PHONY: app-deploy-prod
-app-deploy-prod: ## Force new ECS deployment — prod (picks up latest task definition)
-	aws ecs update-service \
-		--cluster aws-sdlc-containers-prod \
-		--service app \
-		--task-definition aws-sdlc-containers-prod \
+		--task-definition aws-sdlc-containers \
 		--force-new-deployment \
 		--region $(AWS_REGION) \
 		--query 'service.taskDefinition' \
@@ -221,22 +178,21 @@ app-deploy-prod: ## Force new ECS deployment — prod (picks up latest task defi
 #   brew install session-manager-plugin
 # ─────────────────────────────────────────────────────────────────────────────
 
-ENV                ?= dev
 LOCAL_PORT         ?= 15432
 SEED_NUM_CUSTOMERS ?= 1000
 SEED_NUM_ORDERS    ?= 10000
 
 .PHONY: db-tunnel
-db-tunnel: ## SSM port-forward localhost:$(LOCAL_PORT) → RDS:5432  (ENV=dev|prod, LOCAL_PORT=15432)
-	@bash scripts/db_tunnel.sh $(ENV) $(LOCAL_PORT) $(AWS_REGION)
+db-tunnel: ## SSM port-forward localhost:$(LOCAL_PORT) → RDS:5432
+	@bash scripts/db_tunnel.sh $(LOCAL_PORT) $(AWS_REGION)
 
 .PHONY: db-exec
-db-exec: ## Open psql inside a running app task  (ENV=dev|prod)
-	@bash scripts/db_exec.sh $(ENV) $(AWS_REGION)
+db-exec: ## Open psql inside a running app task
+	@bash scripts/db_exec.sh $(AWS_REGION)
 
 .PHONY: db-seed
-db-seed: ## Seed DB via SSM tunnel  (ENV=dev|prod, SEED_NUM_CUSTOMERS=1000, SEED_NUM_ORDERS=10000)
-	@bash scripts/db_seed_tunnel.sh $(ENV) $(SEED_NUM_CUSTOMERS) $(SEED_NUM_ORDERS) $(AWS_REGION)
+db-seed: ## Seed DB via SSM tunnel  (SEED_NUM_CUSTOMERS=1000, SEED_NUM_ORDERS=10000)
+	@bash scripts/db_seed_tunnel.sh $(SEED_NUM_CUSTOMERS) $(SEED_NUM_ORDERS) $(AWS_REGION)
 
 # ── API smoke query ───────────────────────────────────────────────────────────
 #
@@ -244,8 +200,8 @@ db-seed: ## Seed DB via SSM tunnel  (ENV=dev|prod, SEED_NUM_CUSTOMERS=1000, SEED
 # single field. Requires the HTTPS listener and fixed-token auth to be in place.
 #
 # Usage:
-#   make api-get-order ENV=dev ORDER_ID=1           — full order JSON
-#   make api-get-order ENV=prod ORDER_ID=42 FIELD=billing_email
+#   make api-get-order ORDER_ID=1           — full order JSON
+#   make api-get-order ORDER_ID=42 FIELD=billing_email
 #
 # FIELD can be any top-level key in the OrderResponse schema:
 #   id, customer_id, total_amount, status, submitted_at, created_at, billing_email
@@ -255,8 +211,8 @@ ORDER_ID ?= 1
 FIELD    ?=
 
 .PHONY: api-get-order
-api-get-order: ## Query a live order by ID  (ENV=dev|prod, ORDER_ID=1, FIELD=billing_email)
-	@API_HOST=$$(if [ "$(ENV)" = "dev" ]; then echo "api-dev.$(ROOT_DOMAIN)"; else echo "api-prod.$(ROOT_DOMAIN)"; fi) && \
+api-get-order: ## Query a live order by ID  (ORDER_ID=1, FIELD=billing_email)
+	@API_HOST="api.$(ROOT_DOMAIN)" && \
 	AUTH_TOKEN="$${TOKEN:-}" && \
 	if [ -z "$$AUTH_TOKEN" ]; then \
 		AUTH_TOKEN=$$(aws secretsmanager get-secret-value \

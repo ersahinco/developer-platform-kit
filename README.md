@@ -10,7 +10,7 @@ The current reference workload is a zero-downtime schema evolution exercise: mov
 
 | Concern | Mechanism | Key files |
 |---|---|---|
-| SDLC baseline | GitHub Actions, immutable ECR tags, environment approvals, reproducible Terraform state | `.github/workflows/`, `infra/`, `Makefile` |
+| SDLC baseline | GitHub Actions, immutable ECR tags, and reproducible Terraform state for one stack | `.github/workflows/`, `infra/`, `Makefile` |
 | Schema bootstrap | Liquibase changesets | `db/changelog/000-bootstrap.yaml`, `002-app-runtime-config.yaml` |
 | Reference workload | Expand/contract migration (dual-write + backfill + switch) | `db/changelog/`, `worker/src/backfill.py` |
 | Connection pooling | PgBouncer (transaction mode) | `docker-compose.yml`, `db/pgbouncer/pgbouncer.ini`, `infra/main.tf` |
@@ -22,7 +22,7 @@ The current reference workload is a zero-downtime schema evolution exercise: mov
 
 This repository is being positioned as the base for the next AWS SDLC container practices:
 
-- Complete DevOps toolchain with git-based workflows, promotion gates, and reproducible Terraform modules.
+- Complete DevOps toolchain with git-based workflows, reproducible Terraform modules, and simple single-stack rollout automation.
 - Observability practice with Grafana, Loki, and Prometheus layered onto the ECS and database workflow.
 - Network and platform practice around VPN, DNS, routing, security boundaries, authentication, and authorization.
 
@@ -227,7 +227,7 @@ Once all app instances are running the new code and `WRITE_MODE=new`, apply the 
 ./scripts/run_liquibase.sh update
 ```
 
-This drops `orders.billing_email`. **Irreversible** — take a DB snapshot before this step in production.
+This drops `orders.billing_email`. **Irreversible** — take a DB snapshot before this step on the deployed AWS stack.
 
 ---
 
@@ -257,11 +257,11 @@ Two pipelines, separate concerns:
 
 **`infra.yml`** — triggered by changes to `infra/**`
 - PR: lint (`fmt`, `validate`, `tflint`, `checkov`) + `terraform plan` posted as a PR comment
-- Merge to main: `terraform apply` dev (auto) → prod (manual approval)
+- Merge to main: `terraform apply` for the single stack
 
 **`app.yml`** — triggered by changes to `app/**`, `db/**`, `tests/**`, `scripts/**`
 - PR: test only
-- Merge to main: test → build + scan → dev migrate → dev deploy → prod migrate (approval) → prod deploy (approval)
+- Merge to main: test → build + scan → migrate → deploy
 
 See [`DEPLOYMENT.md`](DEPLOYMENT.md) for environment setup and bootstrap steps.
 

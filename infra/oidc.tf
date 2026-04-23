@@ -1,12 +1,11 @@
 ################################################################################
 # GitHub Actions OIDC federation
 #
-# One OIDC provider exists per AWS account (not per environment).
+# One OIDC provider exists per AWS account.
 # Bootstrap once with: make bootstrap
 #
 # The role name follows the project naming convention so the targeted IAM apply
-# (make apply-iam-dev / apply-iam-prod) can update trust + permissions without
-# running a full plan.
+# can update trust + permissions without running a full plan.
 #
 # Trust conditions:
 #   environment:*        — jobs with a named GitHub Environment
@@ -86,7 +85,7 @@ data "aws_iam_policy_document" "github_actions_app" {
       "ecr:GetDownloadUrlForLayer",
     ]
     resources = [
-      "arn:aws:ecr:${local.region}:${local.account_id}:repository/aws-sdlc-containers-*",
+      "arn:aws:ecr:${local.region}:${local.account_id}:repository/aws-sdlc-containers*",
     ]
   }
 
@@ -106,7 +105,7 @@ data "aws_iam_policy_document" "github_actions_app" {
   statement {
     sid       = "PassRoleToECS"
     actions   = ["iam:PassRole"]
-    resources = ["arn:aws:iam::${local.account_id}:role/aws-sdlc-containers-*"]
+    resources = ["arn:aws:iam::${local.account_id}:role/aws-sdlc-containers*"]
   }
 }
 
@@ -182,9 +181,9 @@ data "aws_iam_policy_document" "github_actions_state_and_network" {
       "rds:ListTagsForResource",
     ]
     resources = [
-      "arn:aws:rds:${local.region}:${local.account_id}:db:aws-sdlc-containers-*",
-      "arn:aws:rds:${local.region}:${local.account_id}:subgrp:aws-sdlc-containers-*",
-      "arn:aws:rds:${local.region}:${local.account_id}:pg:aws-sdlc-containers-*",
+      "arn:aws:rds:${local.region}:${local.account_id}:db:aws-sdlc-containers*",
+      "arn:aws:rds:${local.region}:${local.account_id}:subgrp:aws-sdlc-containers*",
+      "arn:aws:rds:${local.region}:${local.account_id}:pg:aws-sdlc-containers*",
     ]
   }
 
@@ -204,8 +203,8 @@ data "aws_iam_policy_document" "github_actions_platform" {
       "ecs:TagResource", "ecs:UntagResource",
     ]
     resources = [
-      "arn:aws:ecs:${local.region}:${local.account_id}:cluster/aws-sdlc-containers-*",
-      "arn:aws:ecs:${local.region}:${local.account_id}:service/aws-sdlc-containers-*/*",
+      "arn:aws:ecs:${local.region}:${local.account_id}:cluster/aws-sdlc-containers*",
+      "arn:aws:ecs:${local.region}:${local.account_id}:service/aws-sdlc-containers*/*",
       "arn:aws:ecs:${local.region}:${local.account_id}:task-definition/*",
     ]
   }
@@ -254,7 +253,7 @@ data "aws_iam_policy_document" "github_actions_platform" {
       "ecr:ListTagsForResource",
     ]
     resources = [
-      "arn:aws:ecr:${local.region}:${local.account_id}:repository/aws-sdlc-containers-*",
+      "arn:aws:ecr:${local.region}:${local.account_id}:repository/aws-sdlc-containers*",
     ]
   }
 
@@ -276,9 +275,9 @@ data "aws_iam_policy_document" "github_actions_platform" {
       "elasticloadbalancing:RemoveTags",
     ]
     resources = [
-      "arn:aws:elasticloadbalancing:${local.region}:${local.account_id}:loadbalancer/app/aws-sdlc-containers-*/*",
-      "arn:aws:elasticloadbalancing:${local.region}:${local.account_id}:targetgroup/aws-sdlc-containers-*/*",
-      "arn:aws:elasticloadbalancing:${local.region}:${local.account_id}:listener/app/aws-sdlc-containers-*/*/*",
+      "arn:aws:elasticloadbalancing:${local.region}:${local.account_id}:loadbalancer/app/aws-sdlc-containers*/*",
+      "arn:aws:elasticloadbalancing:${local.region}:${local.account_id}:targetgroup/aws-sdlc-containers*/*",
+      "arn:aws:elasticloadbalancing:${local.region}:${local.account_id}:listener/app/aws-sdlc-containers*/*/*",
     ]
   }
 
@@ -319,8 +318,8 @@ data "aws_iam_policy_document" "github_actions_platform" {
       "logs:TagResource", "logs:UntagResource",
     ]
     resources = [
-      "arn:aws:logs:${local.region}:${local.account_id}:log-group:/ecs/aws-sdlc-containers-*",
-      "arn:aws:logs:${local.region}:${local.account_id}:log-group:/ecs/aws-sdlc-containers-*:*",
+      "arn:aws:logs:${local.region}:${local.account_id}:log-group:/ecs/aws-sdlc-containers*",
+      "arn:aws:logs:${local.region}:${local.account_id}:log-group:/ecs/aws-sdlc-containers*:*",
       "arn:aws:logs:${local.region}:${local.account_id}:log-group:/aws/ecs/*",
       "arn:aws:logs:${local.region}:${local.account_id}:log-group:/aws/ecs/*:*",
     ]
@@ -342,7 +341,7 @@ data "aws_iam_policy_document" "github_actions_security" {
       "wafv2:ListAvailableManagedRuleGroupVersions",
     ]
     resources = [
-      "arn:aws:wafv2:${local.region}:${local.account_id}:regional/webacl/aws-sdlc-containers-*/*",
+      "arn:aws:wafv2:${local.region}:${local.account_id}:regional/webacl/aws-sdlc-containers*/*",
       "arn:aws:wafv2:${local.region}:${local.account_id}:regional/managedruleset/*/*",
     ]
   }
@@ -414,8 +413,8 @@ data "aws_iam_policy_document" "github_actions_security" {
       "iam:ListInstanceProfilesForRole",
     ]
     resources = [
-      "arn:aws:iam::${local.account_id}:role/aws-sdlc-containers-*",
-      "arn:aws:iam::${local.account_id}:policy/aws-sdlc-containers-*",
+      "arn:aws:iam::${local.account_id}:role/aws-sdlc-containers*",
+      "arn:aws:iam::${local.account_id}:policy/aws-sdlc-containers*",
       "arn:aws:iam::${local.account_id}:role/app-*",
       "arn:aws:iam::${local.account_id}:policy/app-*",
     ]

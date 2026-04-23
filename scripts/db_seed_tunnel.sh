@@ -1,19 +1,18 @@
 #!/usr/bin/env bash
 # db_seed_tunnel.sh — open an SSM tunnel to RDS and run seed_data.py
-# Usage: db_seed_tunnel.sh <env> <num_customers> <num_orders> <aws_region>
+# Usage: db_seed_tunnel.sh <num_customers> <num_orders> <aws_region>
 set -euo pipefail
 
-ENV=${1:-dev}
-SEED_NUM_CUSTOMERS=${2:-1000}
-SEED_NUM_ORDERS=${3:-10000}
-AWS_REGION=${4:-eu-central-1}
+SEED_NUM_CUSTOMERS=${1:-1000}
+SEED_NUM_ORDERS=${2:-10000}
+AWS_REGION=${3:-eu-central-1}
 
 cd "$(dirname "$0")/.."
 
-echo "→ resolving infra outputs for env=$ENV"
+echo "→ resolving infra outputs for single stack"
 cd infra
 terraform init \
-  -backend-config="key=aws-sdlc-containers/${ENV}.tfstate" \
+  -backend-config="key=aws-sdlc-containers/stack.tfstate" \
   -reconfigure -input=false > /dev/null 2>&1
 
 CLUSTER=$(terraform output -raw ecs_cluster_name)
@@ -67,7 +66,7 @@ done
 nc -z localhost 15433 2>/dev/null \
   || { echo "ERROR: tunnel did not open"; kill $SSM_PID 2>/dev/null; exit 1; }
 
-echo "→ seeding $ENV DB (SEED_NUM_CUSTOMERS=$SEED_NUM_CUSTOMERS, SEED_NUM_ORDERS=$SEED_NUM_ORDERS)"
+echo "→ seeding DB (SEED_NUM_CUSTOMERS=$SEED_NUM_CUSTOMERS, SEED_NUM_ORDERS=$SEED_NUM_ORDERS)"
 DATABASE_URL="postgresql://${DB_USER}:${DB_PASS}@localhost:15433/aws_sdlc_containers" \
   SEED_NUM_CUSTOMERS="$SEED_NUM_CUSTOMERS" \
   SEED_NUM_ORDERS="$SEED_NUM_ORDERS" \

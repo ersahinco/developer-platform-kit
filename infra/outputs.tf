@@ -4,12 +4,12 @@ output "alb_dns_name" {
 }
 
 output "api_fqdn" {
-  description = "Public DNS name for the API in Route 53."
+  description = "Public DNS name for the single API endpoint in Route 53."
   value       = local.api_fqdn
 }
 
 output "alb_url" {
-  description = "HTTPS base URL for the API on the environment-specific public DNS name."
+  description = "HTTPS base URL for the API."
   value       = "https://${local.api_fqdn}"
 }
 

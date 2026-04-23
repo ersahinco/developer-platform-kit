@@ -12,25 +12,23 @@ data "aws_availability_zones" "available" {
 data "aws_caller_identity" "current" {}
 
 locals {
-  name       = "aws-sdlc-containers-${var.environment}"
+  name       = var.stack_name
   account_id = data.aws_caller_identity.current.account_id
   # Use var.aws_region directly — data.aws_region.current.name is deprecated in aws provider v6
-  region        = var.aws_region
-  azs           = slice(data.aws_availability_zones.available.names, 0, var.az_count)
-  api_subdomain = var.environment == "dev" ? "api-dev" : "api-prod"
-  api_fqdn      = "${local.api_subdomain}.${var.root_domain}"
+  region   = var.aws_region
+  azs      = slice(data.aws_availability_zones.available.names, 0, var.az_count)
+  api_fqdn = "api.${var.root_domain}"
 
   tags = {
-    Project     = "aws-sdlc-containers"
-    Environment = var.environment
-    ManagedBy   = "terraform"
+    Project   = var.stack_name
+    ManagedBy = "terraform"
   }
 }
 
 ################################################################################
 # Networking — terraform-aws-modules/vpc/aws ~> 6.0
 # Three tiers: public (ALB), private (ECS), intra (RDS — no internet route).
-# single_nat_gateway=true saves ~$32/mo in non-prod. Set false for prod HA.
+# The stack stays intentionally lean: one NAT gateway and a single-AZ database.
 ################################################################################
 
 module "vpc" {
@@ -57,7 +55,7 @@ module "vpc" {
 
 ################################################################################
 # ECR — terraform-aws-modules/ecr/aws ~> 3.0
-# IMMUTABLE tags prevent silent overwrites of a deployed SHA in prod.
+# IMMUTABLE tags prevent silent overwrites of a deployed SHA.
 # scan_on_push enables free basic CVE scanning on every push.
 # Lifecycle: expire untagged after 1 day, keep last 10 sha- tagged images.
 ################################################################################
@@ -237,7 +235,7 @@ module "ecr_pgbouncer" {
 # manage_master_user_password=true: RDS generates and rotates the password in
 # Secrets Manager automatically. v7 drops `password` in favour of write-only
 # `password_wo` — with manage_master_user_password=true neither is needed.
-# deletion_protection and skip_final_snapshot are tied to rds_multi_az (prod).
+# deletion_protection and skip_final_snapshot are tied to rds_multi_az.
 ################################################################################
 
 resource "aws_security_group" "rds" {
@@ -302,7 +300,7 @@ module "rds" {
   performance_insights_enabled          = true
   performance_insights_retention_period = 7 # free tier; 731 days is paid
 
-  deletion_protection        = var.rds_multi_az # true in prod, false in dev
+  deletion_protection        = var.rds_multi_az # stays off in the lean single-AZ default
   skip_final_snapshot        = !var.rds_multi_az
   auto_minor_version_upgrade = true
   apply_immediately          = false
@@ -630,7 +628,8 @@ module "ecs" {
       # Required for DB access via SSM port forwarding — no bastion needed.
       enable_execute_command = true
       # Explicit family name — module default uses the service key ("app") which
-      # is shared across environments. Scoping to local.name isolates dev and prod.
+      # is shared by multiple containers in the task. Scoping to local.name keeps
+      # the stack self-contained.
       family = local.name
 
       container_definitions = {

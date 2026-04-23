@@ -1,16 +1,15 @@
 #!/usr/bin/env bash
 # db_exec.sh — open psql inside a running app ECS task via ECS Exec
-# Usage: db_exec.sh <env> <aws_region>
+# Usage: db_exec.sh <aws_region>
 set -euo pipefail
 
-ENV=${1:-dev}
-AWS_REGION=${2:-eu-central-1}
+AWS_REGION=${1:-eu-central-1}
 
 cd "$(dirname "$0")/.."
 
 cd infra
 terraform init \
-  -backend-config="key=aws-sdlc-containers/${ENV}.tfstate" \
+  -backend-config="key=aws-sdlc-containers/stack.tfstate" \
   -reconfigure -input=false > /dev/null 2>&1
 
 CLUSTER=$(terraform output -raw ecs_cluster_name)

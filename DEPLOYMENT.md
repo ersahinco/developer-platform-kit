@@ -1,277 +1,118 @@
 # Deployment
 
-This guide covers the `aws-sdlc-containers` platform pipeline and the current reference workload deployment flow.
+This project intentionally uses a single AWS stack.
 
-## Pipelines
+- One ECS cluster
+- One PostgreSQL database
+- One public API hostname
+- One Terraform state
 
-Two pipelines with separate triggers and responsibilities.
+Safe rollout does not come from duplicating infrastructure. It comes from additive schema changes, separate task definitions, runtime read/write switches, and one-off worker tasks running against the same database.
 
-### infra.yml — infrastructure
+## Pipeline shape
 
-Triggered by changes to `infra/**`.
+Two GitHub Actions workflows remain, but both target the same stack:
 
-| Event | Jobs |
-|---|---|
-| Pull request | lint-and-validate → plan-dev (posted as PR comment) |
-| Push to main | lint-and-validate → apply-dev (auto) → apply-prod (manual approval) |
+- `infra.yml`
+  PR: lint + `terraform plan`
+  Merge to `main`: `terraform apply`
+- `app.yml`
+  PR: validate and test
+  Merge to `main`: validate → build → push → migrate → deploy → backfill worker
 
-Terraform owns: VPC, ECS cluster/service, RDS, ECR, ALB, IAM, task definition shape.
-It does not own the image tag — that is patched at release time by `app.yml`.
+## GitHub setup
 
-### app.yml — release
+Create one GitHub Environment named `aws` and store:
 
-Triggered by changes to `app/**`, `db/**`, `tests/**`, `scripts/**`.
+- `AWS_ROLE_ARN`
 
-| Event | Jobs |
-|---|---|
-| Pull request | validate-and-test only |
-| Push to main | validate-and-test → build-and-push → dev-migrate → dev-deploy → prod-migrate → prod-deploy |
+That is the only AWS secret the workflows need.
 
-`prod-migrate` and `prod-deploy` require manual approval in GitHub Environments.
+## Bootstrap
 
----
-
-## GitHub Environments
-
-Five environments — create these in **Settings → Environments** before the first run.
-
-| Environment | Pipeline | Approval | Secrets |
-|---|---|---|---|
-| `dev-infra` | infra.yml | none | `AWS_ROLE_ARN` |
-| `prod-infra` | infra.yml | required | `AWS_ROLE_ARN` |
-| `dev-deploy` | app.yml | none | `AWS_ROLE_ARN` |
-| `prod-migrate` | app.yml | required | `AWS_ROLE_ARN` |
-| `prod-deploy` | app.yml | required | `AWS_ROLE_ARN` |
-
-`AWS_ROLE_ARN` values:
-
-| Environment | Value |
-|---|---|
-| `dev-infra`, `dev-deploy` | `arn:aws:iam::691627364817:role/aws-sdlc-containers-dev-github-actions` |
-| `prod-infra`, `prod-migrate`, `prod-deploy` | `arn:aws:iam::691627364817:role/aws-sdlc-containers-prod-github-actions` |
-
----
-
-## API access — TLS and authentication
-
-The ALB exposes HTTPS only.
-
-### TLS
-
-Terraform requests a DNS-validated ACM public certificate in `eu-central-1` for an environment-specific hostname under one shared public Route 53 domain:
-
-- dev: `api-dev.<root_domain>`
-- prod: `api-prod.<root_domain>`
-
-Before the first apply, register a cheap public domain in Route 53 and set `root_domain` in both `infra/dev.tfvars` and `infra/prod.tfvars`. Terraform looks up the public hosted zone, creates the ACM validation records automatically, and creates an alias record pointing the hostname at the ALB.
-
-### Authentication
-
-All routes require a bearer token in the `Authorization` header. The ALB evaluates the header before the request reaches the app — unauthenticated requests receive `401 {"detail":"Unauthorized"}` from the ALB directly.
-
-The token is stored in Secrets Manager under `aws-sdlc-containers/api-token` (created by `make bootstrap`, shared across environments). Terraform reads it at apply time to configure the ALB listener rule.
-
-**Calling the API:**
+Run these once per AWS account:
 
 ```bash
-TOKEN=$(aws secretsmanager get-secret-value \
-  --secret-id aws-sdlc-containers/api-token \
-  --region eu-central-1 \
-  --query SecretString --output text)
-
-curl -s -H "Authorization: Bearer $TOKEN" \
-  https://<api-hostname>/orders/1
+make bootstrap
+make infra-apply-iam
+make infra-apply
 ```
 
-The hostname is available from `terraform output api_fqdn` after apply.
-
----
-
-## Bootstrap — one-time setup per AWS account
-
-These steps are run once before the first `terraform apply`. They create the
-resources Terraform itself depends on (state backend, OIDC provider).
+Terraform uses one state key:
 
 ```bash
-make bootstrap            # creates S3 state bucket, DynamoDB lock table, OIDC provider
-make infra-apply-iam-dev  # targeted apply: IAM role only — required before first full plan
-make infra-apply-dev      # full dev apply
-make infra-apply-iam-prod # targeted apply: IAM role only for prod
-make infra-apply-prod     # full prod apply
+aws-sdlc-containers/stack.tfstate
 ```
 
-See `Makefile` for all available targets (`make help`).
+The main variables live in `infra/stack.tfvars`.
 
----
+## Naming
 
-## Naming convention
+Resources use the single stack prefix `aws-sdlc-containers`.
 
-All AWS resources follow `aws-sdlc-containers-{env}`. This is the single
-source of truth — no variables or secrets are needed in the pipelines beyond
-`AWS_ROLE_ARN`.
+- ECS cluster: `aws-sdlc-containers`
+- ECS service: `app`
+- App task family: `aws-sdlc-containers`
+- Worker task family: `aws-sdlc-containers-worker`
+- Liquibase task family: `aws-sdlc-containers-liquibase`
+- ECR repos: `aws-sdlc-containers/{app,worker,liquibase,pgbouncer}`
+- API hostname: `api.<root_domain>`
 
-| Resource | dev | prod |
-|---|---|---|
-| ECS cluster | `aws-sdlc-containers-dev` | `aws-sdlc-containers-prod` |
-| ECS service | `app` | `app` |
-| Task family (app) | `aws-sdlc-containers-dev` | `aws-sdlc-containers-prod` || Task family (worker) | `aws-sdlc-containers-dev-worker` | `aws-sdlc-containers-prod-worker` |
-| Task family (liquibase) | `aws-sdlc-containers-dev-liquibase` | `aws-sdlc-containers-prod-liquibase` |
-| ECR repos | `aws-sdlc-containers-dev/{app,worker,liquibase}` | `aws-sdlc-containers-prod/{app,worker,liquibase}` |
-| IAM role | `aws-sdlc-containers-dev-github-actions` | `aws-sdlc-containers-prod-github-actions` |
+## Rollout model
 
----
+Rollout stays inside the same cluster and the same database:
 
-## Image tagging
+1. Build and push new images.
+2. Run Liquibase against the current database.
+3. Deploy the new app task definition to the existing ECS service.
+4. Run the backfill worker as a one-off task if the migration requires it.
+5. Advance `WRITE_MODE` and `READ_MODE` through the runbook.
 
-Images are tagged `sha-{git-sha}` and pushed to both dev and prod ECR repos
-from the same build. `latest` is never used — ECR tag mutability is set to
-`IMMUTABLE`.
+This keeps the project lean while still supporting safe schema evolution.
 
-Terraform registers all task definitions (app, worker, liquibase) with
-`var.initial_image_tag` (default `"bootstrap"`) on the first apply. After
-that, Terraform never touches the image tag:
+## No multi-AZ by default
 
-- App service: `ignore_task_definition_changes = true` on the ECS service
-  prevents Terraform from registering new revisions after bootstrap.
-- Worker and liquibase: CI always calls `amazon-ecs-render-task-definition` +
-  `register-task-definition` with the real SHA before running these one-off
-  tasks — the Terraform-registered revision is never used after bootstrap.
+This stack is deliberately not Multi-AZ for either ECS or RDS.
 
----
+- ECS runs with a single desired app task by default.
+- RDS stays single-AZ.
+- The VPC still spans two AZs because RDS subnet groups require that shape, but the data layer itself is not deployed in Multi-AZ mode.
 
-## Failure recovery and re-runs
-
-### What happens if prod-deploy fails after prod-migrate
-
-No automatic rollback occurs — and none is needed. The migration is always an
-expand-phase change (additive: new table or column alongside the old one). The
-old app version still running in ECS is fully compatible with the new schema
-because nothing was removed. ECS rolling deploy behaviour:
-
-- If new tasks fail health checks, ECS stops them and keeps the old tasks
-  running. Old app code + new schema = safe.
-- If the backfill worker job times out in CI, the ECS task continues running
-  independently. The worker uses a transactional cursor checkpoint — re-running
-  it on the next pipeline execution resumes from where it stopped.
-
-The contract phase (dropping the old column) is always a separate, later deploy.
-A failed prod-deploy can never leave the DB in a state incompatible with the
-currently running app.
-
-**To recover**: fix the root cause, push a new commit (or re-run the workflow
-manually via `workflow_dispatch`). The pipeline will re-run from
-`validate-and-test`. All steps are safe to repeat:
-
-| Step | Re-run behaviour |
-|---|---|
-| Liquibase migrate | Skips already-applied changesets (`DATABASECHANGELOG`) |
-| ECS service deploy | Detects same image tag already active, no-ops the rolling update |
-| Backfill worker | Resumes from transactional cursor checkpoint |
-
-### Avoiding duplicate resources on re-run
-
-`register-task-definition` always creates a new ECS revision — this is
-expected and harmless. ECS keeps the previous revisions; only the latest active
-revision is used. Old revisions are not billed and do not affect running tasks.
-
-`run-task` for Liquibase and the backfill worker are both safe to call multiple
-times in the same pipeline run or across re-runs — idempotency is guaranteed by
-Liquibase's changeset tracking and the worker's checkpoint cursor respectively.
-
----
-
-## Sprint reset (dev environment)
-
-To reset dev to a clean state:
+## Common commands
 
 ```bash
-cd infra
-terraform init -backend-config="key=aws-sdlc-containers/dev.tfstate" -reconfigure
-terraform destroy -var-file=dev.tfvars
-terraform apply  -var-file=dev.tfvars
+make infra-plan
+make infra-apply
+make app-deploy
+make db-tunnel
+make db-exec
+make db-seed
+make api-get-order ORDER_ID=1
 ```
 
-Then re-run the full runbook from step 2 in `README.md` against the fresh RDS instance.
+## DB access
 
----
-
-## DB access and data seeding (deployed environments)
-
-RDS is in intra subnets with no internet route. Access is via SSM port forwarding through a running ECS task — no bastion host needed.
-
-### Prerequisites
+RDS remains private. Access is through SSM port forwarding via the running ECS task:
 
 ```bash
-brew install session-manager-plugin
+make db-tunnel
 ```
 
-### Open the tunnel
+Then connect with:
 
-```bash
-make db-tunnel ENV=dev        # forwards localhost:15432 → RDS:5432
-make db-tunnel ENV=prod LOCAL_PORT=25432
-```
+- Host: `localhost`
+- Port: `15432`
+- Database: `aws_sdlc_containers`
 
-The tunnel stays open until you Ctrl+C. Keep it running in a dedicated terminal.
+## Failure recovery
 
-### Get credentials
+Because rollout is additive and in-place:
 
-```bash
-aws secretsmanager get-secret-value \
-  --secret-id $(cd infra && terraform output -raw db_secret_arn) \
-  --query SecretString --output text | python3 -m json.tool
-```
+- A failed app deploy does not invalidate the current database schema.
+- Re-running Liquibase is safe because changesets are tracked.
+- Re-running the worker is safe because it is checkpointed and idempotent.
+- The irreversible step is still the contract migration that removes the old column.
 
-### Connect with DBeaver
+## Canonical source
 
-1. Open the tunnel in a terminal and leave it running:
-   ```bash
-   make db-tunnel ENV=dev        # localhost:15432
-   make db-tunnel ENV=prod LOCAL_PORT=25432
-   ```
-
-2. Get credentials:
-   ```bash
-   aws secretsmanager get-secret-value \
-     --secret-id $(cd infra && terraform output -raw db_secret_arn) \
-     --query SecretString --output text | python3 -m json.tool
-   ```
-
-3. In DBeaver: **New Connection → PostgreSQL**, then set:
-
-   | Field | Value |
-   |---|---|
-   | Host | `localhost` |
-   | Port | `15432` (dev) or `25432` (prod) |
-   | Database | `aws_sdlc_containers` |
-   | Username | value of `username` from the secret |
-   | Password | value of `password` from the secret |
-
-4. Under **SSL** tab: disable SSL (the tunnel is already encrypted end-to-end via SSM).
-
-5. Click **Test Connection** — should connect immediately while the tunnel is open.
-
-### Connect with psql
-
-```bash
-SECRET=$(aws secretsmanager get-secret-value \
-  --secret-id $(cd infra && terraform output -raw db_secret_arn) \
-  --query SecretString --output text)
-
-PGPASSWORD=$(echo $SECRET | python3 -c "import sys,json; print(json.load(sys.stdin)['password'])") \
-  psql -h localhost -p 15432 -U app -d aws_sdlc_containers
-```
-
-### Seed data
-
-`make db-seed` opens the SSM tunnel, fetches credentials from Secrets Manager, runs the seed script, and closes the tunnel — no manual steps needed:
-
-```bash
-make db-seed ENV=dev
-make db-seed ENV=prod
-
-# larger volume
-make db-seed ENV=prod SEED_NUM_CUSTOMERS=50000 SEED_NUM_ORDERS=500000
-```
-
-`seed_data.py` is idempotent — it skips insertion if rows already exist. Volume is controlled by `SEED_NUM_CUSTOMERS` and `SEED_NUM_ORDERS` (defaults: 1,000 / 10,000). The tunnel uses port 15433 to avoid colliding with an open `db-tunnel` session on 15432.
+This file is the deployment source of truth.

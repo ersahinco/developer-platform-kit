@@ -1,17 +1,16 @@
 #!/usr/bin/env bash
 # db_tunnel.sh — SSM port-forward localhost:LOCAL_PORT → RDS:5432
-# Usage: db_tunnel.sh <env> <local_port> <aws_region>
+# Usage: db_tunnel.sh <local_port> <aws_region>
 set -euo pipefail
 
-ENV=${1:-dev}
-LOCAL_PORT=${2:-15432}
-AWS_REGION=${3:-eu-central-1}
+LOCAL_PORT=${1:-15432}
+AWS_REGION=${2:-eu-central-1}
 
 cd "$(dirname "$0")/.."
 
 cd infra
 terraform init \
-  -backend-config="key=aws-sdlc-containers/${ENV}.tfstate" \
+  -backend-config="key=aws-sdlc-containers/stack.tfstate" \
   -reconfigure -input=false > /dev/null 2>&1
 
 CLUSTER=$(terraform output -raw ecs_cluster_name)

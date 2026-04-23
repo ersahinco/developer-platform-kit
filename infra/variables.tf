@@ -4,13 +4,10 @@ variable "aws_region" {
   default     = "eu-central-1"
 }
 
-variable "environment" {
-  description = "Environment name — used as a prefix/tag on all resources."
+variable "stack_name" {
+  description = "Single stack name used as the resource prefix/tag across the project."
   type        = string
-  validation {
-    condition     = contains(["dev", "prod"], var.environment)
-    error_message = "environment must be 'dev' or 'prod'."
-  }
+  default     = "aws-sdlc-containers"
 }
 
 
@@ -35,18 +32,18 @@ variable "api_token_secret_name" {
 }
 
 variable "root_domain" {
-  description = "Public Route 53 root domain registered in this AWS account (for example: example-sandbox.click). Dev and prod receive separate API hostnames under this zone."
+  description = "Public Route 53 root domain registered in this AWS account (for example: example-sandbox.click). The API hostname is created as api.<root_domain>."
   type        = string
 }
 
 variable "az_count" {
-  description = "Number of availability zones. 2 for non-prod, 3 for prod."
+  description = "Number of availability zones to use for subnet groups. Keep 2 for a lean setup; RDS subnet groups require at least 2 AZs even when the DB instance itself is single-AZ."
   type        = number
   default     = 2
 }
 
 variable "single_nat_gateway" {
-  description = "Share one NAT Gateway across AZs (cheaper for non-prod). Set false for prod HA."
+  description = "Share one NAT Gateway across all subnets to keep the stack lean."
   type        = bool
   default     = true
 }
@@ -98,13 +95,13 @@ variable "backfill_batch_size" {
 # ── RDS ───────────────────────────────────────────────────────────────────────
 
 variable "rds_instance_class" {
-  description = "RDS instance class. db.t4g.small for dev/staging, db.t4g.medium for prod."
+  description = "RDS instance class for the single PostgreSQL instance."
   type        = string
   default     = "db.t4g.small"
 }
 
 variable "rds_multi_az" {
-  description = "Enable Multi-AZ standby for RDS. Also enables deletion_protection and final snapshot."
+  description = "Enable Multi-AZ standby for RDS. Defaults to false because this project intentionally uses a lean single-AZ database."
   type        = bool
   default     = false
 }
