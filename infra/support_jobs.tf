@@ -1,4 +1,96 @@
 ################################################################################
+# Support workloads
+#
+# These one-off operational tasks stay deployed in this phase, but they are
+# separated from the lean base service path so the platform boundary is easier
+# to understand.
+################################################################################
+
+################################################################################
+# ECR — support workload images
+################################################################################
+
+module "ecr_liquibase" {
+  source  = "terraform-aws-modules/ecr/aws"
+  version = "~> 3.0"
+
+  repository_name                 = "${local.name}/liquibase"
+  repository_image_tag_mutability = "IMMUTABLE"
+  repository_image_scan_on_push   = true
+
+  repository_read_write_access_arns = [aws_iam_role.github_actions.arn]
+
+  repository_lifecycle_policy = jsonencode({
+    rules = [
+      {
+        rulePriority = 1
+        description  = "Expire untagged images after 1 day"
+        selection = {
+          tagStatus   = "untagged"
+          countType   = "sinceImagePushed"
+          countUnit   = "days"
+          countNumber = 1
+        }
+        action = { type = "expire" }
+      },
+      {
+        rulePriority = 2
+        description  = "Keep last 10 sha- tagged images"
+        selection = {
+          tagStatus     = "tagged"
+          tagPrefixList = ["sha-"]
+          countType     = "imageCountMoreThan"
+          countNumber   = 10
+        }
+        action = { type = "expire" }
+      }
+    ]
+  })
+
+  tags = local.tags
+}
+
+module "ecr_worker" {
+  source  = "terraform-aws-modules/ecr/aws"
+  version = "~> 3.0"
+
+  repository_name                 = "${local.name}/worker"
+  repository_image_tag_mutability = "IMMUTABLE"
+  repository_image_scan_on_push   = true
+
+  repository_read_write_access_arns = [aws_iam_role.github_actions.arn]
+
+  repository_lifecycle_policy = jsonencode({
+    rules = [
+      {
+        rulePriority = 1
+        description  = "Expire untagged images after 1 day"
+        selection = {
+          tagStatus   = "untagged"
+          countType   = "sinceImagePushed"
+          countUnit   = "days"
+          countNumber = 1
+        }
+        action = { type = "expire" }
+      },
+      {
+        rulePriority = 2
+        description  = "Keep last 10 sha- tagged images"
+        selection = {
+          tagStatus     = "tagged"
+          tagPrefixList = ["sha-"]
+          countType     = "imageCountMoreThan"
+          countNumber   = 10
+        }
+        action = { type = "expire" }
+      }
+    ]
+  })
+
+  tags = local.tags
+}
+
+################################################################################
 # Worker task definition — one-off Fargate task triggered by CI for backfill.
 # Connects directly to RDS (not via pgbouncer) — backfill transactions are
 # long-running and incompatible with pgbouncer's transaction-mode pool.

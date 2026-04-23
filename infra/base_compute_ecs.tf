@@ -1,4 +1,11 @@
 ################################################################################
+# Base compute stack
+#
+# This file holds the always-on application path: core ECR repositories, the
+# ECS cluster, and the long-running app service behind the ALB.
+################################################################################
+
+################################################################################
 # ECR — terraform-aws-modules/ecr/aws ~> 3.0
 # IMMUTABLE tags prevent silent overwrites of a deployed SHA.
 # scan_on_push enables free basic CVE scanning on every push.
@@ -20,90 +27,6 @@ module "ecr_app" {
       {
         rulePriority = 1
         description  = "Expire untagged images after 1 day "
-        selection = {
-          tagStatus   = "untagged"
-          countType   = "sinceImagePushed"
-          countUnit   = "days"
-          countNumber = 1
-        }
-        action = { type = "expire" }
-      },
-      {
-        rulePriority = 2
-        description  = "Keep last 10 sha- tagged images"
-        selection = {
-          tagStatus     = "tagged"
-          tagPrefixList = ["sha-"]
-          countType     = "imageCountMoreThan"
-          countNumber   = 10
-        }
-        action = { type = "expire" }
-      }
-    ]
-  })
-
-  tags = local.tags
-}
-
-################################################################################
-# ECR — liquibase migrations image
-################################################################################
-
-module "ecr_liquibase" {
-  source  = "terraform-aws-modules/ecr/aws"
-  version = "~> 3.0"
-
-  repository_name                 = "${local.name}/liquibase"
-  repository_image_tag_mutability = "IMMUTABLE"
-  repository_image_scan_on_push   = true
-
-  repository_read_write_access_arns = [aws_iam_role.github_actions.arn]
-
-  repository_lifecycle_policy = jsonencode({
-    rules = [
-      {
-        rulePriority = 1
-        description  = "Expire untagged images after 1 day"
-        selection = {
-          tagStatus   = "untagged"
-          countType   = "sinceImagePushed"
-          countUnit   = "days"
-          countNumber = 1
-        }
-        action = { type = "expire" }
-      },
-      {
-        rulePriority = 2
-        description  = "Keep last 10 sha- tagged images"
-        selection = {
-          tagStatus     = "tagged"
-          tagPrefixList = ["sha-"]
-          countType     = "imageCountMoreThan"
-          countNumber   = 10
-        }
-        action = { type = "expire" }
-      }
-    ]
-  })
-
-  tags = local.tags
-}
-
-module "ecr_worker" {
-  source  = "terraform-aws-modules/ecr/aws"
-  version = "~> 3.0"
-
-  repository_name                 = "${local.name}/worker"
-  repository_image_tag_mutability = "IMMUTABLE"
-  repository_image_scan_on_push   = true
-
-  repository_read_write_access_arns = [aws_iam_role.github_actions.arn]
-
-  repository_lifecycle_policy = jsonencode({
-    rules = [
-      {
-        rulePriority = 1
-        description  = "Expire untagged images after 1 day"
         selection = {
           tagStatus   = "untagged"
           countType   = "sinceImagePushed"

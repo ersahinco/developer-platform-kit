@@ -164,7 +164,6 @@ data "aws_iam_policy_document" "github_actions_state_and_network" {
       "ec2:CreateNetworkAclEntry", "ec2:DeleteNetworkAclEntry", "ec2:ReplaceNetworkAclEntry",
       "ec2:CreateNetworkAcl", "ec2:DeleteNetworkAcl", "ec2:ReplaceNetworkAclAssociation",
       "ec2:CreateTags", "ec2:DeleteTags",
-      "ec2:CreateVpcEndpoint", "ec2:DeleteVpcEndpoints", "ec2:ModifyVpcEndpoint",
       "ec2:ReplaceRouteTableAssociation",
     ]
     resources = ["*"]
@@ -225,18 +224,6 @@ data "aws_iam_policy_document" "github_actions_platform" {
       "ecs:RunTask",
       "ecs:StopTask",
       "ecs:PutClusterCapacityProviders",
-      "ecs:ExecuteCommand",
-    ]
-    resources = ["*"]
-  }
-
-  statement {
-    sid = "SSMExec"
-    actions = [
-      "ssmmessages:CreateControlChannel",
-      "ssmmessages:CreateDataChannel",
-      "ssmmessages:OpenControlChannel",
-      "ssmmessages:OpenDataChannel",
     ]
     resources = ["*"]
   }
@@ -327,39 +314,6 @@ data "aws_iam_policy_document" "github_actions_platform" {
 }
 
 data "aws_iam_policy_document" "github_actions_security" {
-  statement {
-    sid = "WAFManage"
-    actions = [
-      "wafv2:CreateWebACL", "wafv2:DeleteWebACL", "wafv2:UpdateWebACL",
-      "wafv2:GetWebACL", "wafv2:ListWebACLs",
-      "wafv2:AssociateWebACL", "wafv2:DisassociateWebACL", "wafv2:GetWebACLForResource",
-      "wafv2:ListResourcesForWebACL",
-      "wafv2:TagResource", "wafv2:UntagResource", "wafv2:ListTagsForResource",
-      "wafv2:CheckCapacity",
-      "wafv2:DescribeManagedRuleGroup",
-      "wafv2:ListAvailableManagedRuleGroups",
-      "wafv2:ListAvailableManagedRuleGroupVersions",
-    ]
-    resources = [
-      "arn:aws:wafv2:${local.region}:${local.account_id}:regional/webacl/aws-sdlc-containers*/*",
-      "arn:aws:wafv2:${local.region}:${local.account_id}:regional/managedruleset/*/*",
-    ]
-  }
-
-  statement {
-    sid = "WAFDescribe"
-    actions = [
-      "wafv2:ListWebACLs",
-      "wafv2:ListAvailableManagedRuleGroups",
-      "wafv2:ListAvailableManagedRuleGroupVersions",
-      "wafv2:DescribeManagedRuleGroup",
-      "wafv2:CheckCapacity",
-      "wafv2:GetWebACLForResource",
-      "wafv2:ListResourcesForWebACL",
-    ]
-    resources = ["*"]
-  }
-
   statement {
     sid = "SecretsManagerDescribe"
     actions = [
@@ -592,31 +546,6 @@ resource "aws_iam_role_policy" "task_exec_secrets" {
       Effect   = "Allow"
       Action   = "secretsmanager:GetSecretValue"
       Resource = module.rds.db_instance_master_user_secret_arn
-    }]
-  })
-}
-
-################################################################################
-# ECS Exec — SSM permissions on the app task role
-# Required for `aws ecs execute-command` and SSM port forwarding to RDS.
-# No bastion host needed — SSM tunnels through the running Fargate task.
-################################################################################
-
-resource "aws_iam_role_policy" "task_ssm_exec" {
-  name = "ssm-exec"
-  role = module.ecs.services["app"].tasks_iam_role_name
-
-  policy = jsonencode({
-    Version = "2012-10-17"
-    Statement = [{
-      Effect = "Allow"
-      Action = [
-        "ssmmessages:CreateControlChannel",
-        "ssmmessages:CreateDataChannel",
-        "ssmmessages:OpenControlChannel",
-        "ssmmessages:OpenDataChannel",
-      ]
-      Resource = "*" # ssmmessages has no resource-level scope — AWS API limitation
     }]
   })
 }
