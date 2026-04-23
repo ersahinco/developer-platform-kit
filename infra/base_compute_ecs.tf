@@ -102,7 +102,8 @@ module "ecr_pgbouncer" {
 # ECS — terraform-aws-modules/ecs/aws ~> 7.0
 # v7: cluster_capacity_providers must be explicit — no longer inferred.
 # task_exec_secret_arns is top-level — wires the shared execution role to the
-# RDS secret so ECS injects DATABASE_URL at startup without AWS SDK calls.
+# RDS secret so ECS can inject DB credentials into task definitions without
+# AWS SDK calls from the containers.
 # ignore_task_definition_changes prevents terraform apply from rolling back
 # the image tag after GitHub Actions has deployed a newer one.
 ################################################################################
@@ -191,8 +192,8 @@ module "ecs" {
 
           enable_cloudwatch_logging              = true
           cloudwatch_log_group_retention_in_days = 14
-          # Explicit name — module default (/aws/ecs/app/pgbouncer) is shared across
-          # environments because it derives from the service key, not the cluster name.
+          # Explicit name keeps the log group stack-scoped and readable instead of
+          # relying on the module's generic service-key-derived default.
           cloudwatch_log_group_name = "/ecs/${local.name}/pgbouncer"
         }
 
@@ -236,8 +237,8 @@ module "ecs" {
 
           enable_cloudwatch_logging              = true
           cloudwatch_log_group_retention_in_days = 30
-          # Explicit name — module default (/aws/ecs/app/app) is shared across
-          # environments because it derives from the service key, not the cluster name.
+          # Explicit name keeps the log group stack-scoped and readable instead of
+          # relying on the module's generic service-key-derived default.
           cloudwatch_log_group_name = "/ecs/${local.name}/app"
         }
       }

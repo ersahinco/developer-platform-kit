@@ -1,6 +1,13 @@
 # Architecture
 
-`aws-sdlc-containers` uses this workload to exercise the platform patterns that will later expand into observability, network security, and broader SDLC automation.
+`aws-sdlc-containers` keeps the current platform deliberately small: one AWS stack, one ECS cluster, one PostgreSQL database, and one reference workload that proves safe in-place rollout.
+
+## Current platform contract
+
+- Base platform: one Terraform state, one VPC, one public API hostname, one ECS cluster, one long-running app service, PgBouncer in the app task, and one PostgreSQL database.
+- Reference workload: additive Liquibase migrations, in-place ECS deploys, runtime `WRITE_MODE` and `READ_MODE` switches, and one-off worker tasks all operate against that same cluster and database.
+- Optional extensions: WAF, VPC endpoints, ECS Exec/SSM access, and similar operators-only features stay outside the base model even when they remain enabled in the deployed stack.
+- Extension rule: future observability stacks, extra public-edge controls, and workload-specific jobs should be added as extensions rather than folded into the core platform unless every workload would require them.
 
 ## Why hexagonal architecture?
 
@@ -98,7 +105,9 @@ Then re-run the full runbook from step 2 against the fresh RDS instance.
 
 ---
 
-## What's intentionally omitted
+## Deferred rough edges
+
+These items are intentionally deferred to later phases. They are hardening or extension work, not part of the current base platform contract.
 
 - Backfill throttling based on replication lag or primary CPU load
 - Rolling deploy coordination — during the dual-write window, old and new app versions run simultaneously; both write to `orders.billing_email` and `order_contact_email`, but this is not explicitly tested under concurrent load
@@ -158,7 +167,7 @@ That keeps TLS fully declarative and removes the need for account-specific helpe
 
 ### ALB security group
 
-Port 443 open to `0.0.0.0/0` — the fixed-token header check is the access control layer. Port 80 open only to redirect to HTTPS. The app SG allows inbound on port 8000 from the ALB SG only — direct access to the app container from outside the VPC is not possible.
+Port 443 is open to `0.0.0.0/0` — the fixed-token header check is the access control layer. There is no HTTP listener or redirect path; callers use HTTPS directly. The app SG allows inbound on port 8000 from the ALB SG only, so direct access to the app container from outside the VPC is not possible.
 
 ### ECS service security group — pre-create to break circular dependency
 

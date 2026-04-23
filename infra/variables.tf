@@ -20,13 +20,13 @@ variable "vpc_cidr" {
 }
 
 variable "alb_ingress_cidr" {
-  description = "CIDR allowed to reach the ALB on ports 80/443. Open to 0.0.0.0/0 — HTTPS + fixed-token auth is the access control layer."
+  description = "CIDR allowed to reach the ALB on port 443. Open to 0.0.0.0/0 because HTTPS plus the fixed-token check is the access control layer."
   type        = string
   default     = "0.0.0.0/0"
 }
 
 variable "api_token_secret_name" {
-  description = "Secrets Manager secret name holding the API bearer token. Created by `make create-api-token` — never stored in state or tfvars."
+  description = "Secrets Manager secret name holding the API bearer token. Create it out of band and keep it out of Terraform state and tfvars."
   type        = string
   default     = "aws-sdlc-containers/api-token"
 }

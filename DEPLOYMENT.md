@@ -9,6 +9,13 @@ This project intentionally uses a single AWS stack.
 
 Safe rollout does not come from duplicating infrastructure. It comes from additive schema changes, separate task definitions, runtime read/write switches, and one-off worker tasks running against the same database.
 
+## Current platform contract
+
+- Base stack: one VPC, one public ALB/TLS/DNS entrypoint, one ECS cluster, one long-running app service with PgBouncer, one PostgreSQL database, and one Terraform state.
+- Reference workload: the app, Liquibase task, and backfill worker all operate inside that same stack. Rollout stays in place through additive schema changes, task definition updates, runtime switches, and one-off tasks.
+- Optional extensions: WAF, VPC endpoints, ECS Exec/SSM access, and similar add-ons are outside the base contract. They may remain enabled in this repo for parity, but the base stack does not depend on them conceptually.
+- Future additions: observability, extra operator tooling, and workload-specific jobs should stay as extensions unless they become mandatory for every workload that uses this repo.
+
 ## Pipeline shape
 
 Two GitHub Actions workflows remain, but both target the same stack:
@@ -26,7 +33,7 @@ Create one GitHub Environment named `aws` and store:
 
 - `AWS_ROLE_ARN`
 
-That is the only AWS secret the workflows need.
+That is the only AWS secret the workflows need. Other runtime values are resolved from the stack at deploy time.
 
 ## Bootstrap
 
@@ -44,7 +51,7 @@ Terraform uses one state key:
 aws-sdlc-containers/stack.tfstate
 ```
 
-The main variables live in `infra/stack.tfvars`.
+Most operator-set values live in `infra/stack.tfvars`.
 
 ## Naming
 
@@ -115,4 +122,4 @@ Because rollout is additive and in-place:
 
 ## Canonical source
 
-This file is the deployment source of truth.
+This file is the operator-facing source of truth for the current single-stack rollout. See `ARCHITECTURE.md` for the design rationale and extension boundaries.

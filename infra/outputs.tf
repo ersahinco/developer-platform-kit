@@ -1,5 +1,5 @@
 output "alb_dns_name" {
-  description = "Public DNS of the ALB — use as BASE_URL in smoke tests."
+  description = "Public DNS of the ALB. Useful for inspection, but the intended endpoint is api_fqdn."
   value       = aws_lb.this.dns_name
 }
 
@@ -19,7 +19,7 @@ output "acm_certificate_arn" {
 }
 
 output "ecr_app_repository_url" {
-  description = "ECR URL for the app image. Push target in CI: $ECR_APP_URL:sha-$GITHUB_SHA"
+  description = "ECR URL for the app image."
   value       = module.ecr_app.repository_url
 }
 
@@ -29,7 +29,7 @@ output "ecr_worker_repository_url" {
 }
 
 output "ecr_liquibase_repository_url" {
-  description = "ECR URL for the Liquibase migrations image. Push target in CI: $ECR_LIQUIBASE_URL:sha-$GITHUB_SHA"
+  description = "ECR URL for the Liquibase migrations image."
   value       = module.ecr_liquibase.repository_url
 }
 
@@ -39,7 +39,7 @@ output "worker_task_definition_arn" {
 }
 
 output "liquibase_task_definition_arn" {
-  description = "Liquibase task definition ARN. Pass to `aws ecs run-task` for schema migrations. Set as LIQUIBASE_TASK_DEF_ARN in GitHub."
+  description = "Liquibase task definition ARN for one-off schema migration tasks."
   value       = aws_ecs_task_definition.liquibase.arn
 }
 
@@ -49,41 +49,41 @@ output "rds_endpoint" {
 }
 
 output "db_secret_arn" {
-  description = "Secrets Manager ARN for RDS credentials (managed by RDS). Set as DB_SECRET_ARN in GitHub."
+  description = "Secrets Manager ARN for the RDS credentials managed by RDS."
   value       = module.rds.db_instance_master_user_secret_arn
 }
 
 output "ecs_cluster_name" {
-  description = "ECS cluster name. Set as ECS_CLUSTER in GitHub."
+  description = "ECS cluster name for the single stack."
   value       = module.ecs.cluster_name
 }
 
 output "app_service_name" {
-  description = "ECS app service name. Set as APP_SERVICE_NAME in GitHub."
+  description = "ECS service name for the long-running app."
   value       = module.ecs.services["app"].name
 }
 
 output "app_task_exec_role_arn" {
-  description = "Task execution role ARN. Set as TASK_EXEC_ROLE_ARN in GitHub."
+  description = "Task execution role ARN shared by the app and one-off support tasks."
   value       = aws_iam_role.task_exec.arn
 }
 
 output "app_task_role_arn" {
-  description = "Task role ARN (app runtime permissions). Set as TASK_ROLE_ARN in GitHub."
+  description = "Task role ARN for app runtime permissions."
   value       = module.ecs.services["app"].tasks_iam_role_arn
 }
 
 output "private_subnet_ids" {
-  description = "Private subnet IDs for migrate tasks. Set as PRIVATE_SUBNET_IDS in GitHub."
+  description = "Private subnet IDs used by the ECS service and one-off tasks."
   value       = module.vpc.private_subnets
 }
 
 output "app_security_group_id" {
-  description = "App security group ID — used for run-task (worker, liquibase). Set as APP_SG_ID in GitHub."
+  description = "App security group ID used by the ECS service and one-off tasks."
   value       = aws_security_group.app.id
 }
 
 output "github_actions_role_arn" {
-  description = "IAM role ARN for GitHub Actions OIDC. Set as AWS_ROLE_ARN in GitHub."
+  description = "IAM role ARN assumed by GitHub Actions through OIDC."
   value       = aws_iam_role.github_actions.arn
 }

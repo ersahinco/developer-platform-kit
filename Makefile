@@ -1,12 +1,12 @@
 # ─────────────────────────────────────────────────────────────────────────────
-# Makefile — local dev, lint, and infra bootstrap commands
+# Makefile — local dev, single-stack infra, and operator commands
 #
 # Prerequisites (install once):
 #   brew install uv terraform tflint checkov pre-commit session-manager-plugin
 #
 # Usage:
 #   make help                — list all targets
-#   make dev                 — start local stack
+#   make dev                 — start local Postgres + PgBouncer
 #   make test                — run test suite
 #   make lint                — run all linters (app + infra)
 #   make fmt                 — auto-format everything
@@ -38,13 +38,13 @@ TF_VARS_FILE    := stack.tfvars
 
 .PHONY: help
 help:
-	@grep -E '^[a-zA-Z_-]+:.*?## .*$' $(MAKEFILE_LIST) \
-		| awk 'BEGIN {FS = ":.*?## "}; {printf "  %-24s %s\n", $1, $2}'
+	@grep -E '^[a-zA-Z_-]+:.*?## .*$$' $(MAKEFILE_LIST) \
+		| awk 'BEGIN {FS = ":.*?## "}; {printf "  %-24s %s\n", $$1, $$2}'
 
 # ── Local dev ─────────────────────────────────────────────────────────────────
 
 .PHONY: dev
-dev: ## Start local Postgres + PgBouncer + app
+dev: ## Start local Postgres + PgBouncer
 	docker compose up -d db pgbouncer
 	docker compose ps
 
@@ -57,7 +57,7 @@ seed: ## Seed local DB with test data
 	uv run python scripts/seed_data.py
 
 .PHONY: test
-test: ## Run test suite (requires local stack running)
+test: ## Run test suite (requires local services and app running)
 	uv run pytest tests/ -v
 
 # ── Lint & format ─────────────────────────────────────────────────────────────
@@ -122,6 +122,10 @@ bootstrap: ## One-time AWS account setup — idempotent, safe to re-run
 	@echo "Bootstrap complete."
 
 # ── Infra — single stack ──────────────────────────────────────────────────────
+#
+# All targets below operate on the same long-lived stack. This repo does not
+# maintain separate dev/prod Terraform states or promotion environments.
+# ─────────────────────────────────────────────────────────────────────────────
 
 .PHONY: infra-init
 infra-init:
@@ -138,7 +142,7 @@ infra-apply: infra-init ## Terraform apply — single stack
 	cd infra && terraform apply -var-file=$(TF_VARS_FILE)
 
 .PHONY: infra-apply-iam
-infra-apply-iam: infra-init ## Targeted apply: IAM only — breaks bootstrap permission cycle
+infra-apply-iam: infra-init ## Targeted apply: GitHub Actions IAM only — breaks bootstrap permission cycle
 	cd infra && terraform apply -var-file=$(TF_VARS_FILE) \
 		-target=aws_iam_role.github_actions \
 		-target=aws_iam_policy.github_actions_app \
@@ -159,7 +163,7 @@ infra-destroy: infra-init ## Terraform destroy — single stack
 # ── App — deploy ──────────────────────────────────────────────────────────────
 
 .PHONY: app-deploy
-app-deploy: ## Force new ECS deployment (picks up latest task definition)
+app-deploy: ## Force new deployment of the existing ECS app service
 	aws ecs update-service \
 		--cluster aws-sdlc-containers \
 		--service app \
@@ -197,7 +201,7 @@ db-seed: ## Seed DB via SSM tunnel  (SEED_NUM_CUSTOMERS=1000, SEED_NUM_ORDERS=10
 # ── API smoke query ───────────────────────────────────────────────────────────
 #
 # Fetches a single order from the live API and prints the full response or a
-# single field. Requires the HTTPS listener and fixed-token auth to be in place.
+# single field. Requires the single HTTPS entrypoint and fixed-token auth.
 #
 # Usage:
 #   make api-get-order ORDER_ID=1           — full order JSON

@@ -21,6 +21,9 @@ env:
   ECR_REGISTRY: 691627364817.dkr.ecr.eu-central-1.amazonaws.com
   STACK_NAME: aws-sdlc-containers
 
+# PRs validate the reference workload locally.
+# Pushes to main roll the same stack forward in place: migrate the current DB,
+# deploy the existing service, then run one-off support tasks.
 jobs:
   validate-and-test:
     name: Validate & Test
@@ -222,6 +225,7 @@ jobs:
         run: scripts/gha_register_task_definition.sh "${{ steps.render-liquibase.outputs.task-definition }}"
 
       - name: Run Liquibase
+        # Schema changes are applied to the current database before the app deploy.
         run: |
           TASK_ARN=$(scripts/gha_run_ecs_task.sh \
             aws-sdlc-containers \
@@ -277,6 +281,7 @@ jobs:
         run: scripts/gha_register_task_definition.sh "${{ steps.render-worker.outputs.task-definition }}"
 
       - name: Run backfill worker
+        # The backfill stays a separate one-off task; it is not folded into the app service.
         run: |
           TASK_ARN=$(scripts/gha_run_ecs_task.sh \
             aws-sdlc-containers \

@@ -15,6 +15,8 @@ env:
   TF_STATE_KEY: aws-sdlc-containers/stack.tfstate
   TF_VARS_FILE: stack.tfvars
 
+# Both PR plans and main applies target the same Terraform state key for the
+# single stack. There is no environment promotion layer in this repo.
 permissions:
   contents: read
   pull-requests: write

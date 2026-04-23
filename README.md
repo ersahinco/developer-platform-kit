@@ -1,8 +1,10 @@
 # aws-sdlc-containers
 
-`aws-sdlc-containers` is a container-first AWS delivery sandbox for practicing the software development lifecycle end to end: local development, CI/CD, immutable images, reproducible Terraform, and workload operations on ECS.
+`aws-sdlc-containers` is a lean single-stack AWS delivery sandbox for practicing the software development lifecycle end to end: local development, CI/CD, immutable images, reproducible Terraform, and workload operations on ECS.
 
-The current reference workload is a zero-downtime schema evolution exercise: moving `orders.billing_email` into a dedicated `order_contact_email` table using **expand/contract**, **PgBouncer**, runtime feature switches, and one-off worker tasks.
+The current model is intentionally small: one AWS stack, one ECS cluster, and one PostgreSQL database. Safe rollout comes from additive schema changes, separate task definitions, runtime feature switches, and one-off worker tasks running against that same stack.
+
+The current reference workload is a zero-downtime schema evolution exercise: moving `orders.billing_email` into a dedicated `order_contact_email` table using expand/contract, PgBouncer, runtime switches, and one-off backfill tasks.
 
 ---
 
@@ -13,20 +15,19 @@ The current reference workload is a zero-downtime schema evolution exercise: mov
 | SDLC baseline | GitHub Actions, immutable ECR tags, and reproducible Terraform state for one stack | `.github/workflows/`, `infra/`, `Makefile` |
 | Schema bootstrap | Liquibase changesets | `db/changelog/000-bootstrap.yaml`, `002-app-runtime-config.yaml` |
 | Reference workload | Expand/contract migration (dual-write + backfill + switch) | `db/changelog/`, `worker/src/backfill.py` |
-| Connection pooling | PgBouncer (transaction mode) | `docker-compose.yml`, `db/pgbouncer/pgbouncer.ini`, `infra/main.tf` |
-| Zero-downtime deploy | ECS rolling update + WRITE_MODE/READ_MODE flags | `infra/main.tf`, `.github/workflows/app.yml` |
+| Connection pooling | PgBouncer (transaction mode) in front of one PostgreSQL database | `docker-compose.yml`, `db/pgbouncer/pgbouncer.ini`, `infra/base_compute_ecs.tf` |
+| Safe in-place rollout | ECS rolling update + Liquibase + WRITE_MODE/READ_MODE flags + one-off worker task | `infra/base_compute_ecs.tf`, `infra/support_jobs.tf`, `.github/workflows/app.yml` |
 
 ---
 
-## Project direction
+## Current platform contract
 
-This repository is being positioned as the base for the next AWS SDLC container practices:
+- Base platform: one Terraform state, one VPC, one public API hostname, one ECS cluster, one long-running app service with a PgBouncer sidecar, and one PostgreSQL database.
+- Reference workload: safe in-place rollout using additive Liquibase changes, ECS task definition updates, runtime `WRITE_MODE` and `READ_MODE` switches, and one-off worker tasks against the same database.
+- Optional extensions: features like WAF, VPC endpoints, ECS Exec/SSM access, and local helper tools stay outside the base model even when they remain enabled for deployment parity.
+- Future additions: observability stacks, extra edge controls, and workload-specific jobs should be treated as extensions unless every workload in this repo would require them.
 
-- Complete DevOps toolchain with git-based workflows, reproducible Terraform modules, and simple single-stack rollout automation.
-- Observability practice with Grafana, Loki, and Prometheus layered onto the ECS and database workflow.
-- Network and platform practice around VPN, DNS, routing, security boundaries, authentication, and authorization.
-
-The migration flow stays in the repo as the first realistic workload because it exercises app delivery, database change management, background jobs, and rollback-safe sequencing in one place.
+The migration flow stays in the repo as the reference workload because it exercises app delivery, database change management, background jobs, and rollback-safe sequencing without introducing extra platform layers.
 
 ---
 
@@ -42,7 +43,7 @@ The migration follows the **expand → dual-write → backfill → switch → co
 
 **PgBouncer** sits between the app and Postgres in every environment. The app's `DATABASE_URL` points to PgBouncer, not Postgres directly. PgBouncer runs in transaction mode — server connections are returned to the pool after each transaction, multiplexing many app connections onto a small RDS pool. SQLAlchemy uses `NullPool` so it does not stack its own pool on top of PgBouncer's.
 
-Liquibase connects directly to Postgres (not via PgBouncer) — DDL statements require a persistent session connection.
+Liquibase connects directly to Postgres, not via PgBouncer, because DDL statements require a persistent session connection.
 
 See [`ARCHITECTURE.md`](ARCHITECTURE.md) for the full design rationale and platform boundaries.
 
@@ -73,10 +74,14 @@ aws-sdlc-containers/
 │   ├── changelog/                # Liquibase: bootstrap + app_runtime_config
 │   ├── pgbouncer/pgbouncer.ini   # PgBouncer config (used as reference; Docker uses env vars)
 │   └── sql/bootstrap.sql         # Postgres init: pg_stat_statements extension
+├── infra/                        # Single-stack Terraform split by concern; optional features stay separate
+├── .github/workflows/            # Same-stack infra and app rollout workflows
 ├── scripts/                      # seed, smoke test
 ├── tests/                        # pytest integration tests
 ├── .env.example                  # All env vars with safe local defaults
-└── docker-compose.yml
+├── docker-compose.yml
+├── DEPLOYMENT.md                 # Operator-facing rollout and bootstrap guide
+└── ARCHITECTURE.md               # Platform contract, boundaries, and rationale
 ```
 
 ---
@@ -245,7 +250,7 @@ SQLAlchemy uses `NullPool` — it does not maintain its own idle connections. Ea
 
 ## Upgrade-path test
 
-The CI pipeline (`validate-and-test` job in `.github/workflows/app.yml`) resets to a clean PostgreSQL instance, runs Liquibase, seeds data, starts the app, and runs the full test suite on every push to `main`.
+The CI pipeline (`validate-and-test` job in `.github/workflows/app.yml`) resets to a clean PostgreSQL instance, runs Liquibase, seeds data, starts the app, and runs the full test suite on pull requests and pushes to `main`.
 
 The `build-and-push` job runs `trivy image --severity CRITICAL` on the app image before pushing to ECR.
 
@@ -260,10 +265,10 @@ Two pipelines, separate concerns:
 - Merge to main: `terraform apply` for the single stack
 
 **`app.yml`** — triggered by changes to `app/**`, `db/**`, `tests/**`, `scripts/**`
-- PR: test only
-- Merge to main: test → build + scan → migrate → deploy
+- PR: validate the reference workload locally
+- Merge to main: validate → build + scan → migrate the current database → deploy the existing ECS service → run the backfill worker
 
-See [`DEPLOYMENT.md`](DEPLOYMENT.md) for environment setup and bootstrap steps.
+See [`DEPLOYMENT.md`](DEPLOYMENT.md) for the single-stack bootstrap and operator workflow.
 
 ---
 
@@ -288,6 +293,6 @@ and the commit goes through on the first attempt.
 
 ---
 
-## Production hardening
+## Later phases
 
-This example is for local rehearsal. See the [intentionally omitted](ARCHITECTURE.md#whats-intentionally-omitted) section in `ARCHITECTURE.md`.
+This repo stays lean on purpose. See the [Deferred rough edges](ARCHITECTURE.md#deferred-rough-edges) section in `ARCHITECTURE.md` for the hardening and extension work that is intentionally out of scope for the current contract.

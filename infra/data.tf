@@ -32,11 +32,11 @@ data "aws_route53_zone" "public" {
 
 ################################################################################
 # API token — read from Secrets Manager (created out-of-band, never in state).
-# Run once before applying:
+# Create it once before applying:
 #   aws secretsmanager create-secret \
 #     --name aws-sdlc-containers/api-token \
 #     --secret-string "$(openssl rand -hex 32)"
-# Or use: make create-api-token
+# Keep the secret out of Terraform state and tfvars.
 ################################################################################
 
 data "aws_secretsmanager_secret_version" "api_token" {
