@@ -1,0 +1,328 @@
+################################################################################
+# ALB — native resources (single listener + target group)
+################################################################################
+
+resource "aws_security_group" "alb" {
+  # name_prefix instead of name: description changes force SG replacement.
+  # name_prefix lets AWS generate a unique name so create_before_destroy can
+  # create the new SG before destroying the old one — a fixed name would cause
+  # a duplicate-name collision in the same VPC.
+  name_prefix = "${local.name}-alb-"
+  description = "ALB: HTTPS from internet only, egress to app tasks"
+  vpc_id      = module.vpc.vpc_id
+
+  lifecycle {
+    create_before_destroy = true
+  }
+
+  ingress {
+    description = "HTTPS from internet"
+    from_port   = 443
+    to_port     = 443
+    protocol    = "tcp"
+    cidr_blocks = [var.alb_ingress_cidr]
+  }
+
+  # Port 80 removed — callers connect directly on HTTPS. No redirect listener.
+
+  egress {
+    description = "All egress to app tasks"
+    from_port   = 0
+    to_port     = 0
+    protocol    = "-1"
+    cidr_blocks = ["0.0.0.0/0"]
+  }
+
+  tags = local.tags
+}
+
+resource "aws_security_group" "app" {
+  # name_prefix + create_before_destroy: same reason as alb SG — description
+  # changes force replacement and a fixed name collides in the same VPC.
+  name_prefix = "${local.name}-app-"
+  description = "App tasks: inbound from ALB only, HTTPS egress to AWS APIs, Postgres to RDS"
+  vpc_id      = module.vpc.vpc_id
+
+  lifecycle {
+    create_before_destroy = true
+  }
+
+  ingress {
+    description     = "From ALB on container port"
+    from_port       = 8000
+    to_port         = 8000
+    protocol        = "tcp"
+    security_groups = [aws_security_group.alb.id]
+  }
+
+  # Egress: HTTPS to anywhere covers both VPC Interface Endpoints (ECR, Secrets
+  # Manager, CloudWatch Logs, SSM) and the S3 Gateway Endpoint (ECR layers).
+  # Restricting to vpc_cidr breaks tasks in AZs where an endpoint ENI is absent —
+  # the task resolves ECR to a public IP and the connection times out with no NAT path.
+  # The meaningful security boundary is IAM + ingress rules, not egress CIDR.
+  egress {
+    description = "HTTPS to AWS APIs (VPC endpoints + fallback)"
+    from_port   = 443
+    to_port     = 443
+    protocol    = "tcp"
+    cidr_blocks = ["0.0.0.0/0"]
+  }
+
+  # RDS is in intra subnets — Postgres egress stays scoped to the VPC CIDR.
+  egress {
+    description = "Postgres to RDS in intra subnets"
+    from_port   = 5432
+    to_port     = 5432
+    protocol    = "tcp"
+    cidr_blocks = [var.vpc_cidr]
+  }
+
+  tags = local.tags
+}
+
+resource "aws_lb" "this" {
+  name               = local.name
+  internal           = false
+  load_balancer_type = "application"
+  security_groups    = [aws_security_group.alb.id]
+  subnets            = module.vpc.public_subnets
+  # Drop invalid HTTP headers — prevents header smuggling attacks at no cost.
+  drop_invalid_header_fields = true
+  tags                       = local.tags
+}
+
+resource "aws_lb_target_group" "app" {
+  name        = local.name
+  port        = 8000
+  protocol    = "HTTP"
+  vpc_id      = module.vpc.vpc_id
+  target_type = "ip" # required for Fargate — each task gets its own ENI
+
+  # 5s: faster than the default 300s. Keep above 0 — ECS needs a moment to
+  # deregister the task from the ALB before the rolling update completes.
+  deregistration_delay = 5
+
+  health_check {
+    path                = "/health"
+    healthy_threshold   = 2
+    unhealthy_threshold = 3
+    # 5s interval: 2 consecutive successes = ~10s after task is healthy.
+    # Default is 30s (60s to mark healthy) — this alone saves ~50s per deploy.
+    interval = 5
+    timeout  = 3
+    matcher  = "200"
+  }
+
+  tags = local.tags
+}
+
+resource "aws_acm_certificate" "api" {
+  domain_name       = local.api_fqdn
+  validation_method = "DNS"
+
+  lifecycle {
+    create_before_destroy = true
+  }
+
+  tags = local.tags
+}
+
+resource "aws_route53_record" "api_cert_validation" {
+  for_each = {
+    for dvo in aws_acm_certificate.api.domain_validation_options : dvo.domain_name => {
+      name   = dvo.resource_record_name
+      record = dvo.resource_record_value
+      type   = dvo.resource_record_type
+    }
+  }
+
+  zone_id         = data.aws_route53_zone.public.zone_id
+  name            = each.value.name
+  type            = each.value.type
+  ttl             = 60
+  records         = [each.value.record]
+  allow_overwrite = true
+}
+
+resource "aws_acm_certificate_validation" "api" {
+  certificate_arn         = aws_acm_certificate.api.arn
+  validation_record_fqdns = [for record in aws_route53_record.api_cert_validation : record.fqdn]
+}
+
+################################################################################
+# HTTPS listener — fixed-token auth on all routes.
+# The ALB evaluates rules top-to-bottom. Rule 1 checks the Authorization header
+# against the token stored in Secrets Manager. Any request without the exact
+# header value receives a 401 before it reaches the app.
+################################################################################
+
+resource "aws_lb_listener" "https" {
+  load_balancer_arn = aws_lb.this.arn
+  port              = 443
+  protocol          = "HTTPS"
+  ssl_policy        = "ELBSecurityPolicy-TLS13-1-2-2021-06"
+  certificate_arn   = aws_acm_certificate_validation.api.certificate_arn
+
+  # Default action: deny — safety net for any request that misses rule 1.
+  default_action {
+    type = "fixed-response"
+    fixed_response {
+      content_type = "application/json"
+      message_body = "{\"detail\":\"Unauthorized\"}"
+      status_code  = "401"
+    }
+  }
+}
+
+resource "aws_lb_listener_rule" "auth" {
+  listener_arn = aws_lb_listener.https.arn
+  priority     = 1
+
+  # Match all paths — auth applies to every route.
+  condition {
+    path_pattern {
+      values = ["/*"]
+    }
+  }
+
+  # Forward only if the Authorization header matches the token exactly.
+  # ALB evaluates both conditions with AND logic — path AND header must match.
+  condition {
+    http_header {
+      http_header_name = "Authorization"
+      values           = ["Bearer ${data.aws_secretsmanager_secret_version.api_token.secret_string}"]
+    }
+  }
+
+  action {
+    type             = "forward"
+    target_group_arn = aws_lb_target_group.app.arn
+  }
+}
+
+resource "aws_route53_record" "api_alias" {
+  zone_id = data.aws_route53_zone.public.zone_id
+  name    = local.api_fqdn
+  type    = "A"
+
+  alias {
+    name                   = aws_lb.this.dns_name
+    zone_id                = aws_lb.this.zone_id
+    evaluate_target_health = true
+  }
+}
+
+################################################################################
+# WAF — Web ACL associated with the ALB
+#
+# Three rules evaluated in priority order (lower = first):
+#   1. RateLimit          — block IPs exceeding 100 req/5min (brute-force protection)
+#   2. CommonRuleSet      — AWS managed: SQLi, XSS, bad HTTP, oversized bodies
+#   3. KnownBadInputs     — AWS managed: Log4j, Spring4Shell, SSRF probe patterns
+#
+# Default action: allow — rules only block what they explicitly match.
+# WAF scope must be REGIONAL for ALB (CLOUDFRONT is for CloudFront distributions).
+#
+# Cost: ~$5/mo (Web ACL) + $1/mo (CommonRuleSet) + $1/mo (KnownBadInputs)
+#       + $0.60/million requests. Applies per environment.
+################################################################################
+
+resource "aws_wafv2_web_acl" "this" {
+  name  = local.name
+  scope = "REGIONAL"
+  tags  = local.tags
+
+  default_action {
+    allow {}
+  }
+
+  # ── Rule 1: Rate limiting ─────────────────────────────────────────────────
+  # Block IPs that exceed 100 requests in any 5-minute window.
+  # 100 req/5min is generous for manual/CI use but stops credential stuffing
+  # and scanner floods. AWS evaluates the window as a rolling 5-minute period.
+  rule {
+    name     = "RateLimit"
+    priority = 1
+
+    action {
+      block {}
+    }
+
+    statement {
+      rate_based_statement {
+        limit              = 100
+        aggregate_key_type = "IP"
+      }
+    }
+
+    visibility_config {
+      cloudwatch_metrics_enabled = true
+      metric_name                = "${local.name}-rate-limit"
+      sampled_requests_enabled   = true
+    }
+  }
+
+  # ── Rule 2: AWS Managed — Common Rule Set ─────────────────────────────────
+  # Covers OWASP Top 10 categories: SQLi, XSS, bad HTTP requests, oversized
+  # bodies, and known bad user agents. Count mode is not used — block directly.
+  rule {
+    name     = "CommonRuleSet"
+    priority = 2
+
+    override_action {
+      none {} # use the rule group's own actions (block/count per rule)
+    }
+
+    statement {
+      managed_rule_group_statement {
+        name        = "AWSManagedRulesCommonRuleSet"
+        vendor_name = "AWS"
+      }
+    }
+
+    visibility_config {
+      cloudwatch_metrics_enabled = true
+      metric_name                = "${local.name}-common-rules"
+      sampled_requests_enabled   = true
+    }
+  }
+
+  # ── Rule 3: AWS Managed — Known Bad Inputs ────────────────────────────────
+  # Blocks requests matching known exploit patterns: Log4j JNDI lookups,
+  # Spring4Shell, JavaDeserialisation probes, and SSRF attempts.
+  rule {
+    name     = "KnownBadInputs"
+    priority = 3
+
+    override_action {
+      none {}
+    }
+
+    statement {
+      managed_rule_group_statement {
+        name        = "AWSManagedRulesKnownBadInputsRuleSet"
+        vendor_name = "AWS"
+      }
+    }
+
+    visibility_config {
+      cloudwatch_metrics_enabled = true
+      metric_name                = "${local.name}-known-bad-inputs"
+      sampled_requests_enabled   = true
+    }
+  }
+
+  visibility_config {
+    cloudwatch_metrics_enabled = true
+    metric_name                = local.name
+    sampled_requests_enabled   = true
+  }
+}
+
+# Associate the Web ACL with the ALB.
+# WAF evaluation happens before the ALB listener rules — a blocked request
+# never reaches the fixed-token auth check or the app.
+resource "aws_wafv2_web_acl_association" "this" {
+  resource_arn = aws_lb.this.arn
+  web_acl_arn  = aws_wafv2_web_acl.this.arn
+}

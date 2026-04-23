@@ -554,3 +554,69 @@ resource "aws_iam_role_policy_attachment" "github_actions_dns" {
   role       = aws_iam_role.github_actions.name
   policy_arn = aws_iam_policy.github_actions_dns.arn
 }
+
+################################################################################
+# ECS task execution role — created explicitly so worker and liquibase task
+# definitions can reference it without depending on module.ecs outputs, which
+# are null during the same plan that creates those resources.
+################################################################################
+
+data "aws_iam_policy_document" "task_exec_assume" {
+  statement {
+    actions = ["sts:AssumeRole"]
+    principals {
+      type        = "Service"
+      identifiers = ["ecs-tasks.amazonaws.com"]
+    }
+  }
+}
+
+resource "aws_iam_role" "task_exec" {
+  name               = "${local.name}-task-exec"
+  assume_role_policy = data.aws_iam_policy_document.task_exec_assume.json
+  tags               = local.tags
+}
+
+resource "aws_iam_role_policy_attachment" "task_exec_managed" {
+  role       = aws_iam_role.task_exec.name
+  policy_arn = "arn:aws:iam::aws:policy/service-role/AmazonECSTaskExecutionRolePolicy"
+}
+
+resource "aws_iam_role_policy" "task_exec_secrets" {
+  name = "rds-secret-access"
+  role = aws_iam_role.task_exec.id
+
+  policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [{
+      Effect   = "Allow"
+      Action   = "secretsmanager:GetSecretValue"
+      Resource = module.rds.db_instance_master_user_secret_arn
+    }]
+  })
+}
+
+################################################################################
+# ECS Exec — SSM permissions on the app task role
+# Required for `aws ecs execute-command` and SSM port forwarding to RDS.
+# No bastion host needed — SSM tunnels through the running Fargate task.
+################################################################################
+
+resource "aws_iam_role_policy" "task_ssm_exec" {
+  name = "ssm-exec"
+  role = module.ecs.services["app"].tasks_iam_role_name
+
+  policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [{
+      Effect = "Allow"
+      Action = [
+        "ssmmessages:CreateControlChannel",
+        "ssmmessages:CreateDataChannel",
+        "ssmmessages:OpenControlChannel",
+        "ssmmessages:OpenDataChannel",
+      ]
+      Resource = "*" # ssmmessages has no resource-level scope — AWS API limitation
+    }]
+  })
+}
