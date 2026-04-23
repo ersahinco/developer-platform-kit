@@ -43,8 +43,6 @@ locals {
   github_actions_iam_manage_resources = [
     "arn:aws:iam::${local.account_id}:role/${local.github_actions_stack_scope}",
     "arn:aws:iam::${local.account_id}:policy/${local.github_actions_stack_scope}",
-    "arn:aws:iam::${local.account_id}:role/app-*",
-    "arn:aws:iam::${local.account_id}:policy/app-*",
   ]
 
   github_actions_alb_manage_resources = [

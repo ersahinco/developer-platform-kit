@@ -50,7 +50,7 @@ services:
       start_period: 5s
 
   liquibase:
-    image: liquibase/liquibase:4.27
+    image: liquibase/liquibase:4.33.0
     volumes:
       - ./db:/liquibase/db
     environment:

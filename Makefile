@@ -145,16 +145,18 @@ infra-apply: infra-init ## Terraform apply — single stack
 infra-apply-iam: infra-init ## Targeted apply: GitHub Actions IAM only — breaks bootstrap permission cycle
 	cd infra && terraform apply -var-file=$(TF_VARS_FILE) \
 		-target=aws_iam_role.github_actions \
-		-target=aws_iam_policy.github_actions_app \
-		-target=aws_iam_policy.github_actions_state_and_network \
-		-target=aws_iam_policy.github_actions_platform \
-		-target=aws_iam_policy.github_actions_security \
-		-target=aws_iam_policy.github_actions_dns \
-		-target=aws_iam_role_policy_attachment.github_actions_app \
-		-target=aws_iam_role_policy_attachment.github_actions_state_and_network \
-		-target=aws_iam_role_policy_attachment.github_actions_platform \
-		-target=aws_iam_role_policy_attachment.github_actions_security \
-		-target=aws_iam_role_policy_attachment.github_actions_dns
+		-target=aws_iam_policy.github_actions_state_access \
+		-target=aws_iam_policy.github_actions_compute_deploy \
+		-target=aws_iam_policy.github_actions_ecr \
+		-target=aws_iam_policy.github_actions_networking \
+		-target=aws_iam_policy.github_actions_edge_dns \
+		-target=aws_iam_policy.github_actions_logs_secrets \
+		-target=aws_iam_policy.github_actions_identity_kms \
+		-target=aws_iam_policy.github_actions_networking_vpc_endpoints \
+		-target=aws_iam_policy.github_actions_edge_waf \
+		-target=aws_iam_role_policy_attachment.github_actions_managed \
+		-target=aws_iam_role_policy_attachment.github_actions_networking_vpc_endpoints \
+		-target=aws_iam_role_policy_attachment.github_actions_edge_waf
 
 .PHONY: infra-destroy
 infra-destroy: infra-init ## Terraform destroy — single stack

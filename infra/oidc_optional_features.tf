@@ -33,40 +33,6 @@ resource "aws_iam_role_policy_attachment" "github_actions_networking_vpc_endpoin
 }
 
 ################################################################################
-# Compute extension — ECS Exec from CI
-################################################################################
-
-data "aws_iam_policy_document" "github_actions_compute_ecs_exec" {
-  statement {
-    sid       = "ECSExec"
-    actions   = ["ecs:ExecuteCommand"]
-    resources = ["*"]
-  }
-
-  statement {
-    sid = "SSMExec"
-    actions = [
-      "ssmmessages:CreateControlChannel",
-      "ssmmessages:CreateDataChannel",
-      "ssmmessages:OpenControlChannel",
-      "ssmmessages:OpenDataChannel",
-    ]
-    resources = ["*"]
-  }
-}
-
-resource "aws_iam_policy" "github_actions_compute_ecs_exec" {
-  name   = "${local.name}-github-actions-compute-ecs-exec"
-  policy = data.aws_iam_policy_document.github_actions_compute_ecs_exec.json
-  tags   = local.tags
-}
-
-resource "aws_iam_role_policy_attachment" "github_actions_compute_ecs_exec" {
-  role       = aws_iam_role.github_actions.name
-  policy_arn = aws_iam_policy.github_actions_compute_ecs_exec.arn
-}
-
-################################################################################
 # Edge extension — WAF
 ################################################################################
 

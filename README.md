@@ -175,7 +175,7 @@ uv run python scripts/smoke_test.py   # → health ok
 
 ### 4a. Advance WRITE_MODE to dual
 
-Now that `order_contact_email` exists, tell the app to write to both tables. This is done via the admin API — not a direct DB write — so the in-process TTL cache is invalidated immediately across all instances:
+Now that `order_contact_email` exists, tell the app to write to both tables. This is done via the admin API — not a direct DB write — so the current app instance drops its local cache immediately and any other instances pick up the change within the 5 s TTL window:
 
 ```bash
 export BASE_URL=http://localhost:8000
