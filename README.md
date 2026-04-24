@@ -252,7 +252,7 @@ SQLAlchemy uses `NullPool` — it does not maintain its own idle connections. Ea
 
 The CI pipeline (`validate-and-test` job in `.github/workflows/app.yml`) resets to a clean PostgreSQL instance, runs Liquibase, seeds data, starts the app, and runs the full test suite on pull requests and pushes to `main`.
 
-The `build-and-push` job runs `trivy image --severity CRITICAL` on the app image before pushing to ECR.
+The `build-and-push` job runs `trivy image --severity CRITICAL` on the app, worker, and liquibase images before pushing to ECR.
 
 ---
 
@@ -264,7 +264,7 @@ Two pipelines, separate concerns:
 - PR: lint (`fmt`, `validate`, `tflint`, `checkov`) + `terraform plan` posted as a PR comment
 - Merge to main: `terraform apply` for the single stack
 
-**`app.yml`** — triggered by changes to `app/**`, `db/**`, `tests/**`, `scripts/**`
+**`app.yml`** — triggered by changes to `app/**`, `worker/**`, `db/**`, `tests/**`, `scripts/**`
 - PR: validate the reference workload locally
 - Merge to main: validate → build + scan → migrate the current database → deploy the existing ECS service → run the backfill worker
 
