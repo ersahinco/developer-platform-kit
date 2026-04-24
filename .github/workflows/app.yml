@@ -1,7 +1,12 @@
 name: App
 
 on:
-  workflow_dispatch: {}
+  workflow_dispatch:
+    inputs:
+      confirm_deploy:
+        description: "Type deploy to confirm build, migrate, deploy, and worker run against the shared AWS stack."
+        required: true
+        type: string
   pull_request:
     paths:
       - ".github/workflows/app.yml"
@@ -26,8 +31,8 @@ env:
   STACK_NAME: aws-sdlc-containers
 
 # PRs and pushes validate the reference workload locally. Cloud deployment is
-# manual-only through workflow_dispatch so a human can review before migrating
-# or changing the shared stack.
+# manual-only through workflow_dispatch and requires a typed confirmation so a
+# human can review before migrating or changing the shared stack.
 jobs:
   validate-and-test:
     name: Validate & Test
@@ -214,7 +219,7 @@ jobs:
   build-and-push:
     name: Build & Push to ECR
     needs: [validate-and-test, wait-for-infra]
-    if: github.event_name == 'workflow_dispatch'
+    if: github.event_name == 'workflow_dispatch' && inputs.confirm_deploy == 'deploy'
     runs-on: ubuntu-latest
     timeout-minutes: 30
     environment: aws

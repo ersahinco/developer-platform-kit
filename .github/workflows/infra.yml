@@ -1,7 +1,12 @@
 name: Infra
 
 on:
-  workflow_dispatch: {}
+  workflow_dispatch:
+    inputs:
+      confirm_apply:
+        description: "Type apply to confirm Terraform apply against the shared AWS stack."
+        required: true
+        type: string
   pull_request:
     paths:
       - ".github/workflows/infra.yml"
@@ -20,8 +25,8 @@ env:
   TF_VARS_FILE: stack.tfvars
 
 # PRs plan against the single Terraform state key. Pushes to main validate the
-# repo state, but apply is manual-only through workflow_dispatch so a human can
-# review the run before changing the shared stack.
+# repo state, but apply is manual-only through workflow_dispatch and requires a
+# typed confirmation so a human can review before changing the shared stack.
 permissions:
   contents: read
   pull-requests: write
@@ -124,7 +129,7 @@ jobs:
   apply:
     name: Apply
     needs: lint-and-validate
-    if: github.event_name == 'workflow_dispatch'
+    if: github.event_name == 'workflow_dispatch' && inputs.confirm_apply == 'apply'
     runs-on: ubuntu-latest
     environment: aws
 

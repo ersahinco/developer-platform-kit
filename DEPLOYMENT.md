@@ -35,6 +35,12 @@ Create one GitHub Environment named `aws` and store:
 
 That is the only AWS secret the workflows need. Other runtime values are resolved from the stack at deploy time.
 
+Cloud-changing workflow jobs do not run automatically on merge. `infra.yml`
+requires a manual `workflow_dispatch` run with `confirm_apply` set to `apply`;
+`app.yml` requires a manual `workflow_dispatch` run with `confirm_deploy` set
+to `deploy`. If the repository plan supports Environment required reviewers,
+also add reviewers to the `aws` environment for an additional approval pause.
+
 ## Bootstrap
 
 Run this sequence once per fresh AWS account before the first full
