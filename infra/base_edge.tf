@@ -1,5 +1,5 @@
 ################################################################################
-# ALB — native resources (single listener + target group)
+# Base edge — ALB, DNS, certificates, and routing
 ################################################################################
 
 resource "aws_security_group" "alb" {

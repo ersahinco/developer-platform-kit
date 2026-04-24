@@ -1,8 +1,5 @@
 ################################################################################
-# Base compute stack
-#
-# This file holds the always-on application path: core ECR repositories, the
-# ECS cluster, and the long-running app service behind the ALB.
+# Base compute — core repositories and ECS service
 ################################################################################
 
 ################################################################################
