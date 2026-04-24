@@ -19,8 +19,9 @@ env:
   TF_STATE_KEY: aws-sdlc-containers/stack.tfstate
   TF_VARS_FILE: stack.tfvars
 
-# Both PR plans and main applies target the same Terraform state key for the
-# single stack. There is no environment promotion layer in this repo.
+# PRs plan against the single Terraform state key. Pushes to main validate the
+# repo state, but apply is manual-only through workflow_dispatch so a human can
+# review the run before changing the shared stack.
 permissions:
   contents: read
   pull-requests: write
@@ -123,7 +124,7 @@ jobs:
   apply:
     name: Apply
     needs: lint-and-validate
-    if: github.event_name == 'push' || github.event_name == 'workflow_dispatch'
+    if: github.event_name == 'workflow_dispatch'
     runs-on: ubuntu-latest
     environment: aws
 

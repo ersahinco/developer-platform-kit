@@ -37,18 +37,155 @@ That is the only AWS secret the workflows need. Other runtime values are resolve
 
 ## Bootstrap
 
-Run these once per AWS account:
+Run this sequence once per fresh AWS account before the first full
+`make infra-apply`. The bootstrap path exists because Terraform cannot create
+the remote state bucket or the GitHub Actions role before it can initialize and
+authenticate.
+
+Prerequisites:
+
+- AWS credentials for the target account, with permissions to create S3,
+  DynamoDB, IAM, ECR, Secrets Manager, ACM, Route 53, VPC, RDS, ECS, and
+  CloudWatch resources.
+- The target region is `eu-central-1`.
+- A public Route 53 hosted zone already exists for `root_domain` in
+  `infra/stack.tfvars` (currently `ersahinco-sandbox.eu`).
+- The GitHub repository has an Environment named `aws`.
+- GitHub CLI access can set environment secrets for the repository.
+
+Set the operator-owned values first:
+
+```bash
+$EDITOR infra/stack.tfvars
+```
+
+At minimum, confirm:
+
+- `root_domain` matches the public hosted zone.
+- `api_token_secret_name` is the Secrets Manager name the ALB auth rule should
+  read.
+
+For a different AWS account than the checked-in sandbox, also align the
+account-specific Terraform backend values before bootstrapping:
+
+- `ACCOUNT_ID` in `Makefile`
+- `bucket` in `infra/backend.tf`
+
+Terraform backend blocks cannot read normal Terraform variables, so the backend
+bucket name is intentionally a literal value.
+
+Create the API token secret out of band so the token value never lands in
+Terraform state or tfvars:
+
+```bash
+aws secretsmanager create-secret \
+  --name aws-sdlc-containers/api-token \
+  --region eu-central-1 \
+  --secret-string "$(openssl rand -hex 32)"
+```
+
+If the secret already exists, leave it in place. To check:
+
+```bash
+aws secretsmanager describe-secret \
+  --secret-id aws-sdlc-containers/api-token \
+  --region eu-central-1
+```
+
+Create the Terraform backend bootstrap resources:
 
 ```bash
 make bootstrap
-make infra-apply-iam
-make infra-apply
 ```
 
-Terraform uses one state key:
+This target is idempotent. It creates or confirms:
+
+- S3 state bucket: `aws-sdlc-containers-tfstate-<account-id>`
+- S3 bucket versioning
+- DynamoDB table: `terraform-locks`
+- IAM OIDC provider: `token.actions.githubusercontent.com`
+
+Terraform uses one state object:
 
 ```bash
 aws-sdlc-containers/stack.tfstate
+```
+
+The active backend lock is Terraform's S3 native lockfile through
+`use_lockfile = true` in `infra/backend.tf`. The `terraform-locks` DynamoDB
+table is still bootstrapped for compatibility with older runbooks and IAM
+policy surfaces, but this backend does not currently set `dynamodb_table`.
+
+Confirm the Route 53 zone can be found before applying the stack:
+
+```bash
+ROOT_DOMAIN=ersahinco-sandbox.eu
+aws route53 list-hosted-zones-by-name \
+  --dns-name "$ROOT_DOMAIN" \
+  --max-items 1
+```
+
+The full Terraform stack creates the ACM certificate for
+`api.<root_domain>`, the DNS validation records, and the final Route 53 alias to
+the public load balancer. The hosted zone itself is intentionally a
+pre-existing account/domain prerequisite.
+
+Break the GitHub Actions bootstrap cycle by creating the OIDC-assumable role
+and ECR repositories from local credentials:
+
+```bash
+make infra-apply-iam
+```
+
+This targeted apply creates the GitHub Actions IAM role and policies that
+`.github/workflows/infra.yml` and `.github/workflows/app.yml` assume through
+OIDC. It may also create ECR repositories because the role policies reference
+repository ARNs.
+
+Store the role ARN in the GitHub Environment named `aws`:
+
+```bash
+gh secret set AWS_ROLE_ARN \
+  --env aws \
+  --repo ersahinco/aws-sdlc-containers \
+  --body arn:aws:iam::<account-id>:role/aws-sdlc-containers-github-actions
+```
+
+Check it with:
+
+```bash
+gh secret list \
+  --env aws \
+  --repo ersahinco/aws-sdlc-containers
+```
+
+After that, local and GitHub Actions Terraform runs should authenticate the
+same way against the same state:
+
+```bash
+make infra-plan
+make infra-apply
+```
+
+The full apply creates live infrastructure and cost-bearing resources including
+VPC networking, NAT, RDS, ALB, ECS, CloudWatch logs, DNS, and certificates.
+
+Useful bootstrap checks:
+
+```bash
+aws s3api get-bucket-versioning \
+  --bucket aws-sdlc-containers-tfstate-<account-id>
+
+aws s3api head-object \
+  --bucket aws-sdlc-containers-tfstate-<account-id> \
+  --key aws-sdlc-containers/stack.tfstate
+
+aws iam list-open-id-connect-providers
+
+aws iam get-role \
+  --role-name aws-sdlc-containers-github-actions
+
+make infra-plan
 ```
 
 Most operator-set values live in `infra/stack.tfvars`.

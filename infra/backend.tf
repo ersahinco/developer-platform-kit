@@ -8,12 +8,13 @@ terraform {
     }
   }
 
-  # Remote state: S3 bucket + DynamoDB lock table must exist before first init.
-  # Bootstrap once with: aws s3 mb s3://aws-sdlc-containers-tfstate-691627364817 --region eu-central-1
-  #                       aws dynamodb create-table --table-name terraform-locks \
-  #                         --attribute-definitions AttributeName=LockID,AttributeType=S \
-  #                         --key-schema AttributeName=LockID,KeyType=HASH \
-  #                         --billing-mode PAY_PER_REQUEST --region eu-central-1
+  # Remote state: the S3 bucket must exist before first init.
+  # Bootstrap once with: make bootstrap
+  #
+  # This backend uses Terraform's S3 native lockfile (`use_lockfile = true`).
+  # `make bootstrap` also creates the `terraform-locks` DynamoDB table for
+  # compatibility with older runbooks and IAM policy surfaces, but this backend
+  # does not currently set `dynamodb_table`.
   #
   # State key is supplied at init time via -backend-config="key=..." for the
   # single stack without relying on Terraform workspaces.
