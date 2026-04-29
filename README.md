@@ -23,7 +23,6 @@ work.
 | DevOps toolchain | [docs/devops-toolchain.md](docs/devops-toolchain.md) |
 | Data flow plan | [docs/data-flow.md](docs/data-flow.md) |
 | Observability plan | [docs/observability.md](docs/observability.md) |
-| Architecture decisions | [docs/adr/](docs/adr/) |
 
 Read [docs/roadmaps.md](docs/roadmaps.md) before making DevOps,
 infrastructure, data-flow, observability, security, incident, rollout, async, or
@@ -73,7 +72,7 @@ aws-sdlc-containers/
 |-- infra/               # Single-stack Terraform
 |-- scripts/             # Local and CI helper scripts
 |-- tests/               # Pytest integration tests
-|-- docs/                # Roadmap, docs entrypoints, ADRs
+|-- docs/                # Roadmap and docs entrypoints
 |-- .github/workflows/   # App and infra workflows
 |-- docker-compose.yml
 `-- Makefile

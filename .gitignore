@@ -1,6 +1,36 @@
+# Python
 .venv/
 __pycache__/
 .pytest_cache/
-*.pyc
+*.py[cod]
+*$py.class
+
+# Environment / secrets
 .env
-global-bundle.pem
+.env.*
+aws_credentials
+.aws/credentials
+.aws/config
+
+# Docker / local compose overrides
+docker-compose.override.yml
+docker-compose.*.yml
+*.log
+*.pid
+
+# Terraform local state
+.terraform/
+*.tfstate
+*.tfstate.*
+crash.log
+override.tf
+override.tf.json
+terraform.tfvars
+*.tfvars
+*.tfvars.json
+
+# IDE/editor
+.vscode/
+.idea/
+*.swp
+*~
