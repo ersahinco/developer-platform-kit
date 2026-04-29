@@ -33,9 +33,24 @@ output "ecr_liquibase_repository_url" {
   value       = module.ecr_liquibase.repository_url
 }
 
+output "ecr_data_export_job_repository_url" {
+  description = "ECR URL for the data export job image."
+  value       = module.ecr_data_export_job.repository_url
+}
+
 output "worker_task_definition_arn" {
   description = "Worker task definition ARN. Pass to `aws ecs run-task` to trigger a backfill."
   value       = aws_ecs_task_definition.worker.arn
+}
+
+output "data_export_job_task_definition_arn" {
+  description = "Data export job task definition ARN used by EventBridge Scheduler."
+  value       = aws_ecs_task_definition.data_export_job.arn
+}
+
+output "data_export_schedule_name" {
+  description = "EventBridge Scheduler name for the recurring data export job."
+  value       = aws_scheduler_schedule.data_export_job.name
 }
 
 output "liquibase_task_definition_arn" {

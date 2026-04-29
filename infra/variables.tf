@@ -92,6 +92,24 @@ variable "backfill_batch_size" {
   default     = 1000
 }
 
+variable "data_export_job_cpu" {
+  description = "Fargate task CPU units for the scheduled data export job."
+  type        = number
+  default     = 256
+}
+
+variable "data_export_job_memory" {
+  description = "Fargate task memory (MiB) for the scheduled data export job."
+  type        = number
+  default     = 512
+}
+
+variable "data_export_schedule_expression" {
+  description = "EventBridge Scheduler expression for the data export job."
+  type        = string
+  default     = "rate(1 day)"
+}
+
 # ── RDS ───────────────────────────────────────────────────────────────────────
 
 variable "rds_instance_class" {

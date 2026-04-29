@@ -4,8 +4,9 @@
 
 ## Current platform contract
 
-- Base platform: one Terraform state, one VPC, one public API hostname, one ECS cluster, one long-running app service, PgBouncer in the app task, and one PostgreSQL database.
+- Base platform: one Terraform state, one VPC, one public API hostname, one ECS cluster, one long-running app service, PgBouncer in the app task, one PostgreSQL database, and one S3 data hub bucket.
 - Reference workload: additive Liquibase migrations, in-place ECS deploys, runtime `WRITE_MODE` and `READ_MODE` switches, and one-off worker tasks all operate against that same cluster and database.
+- Data workload: one scheduled ECS data export job writes the `order_contact_email` raw CSV and manifest objects to the S3 data hub bucket.
 - Optional extensions: WAF, VPC endpoints, ECS Exec/SSM access, and similar operators-only features stay outside the base model even when they remain enabled in the deployed stack.
 - Extension rule: future observability stacks, extra public-edge controls, and workload-specific jobs should be added as extensions rather than folded into the core platform unless every workload would require them.
 
@@ -252,7 +253,8 @@ All prices are us-east-1 on-demand as a reference baseline. eu-central-1 (the co
 | RDS Postgres | db.t4g.small, Single-AZ, 20 GB gp3 | ~$25 |
 | ALB | 1 ALB + ~0 LCU at idle | ~$17 |
 | NAT Gateway | 1 shared × $0.045/h + data | ~$33 |
-| ECR | 4 repos, ~10 images each, <1 GB total | ~$1 |
+| ECR | 5 repos, ~10 images each, <1 GB total | ~$1 |
+| S3 data hub | Raw/manifest exports, low volume | <$1 |
 | CloudWatch Logs | app + pgbouncer, 14–30 day retention, low volume | ~$2 |
 | Secrets Manager | 1 RDS secret + 1 API token | ~$1 |
 | **Estimated total** | | **~$94/mo** |
@@ -261,6 +263,6 @@ All prices are us-east-1 on-demand as a reference baseline. eu-central-1 (the co
 
 - NAT Gateway dominates non-compute cost. If ECR pulls are the main egress driver, [VPC endpoints for ECR and Secrets Manager](https://docs.aws.amazon.com/AmazonECR/latest/userguide/vpc-endpoints.html) can cut NAT data charges significantly.
 - RDS Performance Insights (7-day retention) is free. Extending to 731 days adds ~$20/mo per instance.
-- Worker and Liquibase tasks are one-off Fargate runs (seconds to minutes per migration cycle) — cost is negligible (<$0.01/run) and not included above.
+- Worker, Liquibase, and data export tasks are short Fargate runs (seconds to minutes) — cost is negligible (<$0.01/run) and not included above.
 - CloudWatch Container Insights (optional, not currently enabled) adds ~$0.35/node/hour if turned on.
 - These are idle/low-traffic baselines. ALB LCU and NAT data charges scale with actual request volume.

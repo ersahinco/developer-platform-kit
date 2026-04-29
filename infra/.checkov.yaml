@@ -58,6 +58,12 @@ skip-check:
   - CKV_AWS_158
   - CKV_AWS_338
 
+  # EventBridge Scheduler CMK — schedule metadata does not contain secrets,
+  # and adding a customer-managed KMS key would add cost and rotation surface
+  # for this single low-volume demo schedule. Enable a CMK in production if
+  # schedule payloads carry sensitive data.
+  - CKV_AWS_297
+
   # Liquibase container read-only filesystem — Liquibase writes temp files
   # during migration and cannot run with a read-only root filesystem.
   - CKV_AWS_336

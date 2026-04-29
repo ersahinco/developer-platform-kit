@@ -90,6 +90,46 @@ module "ecr_worker" {
   tags = local.tags
 }
 
+module "ecr_data_export_job" {
+  source  = "terraform-aws-modules/ecr/aws"
+  version = "~> 3.0"
+
+  repository_name                 = "${local.name}/data-export-job"
+  repository_image_tag_mutability = "IMMUTABLE"
+  repository_image_scan_on_push   = true
+
+  repository_read_write_access_arns = [aws_iam_role.github_actions.arn]
+
+  repository_lifecycle_policy = jsonencode({
+    rules = [
+      {
+        rulePriority = 1
+        description  = "Expire untagged images after 1 day"
+        selection = {
+          tagStatus   = "untagged"
+          countType   = "sinceImagePushed"
+          countUnit   = "days"
+          countNumber = 1
+        }
+        action = { type = "expire" }
+      },
+      {
+        rulePriority = 2
+        description  = "Keep last 10 sha- tagged images"
+        selection = {
+          tagStatus     = "tagged"
+          tagPrefixList = ["sha-"]
+          countType     = "imageCountMoreThan"
+          countNumber   = 10
+        }
+        action = { type = "expire" }
+      }
+    ]
+  })
+
+  tags = local.tags
+}
+
 ################################################################################
 # Worker task definition — one-off Fargate task triggered by CI for backfill.
 # Connects directly to RDS (not via pgbouncer) — backfill transactions are
@@ -144,6 +184,166 @@ resource "aws_cloudwatch_log_group" "worker" {
   name              = "/ecs/${local.name}/worker"
   retention_in_days = 14
   tags              = local.tags
+}
+
+################################################################################
+# Data export job — scheduled Fargate task that writes order_contact_email
+# exports to the data hub S3 bucket. The scheduler targets the task definition
+# family so CI-registered revisions become active without a Terraform apply.
+################################################################################
+
+resource "aws_iam_role" "data_export_job" {
+  name               = "${local.name}-data-export-job"
+  assume_role_policy = data.aws_iam_policy_document.task_exec_assume.json
+  tags               = local.tags
+}
+
+data "aws_iam_policy_document" "data_export_job_s3" {
+  statement {
+    sid     = "WriteDataHubObjects"
+    actions = ["s3:PutObject"]
+    resources = [
+      "${aws_s3_bucket.data_hub.arn}/raw/*",
+      "${aws_s3_bucket.data_hub.arn}/manifests/*",
+    ]
+  }
+}
+
+resource "aws_iam_role_policy" "data_export_job_s3" {
+  name   = "data-hub-write"
+  role   = aws_iam_role.data_export_job.id
+  policy = data.aws_iam_policy_document.data_export_job_s3.json
+}
+
+resource "aws_ecs_task_definition" "data_export_job" {
+  family                   = "${local.name}-data-export-job"
+  requires_compatibilities = ["FARGATE"]
+  network_mode             = "awsvpc"
+  cpu                      = var.data_export_job_cpu
+  memory                   = var.data_export_job_memory
+  execution_role_arn       = aws_iam_role.task_exec.arn
+  task_role_arn            = aws_iam_role.data_export_job.arn
+
+  container_definitions = jsonencode([
+    {
+      name = "data-export-job"
+      # var.initial_image_tag is used only on the first apply (bootstrap).
+      # CI registers a SHA-tagged revision before the scheduler uses the task
+      # family for recurring exports.
+      image     = "${module.ecr_data_export_job.repository_url}:${var.initial_image_tag}"
+      essential = true
+      secrets = [
+        { name = "DB_USER", valueFrom = "${module.rds.db_instance_master_user_secret_arn}:username::" },
+        { name = "DB_PASSWORD", valueFrom = "${module.rds.db_instance_master_user_secret_arn}:password::" },
+      ]
+      environment = [
+        { name = "DB_HOST", value = module.rds.db_instance_address },
+        { name = "DB_PORT", value = tostring(module.rds.db_instance_port) },
+        { name = "DB_NAME", value = "aws_sdlc_containers" },
+        { name = "DATA_EXPORT_OUTPUT_DIR", value = "/tmp/aws-sdlc-containers-data-hub" },
+        { name = "DATA_EXPORT_S3_BUCKET", value = aws_s3_bucket.data_hub.bucket },
+      ]
+      logConfiguration = {
+        logDriver = "awslogs"
+        options = {
+          "awslogs-group"         = "/ecs/${local.name}/data-export-job"
+          "awslogs-region"        = local.region
+          "awslogs-stream-prefix" = "data-export-job"
+        }
+      }
+    }
+  ])
+
+  tags = local.tags
+}
+
+resource "aws_cloudwatch_log_group" "data_export_job" {
+  name              = "/ecs/${local.name}/data-export-job"
+  retention_in_days = 14
+  tags              = local.tags
+}
+
+data "aws_iam_policy_document" "data_export_scheduler_assume" {
+  statement {
+    actions = ["sts:AssumeRole"]
+    principals {
+      type        = "Service"
+      identifiers = ["scheduler.amazonaws.com"]
+    }
+  }
+}
+
+resource "aws_iam_role" "data_export_scheduler" {
+  name               = "${local.name}-data-export-scheduler"
+  assume_role_policy = data.aws_iam_policy_document.data_export_scheduler_assume.json
+  tags               = local.tags
+}
+
+data "aws_iam_policy_document" "data_export_scheduler" {
+  statement {
+    sid       = "RunDataExportTask"
+    actions   = ["ecs:RunTask"]
+    resources = ["arn:aws:ecs:${local.region}:${local.account_id}:task-definition/${local.name}-data-export-job:*"]
+
+    condition {
+      test     = "ArnEquals"
+      variable = "ecs:cluster"
+      values   = [module.ecs.cluster_arn]
+    }
+  }
+
+  statement {
+    sid     = "PassDataExportRoles"
+    actions = ["iam:PassRole"]
+    resources = [
+      aws_iam_role.task_exec.arn,
+      aws_iam_role.data_export_job.arn,
+    ]
+
+    condition {
+      test     = "StringEquals"
+      variable = "iam:PassedToService"
+      values   = ["ecs-tasks.amazonaws.com"]
+    }
+  }
+}
+
+resource "aws_iam_role_policy" "data_export_scheduler" {
+  name   = "run-data-export"
+  role   = aws_iam_role.data_export_scheduler.id
+  policy = data.aws_iam_policy_document.data_export_scheduler.json
+}
+
+resource "aws_scheduler_schedule" "data_export_job" {
+  name                = "${local.name}-data-export-job"
+  schedule_expression = var.data_export_schedule_expression
+
+  flexible_time_window {
+    mode = "OFF"
+  }
+
+  target {
+    arn      = module.ecs.cluster_arn
+    role_arn = aws_iam_role.data_export_scheduler.arn
+
+    ecs_parameters {
+      # Omitting the revision intentionally selects the latest ACTIVE revision.
+      task_definition_arn = aws_ecs_task_definition.data_export_job.arn_without_revision
+      launch_type         = "FARGATE"
+      platform_version    = "LATEST"
+
+      network_configuration {
+        assign_public_ip = false
+        security_groups  = [aws_security_group.app.id]
+        subnets          = module.vpc.private_subnets
+      }
+    }
+
+    retry_policy {
+      maximum_event_age_in_seconds = 3600
+      maximum_retry_attempts       = 1
+    }
+  }
 }
 
 ################################################################################

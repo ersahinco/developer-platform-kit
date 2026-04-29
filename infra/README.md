@@ -10,7 +10,7 @@ rollout, and operator workflows without multiplying state files.
 - One AWS account and region for the reference stack.
 - One S3-backed Terraform state key: `aws-sdlc-containers/stack.tfstate`.
 - One VPC, ECS cluster, app service, RDS database, ALB, and Route 53 entrypoint.
-- One S3 data hub bucket with raw, curated, and manifest prefix conventions.
+- One S3 data hub bucket with a scheduled ECS export job for raw and manifest objects.
 - CI owns image promotion and task definition revisions after bootstrap.
 - Terraform owns durable infrastructure and intentionally ignores app image
   task definition drift after CI deploys.
@@ -29,7 +29,7 @@ rollout, and operator workflows without multiplying state files.
 | `base_data_rds.tf` | RDS Postgres and database security group. |
 | `base_data_hub_s3.tf` | S3 data hub bucket and raw/curated/manifest prefix convention. |
 | `base_compute_ecs.tf` | ECR repositories, ECS cluster, app service, and PgBouncer sidecar. |
-| `support_jobs.tf` | One-off Liquibase and worker task definitions. |
+| `support_jobs.tf` | One-off Liquibase/worker task definitions and scheduled data export job. |
 | `identity.tf` | ECS task execution/runtime IAM. |
 | `oidc_github_actions.tf` | Base GitHub Actions OIDC role and policies. |
 | `optional_*.tf` | Explicit optional extensions that are not part of the minimum base path. |
@@ -62,8 +62,8 @@ the base concerns:
 - ECS Exec support: `oidc_optional_features.tf` plus the SSM messages endpoint.
 - Observability AWS deployment: not added yet; local Prometheus, Loki, and
   Grafana live under `docker/observability/`.
-- Data hub compute: the S3 bucket exists; ECS data job and EventBridge schedule
-  are not added yet. See `docs/data-flow.md`.
+- Data hub compute: the S3 bucket, ECS data export task, and EventBridge
+  schedule are in the base data-flow slice. See `docs/data-flow.md`.
 
 Some optional resources are currently enabled to preserve deployed behavior.
 If a future change makes them toggleable, add a small, documented variable and

@@ -164,6 +164,7 @@ infra-apply-iam: infra-init ## Targeted apply: GitHub Actions IAM only — break
 		-target=aws_iam_policy.github_actions_networking \
 		-target=aws_iam_policy.github_actions_edge_dns \
 		-target=aws_iam_policy.github_actions_logs_secrets \
+		-target=aws_iam_policy.github_actions_data_hub \
 		-target=aws_iam_policy.github_actions_identity_kms \
 		-target=aws_iam_policy.github_actions_networking_vpc_endpoints \
 		-target=aws_iam_policy.github_actions_edge_waf \

@@ -34,6 +34,7 @@ Data export job
   -> Postgres direct connection
   -> raw/order_contact_email/dt=<date>/<run-id>.csv
   -> manifests/order_contact_email/dt=<date>/<run-id>.json
+  -> optional S3 upload to the same relative keys
 ```
 
 Liquibase bypasses PgBouncer because DDL requires a stable session connection.
@@ -43,12 +44,13 @@ pooling.
 ## Local Export Job
 
 `apps/data-export-job` is the first deliberately small data-hub-shaped job. It
-exports `order_contact_email` to local filesystem paths that mirror the future
-S3 convention, then writes a manifest only after the CSV succeeds.
+exports `order_contact_email` to local filesystem paths that mirror the S3
+convention, then writes a manifest only after the CSV succeeds.
 
-This job is local proof only for now. The GitHub Actions app workflow runs its
-tests, but it does not build or deploy a data-job image to AWS until the ECS
-scheduled task and EventBridge trigger are added in a later slice.
+The GitHub Actions app workflow validates the job, builds and scans its image,
+pushes it to ECR, and registers the latest task definition revision during
+manual deploys. The scheduled task owns recurring exports; the normal app
+deploy does not run an export immediately.
 
 Run it locally through Docker Compose:
 
@@ -59,6 +61,10 @@ make data-export
 The job writes into the `data_exports` Docker volume by default. For tests and
 ad hoc local runs, set `DATA_EXPORT_OUTPUT_DIR` to a temporary directory and
 `DATA_EXPORT_RUN_ID` to make the output path deterministic.
+
+Set `DATA_EXPORT_S3_BUCKET` to enable S3 mode. The job still writes the raw CSV
+and manifest locally first, then uploads the raw object before the manifest. If
+the raw upload fails, the process exits non-zero before uploading a manifest.
 
 ## AWS Data Hub Bucket
 
@@ -77,7 +83,19 @@ s3://<bucket>/
 ```
 
 There are no placeholder objects for these prefixes. S3 prefixes are virtual;
-the export job creates the first objects when the ECS data job is wired in.
+the scheduled export creates objects only when it runs.
+
+## Scheduled ECS Export
+
+Terraform defines one scheduled Fargate task named
+`<stack-name>-data-export-job`. EventBridge Scheduler runs it daily by default
+with `rate(1 day)`. The task connects directly to RDS, writes the local staging
+files under `/tmp/aws-sdlc-containers-data-hub`, and uploads `raw/` and
+`manifests/` objects to the data hub bucket.
+
+The scheduler targets the task definition family rather than a fixed revision.
+CI registers a fresh SHA-tagged task definition revision during manual deploys,
+and the next scheduled run picks up that latest active revision.
 
 ## Data Hub v1 Design
 
@@ -85,8 +103,8 @@ The first data hub should be deliberately small:
 
 - One S3 bucket managed by Terraform. (Done.)
 - Prefixes for `raw/`, `curated/`, and `manifests/`.
-- Promote the existing local export job to an ECS data job.
-- One EventBridge schedule that runs the job.
+- Promote the existing local export job to an ECS data job. (Done.)
+- One EventBridge schedule that runs the job. (Done.)
 - One manifest file per export with row count, source query name, export time, and object keys.
 - No Glue catalog, Athena, Kafka, Lake Formation, or multi-account sharing in v1.
 

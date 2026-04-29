@@ -22,6 +22,7 @@ class Settings(BaseSettings):
     data_export_output_dir: str = "/tmp/aws-sdlc-containers-data-hub"
     data_export_run_id: str | None = None
     data_export_date: str | None = None
+    data_export_s3_bucket: str | None = None
 
     @model_validator(mode="after")
     def compose_export_url(self) -> "Settings":

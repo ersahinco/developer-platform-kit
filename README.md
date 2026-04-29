@@ -6,8 +6,8 @@ container images, reproducible Terraform, database migration safety, and
 workload operations.
 
 The project is intentionally small today: one AWS stack, one ECS cluster, one
-FastAPI app, one backfill worker, one data export job, PgBouncer, Liquibase,
-one PostgreSQL database, and one S3 data hub bucket. It is being shaped
+FastAPI app, one backfill worker, one scheduled data export job, PgBouncer,
+Liquibase, one PostgreSQL database, and one S3 data hub bucket. It is being shaped
 gradually into a modular monolith monorepo for app, infra, data, and DevOps
 work.
 
@@ -35,7 +35,7 @@ tracker for future Codex and human sessions.
 |---|---|---|
 | SDLC baseline | GitHub Actions, immutable ECR tags, reproducible Terraform state | `.github/workflows/`, `infra/`, `Makefile` |
 | Safe schema rollout | Expand, dual-write, backfill, switch, contract | `db/changelog/`, `apps/backfill-worker/src/aws_sdlc_backfill_worker/main.py` |
-| Data export flow | Local ECS-shaped export job with raw output, manifest, and S3 data hub convention | `apps/data-export-job/src/aws_sdlc_data_export_job/main.py`, `infra/base_data_hub_s3.tf` |
+| Data export flow | Local and scheduled ECS export job with raw output, manifest, and S3 data hub writes | `apps/data-export-job/src/aws_sdlc_data_export_job/main.py`, `infra/base_data_hub_s3.tf`, `infra/support_jobs.tf` |
 | Runtime config | DB-backed `WRITE_MODE` and `READ_MODE` switches | `packages/adapters/src/aws_sdlc_adapters/db/repository.py` |
 | Connection pooling | PgBouncer in transaction mode | `docker-compose.yml`, `db/pgbouncer/pgbouncer.ini` |
 | ECS deployment | Rolling app deploy plus one-off Liquibase and worker tasks | `.github/workflows/app.yml`, `infra/support_jobs.tf` |
@@ -65,7 +65,7 @@ aws-sdlc-containers/
 |-- apps/
 |   |-- api/             # FastAPI workload
 |   |-- backfill-worker/ # Backfill worker workload
-|   `-- data-export-job/ # Local data export job
+|   `-- data-export-job/ # Data export job
 |-- packages/
 |   |-- core/            # Pure domain entities and ports
 |   `-- adapters/        # SQLAlchemy/Postgres adapter implementations
@@ -137,7 +137,7 @@ and Grafana setup.
 Two GitHub Actions workflows keep app and infrastructure concerns separate:
 
 - `infra.yml`: Terraform fmt, validate, tflint, checkov, PR plan, and manual apply.
-- `app.yml`: local workload validation, image build, Trivy scan, ECR push, Liquibase task, ECS service deploy, and worker task run.
+- `app.yml`: local workload validation, image build, Trivy scan, ECR push, Liquibase task, ECS service deploy, worker task run, and data export task registration.
 
 Cloud-changing jobs are manual through `workflow_dispatch` and require typed
 confirmation. AWS authentication uses GitHub OIDC, not long-lived access keys.

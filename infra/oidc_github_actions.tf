@@ -23,6 +23,7 @@ locals {
   github_actions_ecr_push_repositories = [
     module.ecr_app.repository_arn,
     module.ecr_worker.repository_arn,
+    module.ecr_data_export_job.repository_arn,
     module.ecr_liquibase.repository_arn,
     module.ecr_pgbouncer.repository_arn,
   ]
@@ -65,6 +66,10 @@ locals {
 
   github_actions_data_hub_bucket_resources = [
     "arn:aws:s3:::${local.data_hub_bucket_name}",
+  ]
+
+  github_actions_scheduler_resources = [
+    "arn:aws:scheduler:${local.region}:${local.account_id}:schedule/default/${local.github_actions_stack_scope}",
   ]
 }
 
@@ -199,6 +204,20 @@ data "aws_iam_policy_document" "github_actions_compute_deploy" {
       "application-autoscaling:ListTagsForResource",
     ]
     resources = ["*"]
+  }
+
+  statement {
+    sid = "SchedulerManage"
+    actions = [
+      "scheduler:CreateSchedule",
+      "scheduler:DeleteSchedule",
+      "scheduler:GetSchedule",
+      "scheduler:ListTagsForResource",
+      "scheduler:TagResource",
+      "scheduler:UntagResource",
+      "scheduler:UpdateSchedule",
+    ]
+    resources = local.github_actions_scheduler_resources
   }
 }
 

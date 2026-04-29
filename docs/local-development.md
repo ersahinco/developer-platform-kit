@@ -206,7 +206,7 @@ make data-export
 ```
 
 It writes `raw/order_contact_email/dt=<date>/<run-id>.csv` and a matching
-success manifest into the `data_exports` Docker volume. This is the local proof
-point before adding S3, EventBridge, or AWS IAM for the data hub.
+success manifest into the `data_exports` Docker volume. In AWS, the scheduled
+ECS data export job uploads those same relative keys to the data hub S3 bucket.
 
 AWS operator targets are documented in `deployment.md`.

@@ -1,10 +1,12 @@
 import csv
+import importlib
 import json
 import os
 import subprocess
 from pathlib import Path
 from urllib.parse import urlparse, urlunparse
 
+import pytest
 from sqlalchemy import text
 
 _EXPORT_SRC = os.path.join(
@@ -28,6 +30,7 @@ def _run_export(output_dir: Path, run_id: str, export_date: str):
     env["DATA_EXPORT_OUTPUT_DIR"] = str(output_dir)
     env["DATA_EXPORT_RUN_ID"] = run_id
     env["DATA_EXPORT_DATE"] = export_date
+    env.pop("DATA_EXPORT_S3_BUCKET", None)
     return subprocess.run(
         [
             "uv",
@@ -95,6 +98,7 @@ def test_data_export_writes_raw_csv_then_success_manifest(
     assert manifest["status"] == "succeeded"
     assert manifest["dataset"] == "order_contact_email"
     assert manifest["objects"]["raw"] == str(raw_path.relative_to(tmp_path))
+    assert manifest["objects"]["manifest"] == str(manifest_path.relative_to(tmp_path))
     assert manifest["row_count"] >= 1
 
     with raw_path.open(encoding="utf-8", newline="") as handle:
@@ -128,3 +132,74 @@ def test_data_export_is_idempotent_for_the_same_run_id(
     manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
     assert manifest["run_id"] == "same-run"
     assert manifest["objects"]["raw"].endswith("/same-run.csv")
+
+
+def _load_export_module(monkeypatch):
+    monkeypatch.setenv(
+        "DATA_EXPORT_DATABASE_URL",
+        "postgresql://postgres:postgres@localhost:5432/aws_sdlc_containers",
+    )
+    monkeypatch.syspath_prepend(_EXPORT_SRC)
+    import aws_sdlc_data_export_job.main as export_main
+
+    return importlib.reload(export_main)
+
+
+class RecordingS3Client:
+    def __init__(self, fail_on_key: str | None = None):
+        self.fail_on_key = fail_on_key
+        self.uploads: list[tuple[str, str]] = []
+
+    def put_object(self, *, Bucket, Key, Body):
+        self.uploads.append((Bucket, Key))
+        if Key == self.fail_on_key:
+            raise RuntimeError(f"failed upload: {Key}")
+        Body.read()
+
+
+def test_s3_publish_uploads_raw_before_manifest(monkeypatch, tmp_path):
+    export_main = _load_export_module(monkeypatch)
+    raw_path = tmp_path / "raw.csv"
+    manifest_path = tmp_path / "manifest.json"
+    raw_path.write_text("order_id,billing_email\n1,export@example.com\n", encoding="utf-8")
+    manifest_path.write_text('{"status":"succeeded"}\n', encoding="utf-8")
+    s3_client = RecordingS3Client()
+
+    export_main._publish_s3_outputs(
+        raw_path=raw_path,
+        manifest_path=manifest_path,
+        bucket="data-hub",
+        raw_key="raw/order_contact_email/dt=2026-04-29/test-run.csv",
+        manifest_key="manifests/order_contact_email/dt=2026-04-29/test-run.json",
+        s3_client=s3_client,
+    )
+
+    assert s3_client.uploads == [
+        ("data-hub", "raw/order_contact_email/dt=2026-04-29/test-run.csv"),
+        (
+            "data-hub",
+            "manifests/order_contact_email/dt=2026-04-29/test-run.json",
+        ),
+    ]
+
+
+def test_s3_publish_skips_manifest_when_raw_upload_fails(monkeypatch, tmp_path):
+    export_main = _load_export_module(monkeypatch)
+    raw_key = "raw/order_contact_email/dt=2026-04-29/test-run.csv"
+    raw_path = tmp_path / "raw.csv"
+    manifest_path = tmp_path / "manifest.json"
+    raw_path.write_text("order_id,billing_email\n1,export@example.com\n", encoding="utf-8")
+    manifest_path.write_text('{"status":"succeeded"}\n', encoding="utf-8")
+    s3_client = RecordingS3Client(fail_on_key=raw_key)
+
+    with pytest.raises(RuntimeError, match="failed upload"):
+        export_main._publish_s3_outputs(
+            raw_path=raw_path,
+            manifest_path=manifest_path,
+            bucket="data-hub",
+            raw_key=raw_key,
+            manifest_key="manifests/order_contact_email/dt=2026-04-29/test-run.json",
+            s3_client=s3_client,
+        )
+
+    assert s3_client.uploads == [("data-hub", raw_key)]
