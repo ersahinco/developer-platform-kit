@@ -10,8 +10,10 @@ on:
   pull_request:
     paths:
       - ".github/workflows/app.yml"
-      - "app/**"
-      - "worker/**"
+      - "apps/api/**"
+      - "apps/backfill-worker/**"
+      - "apps/data-export-job/**"
+      - "packages/**"
       - "db/**"
       - "tests/**"
       - "scripts/**"
@@ -19,8 +21,10 @@ on:
     branches: [main]
     paths:
       - ".github/workflows/app.yml"
-      - "app/**"
-      - "worker/**"
+      - "apps/api/**"
+      - "apps/backfill-worker/**"
+      - "apps/data-export-job/**"
+      - "packages/**"
       - "db/**"
       - "tests/**"
       - "scripts/**"
@@ -87,7 +91,7 @@ jobs:
           enable-cache: true
 
       - name: Install dependencies
-        run: uv sync --frozen --group test
+        run: uv sync --frozen --all-packages --group test
 
       - name: Init DB schema
         run: |
@@ -112,7 +116,7 @@ jobs:
 
       - name: Start app
         run: |
-          PYTHONPATH="${{ github.workspace }}/app/src" uv run --directory app uvicorn adapters.api.main:app \
+          PYTHONPATH="${{ github.workspace }}/apps/api/src:${{ github.workspace }}/packages/core/src:${{ github.workspace }}/packages/adapters/src" uv run --directory apps/api uvicorn adapters.api.main:app \
             --host 0.0.0.0 --port 8000 &
           curl --retry 30 --retry-delay 1 --retry-connrefused -sf \
             http://localhost:8000/health
@@ -245,8 +249,8 @@ jobs:
         env:
           TAG: sha-${{ github.sha }}
         run: |
-          docker build -t ${{ env.ECR_REGISTRY }}/${{ env.STACK_NAME }}/app:$TAG app/ &
-          docker build -t ${{ env.ECR_REGISTRY }}/${{ env.STACK_NAME }}/worker:$TAG worker/ &
+          docker build -f apps/api/Dockerfile -t ${{ env.ECR_REGISTRY }}/${{ env.STACK_NAME }}/app:$TAG . &
+          docker build -t ${{ env.ECR_REGISTRY }}/${{ env.STACK_NAME }}/worker:$TAG apps/backfill-worker/ &
           docker build -t ${{ env.ECR_REGISTRY }}/${{ env.STACK_NAME }}/liquibase:$TAG db/ &
           wait
 

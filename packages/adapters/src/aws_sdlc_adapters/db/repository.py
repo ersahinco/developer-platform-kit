@@ -7,15 +7,15 @@ from typing import cast
 from sqlalchemy.dialects.postgresql import insert as pg_insert
 from sqlalchemy.orm import Session
 
-from adapters.db.models import (
+from aws_sdlc_adapters.db.models import (
     AppRuntimeConfigModel,
     CustomerModel,
     OrderContactEmailModel,
     OrderModel,
 )
-from domain.customer import Customer
-from domain.order import Order, OrderStatus, ReadModeValue, WriteModeValue
-from domain.ports import ConfigStore, CustomerRepository, OrderRepository
+from aws_sdlc_core.customer import Customer
+from aws_sdlc_core.order import Order, OrderStatus, ReadModeValue, WriteModeValue
+from aws_sdlc_core.ports import ConfigStore, CustomerRepository, OrderRepository
 
 _TTL_SECONDS = 5  # re-read app_runtime_config at most every 5 seconds
 

@@ -4,8 +4,8 @@ from decimal import Decimal
 from sqlalchemy import BigInteger, ForeignKey, Numeric, String, TIMESTAMP
 from sqlalchemy.orm import Mapped, mapped_column
 
-from db import Base
-from domain.order import OrderStatus
+from aws_sdlc_adapters.db.base import Base
+from aws_sdlc_core.order import OrderStatus
 
 
 class OrderModel(Base):

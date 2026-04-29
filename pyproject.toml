@@ -10,13 +10,26 @@ dependencies = [
 ]
 
 [dependency-groups]
+dev = [
+    "ruff>=0.4.4",
+]
 test = [
     "pytest>=8.2.0",
     "testcontainers[postgres]>=4.8.0",
 ]
 
 [tool.uv.workspace]
-members = ["app", "worker"]
+members = [
+    "apps/api",
+    "apps/backfill-worker",
+    "apps/data-export-job",
+    "packages/core",
+    "packages/adapters",
+]
+
+[tool.uv.sources]
+aws-sdlc-containers-adapters = { workspace = true }
+aws-sdlc-containers-core = { workspace = true }
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]

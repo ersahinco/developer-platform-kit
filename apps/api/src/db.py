@@ -1,7 +1,7 @@
 from collections.abc import Iterator
 
 from sqlalchemy import create_engine
-from sqlalchemy.orm import DeclarativeBase, Session, sessionmaker
+from sqlalchemy.orm import Session, sessionmaker
 from sqlalchemy.pool import NullPool
 
 from config import settings
@@ -21,10 +21,6 @@ SessionLocal = sessionmaker(engine, autoflush=False)
 # autoflush=False: with NullPool and short-lived per-request sessions there is
 # no benefit to implicit flushes before queries, and disabling it avoids
 # surprising DB round-trips inside read paths.
-
-
-class Base(DeclarativeBase):
-    pass
 
 
 def get_db() -> Iterator[Session]:

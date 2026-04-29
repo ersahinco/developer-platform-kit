@@ -1,8 +1,11 @@
 import logging
+import time
 from typing import Annotated
 
-from fastapi import Depends, FastAPI, HTTPException
+from fastapi import Depends, FastAPI, HTTPException, Request
+from prometheus_client import CONTENT_TYPE_LATEST, Counter, Histogram, generate_latest
 from sqlalchemy.orm import Session
+from starlette.responses import Response
 
 from adapters.api.schemas import (
     CreateOrderRequest,
@@ -14,8 +17,8 @@ from adapters.api.schemas import (
     WriteModeRequest,
     WriteModeResponse,
 )
+from aws_sdlc_core.ports import ConfigStore, CustomerRepository, OrderRepository
 from db import get_db
-from domain.ports import ConfigStore, CustomerRepository, OrderRepository
 
 
 class _SuppressHealthChecks(logging.Filter):
@@ -38,24 +41,65 @@ app = FastAPI(title="aws-sdlc-containers")
 
 DbDep = Annotated[Session, Depends(get_db)]
 
+REQUEST_COUNT = Counter(
+    "http_requests_total",
+    "Total HTTP requests by method, route, and status code.",
+    ["method", "route", "status_code"],
+)
+REQUEST_LATENCY = Histogram(
+    "http_request_duration_seconds",
+    "HTTP request latency by method and route.",
+    ["method", "route"],
+)
+
+
+def _route_label(request: Request) -> str:
+    route = request.scope.get("route")
+    return getattr(route, "path", request.url.path)
+
+
+@app.middleware("http")
+async def observe_requests(request: Request, call_next) -> Response:
+    if request.url.path == "/metrics":
+        return await call_next(request)
+
+    started_at = time.perf_counter()
+    try:
+        response = await call_next(request)
+    except Exception:
+        route = _route_label(request)
+        REQUEST_COUNT.labels(request.method, route, "500").inc()
+        REQUEST_LATENCY.labels(request.method, route).observe(
+            time.perf_counter() - started_at
+        )
+        raise
+
+    route = _route_label(request)
+    REQUEST_COUNT.labels(request.method, route, str(response.status_code)).inc()
+    REQUEST_LATENCY.labels(request.method, route).observe(
+        time.perf_counter() - started_at
+    )
+    return response
+
+
 
 def get_order_repo(db: DbDep) -> OrderRepository:
     # Import here, not at module level — keeps the API adapter decoupled from
     # the DB adapter at import time. The port is the compile-time contract;
     # the concrete implementation is wired only at request time.
-    from adapters.db.repository import SQLAlchemyOrderRepository
+    from aws_sdlc_adapters.db.repository import SQLAlchemyOrderRepository
 
     return SQLAlchemyOrderRepository(session=db)
 
 
 def get_customer_repo(db: DbDep) -> CustomerRepository:
-    from adapters.db.repository import SQLAlchemyCustomerRepository
+    from aws_sdlc_adapters.db.repository import SQLAlchemyCustomerRepository
 
     return SQLAlchemyCustomerRepository(session=db)
 
 
 def get_config_store(db: DbDep) -> ConfigStore:
-    from adapters.db.repository import SQLAlchemyConfigStore
+    from aws_sdlc_adapters.db.repository import SQLAlchemyConfigStore
 
     return SQLAlchemyConfigStore(session=db)
 
@@ -68,6 +112,11 @@ ConfigStoreDep = Annotated[ConfigStore, Depends(get_config_store)]
 @app.get("/health", response_model=HealthResponse)
 def health() -> HealthResponse:
     return HealthResponse(status="ok")
+
+
+@app.get("/metrics", include_in_schema=False)
+def metrics() -> Response:
+    return Response(generate_latest(), media_type=CONTENT_TYPE_LATEST)
 
 
 @app.get("/customers/{customer_id}", response_model=CustomerResponse)

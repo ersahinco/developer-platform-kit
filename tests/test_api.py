@@ -24,6 +24,15 @@ def test_order_not_found_returns_404(http_client):
     assert http_client.get("/orders/999999999").status_code == 404
 
 
+def test_metrics_endpoint_exposes_prometheus_text(http_client):
+    """GET /metrics exposes Prometheus-format application metrics."""
+    assert http_client.get("/health").status_code == 200
+    resp = http_client.get("/metrics")
+    assert resp.status_code == 200
+    assert "text/plain" in resp.headers["content-type"]
+    assert "http_requests_total" in resp.text
+
+
 @pytest.mark.parametrize("status", ["SUBMITTED", "PAID", "CANCELLED"])
 def test_valid_order_statuses_are_accepted(http_client, status):
     """All valid order statuses are accepted by POST /orders."""

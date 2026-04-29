@@ -263,6 +263,23 @@ Because rollout is additive and in-place:
 - Re-running the worker is safe because it is checkpointed and idempotent.
 - The irreversible step is still the contract migration that removes the old column.
 
+Use these checkpoints during the migration rollout:
+
+| Phase | Before advancing | If the step fails | Rollback path |
+|---|---|---|---|
+| Expand | `terraform plan` is reviewed, app is healthy, and a DB snapshot policy exists for the stack. | Stop before changing runtime modes. Re-run Liquibase after fixing the failed changeset or connectivity issue. | No app rollback is needed because the old schema is still intact. |
+| Dual-write | `order_contact_email` exists and the currently deployed app version supports `WRITE_MODE=dual`. | Set `WRITE_MODE=legacy` through the admin API if writes behave unexpectedly. | Reads still use the old column, so returning to `legacy` writes restores the old behavior. |
+| Backfill | `WRITE_MODE=dual` is active and the worker task definition points at the intended image tag. | Re-run the worker task. It is checkpointed and uses idempotent inserts. | Leave `READ_MODE=legacy`; the app continues reading from the old column. |
+| Switch reads | Backfill has completed and tests pass in the switch phase. | Set `READ_MODE=legacy` through the admin API. | Dual-write keeps both locations current, so read rollback is safe. |
+| New writes | `READ_MODE=new` has been verified and all app tasks are on the compatible version. | Set `WRITE_MODE=dual` if new-only writes expose an issue before contract. | The old column still exists, so dual-write restores rollback safety. |
+| Contract | A DB snapshot exists and no running app version needs `orders.billing_email`. | Stop deployment and restore from snapshot only if the contract has already removed required data. | This is the first irreversible step. Do not apply it until rollback through runtime flags is no longer needed. |
+
+When recovering a failed GitHub Actions deployment, prefer rerunning the failed
+job with the same commit SHA instead of rebuilding from a different commit. The
+ECR image tags are immutable `sha-<commit>` tags, so the task definitions should
+continue to reference the exact images that were validated earlier in the
+pipeline.
+
 ## Canonical source
 
 This file is the operator-facing source of truth for the current single-stack rollout. See `ARCHITECTURE.md` for the design rationale and extension boundaries.

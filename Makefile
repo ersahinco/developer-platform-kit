@@ -48,6 +48,15 @@ dev: ## Start local Postgres + PgBouncer
 	docker compose up -d db pgbouncer
 	docker compose ps
 
+.PHONY: observability
+observability: ## Start local Prometheus + Loki + Promtail + Grafana
+	docker compose --profile observability up -d prometheus loki promtail grafana
+	docker compose --profile observability ps
+
+.PHONY: observability-stop
+observability-stop: ## Stop local observability services
+	docker compose --profile observability stop prometheus loki promtail grafana
+
 .PHONY: migrate
 migrate: ## Run Liquibase migrations against local DB
 	./scripts/run_liquibase.sh update
@@ -55,6 +64,10 @@ migrate: ## Run Liquibase migrations against local DB
 .PHONY: seed
 seed: ## Seed local DB with test data
 	uv run python scripts/seed_data.py
+
+.PHONY: data-export
+data-export: ## Run local data export job into the data_exports Docker volume
+	docker compose --profile data run --rm data-export-job
 
 .PHONY: test
 test: ## Run test suite (requires local services and app running)
@@ -67,7 +80,7 @@ lint: lint-app lint-infra ## Run all linters
 
 .PHONY: lint-app
 lint-app: ## Lint Python (ruff)
-	uv run ruff check app/ tests/ scripts/
+	uv run ruff check apps/ packages/ tests/ scripts/
 
 .PHONY: lint-infra
 lint-infra: ## Lint Terraform (fmt check + tflint + checkov)
@@ -77,7 +90,7 @@ lint-infra: ## Lint Terraform (fmt check + tflint + checkov)
 
 .PHONY: fmt
 fmt: ## Auto-format Python and Terraform
-	uv run ruff format app/ tests/ scripts/
+	uv run ruff format apps/ packages/ tests/ scripts/
 	terraform fmt -recursive infra/
 
 .PHONY: pre-commit

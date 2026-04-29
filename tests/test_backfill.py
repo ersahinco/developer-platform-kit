@@ -14,7 +14,9 @@ from urllib.parse import urlparse, urlunparse
 
 from sqlalchemy import text
 
-_WORKER_SRC = os.path.join(os.path.dirname(__file__), "..", "worker", "src")
+_WORKER_SRC = os.path.join(
+    os.path.dirname(__file__), "..", "apps", "backfill-worker", "src"
+)
 _JOB = "order_contact_email_backfill"
 
 

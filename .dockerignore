@@ -1,0 +1,26 @@
+# Keep root-context Docker builds focused and free of local state.
+
+.git/
+.venv/
+**/__pycache__/
+**/*.py[cod]
+.pytest_cache/
+.ruff_cache/
+
+# Local environment and credentials
+.env
+.env.*
+aws_credentials
+.aws/
+
+# Terraform state and plans must never enter Docker build context.
+infra/.terraform/
+**/*.tfstate
+**/*.tfstate.*
+*.tfplan
+crash.log
+
+# Local runtime noise
+*.log
+*.pid
+docker-compose.override.yml

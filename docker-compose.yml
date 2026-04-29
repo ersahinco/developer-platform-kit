@@ -69,10 +69,10 @@ services:
 
   app:
     build:
-      context: ./app
-      dockerfile: Dockerfile
-    env_file:
-      - .env
+      context: .
+      dockerfile: apps/api/Dockerfile
+    environment:
+      DATABASE_URL: ${DATABASE_URL:-postgresql://postgres:postgres@pgbouncer:5432/aws_sdlc_containers}
     ports:
       - "${APP_PORT:-8000}:8000"
     depends_on:
@@ -83,7 +83,7 @@ services:
 
   worker:
     build:
-      context: ./worker
+      context: ./apps/backfill-worker
       dockerfile: Dockerfile
     environment:
       # Worker bypasses pgbouncer — connects directly to Postgres.
@@ -93,6 +93,22 @@ services:
     depends_on:
       db:
         condition: service_healthy
+
+  data-export-job:
+    build:
+      context: .
+      dockerfile: apps/data-export-job/Dockerfile
+    environment:
+      # Export job bypasses pgbouncer, matching worker/DDL behavior.
+      DATA_EXPORT_DATABASE_URL: postgresql://${POSTGRES_USER:-postgres}:${POSTGRES_PASSWORD:-postgres}@db:5432/${POSTGRES_DB:-aws_sdlc_containers}
+      DATA_EXPORT_OUTPUT_DIR: /exports
+    volumes:
+      - data_exports:/exports
+    depends_on:
+      db:
+        condition: service_healthy
+    profiles:
+      - data
 
   pgadmin:
     image: dpage/pgadmin4:latest
@@ -112,6 +128,69 @@ services:
     profiles:
       - tools
 
+  prometheus:
+    image: prom/prometheus:${PROMETHEUS_TAG:-v2.55.1}
+    command:
+      - --config.file=/etc/prometheus/prometheus.yml
+      - --storage.tsdb.path=/prometheus
+    volumes:
+      - ./docker/observability/prometheus/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - prometheus_data:/prometheus
+    ports:
+      - "${PROMETHEUS_PORT:-9090}:9090"
+    depends_on:
+      app:
+        condition: service_started
+    profiles:
+      - observability
+
+  loki:
+    image: grafana/loki:${LOKI_TAG:-3.2.1}
+    command: -config.file=/etc/loki/loki.yml
+    volumes:
+      - ./docker/observability/loki/loki.yml:/etc/loki/loki.yml:ro
+      - loki_data:/loki
+    ports:
+      - "${LOKI_PORT:-3100}:3100"
+    profiles:
+      - observability
+
+  promtail:
+    image: grafana/promtail:${PROMTAIL_TAG:-3.2.1}
+    command: -config.file=/etc/promtail/promtail.yml
+    volumes:
+      - ./docker/observability/promtail/promtail.yml:/etc/promtail/promtail.yml:ro
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+    depends_on:
+      loki:
+        condition: service_started
+    profiles:
+      - observability
+
+  grafana:
+    image: grafana/grafana:${GRAFANA_TAG:-11.3.0}
+    environment:
+      GF_SECURITY_ADMIN_USER: ${GRAFANA_ADMIN_USER:-admin}
+      GF_SECURITY_ADMIN_PASSWORD: ${GRAFANA_ADMIN_PASSWORD:-admin}
+      GF_USERS_ALLOW_SIGN_UP: "false"
+    volumes:
+      - grafana_data:/var/lib/grafana
+      - ./docker/observability/grafana/provisioning:/etc/grafana/provisioning:ro
+      - ./docker/observability/grafana/dashboards:/var/lib/grafana/dashboards:ro
+    ports:
+      - "${GRAFANA_PORT:-3000}:3000"
+    depends_on:
+      prometheus:
+        condition: service_started
+      loki:
+        condition: service_started
+    profiles:
+      - observability
+
 volumes:
   db_data:
   pgadmin_data:
+  prometheus_data:
+  loki_data:
+  grafana_data:
+  data_exports:

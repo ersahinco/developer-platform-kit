@@ -1,8 +1,8 @@
 import abc
 from decimal import Decimal
 
-from domain.customer import Customer
-from domain.order import Order, OrderStatus
+from aws_sdlc_core.customer import Customer
+from aws_sdlc_core.order import Order, OrderStatus
 
 
 class OrderRepository(abc.ABC):
