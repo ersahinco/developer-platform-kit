@@ -15,7 +15,8 @@ work.
 
 | Need | Go to |
 |---|---|
-| Cross-session roadmap | [docs/ROADMAP.md](docs/ROADMAP.md) |
+| Current roadmap | [docs/ROADMAP_V2.md](docs/ROADMAP_V2.md) |
+| V1 roadmap history | [docs/ROADMAP.md](docs/ROADMAP.md) |
 | Architecture direction | [docs/architecture.md](docs/architecture.md) |
 | Local development runbook | [docs/local-development.md](docs/local-development.md) |
 | AWS deployment/runbook | [docs/deployment.md](docs/deployment.md) |
@@ -25,9 +26,9 @@ work.
 | Observability plan | [docs/observability.md](docs/observability.md) |
 | Architecture decisions | [docs/adr/](docs/adr/) |
 
-Read [docs/ROADMAP.md](docs/ROADMAP.md) before making structural, DevOps,
-infrastructure, data-flow, or observability changes. It is the shared progress
-tracker for future Codex and human sessions.
+Read [docs/ROADMAP_V2.md](docs/ROADMAP_V2.md) before making DevOps,
+infrastructure, data-flow, observability, security, or operator workflow
+changes. V1 history remains in [docs/ROADMAP.md](docs/ROADMAP.md).
 
 ## What This Demonstrates
 
@@ -82,7 +83,7 @@ aws-sdlc-containers/
 Target direction is an evolutionary monorepo with `apps/`, `packages/`,
 `infra/`, `db/`, `docker/`, and `docs/`. Future `ops/` and `security/`
 directories should appear only when they have real owned content. See
-[docs/ROADMAP.md](docs/ROADMAP.md) for the phase checklist.
+[docs/ROADMAP_V2.md](docs/ROADMAP_V2.md) for the current phase checklist.
 
 ## Quick Local Path
 
@@ -146,7 +147,8 @@ confirmation. AWS authentication uses GitHub OIDC, not long-lived access keys.
 
 ## Later Phases
 
-This repo stays lean on purpose. The next structural and platform work is
-tracked in [docs/ROADMAP.md](docs/ROADMAP.md), and intentionally deferred
-hardening remains documented in
+This repo stays lean on purpose. Current operator-quality work is tracked in
+[docs/ROADMAP_V2.md](docs/ROADMAP_V2.md), V1 history remains in
+[docs/ROADMAP.md](docs/ROADMAP.md), and intentionally deferred hardening remains
+documented in
 [docs/architecture.md#whats-intentionally-omitted](docs/architecture.md#whats-intentionally-omitted).

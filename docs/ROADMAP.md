@@ -1,8 +1,8 @@
 # ECS DevOps Monorepo Roadmap
 
-This file is the shared progress tracker for future Codex and human sessions.
-Start here before changing structure, CI/CD, infrastructure, data flows, or
-observability.
+This file is the completed V1 progress tracker for project history. New
+operator-quality, security, dependency maintenance, and AWS-native
+observability work is tracked in [docs/ROADMAP_V2.md](ROADMAP_V2.md).
 
 ## Current State
 
@@ -130,21 +130,21 @@ Compose usage, and the GitHub Actions deployment path.
 
 ## Next Session Should Start Here
 
-1. Read this file, `README.md`, `docs/architecture.md`, and `.kiro/steering/engineering-principles.md`.
+1. Read `docs/ROADMAP_V2.md` first, then this file, `README.md`, `docs/architecture.md`, and `.kiro/steering/engineering-principles.md`.
 2. Check `git status --short` before editing. The `.gitignore` file may contain user-owned changes.
-3. Pick exactly one unchecked phase item.
+3. Pick exactly one unchecked V2 phase item.
 4. Make the smallest change that advances that item.
 5. Run the relevant verification from the checklist.
-6. Update this file before ending the session.
+6. Update `docs/ROADMAP_V2.md` before ending the session.
 
-Recommended next pick: keep Phase 5 stable and move to a small AWS-native
-observability or operator-quality slice only if it has a concrete acceptance
-test. Do not add Glue, Athena, Kafka, or multi-account data platform resources.
+Recommended next pick: add a CloudWatch alarm for scheduled data export task
+failure and a matching runbook. Keep it to one alarm plus one real runbook.
 
 ## Documentation Ownership
 
 - `README.md` is the short project index and should not become a runbook.
-- `docs/ROADMAP.md` is the cross-session tracker and decision checklist.
+- `docs/ROADMAP.md` is the completed V1 history and decision checklist.
+- `docs/ROADMAP_V2.md` is the current cross-session tracker.
 - `docs/deployment.md` is the detailed AWS operator runbook.
 - `docs/architecture.md` keeps the long-form rationale and intentionally
   omitted hardening work.
