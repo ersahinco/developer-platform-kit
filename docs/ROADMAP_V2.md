@@ -71,7 +71,7 @@ them only with real owned content.
 ### Phase 3: Shift-Left Security
 
 - [x] Add one lightweight secret scanning gate.
-- [ ] Add one Python dependency scanning gate.
+- [x] Add one Python dependency scanning gate.
 - [ ] Add one SAST gate, preferably GitHub-native or low-maintenance.
 - [ ] Add SBOM generation only when it has a clear consumer in CI or docs.
 - [ ] Add `security/exceptions.yaml` only when security exceptions become tracked policy.
@@ -112,9 +112,9 @@ them only with real owned content.
 5. Run the relevant verification.
 6. Update this file before ending the session.
 
-Recommended next pick: add one Python dependency scanning gate. Prefer a
-low-maintenance tool that works with the existing `uv` workflow, and avoid
-creating `security/exceptions.yaml` until there is a real tracked exception.
+Recommended next pick: add one SAST gate, preferably GitHub-native or
+low-maintenance. Keep it focused on the existing Python/Terraform surface and
+avoid adding `security/exceptions.yaml` until there is a real tracked exception.
 
 ## Documentation Ownership
 
@@ -145,3 +145,4 @@ creating `security/exceptions.yaml` until there is a real tracked exception.
 | 2026-04-29 | Added RDS CPU, free storage, and connection pressure alarms, plus a shared RDS pressure runbook. | Ran `terraform fmt -check -recursive infra/`, `terraform -chdir=infra validate`, `tflint --format compact`, Checkov, and documentation whitespace checks. |
 | 2026-04-29 | Added a focused ECS deploy rollback runbook and linked app alarm runbooks to it. | Documentation-only change; ran `git diff --check` on the edited docs. |
 | 2026-04-29 | Added a dependency-free high-confidence secret scan gate with local Make, CI, and unit-test coverage. | Ran secret scan, focused scanner tests, Ruff, Pyright, full pytest, and documentation whitespace checks. |
+| 2026-04-29 | Added a Python dependency audit gate using `pip-audit` against a frozen `uv.lock` export, and bumped `pytest` to clear the initial vulnerability finding. | Ran `uv lock`, dependency audit, secret scan, focused audit tests, Ruff, Pyright, full pytest, and documentation whitespace checks. |

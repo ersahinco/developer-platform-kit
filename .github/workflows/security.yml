@@ -9,17 +9,28 @@ permissions:
   contents: read
 
 jobs:
-  secret-scan:
-    name: Secret Scan
+  security-scan:
+    name: Security Scan
     runs-on: ubuntu-latest
-    timeout-minutes: 5
+    timeout-minutes: 10
 
     steps:
       - uses: actions/checkout@v4
+
+      - uses: astral-sh/setup-uv@v4
+        with:
+          version: "0.6.16"
+          enable-cache: true
 
       - uses: actions/setup-python@v5
         with:
           python-version: "3.12"
 
+      - name: Install dependencies
+        run: uv sync --frozen --all-packages --group dev --group test
+
       - name: Run secret scan
         run: python scripts/secret_scan.py .
+
+      - name: Run Python dependency audit
+        run: uv run python scripts/dependency_audit.py

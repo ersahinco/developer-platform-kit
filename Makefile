@@ -76,7 +76,7 @@ test: ## Run test suite (requires local services and app running)
 # ── Lint & format ─────────────────────────────────────────────────────────────
 
 .PHONY: lint
-lint: secret-scan lint-app lint-infra ## Run all linters
+lint: secret-scan dependency-audit lint-app lint-infra ## Run all linters
 
 .PHONY: lint-app
 lint-app: ## Lint and type-check Python
@@ -86,6 +86,10 @@ lint-app: ## Lint and type-check Python
 .PHONY: secret-scan
 secret-scan: ## Scan repository for high-confidence committed secrets
 	uv run python scripts/secret_scan.py .
+
+.PHONY: dependency-audit
+dependency-audit: ## Audit uv-locked Python dependencies for known vulnerabilities
+	uv run python scripts/dependency_audit.py
 
 .PHONY: lint-infra
 lint-infra: ## Lint Terraform (fmt check + tflint + checkov)

@@ -19,6 +19,7 @@ This project should demonstrate a complete but lean DevOps toolchain around ECS.
 | CI/CD | GitHub Actions |
 | AWS authentication | GitHub OIDC role assumption |
 | Secret scanning | Dependency-free high-confidence scanner in `scripts/secret_scan.py` |
+| Python dependency audit | `pip-audit` against a frozen `uv.lock` export |
 | Image registry | ECR |
 | Image security | Trivy before push, ECR scanning configured in Terraform |
 | Runtime | ECS Fargate |
@@ -36,6 +37,7 @@ This project should demonstrate a complete but lean DevOps toolchain around ECS.
 ```bash
 make pre-commit
 make secret-scan
+make dependency-audit
 make lint
 make fmt
 uv run pytest tests/ -v
@@ -44,7 +46,9 @@ uv run pytest tests/ -v
 `ruff` and `pyright` are declared in the root development dependency group so
 local quality checks do not depend on globally installed binaries. The secret
 scanner uses only the Python standard library so it can run in GitHub Actions
-without adding another external security service or policy file.
+without adding another external security service or policy file. The dependency
+audit exports the resolved `uv.lock` graph to a temporary requirements file and
+runs `pip-audit` against those exact pins.
 
 ## Naming Conventions
 

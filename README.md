@@ -119,6 +119,7 @@ Run tests:
 ```bash
 uv sync --all-packages --group dev --group test
 uv run python scripts/secret_scan.py .
+uv run python scripts/dependency_audit.py
 uv run ruff check apps/ packages/ tests/ scripts/
 uv run pyright
 uv run pytest tests/ -v
@@ -138,9 +139,9 @@ and Grafana setup.
 
 ## CI/CD Shape
 
-Two GitHub Actions workflows keep app and infrastructure concerns separate:
+Three GitHub Actions workflows keep security, app, and infrastructure concerns separate:
 
-- `security.yml`: high-confidence secret scanning on pull requests and `main`.
+- `security.yml`: high-confidence secret scanning and Python dependency audit on pull requests and `main`.
 - `infra.yml`: Terraform fmt, validate, tflint, checkov, PR plan, and manual apply.
 - `app.yml`: local workload validation, image build, Trivy scan, ECR push, Liquibase task, ECS service deploy, worker task run, and data export task registration.
 
