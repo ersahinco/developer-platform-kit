@@ -47,6 +47,12 @@ repos:
         language: system
         pass_filenames: false
 
+      - id: dockerfile-policy
+        name: Dockerfile policy
+        entry: python3 scripts/check_dockerfiles.py
+        language: system
+        pass_filenames: false
+
       - id: pyright
         name: pyright
         entry: uv run pyright

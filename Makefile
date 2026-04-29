@@ -76,7 +76,7 @@ test: ## Run test suite (requires local services and app running)
 # ── Lint & format ─────────────────────────────────────────────────────────────
 
 .PHONY: lint
-lint: secret-scan dependency-audit lint-app lint-scripts lint-docs lint-workflows lint-infra ## Run all linters
+lint: secret-scan dependency-audit lint-app lint-scripts lint-docs lint-workflows lint-dockerfiles lint-infra ## Run all linters
 
 .PHONY: lint-app
 lint-app: ## Lint and type-check Python
@@ -94,6 +94,10 @@ lint-docs: ## Check local Markdown links
 .PHONY: lint-workflows
 lint-workflows: ## Check GitHub workflow policy
 	python3 scripts/check_workflows.py
+
+.PHONY: lint-dockerfiles
+lint-dockerfiles: ## Check Dockerfile policy
+	python3 scripts/check_dockerfiles.py
 
 .PHONY: secret-scan
 secret-scan: ## Scan repository for high-confidence committed secrets

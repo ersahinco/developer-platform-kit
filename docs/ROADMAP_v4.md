@@ -26,7 +26,7 @@ The repository already implements the high-value parts of
   CloudWatch alarms and runbooks.
 - Ruff, Pyright, pytest, Terraform fmt, tflint, Checkov, pre-commit,
   Dependabot, docs link checks, shell syntax checks, GitHub workflow policy
-  checks, and dependency/secret audits.
+  checks, Dockerfile policy checks, and dependency/secret audits.
 
 V4 continues the architecture comparison without treating the reference tree as
 a migration checklist. Keep the application domain small, but allow additional
@@ -121,9 +121,9 @@ through CI, infrastructure, observability, and operator documentation.
 
 ### Phase 7: Security and Delivery Confidence
 
-- [ ] Prefer narrow policy checks that protect existing workflows over broad unused policy trees.
-- [ ] Keep GitHub OIDC, manual cloud-changing confirmations, image scanning, dependency auditing, and secret scanning aligned as workflows evolve.
-- [ ] Add exceptions or allowlists only when there is a real exception to track.
+- [x] Prefer narrow policy checks that protect existing workflows over broad unused policy trees.
+- [x] Keep GitHub OIDC, manual cloud-changing confirmations, image scanning, dependency auditing, and secret scanning aligned as workflows evolve.
+- [x] Add exceptions or allowlists only when there is a real exception to track.
 
 ## Next Session Should Start Here
 
@@ -137,11 +137,11 @@ through CI, infrastructure, observability, and operator documentation.
    step.
 4. Make the smallest coherent change, verify it, update this file, and commit.
 
-Recommended next pick: choose one background-processing or security-delivery
-slice that extends an existing workload before adding a new app. Good candidates
-are a concrete idempotent background workflow or a narrow policy check that
-protects an existing workflow. Review the pending `.gitignore` cleanup as a
-separate slice only after confirming it is intentional user-owned work.
+Recommended next pick: choose one background-processing slice that extends an
+existing workload before adding a new app. A good candidate is a concrete
+idempotent order event or repair workflow with local behavior, tests,
+observability, and runbook coverage. Review the pending `.gitignore` cleanup as
+a separate slice only after confirming it is intentional user-owned work.
 
 ## Documentation Ownership
 
@@ -166,6 +166,7 @@ separate slice only after confirming it is intentional user-owned work.
 | 2026-04-29 | Extend the existing API before adding a new workload for the first runtime-pattern slice. | Liveness, readiness, and request correlation are production service basics and fit the current API with no new infrastructure or dependency surface. |
 | 2026-04-29 | Strengthen the existing data export manifest before adding a larger data platform. | Raw byte counts and SHA-256 checksums make the current S3 contract verifiable without adding Glue, Athena, or orchestration complexity. |
 | 2026-04-29 | Surface API readiness failures in the local Grafana dashboard before adding new monitoring infrastructure. | `/ready` already exposes dependency health and Prometheus already records route/status metrics, so the dashboard can make the signal actionable without new runtime code. |
+| 2026-04-29 | Add a narrow Dockerfile policy check instead of a broad container policy tree. | The repo already uses Trivy for CVEs; the local check protects repository-owned invariants such as non-`latest` bases, multi-stage app builds, and non-root runtime users. |
 | 2026-04-29 | Continue deferring packages, Terraform splits, `deploy/`, and `security/` trees until they have concrete ownership. | The current value is complete SDLC and operator reliability around a simple domain, not breadth of placeholders. |
 
 ## Completed Work Log
@@ -178,3 +179,4 @@ separate slice only after confirming it is intentional user-owned work.
 | 2026-04-29 | Extended the API with database-backed `/ready` readiness and `X-Request-ID` propagation while keeping `/health` as lightweight liveness. | Ran focused API tests, Ruff, Pyright, documentation link checks, and path-scoped git diff whitespace checks. |
 | 2026-04-29 | Strengthened the data export manifest with raw byte count and SHA-256 validation before manifest upload or success logging. | Ran focused data export tests, Ruff, Pyright, documentation link checks, and path-scoped git diff whitespace checks. |
 | 2026-04-29 | Added a local Grafana readiness-failure stat for `/ready` 5xx responses and documented the operator path to existing app/RDS runbooks. | Ran the dashboard contract test, Ruff, documentation link checks, JSON parsing, and path-scoped git diff whitespace checks. |
+| 2026-04-29 | Added a dependency-free Dockerfile policy check for non-`latest` base images, multi-stage app builds, and non-root runtime users, wired into Make, pre-commit, and the Security workflow. | Ran the Dockerfile checker, focused policy tests, Ruff, Pyright, documentation link checks, and path-scoped git diff whitespace checks. |
