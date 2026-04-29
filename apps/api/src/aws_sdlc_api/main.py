@@ -2,6 +2,7 @@ import logging
 import time
 import uuid
 from typing import Annotated
+from typing import cast
 
 from fastapi import Depends, FastAPI, HTTPException, Request
 from prometheus_client import CONTENT_TYPE_LATEST, Counter, Histogram, generate_latest
@@ -24,6 +25,7 @@ from aws_sdlc_api.schemas import (
     WriteModeResponse,
 )
 from aws_sdlc_core.ports import ConfigStore, CustomerRepository, OrderRepository
+from aws_sdlc_core.order import ReadModeValue, WriteModeValue
 
 
 class _SuppressHealthChecks(logging.Filter):
@@ -207,6 +209,14 @@ def set_read_mode(body: ReadModeRequest, config: ConfigStoreDep) -> ReadModeResp
     return ReadModeResponse(mode=body.mode)
 
 
+@app.get("/admin/read-mode", response_model=ReadModeResponse)
+def get_read_mode(config: ConfigStoreDep) -> ReadModeResponse:
+    mode = config.get("READ_MODE")
+    if mode not in ("legacy", "new"):
+        raise HTTPException(status_code=503, detail="READ_MODE is not configured")
+    return ReadModeResponse(mode=cast(ReadModeValue, mode))
+
+
 @app.post("/admin/write-mode", response_model=WriteModeResponse)
 def set_write_mode(body: WriteModeRequest, config: ConfigStoreDep) -> WriteModeResponse:
     """Switch WRITE_MODE at runtime without redeployment.
@@ -218,3 +228,11 @@ def set_write_mode(body: WriteModeRequest, config: ConfigStoreDep) -> WriteModeR
     """
     config.set("WRITE_MODE", body.mode)
     return WriteModeResponse(mode=body.mode)
+
+
+@app.get("/admin/write-mode", response_model=WriteModeResponse)
+def get_write_mode(config: ConfigStoreDep) -> WriteModeResponse:
+    mode = config.get("WRITE_MODE")
+    if mode not in ("legacy", "dual", "new"):
+        raise HTTPException(status_code=503, detail="WRITE_MODE is not configured")
+    return WriteModeResponse(mode=cast(WriteModeValue, mode))

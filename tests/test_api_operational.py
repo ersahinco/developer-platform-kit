@@ -20,6 +20,7 @@ sys.path.insert(0, str(ROOT / "packages" / "core" / "src"))
 from fastapi.testclient import TestClient  # noqa: E402
 
 from aws_sdlc_api.main import app, get_db  # noqa: E402
+from aws_sdlc_api.main import get_config_store  # noqa: E402
 
 
 class _ReadySession:
@@ -32,11 +33,29 @@ class _FailingSession:
         raise RuntimeError("database unavailable")
 
 
+class _ConfigStore:
+    def __init__(self, values: dict[str, str | None]) -> None:
+        self._values = values
+
+    def get(self, key: str) -> str | None:
+        return self._values.get(key)
+
+    def set(self, key: str, value: str) -> None:
+        self._values[key] = value
+
+
 def _override_db(session: object) -> None:
     def get_test_db() -> Iterator[object]:
         yield session
 
     app.dependency_overrides[get_db] = get_test_db
+
+
+def _override_config_store(store: object) -> None:
+    def get_test_config_store() -> object:
+        return store
+
+    app.dependency_overrides[get_config_store] = get_test_config_store
 
 
 def test_ready_reports_database_ok_when_ping_succeeds() -> None:
@@ -80,3 +99,31 @@ def test_request_id_header_is_propagated_when_supplied() -> None:
 
     assert response.status_code == 200
     assert response.headers["x-request-id"] == "trace-123"
+
+
+def test_runtime_mode_getters_report_current_config() -> None:
+    _override_config_store(_ConfigStore({"READ_MODE": "new", "WRITE_MODE": "dual"}))
+    try:
+        with TestClient(app) as client:
+            read_response = client.get("/admin/read-mode")
+            write_response = client.get("/admin/write-mode")
+    finally:
+        app.dependency_overrides.clear()
+
+    assert read_response.status_code == 200
+    assert read_response.json() == {"mode": "new"}
+    assert write_response.status_code == 200
+    assert write_response.json() == {"mode": "dual"}
+
+
+def test_runtime_mode_getters_fail_when_config_is_missing() -> None:
+    _override_config_store(_ConfigStore({"READ_MODE": None, "WRITE_MODE": None}))
+    try:
+        with TestClient(app) as client:
+            read_response = client.get("/admin/read-mode")
+            write_response = client.get("/admin/write-mode")
+    finally:
+        app.dependency_overrides.clear()
+
+    assert read_response.status_code == 503
+    assert write_response.status_code == 503

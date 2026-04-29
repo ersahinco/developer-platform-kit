@@ -214,6 +214,18 @@ app-deploy: ## Force new deployment of the existing ECS app service
 		--query 'service.taskDefinition' \
 		--output text
 
+.PHONY: post-deploy-verify
+post-deploy-verify: ## Verify deployed app readiness, metrics, modes, and ECS image
+	@TOKEN="$${TOKEN:-$$(aws secretsmanager get-secret-value \
+		--secret-id aws-sdlc-containers/api-token \
+		--region $(AWS_REGION) \
+		--query SecretString --output text)}" \
+	BASE_URL="$${BASE_URL:-https://api.$(ROOT_DOMAIN)}" \
+	ECS_CLUSTER="$${ECS_CLUSTER:-aws-sdlc-containers}" \
+	ECS_SERVICE="$${ECS_SERVICE:-app}" \
+	EXPECTED_TASK_FAMILY="$${EXPECTED_TASK_FAMILY:-aws-sdlc-containers}" \
+	python3 scripts/verify_post_deploy.py
+
 # ── DB access — no bastion needed ─────────────────────────────────────────────
 #
 # All three targets delegate to shell scripts under scripts/ to avoid Make's

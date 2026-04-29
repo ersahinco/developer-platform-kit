@@ -72,9 +72,9 @@ and commit. Preserve user-owned worktree changes.
 
 ### Phase 3: Rollout Verification
 
-- [ ] Add one preflight or post-deploy verification improvement.
-- [ ] Keep it runnable locally or in CI without broad new dependencies.
-- [ ] Document where it fits in the migration/deploy sequence.
+- [x] Add one preflight or post-deploy verification improvement.
+- [x] Keep it runnable locally or in CI without broad new dependencies.
+- [x] Document where it fits in the migration/deploy sequence.
 
 ### Phase 4: Async Event Processing
 
@@ -133,5 +133,6 @@ preflight verification script.
 
 | Date | Work | Verification |
 |---|---|---|
+| 2026-04-29 | Added read-only runtime mode endpoints and a post-deploy verifier that checks `/health`, `/ready`, `/metrics`, runtime modes, and optional ECS task/image metadata; wired it into the deploy workflow and Makefile. | Ran Ruff, Pyright, workflow policy checks, Markdown link checks, focused pytest coverage, and path-scoped git diff whitespace checks. |
 | 2026-04-29 | Added an app dependency-readiness incident drill that stops local PgBouncer, confirms `/health` stays live while `/ready` fails, maps symptoms to Prometheus/Grafana/Loki and AWS runbooks, and linked it from observability and app-health docs. | Ran Markdown link checks and path-scoped git diff whitespace checks. |
 | 2026-04-29 | Created the V5 tracker with production incident drills, rollout verification, async queue processing, and documentation consolidation as the main themes; repointed README and V4 current-roadmap references to V5. | Documentation-only change; ran documentation link checks and path-scoped git diff whitespace checks. |

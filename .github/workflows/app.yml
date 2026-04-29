@@ -37,6 +37,7 @@ env:
   AWS_REGION: eu-central-1
   ECR_REGISTRY: 691627364817.dkr.ecr.eu-central-1.amazonaws.com
   STACK_NAME: aws-sdlc-containers
+  ROOT_DOMAIN: ersahinco-sandbox.eu
 
 # PRs and pushes validate the reference workload locally. Cloud deployment is
 # manual-only through workflow_dispatch and requires a typed confirmation so a
@@ -388,6 +389,21 @@ jobs:
 
       - name: Deploy app service
         run: scripts/ci_deploy_ecs_service.sh aws-sdlc-containers app "${{ steps.render-app.outputs.task-definition }}"
+
+      - name: Verify deployed app
+        env:
+          BASE_URL: https://api.${{ env.ROOT_DOMAIN }}
+          ECS_CLUSTER: aws-sdlc-containers
+          ECS_SERVICE: app
+          EXPECTED_TASK_FAMILY: aws-sdlc-containers
+          EXPECTED_IMAGE_TAG: ${{ needs.build-and-push.outputs.image_tag }}
+        run: |
+          TOKEN=$(aws secretsmanager get-secret-value \
+            --secret-id aws-sdlc-containers/api-token \
+            --region ${{ env.AWS_REGION }} \
+            --query SecretString \
+            --output text)
+          TOKEN="$TOKEN" python3 scripts/verify_post_deploy.py
 
       - name: Render worker task definition
         id: render-worker

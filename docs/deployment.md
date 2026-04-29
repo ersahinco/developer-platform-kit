@@ -215,8 +215,10 @@ Rollout stays inside the same cluster and the same database:
 1. Build and push new images.
 2. Run Liquibase against the current database.
 3. Deploy the new app task definition to the existing ECS service.
-4. Run the backfill worker as a one-off task if the migration requires it.
-5. Advance `WRITE_MODE` and `READ_MODE` through the runbook.
+4. Verify the deployed app with `/ready`, `/metrics`, runtime mode, and ECS
+   task/image checks.
+5. Run the backfill worker as a one-off task if the migration requires it.
+6. Advance `WRITE_MODE` and `READ_MODE` through the runbook.
 
 This keeps the project lean while still supporting safe schema evolution.
 
@@ -234,6 +236,7 @@ This stack is deliberately not Multi-AZ for either ECS or RDS.
 make infra-plan
 make infra-apply
 make app-deploy
+make post-deploy-verify
 make db-tunnel
 make db-exec
 make db-seed
@@ -287,6 +290,19 @@ If a deploy reaches ECS but causes unhealthy targets, target 5xxs, or latency
 alarms, use `ops/runbooks/ecs-deploy-rollback.md` to identify the previous
 healthy task definition revision and roll the app service back without changing
 database state.
+
+After an app deploy reaches ECS, run the post-deploy verifier before advancing
+runtime modes or relying on the new task image:
+
+```bash
+make post-deploy-verify
+```
+
+The target checks `/health`, `/ready`, `/metrics`, `READ_MODE`, `WRITE_MODE`,
+the active ECS task family, and the deployed app image when
+`EXPECTED_IMAGE_TAG` or `EXPECTED_APP_IMAGE` is provided. The GitHub Actions
+deploy job runs the same verifier immediately after updating the app service
+and before registering one-off worker or data export task definitions.
 
 ## Canonical source
 
