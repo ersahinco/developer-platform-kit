@@ -19,6 +19,8 @@ def run_backfill() -> None:
         max_overflow=0,
     )
     try:
+        batches_processed = 0
+        completed = False
         while True:
             start = time.monotonic()
 
@@ -47,6 +49,7 @@ def run_backfill() -> None:
                 ).fetchall()
 
                 if not batch:
+                    completed = True
                     break
 
                 conn.execute(
@@ -75,14 +78,34 @@ def run_backfill() -> None:
                 rows_processed = new_processed
 
             elapsed_ms = (time.monotonic() - start) * 1000
+            batches_processed += 1
             print(
                 json.dumps({"last_order_id": last_order_id, "inserted": len(batch), "elapsed_ms": round(elapsed_ms, 1)}),
                 flush=True,
             )
 
+            if (
+                settings.backfill_max_batches is not None
+                and batches_processed >= settings.backfill_max_batches
+            ):
+                print(
+                    json.dumps(
+                        {
+                            "event": "backfill_paused",
+                            "reason": "max_batches",
+                            "batches_processed": batches_processed,
+                            "last_order_id": last_order_id,
+                        },
+                        sort_keys=True,
+                    ),
+                    flush=True,
+                )
+                break
+
             time.sleep(settings.backfill_sleep_ms / 1000)
 
-        print("backfill complete", flush=True)
+        if completed:
+            print("backfill complete", flush=True)
     finally:
         engine.dispose()
 

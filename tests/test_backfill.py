@@ -77,6 +77,23 @@ def _reset_checkpoint(conn):
     conn.commit()
 
 
+def _set_checkpoint(conn, last_order_id: int, rows_processed: int = 0):
+    conn.execute(
+        text(
+            "INSERT INTO backfill_progress (job_name, last_order_id, rows_processed) "
+            "VALUES (:job, :last_order_id, :rows_processed) "
+            "ON CONFLICT (job_name) DO UPDATE "
+            "SET last_order_id=:last_order_id, rows_processed=:rows_processed, updated_at=NOW()"
+        ),
+        {
+            "job": _JOB,
+            "last_order_id": last_order_id,
+            "rows_processed": rows_processed,
+        },
+    )
+    conn.commit()
+
+
 def test_rows_with_billing_email_are_backfilled_null_rows_are_skipped(
     committed_db_session,
 ):
@@ -166,3 +183,48 @@ def test_each_batch_emits_a_structured_json_log_line(committed_db_session):
     assert log_lines, "expected at least one JSON log line"
     data = json.loads(log_lines[0])
     assert {"last_order_id", "inserted", "elapsed_ms"} <= data.keys()
+
+
+def test_worker_can_pause_after_a_bounded_number_of_batches(committed_db_session):
+    """BACKFILL_MAX_BATCHES lets operators throttle a repair run safely."""
+    conn = committed_db_session.connection()
+    id_a = _insert_order(conn, "bounded-a@example.com")
+    id_b = _insert_order(conn, "bounded-b@example.com")
+    conn.commit()
+    _set_checkpoint(conn, id_a - 1)
+
+    first = _run_worker(
+        BACKFILL_BATCH_SIZE="1",
+        BACKFILL_MAX_BATCHES="1",
+        BACKFILL_SLEEP_MS="0",
+    )
+    assert first.returncode == 0, first.stderr
+    committed_db_session.expire_all()
+    assert "backfill complete" not in first.stdout
+    assert '"event": "backfill_paused"' in first.stdout
+
+    rows = {
+        r.order_id
+        for r in conn.execute(
+            text("SELECT order_id FROM order_contact_email WHERE order_id IN :ids"),
+            {"ids": (id_a, id_b)},
+        ).fetchall()
+    }
+    assert rows == {id_a}
+
+    second = _run_worker(
+        BACKFILL_BATCH_SIZE="1",
+        BACKFILL_MAX_BATCHES="1",
+        BACKFILL_SLEEP_MS="0",
+    )
+    assert second.returncode == 0, second.stderr
+    committed_db_session.expire_all()
+
+    rows = {
+        r.order_id
+        for r in conn.execute(
+            text("SELECT order_id FROM order_contact_email WHERE order_id IN :ids"),
+            {"ids": (id_a, id_b)},
+        ).fetchall()
+    }
+    assert rows == {id_a, id_b}

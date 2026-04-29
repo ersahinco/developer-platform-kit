@@ -129,6 +129,17 @@ The worker reads from `orders.billing_email`, writes to `order_contact_email`,
 and exits when complete. It is safe to rerun because inserts are idempotent and
 the checkpoint advances only after a successful batch commit.
 
+For a throttled repair or replay, bound a run to a small number of committed
+batches:
+
+```bash
+docker compose run --rm -e BACKFILL_MAX_BATCHES=1 worker
+```
+
+When the limit is reached, the worker exits successfully after logging a
+`backfill_paused` JSON event. Re-run the same command to continue from the
+checkpoint.
+
 ### 7. Switch reads to the new table
 
 ```bash

@@ -22,6 +22,7 @@ class Settings(BaseSettings):
 
     backfill_batch_size: int = 1000
     backfill_sleep_ms: int = 100
+    backfill_max_batches: int | None = None
 
     @model_validator(mode="after")
     def compose_backfill_url(self) -> "Settings":
@@ -31,6 +32,8 @@ class Settings(BaseSettings):
                     "Either BACKFILL_DATABASE_URL or DB_PASSWORD+DB_HOST must be set"
                 )
             self.backfill_database_url = f"postgresql://{self.db_user}:{self.db_password}@{self.db_host}:{self.db_port}/{self.db_name}"
+        if self.backfill_max_batches is not None and self.backfill_max_batches < 1:
+            raise ValueError("BACKFILL_MAX_BATCHES must be at least 1 when set")
         return self
 
     @property

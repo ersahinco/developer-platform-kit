@@ -17,7 +17,7 @@ The repository already implements the high-value parts of
   security scanning, CodeQL, Trivy image scanning, and manual AWS-changing
   workflows through OIDC.
 - Complete safe database migration lifecycle with Liquibase, runtime read/write
-  switches, backfill, and contract-readiness checks.
+  switches, bounded idempotent backfill, and contract-readiness checks.
 - API liveness, database-backed readiness, request ID propagation, and
   Prometheus request metrics.
 - Local and AWS data export flow with S3 raw and validated manifest
@@ -109,9 +109,9 @@ through CI, infrastructure, observability, and operator documentation.
 
 ### Phase 5: Async and Scheduled Workloads
 
-- [ ] Add a consumer, scheduler, or admin workload only when it has concrete owned behavior and an end-to-end operator workflow.
-- [ ] Include idempotency, retries, failure handling, metrics, alarms, and runbook coverage for any new workload.
-- [ ] Avoid queue, event, or scheduler infrastructure unless local behavior and tests exist first.
+- [x] Extend an existing background workload before adding a new consumer, scheduler, or admin app.
+- [x] Include idempotency, pause/resume behavior, failure handling, structured logs, and operator documentation.
+- [x] Avoid queue, event, or scheduler infrastructure unless local behavior and tests exist first.
 
 ### Phase 6: Data and Observability at Scale
 
@@ -137,11 +137,11 @@ through CI, infrastructure, observability, and operator documentation.
    step.
 4. Make the smallest coherent change, verify it, update this file, and commit.
 
-Recommended next pick: choose one background-processing slice that extends an
-existing workload before adding a new app. A good candidate is a concrete
-idempotent order event or repair workflow with local behavior, tests,
-observability, and runbook coverage. Review the pending `.gitignore` cleanup as
-a separate slice only after confirming it is intentional user-owned work.
+Recommended next pick: start a fresh V5 tracker or review the pending
+`.gitignore` cleanup as a separate slice after confirming it is intentional
+user-owned work. If continuing V4, prefer a documentation consolidation pass
+that summarizes completed production-grade slices rather than adding more
+runtime surface.
 
 ## Documentation Ownership
 
@@ -167,6 +167,7 @@ a separate slice only after confirming it is intentional user-owned work.
 | 2026-04-29 | Strengthen the existing data export manifest before adding a larger data platform. | Raw byte counts and SHA-256 checksums make the current S3 contract verifiable without adding Glue, Athena, or orchestration complexity. |
 | 2026-04-29 | Surface API readiness failures in the local Grafana dashboard before adding new monitoring infrastructure. | `/ready` already exposes dependency health and Prometheus already records route/status metrics, so the dashboard can make the signal actionable without new runtime code. |
 | 2026-04-29 | Add a narrow Dockerfile policy check instead of a broad container policy tree. | The repo already uses Trivy for CVEs; the local check protects repository-owned invariants such as non-`latest` bases, multi-stage app builds, and non-root runtime users. |
+| 2026-04-29 | Extend the existing backfill worker with bounded runs instead of adding a new consumer. | The current worker already owns a real background repair workflow; `BACKFILL_MAX_BATCHES` adds operator-controlled throttling while preserving checkpointed idempotency. |
 | 2026-04-29 | Continue deferring packages, Terraform splits, `deploy/`, and `security/` trees until they have concrete ownership. | The current value is complete SDLC and operator reliability around a simple domain, not breadth of placeholders. |
 
 ## Completed Work Log
@@ -180,3 +181,4 @@ a separate slice only after confirming it is intentional user-owned work.
 | 2026-04-29 | Strengthened the data export manifest with raw byte count and SHA-256 validation before manifest upload or success logging. | Ran focused data export tests, Ruff, Pyright, documentation link checks, and path-scoped git diff whitespace checks. |
 | 2026-04-29 | Added a local Grafana readiness-failure stat for `/ready` 5xx responses and documented the operator path to existing app/RDS runbooks. | Ran the dashboard contract test, Ruff, documentation link checks, JSON parsing, and path-scoped git diff whitespace checks. |
 | 2026-04-29 | Added a dependency-free Dockerfile policy check for non-`latest` base images, multi-stage app builds, and non-root runtime users, wired into Make, pre-commit, and the Security workflow. | Ran the Dockerfile checker, focused policy tests, Ruff, Pyright, documentation link checks, and path-scoped git diff whitespace checks. |
+| 2026-04-29 | Added `BACKFILL_MAX_BATCHES` so the checkpointed backfill worker can pause after a bounded number of committed batches for throttled repair or replay. | Ran focused backfill tests, Ruff, Pyright, documentation link checks, and path-scoped git diff whitespace checks. |

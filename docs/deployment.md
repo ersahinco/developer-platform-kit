@@ -261,6 +261,9 @@ Because rollout is additive and in-place:
 - A failed app deploy does not invalidate the current database schema.
 - Re-running Liquibase is safe because changesets are tracked.
 - Re-running the worker is safe because it is checkpointed and idempotent.
+- For throttled repair or replay, run the worker with `BACKFILL_MAX_BATCHES` set
+  to a small positive integer. The worker exits 0 after that many committed
+  batches and resumes from the checkpoint on the next run.
 - The irreversible step is still the contract migration that removes the old column.
 
 Use these checkpoints during the migration rollout:
