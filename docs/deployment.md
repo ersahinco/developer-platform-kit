@@ -280,6 +280,11 @@ ECR image tags are immutable `sha-<commit>` tags, so the task definitions should
 continue to reference the exact images that were validated earlier in the
 pipeline.
 
+If a deploy reaches ECS but causes unhealthy targets, target 5xxs, or latency
+alarms, use `ops/runbooks/ecs-deploy-rollback.md` to identify the previous
+healthy task definition revision and roll the app service back without changing
+database state.
+
 ## Canonical source
 
 This file is the operator-facing source of truth for the current single-stack rollout. See `architecture.md` for the design rationale and extension boundaries.

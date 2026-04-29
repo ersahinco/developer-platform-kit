@@ -71,7 +71,8 @@ curl -fsS "https://$(terraform -chdir=infra output -raw api_fqdn)/health"
 ## Recovery
 
 If the alarms started after a deploy, roll back to the previous healthy task
-definition revision:
+definition revision. Use `ops/runbooks/ecs-deploy-rollback.md` to identify the
+previous revision and complete the rollback safely:
 
 ```bash
 aws ecs update-service \

@@ -65,7 +65,7 @@ them only with real owned content.
 
 - [x] Add `ops/runbooks/` with the first real runbook, not as an empty folder.
 - [x] Write scheduled data export failure triage and recovery runbook.
-- [ ] Write ECS deploy rollback runbook if existing deployment docs are not enough for alarm response.
+- [x] Write ECS deploy rollback runbook if existing deployment docs are not enough for alarm response.
 - [x] Link runbooks from the alarm or workflow they support.
 
 ### Phase 3: Shift-Left Security
@@ -112,10 +112,9 @@ them only with real owned content.
 5. Run the relevant verification.
 6. Update this file before ending the session.
 
-Recommended next pick: review `docs/deployment.md` for ECS rollback coverage,
-then either add a focused ECS deploy rollback runbook or mark the V2 rollback
-item complete with rationale. Keep the slice documentation-only unless the
-review exposes a concrete missing operator command.
+Recommended next pick: add one lightweight secret scanning gate. Prefer a
+low-maintenance GitHub-native or pre-commit-compatible tool, and avoid adding a
+`security/exceptions.yaml` file until there is a real tracked exception.
 
 ## Documentation Ownership
 
@@ -144,3 +143,4 @@ review exposes a concrete missing operator command.
 | 2026-04-29 | Added an ALB target health alarm for the app service and a matching unhealthy-service runbook. | Ran `terraform fmt -check -recursive infra/`, `terraform -chdir=infra validate`, `tflint --format compact`, Checkov, and documentation whitespace checks. |
 | 2026-04-29 | Added ALB target 5xx and p95 latency alarms for app edge symptoms, plus a shared runbook. | Ran `terraform fmt -check -recursive infra/`, `terraform -chdir=infra validate`, `tflint --format compact`, Checkov, and documentation whitespace checks. |
 | 2026-04-29 | Added RDS CPU, free storage, and connection pressure alarms, plus a shared RDS pressure runbook. | Ran `terraform fmt -check -recursive infra/`, `terraform -chdir=infra validate`, `tflint --format compact`, Checkov, and documentation whitespace checks. |
+| 2026-04-29 | Added a focused ECS deploy rollback runbook and linked app alarm runbooks to it. | Documentation-only change; ran `git diff --check` on the edited docs. |
