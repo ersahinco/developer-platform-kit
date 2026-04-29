@@ -73,8 +73,8 @@ them only with real owned content.
 - [x] Add one lightweight secret scanning gate.
 - [x] Add one Python dependency scanning gate.
 - [x] Add one SAST gate, preferably GitHub-native or low-maintenance.
-- [ ] Add SBOM generation only when it has a clear consumer in CI or docs.
-- [ ] Add `security/exceptions.yaml` only when security exceptions become tracked policy.
+- [x] Add SBOM generation only when it has a clear consumer in CI or docs.
+- [x] Add `security/exceptions.yaml` only when security exceptions become tracked policy.
 
 ### Phase 4: Dependency and Image Maintenance
 
@@ -147,6 +147,7 @@ reorganizing only if a document has drifted from its owner role. Keep
 | 2026-04-29 | Added a dependency-free high-confidence secret scan gate with local Make, CI, and unit-test coverage. | Ran secret scan, focused scanner tests, Ruff, Pyright, full pytest, and documentation whitespace checks. |
 | 2026-04-29 | Added a Python dependency audit gate using `pip-audit` against a frozen `uv.lock` export, and bumped `pytest` to clear the initial vulnerability finding. | Ran `uv lock`, dependency audit, secret scan, focused audit tests, Ruff, Pyright, full pytest, and documentation whitespace checks. |
 | 2026-04-29 | Added GitHub CodeQL as the low-maintenance Python SAST gate. | Documentation/workflow-only change; parsed the workflow YAML and ran documentation whitespace checks. |
+| 2026-04-29 | Documented that SBOM generation and `security/exceptions.yaml` stay deferred until they have real consumers or tracked policy. | Documentation-only change; ran documentation whitespace checks. |
 | 2026-04-29 | Added weekly Dependabot `uv` updates for Python dependencies. | Parsed the Dependabot YAML and ran documentation whitespace checks. |
 | 2026-04-29 | Added weekly Dependabot updates for GitHub Actions. | Parsed the Dependabot YAML and ran documentation whitespace checks. |
 | 2026-04-29 | Confirmed ECR scan-on-push and made the mirrored PgBouncer image follow the same Trivy-before-push policy as first-party images. | Parsed the app workflow YAML and ran documentation whitespace checks. |

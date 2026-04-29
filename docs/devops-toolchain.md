@@ -62,6 +62,14 @@ Checkov, CodeQL, Terraform validate/plan, Docker builds, Trivy, and pytest.
 CodeQL runs in GitHub Actions because its value is in GitHub code scanning
 annotations and security tab results, not as a local pre-commit hook.
 
+SBOM generation remains deferred until a CI upload, registry attachment,
+release artifact, or compliance process consumes it. Generating an unused SBOM
+would add churn without improving operator behavior.
+
+Security exceptions remain inline in the relevant tool configuration until
+there is a real cross-tool exception process. Do not add
+`security/exceptions.yaml` as an empty placeholder.
+
 Dependabot uses the `uv` ecosystem for Python dependency updates and the
 `github-actions` ecosystem for workflow action updates.
 
