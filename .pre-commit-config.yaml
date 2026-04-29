@@ -41,6 +41,12 @@ repos:
         language: system
         pass_filenames: false
 
+      - id: workflow-policy
+        name: GitHub workflow policy
+        entry: python3 scripts/check_workflows.py
+        language: system
+        pass_filenames: false
+
       - id: pyright
         name: pyright
         entry: uv run pyright

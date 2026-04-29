@@ -16,6 +16,7 @@ This project should demonstrate a complete but lean DevOps toolchain around ECS.
 | Python type checking | pyright, aligned with Pylance diagnostics |
 | Shell script syntax | `bash -n scripts/*.sh` |
 | Documentation links | Local Markdown link checker in `scripts/check_docs_links.py` |
+| GitHub workflow policy | Dependency-free workflow checker in `scripts/check_workflows.py` |
 | Database migrations | Liquibase |
 | Infrastructure as code | Terraform |
 | Infrastructure checks | terraform fmt, terraform validate, tflint, checkov |
@@ -45,6 +46,7 @@ make secret-scan
 make dependency-audit
 make lint-scripts
 make lint-docs
+make lint-workflows
 make lint
 make fmt
 uv run pytest tests/ -v
@@ -58,11 +60,17 @@ audit exports the resolved `uv.lock` graph to a temporary requirements file and
 runs `pip-audit` against those exact pins.
 
 Pre-commit runs lightweight file hygiene, Ruff, Terraform fmt, shell script
-syntax checks, local Markdown link checks, the local secret scan, and Pyright.
-Pyright is intentionally included because type regressions are cheap to catch
-before commit and have already been a repo-wide quality goal. Network-backed or
-slower checks stay in Make and CI: dependency audit, TFLint, Checkov, CodeQL,
-Terraform validate/plan, Docker builds, Trivy, and pytest.
+syntax checks, local Markdown link checks, GitHub workflow policy checks, the
+local secret scan, and Pyright. Pyright is intentionally included because type
+regressions are cheap to catch before commit and have already been a repo-wide
+quality goal. Network-backed or slower checks stay in Make and CI: dependency
+audit, TFLint, Checkov, CodeQL, Terraform validate/plan, Docker builds, Trivy,
+and pytest.
+
+The workflow policy check intentionally stays narrower than a general GitHub
+Actions linter. It protects two repo-specific invariants that have operational
+impact: path-filtered workflows include their own workflow file, and
+OIDC-enabled workflows keep a typed `workflow_dispatch` confirmation gate.
 
 CodeQL runs in GitHub Actions because its value is in GitHub code scanning
 annotations and security tab results, not as a local pre-commit hook.
