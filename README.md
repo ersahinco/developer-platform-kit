@@ -7,8 +7,9 @@ workload operations.
 
 The project is intentionally small today: one AWS stack, one ECS cluster, one
 FastAPI app, one backfill worker, one data export job, PgBouncer, Liquibase,
-and one PostgreSQL database. It is being shaped gradually into a modular
-monolith monorepo for app, infra, data, and DevOps work.
+one PostgreSQL database, and one S3 data hub bucket. It is being shaped
+gradually into a modular monolith monorepo for app, infra, data, and DevOps
+work.
 
 ## Start Here
 
@@ -34,7 +35,7 @@ tracker for future Codex and human sessions.
 |---|---|---|
 | SDLC baseline | GitHub Actions, immutable ECR tags, reproducible Terraform state | `.github/workflows/`, `infra/`, `Makefile` |
 | Safe schema rollout | Expand, dual-write, backfill, switch, contract | `db/changelog/`, `apps/backfill-worker/src/aws_sdlc_backfill_worker/main.py` |
-| Data export flow | Local ECS-shaped export job with raw output and manifest | `apps/data-export-job/src/aws_sdlc_data_export_job/main.py` |
+| Data export flow | Local ECS-shaped export job with raw output, manifest, and S3 data hub convention | `apps/data-export-job/src/aws_sdlc_data_export_job/main.py`, `infra/base_data_hub_s3.tf` |
 | Runtime config | DB-backed `WRITE_MODE` and `READ_MODE` switches | `packages/adapters/src/aws_sdlc_adapters/db/repository.py` |
 | Connection pooling | PgBouncer in transaction mode | `docker-compose.yml`, `db/pgbouncer/pgbouncer.ini` |
 | ECS deployment | Rolling app deploy plus one-off Liquibase and worker tasks | `.github/workflows/app.yml`, `infra/support_jobs.tf` |

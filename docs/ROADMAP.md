@@ -15,6 +15,7 @@ The repository is a lean single-stack AWS delivery sandbox:
 - SQLAlchemy/Postgres implementations in `packages/adapters/`.
 - Liquibase schema migrations in `db/`.
 - Single-root Terraform stack in `infra/`.
+- One Terraform-managed S3 data hub bucket with raw, curated, and manifest prefixes.
 - GitHub Actions workflows for app validation/deployment and Terraform validation/plan/apply.
 - Docker Compose for local Postgres, PgBouncer, app, worker, and optional tools.
 
@@ -106,7 +107,7 @@ Compose usage, and the GitHub Actions deployment path.
 - [x] Keep Liquibase expand/contract as the first data reliability example.
 - [x] Design data hub v1 before adding resources.
 - [x] Add first local data export job before S3/EventBridge resources.
-- [ ] Add S3 raw/curated convention when a real export job exists.
+- [x] Add S3 raw/curated convention when a real export job exists.
 - [ ] Add one ECS data job and scheduled EventBridge trigger.
 - [ ] Avoid Kafka, Glue, Lake Formation, and multi-account data platforms until the base flow is reliable.
 
@@ -135,9 +136,9 @@ Compose usage, and the GitHub Actions deployment path.
 5. Run the relevant verification from the checklist.
 6. Update this file before ending the session.
 
-Recommended next pick: Phase 5 data flow only if you are ready to add the first
-real export job; otherwise keep the template stable and avoid adding data
-platform complexity for its own sake.
+Recommended next pick: promote the existing data export container to one ECS
+data job with a scheduled EventBridge trigger, using the Terraform-managed data
+hub bucket. Keep it to one dataset and one schedule.
 
 ## Documentation Ownership
 
@@ -158,6 +159,7 @@ platform complexity for its own sake.
 | 2026-04-29 | Keep one Terraform root for now. | Multiple stacks add lifecycle complexity before the project has a real need for separate layers. |
 | 2026-04-29 | Prefer Prometheus, Loki, and Grafana for observability. | This matches the intended DevOps demo and interview story while keeping CloudWatch as a documented tradeoff. |
 | 2026-04-29 | Keep app complexity low until platform flows are reliable. | This template is about ECS delivery, data safety, and DevOps practices, not domain feature breadth. |
+| 2026-04-29 | Add the data hub as one private S3 bucket before ECS scheduling. | The export job already has raw and manifest paths, and the bucket convention can be reviewed independently before adding job runtime permissions and EventBridge. |
 
 ## Completed Work Log
 
@@ -178,3 +180,4 @@ platform complexity for its own sake.
 | 2026-04-29 | Added local data export job under `apps/data-export-job` with raw CSV output and success manifest paths shaped like the future data hub. | Refreshed `uv.lock`; ran `uv sync --frozen --all-packages --group test`, `uv run ruff check apps/ packages/ tests/ scripts/`, focused data export tests, `docker compose build data-export-job`, Compose data export smoke, and full pytest: 24 passed, 3 skipped. |
 | 2026-04-29 | Cleaned up the post-restructure sharp edges: unified worker Docker build on the root workspace lock, removed unused `testcontainers` and pytest marker, streamed the data export instead of buffering all rows, clarified data-export deployment scope, and documented docs ownership. | Ran `uv lock`, `uv sync --frozen --all-packages --group test`, `uv run ruff check apps/ packages/ tests/ scripts/`, `docker compose build app worker data-export-job`, focused data export tests, full pytest: 24 passed, 3 skipped, and Compose worker/data-export smokes. |
 | 2026-04-29 | Consolidated long-form docs under `docs/`, removed personal developer workflow notes, renamed infra/CI files for clearer ownership, and aligned runtime package names with app directories. | Ran `uv lock`, `uv sync --frozen --all-packages --group test`, `uv run ruff check apps/ packages/ tests/ scripts/`, API import smoke, `docker compose build app worker data-export-job`, full pytest: 24 passed, 3 skipped, app `/health` and `/metrics` smokes, `terraform fmt -check -recursive infra/`, and `terraform -chdir=infra validate`. |
+| 2026-04-29 | Added the AWS data hub bucket with raw, curated, and manifest prefix convention, plus scoped GitHub Actions Terraform permissions and operator outputs. | Ran `terraform fmt -check -recursive infra/`, `terraform -chdir=infra validate`, and `checkov -d infra --framework terraform --config-file infra/.checkov.yaml`. |

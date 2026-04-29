@@ -62,6 +62,10 @@ locals {
   github_actions_route53_zone_resources = [
     "arn:aws:route53:::hostedzone/*",
   ]
+
+  github_actions_data_hub_bucket_resources = [
+    "arn:aws:s3:::${local.data_hub_bucket_name}",
+  ]
 }
 
 data "aws_iam_openid_connect_provider" "github" {
@@ -428,6 +432,32 @@ data "aws_iam_policy_document" "github_actions_logs_secrets" {
   }
 }
 
+data "aws_iam_policy_document" "github_actions_data_hub" {
+  statement {
+    sid = "DataHubBucketManage"
+    actions = [
+      "s3:CreateBucket",
+      "s3:DeleteBucket",
+      "s3:GetBucketAcl",
+      "s3:GetBucketLocation",
+      "s3:GetBucketOwnershipControls",
+      "s3:GetBucketPublicAccessBlock",
+      "s3:GetBucketTagging",
+      "s3:GetBucketVersioning",
+      "s3:GetEncryptionConfiguration",
+      "s3:GetLifecycleConfiguration",
+      "s3:ListBucket",
+      "s3:PutBucketOwnershipControls",
+      "s3:PutBucketPublicAccessBlock",
+      "s3:PutBucketTagging",
+      "s3:PutBucketVersioning",
+      "s3:PutEncryptionConfiguration",
+      "s3:PutLifecycleConfiguration",
+    ]
+    resources = local.github_actions_data_hub_bucket_resources
+  }
+}
+
 data "aws_iam_policy_document" "github_actions_identity_kms" {
   statement {
     sid = "TerraformManageIAM"
@@ -527,6 +557,12 @@ resource "aws_iam_policy" "github_actions_logs_secrets" {
   tags   = local.tags
 }
 
+resource "aws_iam_policy" "github_actions_data_hub" {
+  name   = "${local.name}-github-actions-data-hub"
+  policy = data.aws_iam_policy_document.github_actions_data_hub.json
+  tags   = local.tags
+}
+
 resource "aws_iam_policy" "github_actions_identity_kms" {
   name   = "${local.name}-github-actions-identity-kms"
   policy = data.aws_iam_policy_document.github_actions_identity_kms.json
@@ -541,6 +577,7 @@ resource "aws_iam_role_policy_attachment" "github_actions_managed" {
     networking     = aws_iam_policy.github_actions_networking.arn
     edge_dns       = aws_iam_policy.github_actions_edge_dns.arn
     logs_secrets   = aws_iam_policy.github_actions_logs_secrets.arn
+    data_hub       = aws_iam_policy.github_actions_data_hub.arn
     identity_kms   = aws_iam_policy.github_actions_identity_kms.arn
   }
 

@@ -53,6 +53,16 @@ output "db_secret_arn" {
   value       = module.rds.db_instance_master_user_secret_arn
 }
 
+output "data_hub_bucket_name" {
+  description = "S3 bucket for data export raw, curated, and manifest prefixes."
+  value       = aws_s3_bucket.data_hub.bucket
+}
+
+output "data_hub_prefixes" {
+  description = "S3 prefixes reserved for data hub raw, curated, and manifest objects."
+  value       = local.data_hub_prefixes
+}
+
 output "ecs_cluster_name" {
   description = "ECS cluster name for the single stack."
   value       = module.ecs.cluster_name

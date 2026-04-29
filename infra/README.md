@@ -10,6 +10,7 @@ rollout, and operator workflows without multiplying state files.
 - One AWS account and region for the reference stack.
 - One S3-backed Terraform state key: `aws-sdlc-containers/stack.tfstate`.
 - One VPC, ECS cluster, app service, RDS database, ALB, and Route 53 entrypoint.
+- One S3 data hub bucket with raw, curated, and manifest prefix conventions.
 - CI owns image promotion and task definition revisions after bootstrap.
 - Terraform owns durable infrastructure and intentionally ignores app image
   task definition drift after CI deploys.
@@ -26,6 +27,7 @@ rollout, and operator workflows without multiplying state files.
 | `base_network_vpc.tf` | VPC and subnet tiers. |
 | `base_edge.tf` | ALB, security groups, ACM, Route 53, and listener auth. |
 | `base_data_rds.tf` | RDS Postgres and database security group. |
+| `base_data_hub_s3.tf` | S3 data hub bucket and raw/curated/manifest prefix convention. |
 | `base_compute_ecs.tf` | ECR repositories, ECS cluster, app service, and PgBouncer sidecar. |
 | `support_jobs.tf` | One-off Liquibase and worker task definitions. |
 | `identity.tf` | ECS task execution/runtime IAM. |
@@ -47,7 +49,8 @@ Use community modules for standard platform resources when they fit:
 Direct AWS resources are acceptable for small glue resources where a module
 would hide the important behavior or add more surface area than it removes:
 security groups, ALB listener rules, Route 53 records, WAF rules, VPC
-endpoints, task-specific IAM policies, and one-off support job definitions.
+endpoints, task-specific IAM policies, one-off support job definitions, and
+small bucket policies or guardrails.
 
 ## Optional Extensions
 
@@ -59,7 +62,8 @@ the base concerns:
 - ECS Exec support: `oidc_optional_features.tf` plus the SSM messages endpoint.
 - Observability AWS deployment: not added yet; local Prometheus, Loki, and
   Grafana live under `docker/observability/`.
-- Data hub resources: not added yet; see `docs/data-flow.md`.
+- Data hub compute: the S3 bucket exists; ECS data job and EventBridge schedule
+  are not added yet. See `docs/data-flow.md`.
 
 Some optional resources are currently enabled to preserve deployed behavior.
 If a future change makes them toggleable, add a small, documented variable and
