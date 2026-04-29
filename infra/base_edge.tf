@@ -116,6 +116,28 @@ resource "aws_lb_target_group" "app" {
   tags = local.tags
 }
 
+resource "aws_cloudwatch_metric_alarm" "app_unhealthy_targets" {
+  alarm_name          = "${local.name}-app-unhealthy-targets"
+  alarm_description   = "ALB reports unhealthy app targets. Runbook: ops/runbooks/app-service-unhealthy.md"
+  comparison_operator = "GreaterThanThreshold"
+  evaluation_periods  = 3
+  datapoints_to_alarm = 2
+  threshold           = 0
+  metric_name         = "UnHealthyHostCount"
+  namespace           = "AWS/ApplicationELB"
+  period              = 60
+  statistic           = "Maximum"
+  treat_missing_data  = "notBreaching"
+  unit                = "Count"
+
+  dimensions = {
+    LoadBalancer = aws_lb.this.arn_suffix
+    TargetGroup  = aws_lb_target_group.app.arn_suffix
+  }
+
+  tags = local.tags
+}
+
 resource "aws_acm_certificate" "api" {
   domain_name       = local.api_fqdn
   validation_method = "DNS"

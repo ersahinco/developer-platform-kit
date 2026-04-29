@@ -25,7 +25,7 @@ rollout, and operator workflows without multiplying state files.
 | `outputs.tf` | Operator-facing stack outputs. |
 | `stack.tfvars` | Current shared-stack values. |
 | `base_network_vpc.tf` | VPC and subnet tiers. |
-| `base_edge.tf` | ALB, security groups, ACM, Route 53, and listener auth. |
+| `base_edge.tf` | ALB, security groups, ACM, Route 53, listener auth, and app target health alarm. |
 | `base_data_rds.tf` | RDS Postgres and database security group. |
 | `base_data_hub_s3.tf` | S3 data hub bucket and raw/curated/manifest prefix convention. |
 | `base_compute_ecs.tf` | ECR repositories, ECS cluster, app service, and PgBouncer sidecar. |

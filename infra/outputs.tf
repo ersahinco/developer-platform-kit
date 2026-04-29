@@ -18,6 +18,11 @@ output "acm_certificate_arn" {
   value       = aws_acm_certificate_validation.api.certificate_arn
 }
 
+output "app_unhealthy_targets_alarm_name" {
+  description = "CloudWatch alarm for unhealthy ALB targets behind the app service."
+  value       = aws_cloudwatch_metric_alarm.app_unhealthy_targets.alarm_name
+}
+
 output "ecr_app_repository_url" {
   description = "ECR URL for the app image."
   value       = module.ecr_app.repository_url

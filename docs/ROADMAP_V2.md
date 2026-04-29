@@ -56,7 +56,7 @@ them only with real owned content.
 ### Phase 1: AWS-Native Operational Signals
 
 - [x] Add the first CloudWatch alarm for scheduled data export task failure.
-- [ ] Add ECS service health alarms.
+- [x] Add ECS service health alarms.
 - [ ] Add ALB 5xx and latency alarms.
 - [ ] Add RDS CPU, storage, and connection pressure alarms.
 - [ ] Keep each alarm slice paired with a concrete verification command and, when useful, a runbook.
@@ -139,3 +139,4 @@ failure and a matching runbook. Keep it to one alarm plus one real runbook.
 |---|---|---|
 | 2026-04-29 | Created the V2 roadmap tracker and linked it from V1 and the README. | Documentation-only change; checked links and whitespace. |
 | 2026-04-29 | Added the first AWS-native operational signal: a CloudWatch alarm for EventBridge Scheduler data export target delivery failures, plus a matching runbook. | Ran `terraform fmt -check -recursive infra/`, `terraform -chdir=infra validate`, Checkov, and documentation whitespace checks. |
+| 2026-04-29 | Added an ALB target health alarm for the app service and a matching unhealthy-service runbook. | Ran `terraform fmt -check -recursive infra/`, `terraform -chdir=infra validate`, `tflint --format compact`, Checkov, and documentation whitespace checks. |

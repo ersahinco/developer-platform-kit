@@ -12,6 +12,8 @@ primary demo path.
 - Terraform creates CloudWatch log groups for ECS workloads.
 - Terraform creates a CloudWatch alarm for EventBridge Scheduler target
   delivery failures on the scheduled data export job.
+- Terraform creates a CloudWatch alarm for unhealthy ALB targets behind the app
+  service.
 - Local Prometheus, Loki, Promtail, and Grafana run through the optional
   `observability` Docker Compose profile.
 
@@ -53,6 +55,10 @@ The first AWS-native signal is intentionally small: a CloudWatch alarm watches
 `AWS/Scheduler` `TargetErrorCount` for the default schedule group, where the
 stack currently has one scheduled job. Its runbook is
 `ops/runbooks/data-export-job-failure.md`.
+
+The app service health signal watches the ALB target group's
+`UnHealthyHostCount` metric. Its runbook is
+`ops/runbooks/app-service-unhealthy.md`.
 
 Future AWS observability slices can choose whether to deploy:
 
