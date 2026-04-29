@@ -78,7 +78,7 @@ them only with real owned content.
 
 ### Phase 4: Dependency and Image Maintenance
 
-- [ ] Add automated dependency update policy for Python dependencies.
+- [x] Add automated dependency update policy for Python dependencies.
 - [ ] Add automated update policy for GitHub Actions.
 - [ ] Keep Trivy before image push and ECR scan-on-push.
 - [ ] Avoid base image digest pinning unless automated digest renewal is added in the same slice.
@@ -112,10 +112,9 @@ them only with real owned content.
 5. Run the relevant verification.
 6. Update this file before ending the session.
 
-Recommended next pick: defer SBOM until there is a clear consumer, then start
-Phase 4 by adding automated dependency update policy for Python dependencies.
-Keep it small and avoid digest pinning unless automated renewal lands in the
-same slice.
+Recommended next pick: add automated update policy for GitHub Actions. Keep it
+in the existing Dependabot config and avoid broad dependency grouping until the
+first update PRs show the maintenance pattern.
 
 ## Documentation Ownership
 
@@ -148,3 +147,4 @@ same slice.
 | 2026-04-29 | Added a dependency-free high-confidence secret scan gate with local Make, CI, and unit-test coverage. | Ran secret scan, focused scanner tests, Ruff, Pyright, full pytest, and documentation whitespace checks. |
 | 2026-04-29 | Added a Python dependency audit gate using `pip-audit` against a frozen `uv.lock` export, and bumped `pytest` to clear the initial vulnerability finding. | Ran `uv lock`, dependency audit, secret scan, focused audit tests, Ruff, Pyright, full pytest, and documentation whitespace checks. |
 | 2026-04-29 | Added GitHub CodeQL as the low-maintenance Python SAST gate. | Documentation/workflow-only change; parsed the workflow YAML and ran documentation whitespace checks. |
+| 2026-04-29 | Added weekly Dependabot `uv` updates for Python dependencies. | Parsed the Dependabot YAML and ran documentation whitespace checks. |

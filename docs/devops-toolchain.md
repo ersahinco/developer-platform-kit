@@ -9,6 +9,7 @@ This project should demonstrate a complete but lean DevOps toolchain around ECS.
 | Source control | Git monorepo |
 | Local orchestration | Docker Compose |
 | Python dependency management | `uv` workspace |
+| Python dependency updates | Dependabot weekly `uv` updates |
 | Local commit checks | pre-commit hooks |
 | Tests | pytest |
 | Python lint/format | ruff |
@@ -53,6 +54,10 @@ runs `pip-audit` against those exact pins.
 
 CodeQL runs in GitHub Actions because its value is in GitHub code scanning
 annotations and security tab results, not as a local pre-commit hook.
+
+Dependabot uses the `uv` ecosystem for Python dependency updates. GitHub Actions
+updates are tracked as a separate V2 slice so action churn can be reviewed on
+its own.
 
 ## Naming Conventions
 
