@@ -58,8 +58,8 @@ them only with real owned content.
 - [x] Add the first CloudWatch alarm for scheduled data export task failure.
 - [x] Add ECS service health alarms.
 - [x] Add ALB 5xx and latency alarms.
-- [ ] Add RDS CPU, storage, and connection pressure alarms.
-- [ ] Keep each alarm slice paired with a concrete verification command and, when useful, a runbook.
+- [x] Add RDS CPU, storage, and connection pressure alarms.
+- [x] Keep each alarm slice paired with a concrete verification command and, when useful, a runbook.
 
 ### Phase 2: Runbooks and Incident Response
 
@@ -112,8 +112,10 @@ them only with real owned content.
 5. Run the relevant verification.
 6. Update this file before ending the session.
 
-Recommended next pick: add a CloudWatch alarm for scheduled data export task
-failure and a matching runbook. Keep it to one alarm plus one real runbook.
+Recommended next pick: review `docs/deployment.md` for ECS rollback coverage,
+then either add a focused ECS deploy rollback runbook or mark the V2 rollback
+item complete with rationale. Keep the slice documentation-only unless the
+review exposes a concrete missing operator command.
 
 ## Documentation Ownership
 
@@ -141,3 +143,4 @@ failure and a matching runbook. Keep it to one alarm plus one real runbook.
 | 2026-04-29 | Added the first AWS-native operational signal: a CloudWatch alarm for EventBridge Scheduler data export target delivery failures, plus a matching runbook. | Ran `terraform fmt -check -recursive infra/`, `terraform -chdir=infra validate`, Checkov, and documentation whitespace checks. |
 | 2026-04-29 | Added an ALB target health alarm for the app service and a matching unhealthy-service runbook. | Ran `terraform fmt -check -recursive infra/`, `terraform -chdir=infra validate`, `tflint --format compact`, Checkov, and documentation whitespace checks. |
 | 2026-04-29 | Added ALB target 5xx and p95 latency alarms for app edge symptoms, plus a shared runbook. | Ran `terraform fmt -check -recursive infra/`, `terraform -chdir=infra validate`, `tflint --format compact`, Checkov, and documentation whitespace checks. |
+| 2026-04-29 | Added RDS CPU, free storage, and connection pressure alarms, plus a shared RDS pressure runbook. | Ran `terraform fmt -check -recursive infra/`, `terraform -chdir=infra validate`, `tflint --format compact`, Checkov, and documentation whitespace checks. |

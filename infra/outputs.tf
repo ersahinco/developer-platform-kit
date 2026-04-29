@@ -83,9 +83,29 @@ output "rds_endpoint" {
   value       = module.rds.db_instance_endpoint
 }
 
+output "rds_instance_identifier" {
+  description = "RDS instance identifier used by CloudWatch metrics and AWS CLI inspection."
+  value       = module.rds.db_instance_identifier
+}
+
 output "db_secret_arn" {
   description = "Secrets Manager ARN for the RDS credentials managed by RDS."
   value       = module.rds.db_instance_master_user_secret_arn
+}
+
+output "rds_cpu_high_alarm_name" {
+  description = "CloudWatch alarm for high RDS CPU utilization."
+  value       = aws_cloudwatch_metric_alarm.rds_cpu_high.alarm_name
+}
+
+output "rds_free_storage_low_alarm_name" {
+  description = "CloudWatch alarm for low RDS free storage."
+  value       = aws_cloudwatch_metric_alarm.rds_free_storage_low.alarm_name
+}
+
+output "rds_connections_high_alarm_name" {
+  description = "CloudWatch alarm for elevated RDS database connections."
+  value       = aws_cloudwatch_metric_alarm.rds_connections_high.alarm_name
 }
 
 output "data_hub_bucket_name" {

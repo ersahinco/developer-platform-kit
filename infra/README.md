@@ -26,7 +26,7 @@ rollout, and operator workflows without multiplying state files.
 | `stack.tfvars` | Current shared-stack values. |
 | `base_network_vpc.tf` | VPC and subnet tiers. |
 | `base_edge.tf` | ALB, security groups, ACM, Route 53, listener auth, and app target health alarm. |
-| `base_data_rds.tf` | RDS Postgres and database security group. |
+| `base_data_rds.tf` | RDS Postgres, database security group, and RDS pressure alarms. |
 | `base_data_hub_s3.tf` | S3 data hub bucket and raw/curated/manifest prefix convention. |
 | `base_compute_ecs.tf` | ECR repositories, ECS cluster, app service, and PgBouncer sidecar. |
 | `support_jobs.tf` | One-off Liquibase/worker task definitions, scheduled data export job, and its first Scheduler delivery alarm. |

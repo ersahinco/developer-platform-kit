@@ -75,3 +75,66 @@ module "rds" {
 
   tags = local.tags
 }
+
+resource "aws_cloudwatch_metric_alarm" "rds_cpu_high" {
+  alarm_name          = "${local.name}-rds-cpu-high"
+  alarm_description   = "RDS CPU utilization exceeded 80 percent. Runbook: ops/runbooks/rds-pressure.md"
+  comparison_operator = "GreaterThanThreshold"
+  evaluation_periods  = 3
+  datapoints_to_alarm = 2
+  threshold           = 80
+  metric_name         = "CPUUtilization"
+  namespace           = "AWS/RDS"
+  period              = 300
+  statistic           = "Average"
+  treat_missing_data  = "notBreaching"
+  unit                = "Percent"
+
+  dimensions = {
+    DBInstanceIdentifier = module.rds.db_instance_identifier
+  }
+
+  tags = local.tags
+}
+
+resource "aws_cloudwatch_metric_alarm" "rds_free_storage_low" {
+  alarm_name          = "${local.name}-rds-free-storage-low"
+  alarm_description   = "RDS free storage fell below 20 percent of initially allocated storage. Runbook: ops/runbooks/rds-pressure.md"
+  comparison_operator = "LessThanThreshold"
+  evaluation_periods  = 3
+  datapoints_to_alarm = 2
+  threshold           = var.rds_allocated_storage_gb * 1024 * 1024 * 1024 * 0.2
+  metric_name         = "FreeStorageSpace"
+  namespace           = "AWS/RDS"
+  period              = 300
+  statistic           = "Average"
+  treat_missing_data  = "notBreaching"
+  unit                = "Bytes"
+
+  dimensions = {
+    DBInstanceIdentifier = module.rds.db_instance_identifier
+  }
+
+  tags = local.tags
+}
+
+resource "aws_cloudwatch_metric_alarm" "rds_connections_high" {
+  alarm_name          = "${local.name}-rds-connections-high"
+  alarm_description   = "RDS database connections exceeded the lean stack pressure threshold. Runbook: ops/runbooks/rds-pressure.md"
+  comparison_operator = "GreaterThanThreshold"
+  evaluation_periods  = 3
+  datapoints_to_alarm = 2
+  threshold           = 70
+  metric_name         = "DatabaseConnections"
+  namespace           = "AWS/RDS"
+  period              = 300
+  statistic           = "Average"
+  treat_missing_data  = "notBreaching"
+  unit                = "Count"
+
+  dimensions = {
+    DBInstanceIdentifier = module.rds.db_instance_identifier
+  }
+
+  tags = local.tags
+}

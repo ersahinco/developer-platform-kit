@@ -16,6 +16,8 @@ primary demo path.
   service.
 - Terraform creates CloudWatch alarms for app target 5xx responses and elevated
   target response time behind the ALB.
+- Terraform creates CloudWatch alarms for RDS CPU, free storage, and database
+  connection pressure.
 - Local Prometheus, Loki, Promtail, and Grafana run through the optional
   `observability` Docker Compose profile.
 
@@ -64,6 +66,9 @@ The app service health signal watches the ALB target group's
 
 The app edge symptom signals watch target-generated 5xx responses and p95 target
 response time. Their runbook is `ops/runbooks/app-edge-errors-latency.md`.
+
+The RDS pressure signals watch `CPUUtilization`, `FreeStorageSpace`, and
+`DatabaseConnections`. Their runbook is `ops/runbooks/rds-pressure.md`.
 
 Future AWS observability slices can choose whether to deploy:
 
