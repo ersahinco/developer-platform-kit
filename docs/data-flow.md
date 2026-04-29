@@ -66,6 +66,12 @@ Set `DATA_EXPORT_S3_BUCKET` to enable S3 mode. The job still writes the raw CSV
 and manifest locally first, then uploads the raw object before the manifest. If
 the raw upload fails, the process exits non-zero before uploading a manifest.
 
+V2 keeps the object convention stable:
+`raw/order_contact_email/dt=<date>/<run-id>.csv` and
+`manifests/order_contact_email/dt=<date>/<run-id>.json`. Changing those paths
+requires updating the data export tests and the manifest contract in the same
+slice.
+
 ## AWS Data Hub Bucket
 
 Terraform now creates one private S3 bucket named
@@ -106,7 +112,7 @@ The first data hub should be deliberately small:
 - Promote the existing local export job to an ECS data job. (Done.)
 - One EventBridge schedule that runs the job. (Done.)
 - One manifest file per export with row count, source query name, export time, and object keys.
-- No Glue catalog, Athena, Kafka, Lake Formation, or multi-account sharing in v1.
+- No Glue catalog, Athena, Kafka, Lake Formation, or multi-account sharing in v1 or V2.
 
 ## Acceptance Criteria for v1
 
