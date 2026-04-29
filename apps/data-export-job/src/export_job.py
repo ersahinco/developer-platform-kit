@@ -4,7 +4,7 @@ import json
 import os
 from decimal import Decimal
 from pathlib import Path
-from typing import Any
+from typing import Any, Iterable, Mapping
 
 from sqlalchemy import create_engine, text
 
@@ -46,15 +46,18 @@ def _write_json(path: Path, payload: dict[str, Any]) -> None:
     os.replace(tmp_path, path)
 
 
-def _write_csv(path: Path, rows: list[dict[str, Any]]) -> None:
+def _write_csv(path: Path, rows: Iterable[Mapping[str, Any]]) -> int:
     tmp_path = path.with_name(f"{path.name}.tmp")
     fieldnames = ["order_id", "billing_email", "source", "updated_at"]
+    row_count = 0
     with tmp_path.open("w", encoding="utf-8", newline="") as handle:
         writer = csv.DictWriter(handle, fieldnames=fieldnames)
         writer.writeheader()
         for row in rows:
             writer.writerow({key: _serialize(row.get(key)) for key in fieldnames})
+            row_count += 1
     os.replace(tmp_path, path)
+    return row_count
 
 
 def run_export() -> dict[str, Any]:
@@ -79,11 +82,14 @@ def run_export() -> dict[str, Any]:
     )
     try:
         with engine.begin() as conn:
-            rows = [dict(row) for row in conn.execute(text(EXPORT_SQL)).mappings()]
+            rows = (
+                conn.execution_options(stream_results=True)
+                .execute(text(EXPORT_SQL))
+                .mappings()
+            )
+            row_count = _write_csv(raw_path, rows)
     finally:
         engine.dispose()
-
-    _write_csv(raw_path, rows)
 
     manifest = {
         "dataset": DATASET,
@@ -92,7 +98,7 @@ def run_export() -> dict[str, Any]:
         "export_date": export_date,
         "exported_at": exported_at.isoformat(),
         "status": "succeeded",
-        "row_count": len(rows),
+        "row_count": row_count,
         "objects": {
             "raw": str(raw_path.relative_to(output_dir)),
         },

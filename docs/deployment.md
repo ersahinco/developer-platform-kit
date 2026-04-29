@@ -29,6 +29,10 @@ Application deployment:
 6. Deploy the app ECS service.
 7. Run the backfill worker as a one-off ECS task when needed.
 
+The local data export job is intentionally not part of AWS deployment yet. It
+becomes deployable only when the data-hub infrastructure slice adds S3,
+EventBridge, ECR, and a scheduled ECS task definition.
+
 Infrastructure deployment:
 
 1. Run Terraform fmt, validate, tflint, and checkov.

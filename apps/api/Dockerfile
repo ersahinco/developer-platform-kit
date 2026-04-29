@@ -5,6 +5,8 @@ COPY --from=ghcr.io/astral-sh/uv:0.6.16 /uv /usr/local/bin/uv
 WORKDIR /app
 COPY pyproject.toml uv.lock ./
 COPY apps/api/pyproject.toml apps/api/pyproject.toml
+COPY apps/backfill-worker/pyproject.toml apps/backfill-worker/pyproject.toml
+COPY apps/data-export-job/pyproject.toml apps/data-export-job/pyproject.toml
 COPY packages/core/pyproject.toml packages/core/pyproject.toml
 COPY packages/adapters/pyproject.toml packages/adapters/pyproject.toml
 COPY apps/api/src apps/api/src

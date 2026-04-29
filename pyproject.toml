@@ -15,7 +15,6 @@ dev = [
 ]
 test = [
     "pytest>=8.2.0",
-    "testcontainers[postgres]>=4.8.0",
 ]
 
 [tool.uv.workspace]
@@ -34,6 +33,5 @@ aws-sdlc-containers-core = { workspace = true }
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 markers = [
-    "last: run this test after all others",
     "require_phase: skip test unless current migration phase matches",
 ]

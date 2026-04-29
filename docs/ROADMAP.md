@@ -139,6 +139,16 @@ Recommended next pick: Phase 5 data flow only if you are ready to add the first
 real export job; otherwise keep the template stable and avoid adding data
 platform complexity for its own sake.
 
+## Documentation Ownership
+
+- `README.md` is the short project index and should not become a runbook.
+- `docs/ROADMAP.md` is the cross-session tracker and decision checklist.
+- `DEPLOYMENT.md` is the detailed AWS operator runbook until it is deliberately
+  split.
+- `ARCHITECTURE.md` keeps the long-form rationale and deferred rough edges.
+- `docs/*` files are stable topic entrypoints. Do not add a new docs file
+  unless there is real content and a clear owner.
+
 ## Decisions and Assumptions
 
 | Date | Decision | Rationale |
@@ -166,3 +176,4 @@ platform complexity for its own sake.
 | 2026-04-29 | Added `infra/README.md` to document the single Terraform root, concern-based file map, community-module policy, optional-extension boundaries, and future split criteria. | No Terraform resources changed. Ran `terraform fmt -check -recursive infra/` and `terraform -chdir=infra validate`. |
 | 2026-04-29 | Added root `.dockerignore` for repo-root API image builds. | Excludes local env files, Terraform state/plans, caches, and runtime noise from Docker build context. Verified with `docker compose build app`. |
 | 2026-04-29 | Added local data export job under `apps/data-export-job` with raw CSV output and success manifest paths shaped like the future data hub. | Refreshed `uv.lock`; ran `uv sync --frozen --all-packages --group test`, `uv run ruff check apps/ packages/ tests/ scripts/`, focused data export tests, `docker compose build data-export-job`, Compose data export smoke, and full pytest: 24 passed, 3 skipped. |
+| 2026-04-29 | Cleaned up the post-restructure sharp edges: unified worker Docker build on the root workspace lock, removed unused `testcontainers` and pytest marker, streamed the data export instead of buffering all rows, clarified data-export deployment scope, and documented docs ownership. | Ran `uv lock`, `uv sync --frozen --all-packages --group test`, `uv run ruff check apps/ packages/ tests/ scripts/`, `docker compose build app worker data-export-job`, focused data export tests, full pytest: 24 passed, 3 skipped, and Compose worker/data-export smokes. |

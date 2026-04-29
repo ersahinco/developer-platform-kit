@@ -246,11 +246,15 @@ jobs:
         uses: aws-actions/amazon-ecr-login@v2
 
       - name: Build images
+        # Data export job changes are validated by tests, but no AWS data job
+        # image is built or deployed until the S3/EventBridge data-hub slice
+        # exists. Keep the cloud deployment path focused on the current app,
+        # migration, and backfill contract.
         env:
           TAG: sha-${{ github.sha }}
         run: |
           docker build -f apps/api/Dockerfile -t ${{ env.ECR_REGISTRY }}/${{ env.STACK_NAME }}/app:$TAG . &
-          docker build -t ${{ env.ECR_REGISTRY }}/${{ env.STACK_NAME }}/worker:$TAG apps/backfill-worker/ &
+          docker build -f apps/backfill-worker/Dockerfile -t ${{ env.ECR_REGISTRY }}/${{ env.STACK_NAME }}/worker:$TAG . &
           docker build -t ${{ env.ECR_REGISTRY }}/${{ env.STACK_NAME }}/liquibase:$TAG db/ &
           wait
 

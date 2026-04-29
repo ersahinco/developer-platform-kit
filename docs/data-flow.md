@@ -46,6 +46,10 @@ pooling.
 exports `order_contact_email` to local filesystem paths that mirror the future
 S3 convention, then writes a manifest only after the CSV succeeds.
 
+This job is local proof only for now. The GitHub Actions app workflow runs its
+tests, but it does not build or deploy a data-job image to AWS until the S3
+bucket, ECS scheduled task, and EventBridge trigger are added in a later slice.
+
 Run it locally through Docker Compose:
 
 ```bash
@@ -62,7 +66,7 @@ The first data hub should be deliberately small:
 
 - One S3 bucket managed by Terraform.
 - Prefixes for `raw/`, `curated/`, and `manifests/`.
-- One ECS data job that exports a simple operational dataset from Postgres.
+- Promote the existing local export job to an ECS data job.
 - One EventBridge schedule that runs the job.
 - One manifest file per export with row count, source query name, export time, and object keys.
 - No Glue catalog, Athena, Kafka, Lake Formation, or multi-account sharing in v1.

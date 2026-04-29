@@ -83,8 +83,8 @@ services:
 
   worker:
     build:
-      context: ./apps/backfill-worker
-      dockerfile: Dockerfile
+      context: .
+      dockerfile: apps/backfill-worker/Dockerfile
     environment:
       # Worker bypasses pgbouncer — connects directly to Postgres.
       BACKFILL_DATABASE_URL: postgresql://${POSTGRES_USER:-postgres}:${POSTGRES_PASSWORD:-postgres}@db:5432/${POSTGRES_DB:-aws_sdlc_containers}
