@@ -70,7 +70,7 @@ them only with real owned content.
 
 ### Phase 3: Shift-Left Security
 
-- [ ] Add one lightweight secret scanning gate.
+- [x] Add one lightweight secret scanning gate.
 - [ ] Add one Python dependency scanning gate.
 - [ ] Add one SAST gate, preferably GitHub-native or low-maintenance.
 - [ ] Add SBOM generation only when it has a clear consumer in CI or docs.
@@ -112,9 +112,9 @@ them only with real owned content.
 5. Run the relevant verification.
 6. Update this file before ending the session.
 
-Recommended next pick: add one lightweight secret scanning gate. Prefer a
-low-maintenance GitHub-native or pre-commit-compatible tool, and avoid adding a
-`security/exceptions.yaml` file until there is a real tracked exception.
+Recommended next pick: add one Python dependency scanning gate. Prefer a
+low-maintenance tool that works with the existing `uv` workflow, and avoid
+creating `security/exceptions.yaml` until there is a real tracked exception.
 
 ## Documentation Ownership
 
@@ -144,3 +144,4 @@ low-maintenance GitHub-native or pre-commit-compatible tool, and avoid adding a
 | 2026-04-29 | Added ALB target 5xx and p95 latency alarms for app edge symptoms, plus a shared runbook. | Ran `terraform fmt -check -recursive infra/`, `terraform -chdir=infra validate`, `tflint --format compact`, Checkov, and documentation whitespace checks. |
 | 2026-04-29 | Added RDS CPU, free storage, and connection pressure alarms, plus a shared RDS pressure runbook. | Ran `terraform fmt -check -recursive infra/`, `terraform -chdir=infra validate`, `tflint --format compact`, Checkov, and documentation whitespace checks. |
 | 2026-04-29 | Added a focused ECS deploy rollback runbook and linked app alarm runbooks to it. | Documentation-only change; ran `git diff --check` on the edited docs. |
+| 2026-04-29 | Added a dependency-free high-confidence secret scan gate with local Make, CI, and unit-test coverage. | Ran secret scan, focused scanner tests, Ruff, Pyright, full pytest, and documentation whitespace checks. |

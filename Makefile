@@ -76,12 +76,16 @@ test: ## Run test suite (requires local services and app running)
 # ── Lint & format ─────────────────────────────────────────────────────────────
 
 .PHONY: lint
-lint: lint-app lint-infra ## Run all linters
+lint: secret-scan lint-app lint-infra ## Run all linters
 
 .PHONY: lint-app
 lint-app: ## Lint and type-check Python
 	uv run ruff check apps/ packages/ tests/ scripts/
 	uv run pyright
+
+.PHONY: secret-scan
+secret-scan: ## Scan repository for high-confidence committed secrets
+	uv run python scripts/secret_scan.py .
 
 .PHONY: lint-infra
 lint-infra: ## Lint Terraform (fmt check + tflint + checkov)
