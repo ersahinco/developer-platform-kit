@@ -12,6 +12,8 @@ primary demo path.
 - Terraform creates CloudWatch log groups for ECS workloads.
 - Terraform creates a CloudWatch alarm for EventBridge Scheduler target
   delivery failures on the scheduled data export job.
+- Terraform creates a CloudWatch Logs metric filter that counts successful data
+  export manifest log lines.
 - Terraform creates a CloudWatch alarm for unhealthy ALB targets behind the app
   service.
 - Terraform creates CloudWatch alarms for app target 5xx responses and elevated
@@ -59,6 +61,9 @@ The first AWS-native signal is intentionally small: a CloudWatch alarm watches
 `AWS/Scheduler` `TargetErrorCount` for the default schedule group, where the
 stack currently has one scheduled job. Its runbook is
 `ops/runbooks/data-export-job-failure.md`.
+The data export job also emits a JSON manifest on success; a CloudWatch Logs
+metric filter turns that log line into the custom
+`aws-sdlc-containers/DataExport` `SuccessCount` metric.
 
 The app service health signal watches the ALB target group's
 `UnHealthyHostCount` metric. Its runbook is

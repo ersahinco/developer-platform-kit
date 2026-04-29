@@ -73,6 +73,16 @@ output "data_export_scheduler_target_errors_alarm_name" {
   value       = aws_cloudwatch_metric_alarm.data_export_scheduler_target_errors.alarm_name
 }
 
+output "data_export_success_metric_namespace" {
+  description = "CloudWatch namespace for the data export success metric."
+  value       = "${local.name}/DataExport"
+}
+
+output "data_export_success_metric_name" {
+  description = "CloudWatch metric name emitted when a data export succeeds."
+  value       = "SuccessCount"
+}
+
 output "liquibase_task_definition_arn" {
   description = "Liquibase task definition ARN for one-off schema migration tasks."
   value       = aws_ecs_task_definition.liquibase.arn

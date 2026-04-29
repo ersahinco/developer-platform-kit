@@ -263,6 +263,19 @@ resource "aws_cloudwatch_log_group" "data_export_job" {
   tags              = local.tags
 }
 
+resource "aws_cloudwatch_log_metric_filter" "data_export_success" {
+  name           = "${local.name}-data-export-success"
+  log_group_name = aws_cloudwatch_log_group.data_export_job.name
+  pattern        = "{ ($.dataset = \"order_contact_email\") && ($.status = \"succeeded\") }"
+
+  metric_transformation {
+    name      = "SuccessCount"
+    namespace = "${local.name}/DataExport"
+    value     = "1"
+    unit      = "Count"
+  }
+}
+
 data "aws_iam_policy_document" "data_export_scheduler_assume" {
   statement {
     actions = ["sts:AssumeRole"]

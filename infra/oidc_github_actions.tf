@@ -410,6 +410,8 @@ data "aws_iam_policy_document" "github_actions_logs_secrets" {
     sid = "LogsManage"
     actions = [
       "logs:CreateLogGroup", "logs:DeleteLogGroup",
+      "logs:DeleteMetricFilter", "logs:DescribeMetricFilters",
+      "logs:PutMetricFilter",
       "logs:PutRetentionPolicy", "logs:DeleteRetentionPolicy",
       "logs:TagLogGroup", "logs:UntagLogGroup",
       "logs:TagResource", "logs:UntagResource",
