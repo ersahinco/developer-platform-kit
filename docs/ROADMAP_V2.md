@@ -98,10 +98,10 @@ them only with real owned content.
 
 ### Phase 7: Documentation Hygiene
 
-- [ ] Keep `README.md` short and index-like.
-- [ ] Keep long-form procedures in `docs/`.
-- [ ] Add new docs files only when there is real content and a clear owner.
-- [ ] Keep this V2 roadmap updated after each completed slice.
+- [x] Keep `README.md` short and index-like.
+- [x] Keep long-form procedures in `docs/`.
+- [x] Add new docs files only when there is real content and a clear owner.
+- [x] Keep this V2 roadmap updated after each completed slice.
 
 ## Next Session Should Start Here
 
@@ -112,9 +112,9 @@ them only with real owned content.
 5. Run the relevant verification.
 6. Update this file before ending the session.
 
-Recommended next pick: start Phase 7 documentation hygiene by trimming or
-reorganizing only if a document has drifted from its owner role. Keep
-`README.md` short and add docs files only when they have real content.
+Recommended next pick: V2 is complete. Start the next session by comparing the
+current repo against `.idea/architecture.md`, preserving the V2 guardrails, and
+creating a new tracker only if there is a clear next operator-maturity theme.
 
 ## Documentation Ownership
 
@@ -156,3 +156,4 @@ reorganizing only if a document has drifted from its owner role. Keep
 | 2026-04-29 | Added a CloudWatch Logs metric filter that counts successful scheduled data export manifests as a custom `SuccessCount` metric. | Ran Terraform fmt, validate, tflint, Checkov, and documentation whitespace checks. |
 | 2026-04-29 | Added a data export freshness alarm that fires when no successful export is observed for two daily evaluation windows. | Ran Terraform fmt, validate, tflint, Checkov, and documentation whitespace checks. |
 | 2026-04-29 | Confirmed the raw and manifest S3 key convention remains stable and kept larger data platform services deferred. | Documentation-only change; ran documentation whitespace checks. |
+| 2026-04-29 | Completed the V2 documentation hygiene pass: README remains index-like, long procedures stay in `docs/` or concrete runbooks, and the roadmap is current. | Ran document size/placeholder checks and documentation whitespace checks. |
