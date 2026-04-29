@@ -1,10 +1,14 @@
 import logging
 import time
+import uuid
 from typing import Annotated
 
 from fastapi import Depends, FastAPI, HTTPException, Request
 from prometheus_client import CONTENT_TYPE_LATEST, Counter, Histogram, generate_latest
+from sqlalchemy import text
 from sqlalchemy.orm import Session
+from starlette import status
+from starlette.responses import JSONResponse
 from starlette.responses import Response
 
 from aws_sdlc_api.db import get_db
@@ -13,6 +17,7 @@ from aws_sdlc_api.schemas import (
     CustomerResponse,
     HealthResponse,
     OrderResponse,
+    ReadinessResponse,
     ReadModeRequest,
     ReadModeResponse,
     WriteModeRequest,
@@ -58,10 +63,20 @@ def _route_label(request: Request) -> str:
     return getattr(route, "path", request.url.path)
 
 
+def _request_id(request: Request) -> str:
+    request_id = request.headers.get("x-request-id", "").strip()
+    return request_id or uuid.uuid4().hex
+
+
 @app.middleware("http")
 async def observe_requests(request: Request, call_next) -> Response:
+    request_id = _request_id(request)
+    request.state.request_id = request_id
+
     if request.url.path == "/metrics":
-        return await call_next(request)
+        response = await call_next(request)
+        response.headers["X-Request-ID"] = request_id
+        return response
 
     started_at = time.perf_counter()
     try:
@@ -79,6 +94,7 @@ async def observe_requests(request: Request, call_next) -> Response:
     REQUEST_LATENCY.labels(request.method, route).observe(
         time.perf_counter() - started_at
     )
+    response.headers["X-Request-ID"] = request_id
     return response
 
 
@@ -112,6 +128,19 @@ ConfigStoreDep = Annotated[ConfigStore, Depends(get_config_store)]
 @app.get("/health", response_model=HealthResponse)
 def health() -> HealthResponse:
     return HealthResponse(status="ok")
+
+
+@app.get("/ready", response_model=ReadinessResponse)
+def ready(db: DbDep) -> ReadinessResponse | JSONResponse:
+    try:
+        db.execute(text("SELECT 1"))
+    except Exception:
+        return JSONResponse(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            content={"status": "unready", "checks": {"database": "unavailable"}},
+        )
+
+    return ReadinessResponse(status="ready", checks={"database": "ok"})
 
 
 @app.get("/metrics", include_in_schema=False)

@@ -6,8 +6,12 @@ primary demo path.
 
 ## Current State
 
-- Application health endpoint exists.
+- Application liveness endpoint exists at `/health`.
+- Application readiness endpoint exists at `/ready` and checks database
+  connectivity separately from process liveness.
 - Application metrics endpoint exists at `/metrics`.
+- HTTP responses include an `X-Request-ID` header, preserving a caller-supplied
+  value when present or generating one when absent.
 - App and task logs are emitted through ECS and Docker.
 - Terraform creates CloudWatch log groups for ECS workloads.
 - Terraform creates a CloudWatch alarm for EventBridge Scheduler target
@@ -39,6 +43,8 @@ Open:
 
 | Tool | URL |
 |---|---|
+| App liveness | `http://localhost:8000/health` |
+| App readiness | `http://localhost:8000/ready` |
 | App metrics | `http://localhost:8000/metrics` |
 | Prometheus | `http://localhost:9090` |
 | Loki | `http://localhost:3100/ready` |
@@ -93,5 +99,6 @@ first.
 - Prometheus target is healthy.
 - Grafana dashboard loads from provisioning.
 - Loki shows app logs.
-- `/metrics` does not change `/health` or API behavior.
+- `/metrics` does not change `/health`, `/ready`, request ID propagation, or API
+  behavior.
 - Observability remains optional for the base app rollout.

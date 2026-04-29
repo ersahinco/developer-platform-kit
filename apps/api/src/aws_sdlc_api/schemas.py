@@ -27,6 +27,11 @@ class HealthResponse(BaseModel):
     status: str
 
 
+class ReadinessResponse(BaseModel):
+    status: str
+    checks: dict[str, str]
+
+
 class CustomerResponse(BaseModel):
     id: int
     name: str

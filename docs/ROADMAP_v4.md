@@ -18,6 +18,8 @@ The repository already implements the high-value parts of
   workflows through OIDC.
 - Complete safe database migration lifecycle with Liquibase, runtime read/write
   switches, backfill, and contract-readiness checks.
+- API liveness, database-backed readiness, request ID propagation, and
+  Prometheus request metrics.
 - Local and AWS data export flow with S3 raw and manifest conventions.
 - Local Prometheus, Loki, and Grafana plus AWS CloudWatch alarms and runbooks.
 - Ruff, Pyright, pytest, Terraform fmt, tflint, Checkov, pre-commit,
@@ -99,9 +101,9 @@ through CI, infrastructure, observability, and operator documentation.
 
 ### Phase 4: Production-Grade Runtime Patterns
 
-- [ ] Identify one existing workload that can be extended to show a production service principle before adding a new app.
-- [ ] Add request, background, or scheduled processing behavior only with tests, operational docs, and rollback notes.
-- [ ] Keep new runtime configuration minimal, documented, and safe by default.
+- [x] Identify one existing workload that can be extended to show a production service principle before adding a new app.
+- [x] Add request, background, or scheduled processing behavior only with tests, operational docs, and rollback notes.
+- [x] Keep new runtime configuration minimal, documented, and safe by default.
 
 ### Phase 5: Async and Scheduled Workloads
 
@@ -133,11 +135,11 @@ through CI, infrastructure, observability, and operator documentation.
    step.
 4. Make the smallest coherent change, verify it, update this file, and commit.
 
-Recommended next pick: choose one production-grade runtime slice that extends an
-existing workload before adding a new app. Good first candidates are API
-readiness/request correlation, data export rerun safety, or a concrete
-idempotent background workflow. Review the pending `.gitignore` cleanup as a
-separate slice only after confirming it is intentional user-owned work.
+Recommended next pick: choose one data or background-processing slice that
+extends an existing workload before adding a new app. Good candidates are data
+export rerun safety, manifest validation, or a concrete idempotent background
+workflow. Review the pending `.gitignore` cleanup as a separate slice only after
+confirming it is intentional user-owned work.
 
 ## Documentation Ownership
 
@@ -159,6 +161,7 @@ separate slice only after confirming it is intentional user-owned work.
 | 2026-04-29 | Add `.editorconfig` before larger architecture tree changes. | It implements a missing baseline from `.idea/architecture.md` without adding dependencies, runtime surface, or speculative folders. |
 | 2026-04-29 | Add a dependency-free GitHub workflow policy check instead of a general workflow linter. | The repo needs two concrete invariants protected locally and in CI; a broad linter would add dependency and maintenance surface. |
 | 2026-04-29 | Allow additional workloads or extensions when they demonstrate a complete production-grade pattern. | The goal is not placeholder breadth; it is realistic service operation at scale around a simple domain. |
+| 2026-04-29 | Extend the existing API before adding a new workload for the first runtime-pattern slice. | Liveness, readiness, and request correlation are production service basics and fit the current API with no new infrastructure or dependency surface. |
 | 2026-04-29 | Continue deferring packages, Terraform splits, `deploy/`, and `security/` trees until they have concrete ownership. | The current value is complete SDLC and operator reliability around a simple domain, not breadth of placeholders. |
 
 ## Completed Work Log
@@ -168,3 +171,4 @@ separate slice only after confirming it is intentional user-owned work.
 | 2026-04-29 | Created the V4 tracker, recorded the architecture comparison decisions, repointed the README/current roadmap references, and added the missing `.editorconfig` baseline. | Ran documentation link checks, Markdown whitespace checks, and git diff review. |
 | 2026-04-29 | Added a dependency-free GitHub workflow policy check for path-filter self-coverage and OIDC workflow confirmation gates, wired it into Make, pre-commit, and the Security workflow, and documented the repo-specific scope. | Ran the workflow checker, focused Ruff, focused workflow-policy tests, documentation link checks, and path-scoped git diff whitespace checks. |
 | 2026-04-29 | Expanded V4 to include production-grade workload and application-extension candidates while preserving the one-slice, simple-domain guardrails. | Documentation-only change; ran documentation link checks and path-scoped git diff whitespace checks. |
+| 2026-04-29 | Extended the API with database-backed `/ready` readiness and `X-Request-ID` propagation while keeping `/health` as lightweight liveness. | Ran focused API tests, Ruff, Pyright, documentation link checks, and path-scoped git diff whitespace checks. |
