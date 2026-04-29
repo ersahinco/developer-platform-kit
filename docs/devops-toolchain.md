@@ -53,6 +53,12 @@ without adding another external security service or policy file. The dependency
 audit exports the resolved `uv.lock` graph to a temporary requirements file and
 runs `pip-audit` against those exact pins.
 
+Pre-commit runs lightweight file hygiene, Ruff, Terraform fmt, the local secret
+scan, and Pyright. Pyright is intentionally included because type regressions
+are cheap to catch before commit and have already been a repo-wide quality goal.
+Network-backed or slower checks stay in Make and CI: dependency audit, TFLint,
+Checkov, CodeQL, Terraform validate/plan, Docker builds, Trivy, and pytest.
+
 CodeQL runs in GitHub Actions because its value is in GitHub code scanning
 annotations and security tab results, not as a local pre-commit hook.
 

@@ -20,3 +20,17 @@ repos:
       - id: terraform_fmt
         args:
           - --args=-recursive
+
+  - repo: local
+    hooks:
+      - id: secret-scan
+        name: secret scan
+        entry: uv run python scripts/secret_scan.py .
+        language: system
+        pass_filenames: false
+
+      - id: pyright
+        name: pyright
+        entry: uv run pyright
+        language: system
+        pass_filenames: false

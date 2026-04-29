@@ -85,9 +85,9 @@ them only with real owned content.
 
 ### Phase 5: Quality Gate Alignment
 
-- [ ] Align `.pre-commit-config.yaml`, `make lint`, and CI around Ruff, Pyright, Terraform fmt, and lightweight checks.
-- [ ] Keep slow checks out of default local hooks unless they prevent concrete bugs.
-- [ ] Document any intentional difference between pre-commit, local Make targets, and CI.
+- [x] Align `.pre-commit-config.yaml`, `make lint`, and CI around Ruff, Pyright, Terraform fmt, and lightweight checks.
+- [x] Keep slow checks out of default local hooks unless they prevent concrete bugs.
+- [x] Document any intentional difference between pre-commit, local Make targets, and CI.
 
 ### Phase 6: Data Job Operability
 
@@ -112,9 +112,9 @@ them only with real owned content.
 5. Run the relevant verification.
 6. Update this file before ending the session.
 
-Recommended next pick: start Phase 5 by aligning `.pre-commit-config.yaml`,
-`make lint`, and CI around Ruff, Pyright, Terraform fmt, and lightweight checks.
-Document any intentional differences instead of making hooks slow by default.
+Recommended next pick: start Phase 6 by adding an operational signal for data
+export success or failure. Keep it AWS-native and avoid Glue, Athena, Kafka,
+Lake Formation, or broader data platform resources.
 
 ## Documentation Ownership
 
@@ -151,3 +151,4 @@ Document any intentional differences instead of making hooks slow by default.
 | 2026-04-29 | Added weekly Dependabot updates for GitHub Actions. | Parsed the Dependabot YAML and ran documentation whitespace checks. |
 | 2026-04-29 | Confirmed ECR scan-on-push and made the mirrored PgBouncer image follow the same Trivy-before-push policy as first-party images. | Parsed the app workflow YAML and ran documentation whitespace checks. |
 | 2026-04-29 | Documented the Phase 4 decision to defer base image digest pinning until automated digest renewal exists. | Documentation-only change; ran documentation whitespace checks. |
+| 2026-04-29 | Aligned quality gates by adding pre-commit hooks for the local secret scan and Pyright, while documenting slower checks that stay in Make and CI. | Ran the new pre-commit hooks, Ruff, Pyright, secret scan, and documentation whitespace checks. |
