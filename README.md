@@ -139,9 +139,10 @@ and Grafana setup.
 
 ## CI/CD Shape
 
-Three GitHub Actions workflows keep security, app, and infrastructure concerns separate:
+GitHub Actions workflows keep security, app, and infrastructure concerns separate:
 
 - `security.yml`: high-confidence secret scanning and Python dependency audit on pull requests and `main`.
+- `codeql.yml`: GitHub-native Python SAST on pull requests and `main`.
 - `infra.yml`: Terraform fmt, validate, tflint, checkov, PR plan, and manual apply.
 - `app.yml`: local workload validation, image build, Trivy scan, ECR push, Liquibase task, ECS service deploy, worker task run, and data export task registration.
 

@@ -20,6 +20,7 @@ This project should demonstrate a complete but lean DevOps toolchain around ECS.
 | AWS authentication | GitHub OIDC role assumption |
 | Secret scanning | Dependency-free high-confidence scanner in `scripts/secret_scan.py` |
 | Python dependency audit | `pip-audit` against a frozen `uv.lock` export |
+| SAST | GitHub CodeQL for Python |
 | Image registry | ECR |
 | Image security | Trivy before push, ECR scanning configured in Terraform |
 | Runtime | ECS Fargate |
@@ -49,6 +50,9 @@ scanner uses only the Python standard library so it can run in GitHub Actions
 without adding another external security service or policy file. The dependency
 audit exports the resolved `uv.lock` graph to a temporary requirements file and
 runs `pip-audit` against those exact pins.
+
+CodeQL runs in GitHub Actions because its value is in GitHub code scanning
+annotations and security tab results, not as a local pre-commit hook.
 
 ## Naming Conventions
 
