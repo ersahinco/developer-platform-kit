@@ -12,6 +12,10 @@ for at least two out of three one-minute evaluation periods.
 This usually means the ALB cannot get a healthy `/health` response from the app
 task, or the task is failing before it can serve traffic.
 
+For a lower-severity dependency drill where `/health` stays healthy but
+`/ready` fails, use
+[App Dependency Readiness Drill](../drills/app-dependency-readiness.md).
+
 ## First Checks
 
 Confirm the alarm:

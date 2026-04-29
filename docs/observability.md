@@ -84,7 +84,8 @@ The app edge symptom signals watch target-generated 5xx responses and p95 target
 response time. Their runbook is `ops/runbooks/app-edge-errors-latency.md`.
 The local Grafana dashboard also surfaces `/ready` 5xx responses separately so
 operators can distinguish dependency-readiness symptoms from general request
-traffic before following the app or RDS runbooks.
+traffic before following the app or RDS runbooks. Rehearse this path with
+[App Dependency Readiness Drill](../ops/drills/app-dependency-readiness.md).
 
 The RDS pressure signals watch `CPUUtilization`, `FreeStorageSpace`, and
 `DatabaseConnections`. Their runbook is `ops/runbooks/rds-pressure.md`.

@@ -65,10 +65,10 @@ and commit. Preserve user-owned worktree changes.
 
 ### Phase 2: Production Incident Drills
 
-- [ ] Add one concrete incident drill for an existing signal.
-- [ ] Include trigger, expected symptoms, investigation commands, recovery, and
+- [x] Add one concrete incident drill for an existing signal.
+- [x] Include trigger, expected symptoms, investigation commands, recovery, and
   success criteria.
-- [ ] Link the drill from the relevant runbook or docs entrypoint.
+- [x] Link the drill from the relevant runbook or docs entrypoint.
 
 ### Phase 3: Rollout Verification
 
@@ -133,4 +133,5 @@ preflight verification script.
 
 | Date | Work | Verification |
 |---|---|---|
+| 2026-04-29 | Added an app dependency-readiness incident drill that stops local PgBouncer, confirms `/health` stays live while `/ready` fails, maps symptoms to Prometheus/Grafana/Loki and AWS runbooks, and linked it from observability and app-health docs. | Ran Markdown link checks and path-scoped git diff whitespace checks. |
 | 2026-04-29 | Created the V5 tracker with production incident drills, rollout verification, async queue processing, and documentation consolidation as the main themes; repointed README and V4 current-roadmap references to V5. | Documentation-only change; ran documentation link checks and path-scoped git diff whitespace checks. |
