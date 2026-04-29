@@ -1,0 +1,108 @@
+# Data Export Job Failure
+
+Use this runbook when the
+`aws-sdlc-containers-data-export-scheduler-target-errors` CloudWatch alarm is
+in `ALARM`.
+
+## What The Alarm Means
+
+The alarm watches `AWS/Scheduler` `TargetErrorCount` for the default schedule
+group. It fires when EventBridge Scheduler cannot deliver the ECS `RunTask`
+target for the data export job.
+
+This is a scheduler-to-ECS delivery signal. If the task starts and the
+container exits non-zero, inspect the ECS task and CloudWatch logs even if this
+alarm does not fire.
+
+## First Checks
+
+Confirm the alarm and schedule:
+
+```bash
+aws cloudwatch describe-alarms \
+  --alarm-names aws-sdlc-containers-data-export-scheduler-target-errors \
+  --region eu-central-1
+
+aws scheduler get-schedule \
+  --group-name default \
+  --name "$(terraform -chdir=infra output -raw data_export_schedule_name)" \
+  --region eu-central-1
+```
+
+Check recent stopped tasks for the data export family:
+
+```bash
+aws ecs list-tasks \
+  --cluster "$(terraform -chdir=infra output -raw ecs_cluster_name)" \
+  --family aws-sdlc-containers-data-export-job \
+  --desired-status STOPPED \
+  --region eu-central-1
+```
+
+Describe any recent task ARN returned by `list-tasks`:
+
+```bash
+aws ecs describe-tasks \
+  --cluster "$(terraform -chdir=infra output -raw ecs_cluster_name)" \
+  --tasks "<task-arn>" \
+  --region eu-central-1
+```
+
+Inspect application logs:
+
+```bash
+aws logs tail /ecs/aws-sdlc-containers/data-export-job \
+  --since 2h \
+  --region eu-central-1
+```
+
+## Common Causes
+
+- Scheduler role cannot call `ecs:RunTask` or pass the task roles.
+- Data export task definition has no active revision.
+- Private subnet or security group selection prevents task startup.
+- ECS capacity or account limits reject the task.
+- Container starts but fails because database or S3 access is misconfigured.
+
+## Recovery
+
+After fixing the underlying issue, run the current task definition once from a
+private subnet using the existing helper scripts:
+
+```bash
+GITHUB_OUTPUT=/tmp/data-export-network.env \
+  scripts/ci_resolve_ecs_network.sh aws-sdlc-containers
+source /tmp/data-export-network.env
+
+TASK_ARN=$(scripts/ci_run_ecs_task.sh \
+  "$(terraform -chdir=infra output -raw ecs_cluster_name)" \
+  "aws-sdlc-containers-data-export-job" \
+  "$subnet_id" \
+  "$sg_id")
+
+scripts/ci_wait_for_ecs_task_stopped.sh \
+  "$(terraform -chdir=infra output -raw ecs_cluster_name)" \
+  "$TASK_ARN"
+
+scripts/ci_assert_ecs_task_succeeded.sh \
+  "$(terraform -chdir=infra output -raw ecs_cluster_name)" \
+  "$TASK_ARN" \
+  "Data export job"
+```
+
+Confirm that the expected S3 objects exist:
+
+```bash
+aws s3 ls \
+  "s3://$(terraform -chdir=infra output -raw data_hub_bucket_name)/raw/order_contact_email/" \
+  --recursive \
+  --region eu-central-1
+
+aws s3 ls \
+  "s3://$(terraform -chdir=infra output -raw data_hub_bucket_name)/manifests/order_contact_email/" \
+  --recursive \
+  --region eu-central-1
+```
+
+The alarm returns to `OK` after the next evaluation window has no target
+delivery errors.

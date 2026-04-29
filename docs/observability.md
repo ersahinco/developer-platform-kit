@@ -10,6 +10,8 @@ primary demo path.
 - Application metrics endpoint exists at `/metrics`.
 - App and task logs are emitted through ECS and Docker.
 - Terraform creates CloudWatch log groups for ECS workloads.
+- Terraform creates a CloudWatch alarm for EventBridge Scheduler target
+  delivery failures on the scheduled data export job.
 - Local Prometheus, Loki, Promtail, and Grafana run through the optional
   `observability` Docker Compose profile.
 
@@ -47,7 +49,12 @@ observability profile is opt-in and not started by default.
 
 ## AWS Extension
 
-After the local stack works, decide whether to deploy observability to AWS:
+The first AWS-native signal is intentionally small: a CloudWatch alarm watches
+`AWS/Scheduler` `TargetErrorCount` for the default schedule group, where the
+stack currently has one scheduled job. Its runbook is
+`ops/runbooks/data-export-job-failure.md`.
+
+Future AWS observability slices can choose whether to deploy:
 
 - Prometheus/Loki/Grafana on ECS for open-source control.
 - Amazon Managed Grafana plus CloudWatch for lower operational overhead.

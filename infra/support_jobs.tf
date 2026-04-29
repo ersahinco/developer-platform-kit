@@ -346,6 +346,29 @@ resource "aws_scheduler_schedule" "data_export_job" {
   }
 }
 
+resource "aws_cloudwatch_metric_alarm" "data_export_scheduler_target_errors" {
+  alarm_name          = "${local.name}-data-export-scheduler-target-errors"
+  alarm_description   = "EventBridge Scheduler target delivery failed for the data export schedule group. Runbook: ops/runbooks/data-export-job-failure.md"
+  comparison_operator = "GreaterThanThreshold"
+  evaluation_periods  = 1
+  datapoints_to_alarm = 1
+  threshold           = 0
+  metric_name         = "TargetErrorCount"
+  namespace           = "AWS/Scheduler"
+  period              = 300
+  statistic           = "Sum"
+  treat_missing_data  = "notBreaching"
+  unit                = "Count"
+
+  # EventBridge Scheduler publishes this metric by schedule group, not schedule
+  # name. This stack currently owns one schedule in the default group.
+  dimensions = {
+    ScheduleGroup = "default"
+  }
+
+  tags = local.tags
+}
+
 ################################################################################
 # Liquibase task definition — one-off Fargate task for schema migrations.
 # Uses a custom image built FROM liquibase/liquibase:4.33.0 with the db/changelog/

@@ -55,7 +55,7 @@ them only with real owned content.
 
 ### Phase 1: AWS-Native Operational Signals
 
-- [ ] Add the first CloudWatch alarm for scheduled data export task failure.
+- [x] Add the first CloudWatch alarm for scheduled data export task failure.
 - [ ] Add ECS service health alarms.
 - [ ] Add ALB 5xx and latency alarms.
 - [ ] Add RDS CPU, storage, and connection pressure alarms.
@@ -63,10 +63,10 @@ them only with real owned content.
 
 ### Phase 2: Runbooks and Incident Response
 
-- [ ] Add `ops/runbooks/` with the first real runbook, not as an empty folder.
-- [ ] Write scheduled data export failure triage and recovery runbook.
+- [x] Add `ops/runbooks/` with the first real runbook, not as an empty folder.
+- [x] Write scheduled data export failure triage and recovery runbook.
 - [ ] Write ECS deploy rollback runbook if existing deployment docs are not enough for alarm response.
-- [ ] Link runbooks from the alarm or workflow they support.
+- [x] Link runbooks from the alarm or workflow they support.
 
 ### Phase 3: Shift-Left Security
 
@@ -138,3 +138,4 @@ failure and a matching runbook. Keep it to one alarm plus one real runbook.
 | Date | Work | Verification |
 |---|---|---|
 | 2026-04-29 | Created the V2 roadmap tracker and linked it from V1 and the README. | Documentation-only change; checked links and whitespace. |
+| 2026-04-29 | Added the first AWS-native operational signal: a CloudWatch alarm for EventBridge Scheduler data export target delivery failures, plus a matching runbook. | Ran `terraform fmt -check -recursive infra/`, `terraform -chdir=infra validate`, Checkov, and documentation whitespace checks. |

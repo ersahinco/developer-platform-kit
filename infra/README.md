@@ -29,7 +29,7 @@ rollout, and operator workflows without multiplying state files.
 | `base_data_rds.tf` | RDS Postgres and database security group. |
 | `base_data_hub_s3.tf` | S3 data hub bucket and raw/curated/manifest prefix convention. |
 | `base_compute_ecs.tf` | ECR repositories, ECS cluster, app service, and PgBouncer sidecar. |
-| `support_jobs.tf` | One-off Liquibase/worker task definitions and scheduled data export job. |
+| `support_jobs.tf` | One-off Liquibase/worker task definitions, scheduled data export job, and its first Scheduler delivery alarm. |
 | `identity.tf` | ECS task execution/runtime IAM. |
 | `oidc_github_actions.tf` | Base GitHub Actions OIDC role and policies. |
 | `optional_*.tf` | Explicit optional extensions that are not part of the minimum base path. |

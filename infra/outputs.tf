@@ -53,6 +53,11 @@ output "data_export_schedule_name" {
   value       = aws_scheduler_schedule.data_export_job.name
 }
 
+output "data_export_scheduler_target_errors_alarm_name" {
+  description = "CloudWatch alarm for EventBridge Scheduler data export target delivery failures."
+  value       = aws_cloudwatch_metric_alarm.data_export_scheduler_target_errors.alarm_name
+}
+
 output "liquibase_task_definition_arn" {
   description = "Liquibase task definition ARN for one-off schema migration tasks."
   value       = aws_ecs_task_definition.liquibase.arn

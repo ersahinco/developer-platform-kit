@@ -35,6 +35,10 @@ locals {
     "arn:aws:logs:${local.region}:${local.account_id}:log-group:/aws/ecs/*:*",
   ]
 
+  github_actions_cloudwatch_alarm_resources = [
+    "arn:aws:cloudwatch:${local.region}:${local.account_id}:alarm:${local.github_actions_stack_scope}",
+  ]
+
   github_actions_rds_manage_resources = [
     "arn:aws:rds:${local.region}:${local.account_id}:db:${local.github_actions_stack_scope}",
     "arn:aws:rds:${local.region}:${local.account_id}:subgrp:${local.github_actions_stack_scope}",
@@ -411,6 +415,19 @@ data "aws_iam_policy_document" "github_actions_logs_secrets" {
       "logs:TagResource", "logs:UntagResource",
     ]
     resources = local.github_actions_logs_manage_resources
+  }
+
+  statement {
+    sid = "CloudWatchAlarmManage"
+    actions = [
+      "cloudwatch:DeleteAlarms",
+      "cloudwatch:DescribeAlarms",
+      "cloudwatch:ListTagsForResource",
+      "cloudwatch:PutMetricAlarm",
+      "cloudwatch:TagResource",
+      "cloudwatch:UntagResource",
+    ]
+    resources = local.github_actions_cloudwatch_alarm_resources
   }
 
   statement {
