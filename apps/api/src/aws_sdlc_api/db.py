@@ -4,7 +4,7 @@ from sqlalchemy import create_engine
 from sqlalchemy.orm import Session, sessionmaker
 from sqlalchemy.pool import NullPool
 
-from config import settings
+from aws_sdlc_api.config import settings
 
 # NullPool: pgbouncer (transaction mode) manages the server-side connection pool.
 # SQLAlchemy does not need its own pool on top — each checkout opens a new

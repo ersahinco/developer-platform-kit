@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-STACK_NAME=${1:?"usage: gha_resolve_ecs_network.sh <stack-name>"}
+STACK_NAME=${1:?"usage: ci_resolve_ecs_network.sh <stack-name>"}
 OUTPUT_FILE=${GITHUB_OUTPUT:-}
 
 SUBNET_ID=$(aws ec2 describe-subnets \

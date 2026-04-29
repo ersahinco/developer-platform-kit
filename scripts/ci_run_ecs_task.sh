@@ -1,10 +1,10 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-CLUSTER=${1:?"usage: gha_run_ecs_task.sh <cluster> <task-definition> <subnet-id> <security-group-id>"}
-TASK_DEFINITION=${2:?"usage: gha_run_ecs_task.sh <cluster> <task-definition> <subnet-id> <security-group-id>"}
-SUBNET_ID=${3:?"usage: gha_run_ecs_task.sh <cluster> <task-definition> <subnet-id> <security-group-id>"}
-SG_ID=${4:?"usage: gha_run_ecs_task.sh <cluster> <task-definition> <subnet-id> <security-group-id>"}
+CLUSTER=${1:?"usage: ci_run_ecs_task.sh <cluster> <task-definition> <subnet-id> <security-group-id>"}
+TASK_DEFINITION=${2:?"usage: ci_run_ecs_task.sh <cluster> <task-definition> <subnet-id> <security-group-id>"}
+SUBNET_ID=${3:?"usage: ci_run_ecs_task.sh <cluster> <task-definition> <subnet-id> <security-group-id>"}
+SG_ID=${4:?"usage: ci_run_ecs_task.sh <cluster> <task-definition> <subnet-id> <security-group-id>"}
 LAUNCH_TYPE=${ECS_RUN_TASK_LAUNCH_TYPE:-FARGATE}
 ASSIGN_PUBLIC_IP=${ECS_RUN_TASK_ASSIGN_PUBLIC_IP:-DISABLED}
 

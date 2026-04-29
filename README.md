@@ -7,8 +7,8 @@ workload operations.
 
 The project is intentionally small today: one AWS stack, one ECS cluster, one
 FastAPI app, one backfill worker, one data export job, PgBouncer, Liquibase,
-and one PostgreSQL database. It is being shaped gradually into a modular monolith monorepo for
-app, infra, data, and DevOps work.
+and one PostgreSQL database. It is being shaped gradually into a modular
+monolith monorepo for app, infra, data, and DevOps work.
 
 ## Start Here
 
@@ -17,9 +17,8 @@ app, infra, data, and DevOps work.
 | Cross-session roadmap | [docs/ROADMAP.md](docs/ROADMAP.md) |
 | Architecture direction | [docs/architecture.md](docs/architecture.md) |
 | Local development runbook | [docs/local-development.md](docs/local-development.md) |
-| AWS deployment model | [docs/deployment.md](docs/deployment.md) |
+| AWS deployment/runbook | [docs/deployment.md](docs/deployment.md) |
 | Terraform root guide | [infra/README.md](infra/README.md) |
-| Detailed deployment/bootstrap runbook | [DEPLOYMENT.md](DEPLOYMENT.md) |
 | DevOps toolchain | [docs/devops-toolchain.md](docs/devops-toolchain.md) |
 | Data flow plan | [docs/data-flow.md](docs/data-flow.md) |
 | Observability plan | [docs/observability.md](docs/observability.md) |
@@ -34,8 +33,8 @@ tracker for future Codex and human sessions.
 | Concern | Mechanism | Key files |
 |---|---|---|
 | SDLC baseline | GitHub Actions, immutable ECR tags, reproducible Terraform state | `.github/workflows/`, `infra/`, `Makefile` |
-| Safe schema rollout | Expand, dual-write, backfill, switch, contract | `db/changelog/`, `apps/backfill-worker/src/backfill.py` |
-| Data export flow | Local ECS-shaped export job with raw output and manifest | `apps/data-export-job/src/export_job.py` |
+| Safe schema rollout | Expand, dual-write, backfill, switch, contract | `db/changelog/`, `apps/backfill-worker/src/aws_sdlc_backfill_worker/main.py` |
+| Data export flow | Local ECS-shaped export job with raw output and manifest | `apps/data-export-job/src/aws_sdlc_data_export_job/main.py` |
 | Runtime config | DB-backed `WRITE_MODE` and `READ_MODE` switches | `packages/adapters/src/aws_sdlc_adapters/db/repository.py` |
 | Connection pooling | PgBouncer in transaction mode | `docker-compose.yml`, `db/pgbouncer/pgbouncer.ini` |
 | ECS deployment | Rolling app deploy plus one-off Liquibase and worker tasks | `.github/workflows/app.yml`, `infra/support_jobs.tf` |
@@ -76,13 +75,12 @@ aws-sdlc-containers/
 |-- docs/                # Roadmap, docs entrypoints, ADRs
 |-- .github/workflows/   # App and infra workflows
 |-- docker-compose.yml
-|-- Makefile
-|-- DEPLOYMENT.md
-`-- ARCHITECTURE.md
+`-- Makefile
 ```
 
 Target direction is an evolutionary monorepo with `apps/`, `packages/`,
-`infra/`, `db/`, `docker/`, `ops/`, `security/`, and `docs/`. See
+`infra/`, `db/`, `docker/`, and `docs/`. Future `ops/` and `security/`
+directories should appear only when they have real owned content. See
 [docs/ROADMAP.md](docs/ROADMAP.md) for the phase checklist.
 
 ## Quick Local Path
@@ -148,4 +146,4 @@ confirmation. AWS authentication uses GitHub OIDC, not long-lived access keys.
 This repo stays lean on purpose. The next structural and platform work is
 tracked in [docs/ROADMAP.md](docs/ROADMAP.md), and intentionally deferred
 hardening remains documented in
-[ARCHITECTURE.md#deferred-rough-edges](ARCHITECTURE.md#deferred-rough-edges).
+[docs/architecture.md#whats-intentionally-omitted](docs/architecture.md#whats-intentionally-omitted).

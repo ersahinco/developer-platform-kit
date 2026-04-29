@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-TASK_DEFINITION_PATH=${1:?"usage: gha_register_task_definition.sh <task-definition-json>"}
+TASK_DEFINITION_PATH=${1:?"usage: ci_register_ecs_task_definition.sh <task-definition-json>"}
 OUTPUT_FILE=${GITHUB_OUTPUT:-}
 
 TASK_DEF_ARN=$(aws ecs register-task-definition \

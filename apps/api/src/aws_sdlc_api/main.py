@@ -7,7 +7,8 @@ from prometheus_client import CONTENT_TYPE_LATEST, Counter, Histogram, generate_
 from sqlalchemy.orm import Session
 from starlette.responses import Response
 
-from adapters.api.schemas import (
+from aws_sdlc_api.db import get_db
+from aws_sdlc_api.schemas import (
     CreateOrderRequest,
     CustomerResponse,
     HealthResponse,
@@ -18,7 +19,6 @@ from adapters.api.schemas import (
     WriteModeResponse,
 )
 from aws_sdlc_core.ports import ConfigStore, CustomerRepository, OrderRepository
-from db import get_db
 
 
 class _SuppressHealthChecks(logging.Filter):

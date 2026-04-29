@@ -6,10 +6,10 @@ requires-python = ">=3.12"
 members = [
     "aws-sdlc-containers",
     "aws-sdlc-containers-adapters",
-    "aws-sdlc-containers-app",
+    "aws-sdlc-containers-api",
+    "aws-sdlc-containers-backfill-worker",
     "aws-sdlc-containers-core",
     "aws-sdlc-containers-data-export-job",
-    "aws-sdlc-containers-worker",
 ]
 
 [[package]]
@@ -92,7 +92,7 @@ requires-dist = [
 ]
 
 [[package]]
-name = "aws-sdlc-containers-app"
+name = "aws-sdlc-containers-api"
 version = "0.1.0"
 source = { virtual = "apps/api" }
 dependencies = [
@@ -121,14 +121,9 @@ requires-dist = [
 ]
 
 [[package]]
-name = "aws-sdlc-containers-core"
+name = "aws-sdlc-containers-backfill-worker"
 version = "0.1.0"
-source = { editable = "packages/core" }
-
-[[package]]
-name = "aws-sdlc-containers-data-export-job"
-version = "0.1.0"
-source = { virtual = "apps/data-export-job" }
+source = { virtual = "apps/backfill-worker" }
 dependencies = [
     { name = "psycopg2-binary" },
     { name = "pydantic-settings" },
@@ -143,9 +138,14 @@ requires-dist = [
 ]
 
 [[package]]
-name = "aws-sdlc-containers-worker"
+name = "aws-sdlc-containers-core"
 version = "0.1.0"
-source = { virtual = "apps/backfill-worker" }
+source = { editable = "packages/core" }
+
+[[package]]
+name = "aws-sdlc-containers-data-export-job"
+version = "0.1.0"
+source = { virtual = "apps/data-export-job" }
 dependencies = [
     { name = "psycopg2-binary" },
     { name = "pydantic-settings" },

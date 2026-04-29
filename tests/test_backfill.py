@@ -40,17 +40,16 @@ def _run_worker(**extra_env):
         )
         env["BACKFILL_DATABASE_URL"] = urlunparse(direct)
     # uv run --package resolves the worker's deps from the workspace without
-    # hardcoding a venv path. backfill.py is run from its own src directory so
-    # relative imports and pydantic-settings .env discovery work identically to
-    # how the Docker container runs it.
+    # hardcoding a venv path. The module entrypoint matches the Docker container.
     return subprocess.run(
         [
             "uv",
             "run",
             "--package",
-            "aws-sdlc-containers-worker",
+            "aws-sdlc-containers-backfill-worker",
             "python",
-            "backfill.py",
+            "-m",
+            "aws_sdlc_backfill_worker.main",
         ],
         cwd=_WORKER_SRC,
         env=env,

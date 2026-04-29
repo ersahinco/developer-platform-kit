@@ -8,7 +8,7 @@ from typing import Any, Iterable, Mapping
 
 from sqlalchemy import create_engine, text
 
-from config import settings
+from aws_sdlc_data_export_job.config import settings
 
 DATASET = "order_contact_email"
 SOURCE_QUERY = "order_contact_email_v1"

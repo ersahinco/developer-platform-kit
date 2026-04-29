@@ -1,8 +1,8 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-CLUSTER=${1:?"usage: gha_assert_task_succeeded.sh <cluster> <task-arn> [label]"}
-TASK_ARN=${2:?"usage: gha_assert_task_succeeded.sh <cluster> <task-arn> [label]"}
+CLUSTER=${1:?"usage: ci_assert_ecs_task_succeeded.sh <cluster> <task-arn> [label]"}
+TASK_ARN=${2:?"usage: ci_assert_ecs_task_succeeded.sh <cluster> <task-arn> [label]"}
 LABEL=${3:-Task}
 
 EXIT_CODE=$(aws ecs describe-tasks \

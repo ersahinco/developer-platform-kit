@@ -18,8 +18,8 @@ rollout, and operator workflows without multiplying state files.
 
 | File | Concern |
 |---|---|
-| `backend.tf` | Terraform version, AWS provider, and S3 backend. |
-| `data.tf` | Provider, lookup data sources, locals, tags, and API token lookup. |
+| `versions.tf` | Terraform version, provider constraints, and S3 backend. |
+| `providers.tf` | AWS provider, lookup data sources, locals, tags, and API token lookup. |
 | `variables.tf` | Stack inputs and documented defaults. |
 | `outputs.tf` | Operator-facing stack outputs. |
 | `stack.tfvars` | Current shared-stack values. |

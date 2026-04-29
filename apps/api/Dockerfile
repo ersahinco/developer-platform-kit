@@ -12,7 +12,7 @@ COPY packages/adapters/pyproject.toml packages/adapters/pyproject.toml
 COPY apps/api/src apps/api/src
 COPY packages/core/src packages/core/src
 COPY packages/adapters/src packages/adapters/src
-RUN uv sync --frozen --no-dev --package aws-sdlc-containers-app
+RUN uv sync --frozen --no-dev --package aws-sdlc-containers-api
 
 # ── Runtime ───────────────────────────────────────────────────────────────────
 # Tag-only (no digest) — Trivy scans the built image in CI for CVEs before push.
@@ -36,4 +36,4 @@ ENV PYTHONPATH="/app/apps/api/src:/app/packages/core/src:/app/packages/adapters/
 HEALTHCHECK --interval=5s --timeout=3s --start-period=15s --retries=3 \
     CMD python -c "import urllib.request; urllib.request.urlopen('http://localhost:8000/health')"
 
-CMD ["uvicorn", "adapters.api.main:app", "--host", "0.0.0.0", "--port", "8000"]
+CMD ["uvicorn", "aws_sdlc_api.main:app", "--host", "0.0.0.0", "--port", "8000"]

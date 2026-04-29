@@ -25,4 +25,4 @@ COPY --from=builder /app/apps/data-export-job/src /app/apps/data-export-job/src
 ENV PATH="/app/.venv/bin:$PATH"
 ENV PYTHONPATH="/app/apps/data-export-job/src"
 
-CMD ["python", "export_job.py"]
+CMD ["python", "-m", "aws_sdlc_data_export_job.main"]

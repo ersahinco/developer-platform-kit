@@ -3,7 +3,7 @@ import time
 
 from sqlalchemy import create_engine, text
 
-from config import settings
+from aws_sdlc_backfill_worker.config import settings
 
 JOB_NAME = "order_contact_email_backfill"
 

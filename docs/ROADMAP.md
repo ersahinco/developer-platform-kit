@@ -78,7 +78,7 @@ Compose usage, and the GitHub Actions deployment path.
 - [x] Add ADRs only for decisions that guide future implementation.
 - [x] Gradually slim `README.md` into a project entrypoint.
 - [x] Move long local runbook detail out of `README.md` after adding the replacement docs.
-- [x] Keep `DEPLOYMENT.md` as the detailed operator runbook until a docs split fully replaces it.
+- [x] Keep the detailed operator runbook under `docs/deployment.md`.
 
 ### Phase 3: Monorepo Application Shape
 
@@ -128,7 +128,7 @@ Compose usage, and the GitHub Actions deployment path.
 
 ## Next Session Should Start Here
 
-1. Read this file, `README.md`, `ARCHITECTURE.md`, and `.kiro/steering/engineering-principles.md`.
+1. Read this file, `README.md`, `docs/architecture.md`, and `.kiro/steering/engineering-principles.md`.
 2. Check `git status --short` before editing. The `.gitignore` file may contain user-owned changes.
 3. Pick exactly one unchecked phase item.
 4. Make the smallest change that advances that item.
@@ -143,9 +143,9 @@ platform complexity for its own sake.
 
 - `README.md` is the short project index and should not become a runbook.
 - `docs/ROADMAP.md` is the cross-session tracker and decision checklist.
-- `DEPLOYMENT.md` is the detailed AWS operator runbook until it is deliberately
-  split.
-- `ARCHITECTURE.md` keeps the long-form rationale and deferred rough edges.
+- `docs/deployment.md` is the detailed AWS operator runbook.
+- `docs/architecture.md` keeps the long-form rationale and intentionally
+  omitted hardening work.
 - `docs/*` files are stable topic entrypoints. Do not add a new docs file
   unless there is real content and a clear owner.
 
@@ -167,7 +167,7 @@ platform complexity for its own sake.
 | 2026-04-29 | Slimmed `README.md` into a project entrypoint and moved the local walkthrough into `docs/local-development.md`. | Documentation-only change; checked markdown file list, git diff, and whitespace. |
 | 2026-04-29 | Confirmed pre-commit exists and added `ruff` to the root dev dependency group for reproducible local lint/format commands. | Ran `uv add --dev 'ruff>=0.4.4'`; follow-up lint verification tracked in this session. |
 | 2026-04-29 | Confirmed manual GitHub Actions deploy/apply gates, Trivy image scanning, and Bitbucket Pipelines equivalence notes. | Inspected `.github/workflows/app.yml`, `.github/workflows/infra.yml`, and `docs/devops-toolchain.md`. |
-| 2026-04-29 | Added phase-by-phase rollback and failure recovery checkpoints to `DEPLOYMENT.md`. | Documentation-only deployment change; checked whitespace on edited files. |
+| 2026-04-29 | Added phase-by-phase rollback and failure recovery checkpoints to the deployment runbook. | Documentation-only deployment change; checked whitespace on edited files. |
 | 2026-04-29 | Added `docs/data-flow.md` with the current migration flow and a deliberately small data hub v1 design. | Documentation-only data-flow change; no AWS resources added. |
 | 2026-04-29 | Added local observability v1: app `/metrics`, optional Compose services for Prometheus/Loki/Promtail/Grafana, and a provisioned Grafana app overview dashboard. | Focused verification tracked in this session; full local stack startup remains the remaining Phase 6 verification item. |
 | 2026-04-29 | Verified the local observability stack and added `make observability` / `make observability-stop`. | App `/health` and `/metrics` passed, Prometheus target was `up`, Loki labels were present, Grafana health was `ok`, and Docker profile services were running. |
@@ -177,3 +177,4 @@ platform complexity for its own sake.
 | 2026-04-29 | Added root `.dockerignore` for repo-root API image builds. | Excludes local env files, Terraform state/plans, caches, and runtime noise from Docker build context. Verified with `docker compose build app`. |
 | 2026-04-29 | Added local data export job under `apps/data-export-job` with raw CSV output and success manifest paths shaped like the future data hub. | Refreshed `uv.lock`; ran `uv sync --frozen --all-packages --group test`, `uv run ruff check apps/ packages/ tests/ scripts/`, focused data export tests, `docker compose build data-export-job`, Compose data export smoke, and full pytest: 24 passed, 3 skipped. |
 | 2026-04-29 | Cleaned up the post-restructure sharp edges: unified worker Docker build on the root workspace lock, removed unused `testcontainers` and pytest marker, streamed the data export instead of buffering all rows, clarified data-export deployment scope, and documented docs ownership. | Ran `uv lock`, `uv sync --frozen --all-packages --group test`, `uv run ruff check apps/ packages/ tests/ scripts/`, `docker compose build app worker data-export-job`, focused data export tests, full pytest: 24 passed, 3 skipped, and Compose worker/data-export smokes. |
+| 2026-04-29 | Consolidated long-form docs under `docs/`, removed personal developer workflow notes, renamed infra/CI files for clearer ownership, and aligned runtime package names with app directories. | Ran `uv lock`, `uv sync --frozen --all-packages --group test`, `uv run ruff check apps/ packages/ tests/ scripts/`, API import smoke, `docker compose build app worker data-export-job`, full pytest: 24 passed, 3 skipped, app `/health` and `/metrics` smokes, `terraform fmt -check -recursive infra/`, and `terraform -chdir=infra validate`. |

@@ -41,6 +41,22 @@ uv run pytest tests/ -v
 `ruff` is declared in the root development dependency group so `uv run ruff`
 does not depend on a globally installed binary.
 
+## Naming Conventions
+
+Keep names boring and ownership-oriented:
+
+| Area | Convention |
+|---|---|
+| Apps | `apps/<runtime-entrypoint>/`, for example `api`, `backfill-worker`, `data-export-job`. |
+| Packages | `packages/<library>/` with import names under `aws_sdlc_*`. |
+| Terraform files | `base_*` for required stack concerns, `optional_*` for explicit extensions, `oidc_*` for GitHub role/policy concerns, and `support_*` for one-off operational tasks. |
+| CI scripts | `scripts/ci_*` for GitHub Actions/AWS deployment helpers. |
+| Local/operator scripts | Verb-first or domain-first names such as `run_liquibase.sh`, `db_tunnel.sh`, `seed_data.py`, and `smoke_test.py`. |
+
+Do not add empty top-level folders from the inspired architecture. Create
+`ops/`, `security/`, or extra `packages/*` only when there is real content and
+a clear owner.
+
 ## Bitbucket Pipelines Equivalence
 
 For interview and documentation purposes, the GitHub Actions workflow maps to

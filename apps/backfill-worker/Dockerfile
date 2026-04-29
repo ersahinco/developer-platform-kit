@@ -10,7 +10,7 @@ COPY apps/data-export-job/pyproject.toml apps/data-export-job/pyproject.toml
 COPY packages/core/pyproject.toml packages/core/pyproject.toml
 COPY packages/adapters/pyproject.toml packages/adapters/pyproject.toml
 COPY apps/backfill-worker/src apps/backfill-worker/src
-RUN uv sync --frozen --no-dev --package aws-sdlc-containers-worker
+RUN uv sync --frozen --no-dev --package aws-sdlc-containers-backfill-worker
 
 # Tag-only (no digest) — Trivy scans the built image in CI for CVEs before push.
 # Digest pinning requires automated renewal (Renovate/Dependabot) to stay secure;
@@ -28,4 +28,4 @@ COPY --from=builder /app/apps/backfill-worker/src /app/apps/backfill-worker/src
 ENV PATH="/app/.venv/bin:$PATH"
 ENV PYTHONPATH="/app/apps/backfill-worker/src"
 
-CMD ["python", "backfill.py"]
+CMD ["python", "-m", "aws_sdlc_backfill_worker.main"]
