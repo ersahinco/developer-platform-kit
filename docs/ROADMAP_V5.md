@@ -86,40 +86,28 @@ and commit. Preserve user-owned worktree changes.
 
 ### Phase 5: Documentation Consolidation
 
-- [ ] Consolidate repeated roadmap guidance after the first V5 implementation
+- [x] Consolidate repeated roadmap guidance after the first V5 implementation
   slice lands.
-- [ ] Keep README short and index-like.
-- [ ] Keep `docs/architecture.md` focused on rationale and intentionally omitted
+- [x] Keep README short and index-like.
+- [x] Keep `docs/architecture.md` focused on rationale and intentionally omitted
   hardening work.
 
 ## Next Session Should Start Here
 
-1. Read this file first, then `docs/ROADMAP_v4.md`, `docs/ROADMAP_V3.md`,
-   `docs/ROADMAP_V2.md`, `README.md`, `docs/architecture.md`,
-   `.idea/architecture.md`, and `.kiro/steering/engineering-principles.md`.
+1. Read [docs/roadmaps.md](roadmaps.md), then this file.
 2. Check `git status --short` before editing. The `.gitignore` file may contain
    user-owned changes.
-3. Pick exactly one unchecked V5 item or one newly discovered high-value
-   incident, rollout, async, or documentation consolidation slice.
-4. Make the smallest coherent change, verify it, update this file, and commit.
+3. Pick one coherent unchecked V5 item or newly discovered high-value operator
+   slice.
+4. Make the smallest complete change, verify it, update this file, and commit.
 
-Recommended next pick: choose the first incident drill or rollout verification
-slice. Good starting points are a database-readiness incident drill or a rollout
-preflight verification script.
+Recommended next pick: start Phase 4 only with a concrete queue-backed order
+event, idempotency contract, DLQ path, metrics or logs, tests, and a runbook.
 
 ## Documentation Ownership
 
-- `README.md` is the short project index.
-- `docs/ROADMAP.md` is the completed V1 history.
-- `docs/ROADMAP_V2.md` is the completed V2 history.
-- `docs/ROADMAP_V3.md` is the completed V3 history.
-- `docs/ROADMAP_v4.md` is the completed V4 history.
-- `docs/ROADMAP_V5.md` is the current progress tracker.
-- `docs/deployment.md` is the detailed AWS operator runbook.
-- `docs/architecture.md` keeps long-form rationale and intentionally omitted
-  hardening work.
-- New `ops/` or `security/` files should appear only with concrete owned
-  content.
+See [docs/roadmaps.md](roadmaps.md) for the shared roadmap index, continuation
+rules, and documentation ownership map.
 
 ## Decisions and Assumptions
 
@@ -133,6 +121,7 @@ preflight verification script.
 
 | Date | Work | Verification |
 |---|---|---|
+| 2026-04-29 | Added a roadmap index and continuation guide, trimmed repeated README roadmap guidance, and moved V5 session guidance to the shared roadmap page. | Ran Markdown link checks and path-scoped git diff whitespace checks. |
 | 2026-04-29 | Added read-only runtime mode endpoints and a post-deploy verifier that checks `/health`, `/ready`, `/metrics`, runtime modes, and optional ECS task/image metadata; wired it into the deploy workflow and Makefile. | Ran Ruff, Pyright, workflow policy checks, Markdown link checks, focused pytest coverage, and path-scoped git diff whitespace checks. |
 | 2026-04-29 | Added an app dependency-readiness incident drill that stops local PgBouncer, confirms `/health` stays live while `/ready` fails, maps symptoms to Prometheus/Grafana/Loki and AWS runbooks, and linked it from observability and app-health docs. | Ran Markdown link checks and path-scoped git diff whitespace checks. |
 | 2026-04-29 | Created the V5 tracker with production incident drills, rollout verification, async queue processing, and documentation consolidation as the main themes; repointed README and V4 current-roadmap references to V5. | Documentation-only change; ran documentation link checks and path-scoped git diff whitespace checks. |

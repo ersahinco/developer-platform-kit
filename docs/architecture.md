@@ -50,9 +50,8 @@ packages/adapters/src/aws_sdlc_adapters/db/
 
 The migration moves `orders.billing_email` into a dedicated `order_contact_email` table using the manual expand → dual-write → backfill → switch → contract pattern.
 
-`packages/adapters/src/aws_sdlc_adapters/db/repository.py` reads `WRITE_MODE`
-and `READ_MODE` from `app_runtime_config` (TTL-cached, 5 s) to decide which
-table or tables to write to and read from.
+The repository layer described above owns the runtime mode decision for each
+request.
 
 - `WRITE_MODE` (`legacy` → `dual` → `new`) controls which table(s) receive new writes. `legacy` is safe to deploy before `order_contact_email` exists. `dual` keeps both tables in sync during the backfill window so a `READ_MODE` rollback is always safe. `new` stops touching `orders.billing_email` and is the pre-condition for the contract phase.
 - `READ_MODE` (`legacy` → `new`) controls which table serves reads. Decoupled from `WRITE_MODE` so the read cutover can be verified and rolled back independently.

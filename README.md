@@ -15,11 +15,8 @@ work.
 
 | Need | Go to |
 |---|---|
+| Roadmaps and continuation rules | [docs/roadmaps.md](docs/roadmaps.md) |
 | Current roadmap | [docs/ROADMAP_V5.md](docs/ROADMAP_V5.md) |
-| V4 roadmap history | [docs/ROADMAP_v4.md](docs/ROADMAP_v4.md) |
-| V3 roadmap history | [docs/ROADMAP_V3.md](docs/ROADMAP_V3.md) |
-| V2 roadmap history | [docs/ROADMAP_V2.md](docs/ROADMAP_V2.md) |
-| V1 roadmap history | [docs/ROADMAP.md](docs/ROADMAP.md) |
 | Architecture direction | [docs/architecture.md](docs/architecture.md) |
 | Local development runbook | [docs/local-development.md](docs/local-development.md) |
 | AWS deployment/runbook | [docs/deployment.md](docs/deployment.md) |
@@ -29,13 +26,9 @@ work.
 | Observability plan | [docs/observability.md](docs/observability.md) |
 | Architecture decisions | [docs/adr/](docs/adr/) |
 
-Read [docs/ROADMAP_V5.md](docs/ROADMAP_V5.md) before making DevOps,
+Read [docs/roadmaps.md](docs/roadmaps.md) before making DevOps,
 infrastructure, data-flow, observability, security, incident, rollout, async, or
-operator workflow changes. V4 history remains in
-[docs/ROADMAP_v4.md](docs/ROADMAP_v4.md), V3 history remains in
-[docs/ROADMAP_V3.md](docs/ROADMAP_V3.md), V2 history remains in
-[docs/ROADMAP_V2.md](docs/ROADMAP_V2.md), and V1 history remains in
-[docs/ROADMAP.md](docs/ROADMAP.md).
+operator workflow changes.
 
 ## What This Demonstrates
 
@@ -161,9 +154,6 @@ confirmation. AWS authentication uses GitHub OIDC, not long-lived access keys.
 ## Later Phases
 
 This repo stays lean on purpose. Current operator-quality work is tracked in
-[docs/ROADMAP_V5.md](docs/ROADMAP_V5.md), V4 history remains in
-[docs/ROADMAP_v4.md](docs/ROADMAP_v4.md), V3 history remains in
-[docs/ROADMAP_V3.md](docs/ROADMAP_V3.md), V2 history remains in
-[docs/ROADMAP_V2.md](docs/ROADMAP_V2.md), V1 history remains in
-[docs/ROADMAP.md](docs/ROADMAP.md), and intentionally deferred hardening remains documented in
+[docs/roadmaps.md](docs/roadmaps.md). Intentionally deferred hardening remains
+documented in
 [docs/architecture.md#whats-intentionally-omitted](docs/architecture.md#whats-intentionally-omitted).
