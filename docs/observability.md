@@ -58,7 +58,8 @@ The local stack contains:
 - Prometheus scraping the app `/metrics` endpoint.
 - Loki storing local container logs.
 - Promtail reading Docker container logs through the Docker socket.
-- Grafana data sources and dashboard provisioning.
+- Grafana data sources and dashboard provisioning, including a readiness-failure
+  stat for `/ready` 5xx responses.
 
 Promtail requires read-only access to `/var/run/docker.sock`, so the
 observability profile is opt-in and not started by default.
@@ -81,6 +82,9 @@ The app service health signal watches the ALB target group's
 
 The app edge symptom signals watch target-generated 5xx responses and p95 target
 response time. Their runbook is `ops/runbooks/app-edge-errors-latency.md`.
+The local Grafana dashboard also surfaces `/ready` 5xx responses separately so
+operators can distinguish dependency-readiness symptoms from general request
+traffic before following the app or RDS runbooks.
 
 The RDS pressure signals watch `CPUUtilization`, `FreeStorageSpace`, and
 `DatabaseConnections`. Their runbook is `ops/runbooks/rds-pressure.md`.
@@ -97,7 +101,8 @@ first.
 ## Acceptance Criteria
 
 - Prometheus target is healthy.
-- Grafana dashboard loads from provisioning.
+- Grafana dashboard loads from provisioning and includes the readiness-failure
+  stat.
 - Loki shows app logs.
 - `/metrics` does not change `/health`, `/ready`, request ID propagation, or API
   behavior.

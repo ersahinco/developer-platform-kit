@@ -22,7 +22,8 @@ The repository already implements the high-value parts of
   Prometheus request metrics.
 - Local and AWS data export flow with S3 raw and validated manifest
   conventions.
-- Local Prometheus, Loki, and Grafana plus AWS CloudWatch alarms and runbooks.
+- Local Prometheus, Loki, and Grafana with readiness-failure visibility plus AWS
+  CloudWatch alarms and runbooks.
 - Ruff, Pyright, pytest, Terraform fmt, tflint, Checkov, pre-commit,
   Dependabot, docs link checks, shell syntax checks, GitHub workflow policy
   checks, and dependency/secret audits.
@@ -115,8 +116,8 @@ through CI, infrastructure, observability, and operator documentation.
 ### Phase 6: Data and Observability at Scale
 
 - [x] Strengthen the data export contract with rerun safety, manifest validation, or partition/freshness checks.
-- [ ] Add observability only for real service behavior, with a dashboard or alarm tied to an operator action.
-- [ ] Keep CloudWatch and local Prometheus/Grafana documentation aligned when new signals are added.
+- [x] Add observability only for real service behavior, with a dashboard or alarm tied to an operator action.
+- [x] Keep CloudWatch and local Prometheus/Grafana documentation aligned when new signals are added.
 
 ### Phase 7: Security and Delivery Confidence
 
@@ -136,10 +137,10 @@ through CI, infrastructure, observability, and operator documentation.
    step.
 4. Make the smallest coherent change, verify it, update this file, and commit.
 
-Recommended next pick: choose one observability or background-processing slice
-that extends an existing workload before adding a new app. Good candidates are a
-dashboard or alarm tied to the API readiness/request ID behavior, or a concrete
-idempotent background workflow. Review the pending `.gitignore` cleanup as a
+Recommended next pick: choose one background-processing or security-delivery
+slice that extends an existing workload before adding a new app. Good candidates
+are a concrete idempotent background workflow or a narrow policy check that
+protects an existing workflow. Review the pending `.gitignore` cleanup as a
 separate slice only after confirming it is intentional user-owned work.
 
 ## Documentation Ownership
@@ -164,6 +165,7 @@ separate slice only after confirming it is intentional user-owned work.
 | 2026-04-29 | Allow additional workloads or extensions when they demonstrate a complete production-grade pattern. | The goal is not placeholder breadth; it is realistic service operation at scale around a simple domain. |
 | 2026-04-29 | Extend the existing API before adding a new workload for the first runtime-pattern slice. | Liveness, readiness, and request correlation are production service basics and fit the current API with no new infrastructure or dependency surface. |
 | 2026-04-29 | Strengthen the existing data export manifest before adding a larger data platform. | Raw byte counts and SHA-256 checksums make the current S3 contract verifiable without adding Glue, Athena, or orchestration complexity. |
+| 2026-04-29 | Surface API readiness failures in the local Grafana dashboard before adding new monitoring infrastructure. | `/ready` already exposes dependency health and Prometheus already records route/status metrics, so the dashboard can make the signal actionable without new runtime code. |
 | 2026-04-29 | Continue deferring packages, Terraform splits, `deploy/`, and `security/` trees until they have concrete ownership. | The current value is complete SDLC and operator reliability around a simple domain, not breadth of placeholders. |
 
 ## Completed Work Log
@@ -175,3 +177,4 @@ separate slice only after confirming it is intentional user-owned work.
 | 2026-04-29 | Expanded V4 to include production-grade workload and application-extension candidates while preserving the one-slice, simple-domain guardrails. | Documentation-only change; ran documentation link checks and path-scoped git diff whitespace checks. |
 | 2026-04-29 | Extended the API with database-backed `/ready` readiness and `X-Request-ID` propagation while keeping `/health` as lightweight liveness. | Ran focused API tests, Ruff, Pyright, documentation link checks, and path-scoped git diff whitespace checks. |
 | 2026-04-29 | Strengthened the data export manifest with raw byte count and SHA-256 validation before manifest upload or success logging. | Ran focused data export tests, Ruff, Pyright, documentation link checks, and path-scoped git diff whitespace checks. |
+| 2026-04-29 | Added a local Grafana readiness-failure stat for `/ready` 5xx responses and documented the operator path to existing app/RDS runbooks. | Ran the dashboard contract test, Ruff, documentation link checks, JSON parsing, and path-scoped git diff whitespace checks. |
