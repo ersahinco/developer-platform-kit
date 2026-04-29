@@ -102,6 +102,9 @@ jobs:
           uv run ruff check apps/ packages/ tests/ scripts/
           uv run pyright
 
+      - name: Check shell script syntax
+        run: bash -n scripts/*.sh
+
       - name: Init DB schema
         run: |
           PGPASSWORD=postgres psql -h localhost -U postgres -d aws_sdlc_containers \

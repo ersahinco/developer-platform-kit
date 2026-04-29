@@ -29,6 +29,12 @@ repos:
         language: system
         pass_filenames: false
 
+      - id: shell-syntax
+        name: shell script syntax
+        entry: bash -n
+        language: system
+        files: ^scripts/.*\.sh$
+
       - id: pyright
         name: pyright
         entry: uv run pyright

@@ -1,8 +1,8 @@
 # ECS DevOps Monorepo Roadmap
 
-This file is the completed V1 progress tracker for project history. New
-operator-quality, security, dependency maintenance, and AWS-native
-observability work is tracked in [docs/ROADMAP_V2.md](ROADMAP_V2.md).
+This file is the completed V1 progress tracker for project history. V2 history
+is preserved in [docs/ROADMAP_V2.md](ROADMAP_V2.md), and active work continues
+in [docs/ROADMAP_v3.md](ROADMAP_v3.md).
 
 ## Current State
 
@@ -130,21 +130,23 @@ Compose usage, and the GitHub Actions deployment path.
 
 ## Next Session Should Start Here
 
-1. Read `docs/ROADMAP_V2.md` first, then this file, `README.md`, `docs/architecture.md`, and `.kiro/steering/engineering-principles.md`.
+1. Read `docs/ROADMAP_v3.md` first, then `docs/ROADMAP_V2.md`, this file, `README.md`, `docs/architecture.md`, and `.kiro/steering/engineering-principles.md`.
 2. Check `git status --short` before editing. The `.gitignore` file may contain user-owned changes.
-3. Pick exactly one unchecked V2 phase item.
+3. Pick exactly one unchecked V3 phase item or one newly discovered smallest high-value step.
 4. Make the smallest change that advances that item.
 5. Run the relevant verification from the checklist.
-6. Update `docs/ROADMAP_V2.md` before ending the session.
+6. Update `docs/ROADMAP_v3.md` before ending the session.
 
-Recommended next pick: add a CloudWatch alarm for scheduled data export task
-failure and a matching runbook. Keep it to one alarm plus one real runbook.
+Recommended next pick: continue from `docs/ROADMAP_v3.md`. The V1 recommendation
+to add a CloudWatch alarm for scheduled data export task failure was completed
+in V2.
 
 ## Documentation Ownership
 
 - `README.md` is the short project index and should not become a runbook.
 - `docs/ROADMAP.md` is the completed V1 history and decision checklist.
-- `docs/ROADMAP_V2.md` is the current cross-session tracker.
+- `docs/ROADMAP_V2.md` is the completed V2 history.
+- `docs/ROADMAP_v3.md` is the current cross-session tracker.
 - `docs/deployment.md` is the detailed AWS operator runbook.
 - `docs/architecture.md` keeps the long-form rationale and intentionally
   omitted hardening work.

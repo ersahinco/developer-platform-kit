@@ -1,8 +1,8 @@
 # ECS DevOps Monorepo Roadmap V2
 
-This file is the active post-V1 progress tracker. V1 is preserved in
-`docs/ROADMAP.md` as project history. Start here before changing observability,
-security, dependency maintenance, runbooks, or operator workflows.
+This file is the completed V2 progress tracker. V1 is preserved in
+`docs/ROADMAP.md` as project history, and active work continues in
+`docs/ROADMAP_v3.md`.
 
 ## Current State
 
@@ -105,22 +105,27 @@ them only with real owned content.
 
 ## Next Session Should Start Here
 
-1. Read this file first, then `README.md`, `docs/architecture.md`, and `.kiro/steering/engineering-principles.md`.
+1. Read `docs/ROADMAP_v3.md` first, then this file, `README.md`, `docs/architecture.md`, and `.kiro/steering/engineering-principles.md`.
 2. Check `git status --short` before editing. The `.gitignore` file may contain user-owned changes.
-3. Pick exactly one unchecked V2 item.
+3. Pick exactly one unchecked V3 item or one newly discovered smallest high-value step.
 4. Make the smallest change that advances that item.
 5. Run the relevant verification.
-6. Update this file before ending the session.
+6. Update `docs/ROADMAP_v3.md` before ending the session.
 
-Recommended next pick: V2 is complete. Start the next session by comparing the
-current repo against `.idea/architecture.md`, preserving the V2 guardrails, and
-creating a new tracker only if there is a clear next operator-maturity theme.
+Recommended next pick: continue from `docs/ROADMAP_v3.md`. V2 is complete; keep
+this file as history unless a V2 correction is needed.
+
+Previous transition note: V2 is complete. Start the next session by comparing
+the current repo against `.idea/architecture.md`, preserving the V2 guardrails,
+and creating a new tracker only if there is a clear next operator-maturity
+theme.
 
 ## Documentation Ownership
 
 - `README.md` is the short project index.
 - `docs/ROADMAP.md` is the completed V1 history.
-- `docs/ROADMAP_V2.md` is the current progress tracker.
+- `docs/ROADMAP_V2.md` is the completed V2 history.
+- `docs/ROADMAP_v3.md` is the current progress tracker.
 - `docs/deployment.md` is the detailed AWS operator runbook.
 - `docs/architecture.md` keeps long-form rationale and intentionally omitted hardening work.
 - New `ops/` or `security/` files should appear only with concrete owned content.
