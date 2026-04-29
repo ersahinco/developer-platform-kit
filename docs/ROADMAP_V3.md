@@ -49,7 +49,7 @@ and preserve user-owned worktree changes.
 
 ### Phase 2: Naming and Documentation Consistency
 
-- [ ] Keep roadmap ownership clear now that V3 is active.
+- [x] Keep roadmap ownership clear now that V3 is active.
 - [ ] Remove stale references to completed trackers when they could mislead future sessions.
 - [ ] Keep `README.md` short and index-like.
 
@@ -78,7 +78,7 @@ link checks can be added without a new dependency or noisy local friction.
 - `README.md` is the short project index.
 - `docs/ROADMAP.md` is the completed V1 history.
 - `docs/ROADMAP_V2.md` is the completed V2 history.
-- `docs/ROADMAP_v3.md` is the current progress tracker.
+- `docs/ROADMAP_V3.md` is the current progress tracker.
 - `docs/deployment.md` is the detailed AWS operator runbook.
 - `docs/architecture.md` keeps long-form rationale and intentionally omitted
   hardening work.
@@ -88,7 +88,7 @@ link checks can be added without a new dependency or noisy local friction.
 
 | Date | Decision | Rationale |
 |---|---|---|
-| 2026-04-29 | Track active post-V2 work in `docs/ROADMAP_v3.md`. | V2 is complete, and the user explicitly asked to treat this lowercase-v3 file as the cross-session progress tracker. |
+| 2026-04-29 | Track active post-V2 work in `docs/ROADMAP_V3.md`. | V2 is complete, and the uppercase V3 suffix matches `docs/ROADMAP_V2.md` and the current user-facing roadmap reference. |
 | 2026-04-29 | Keep V3 focused on delivery-system maturity rather than new app domain features. | The current interview value is in complete SDLC, DevOps, infra, data, observability, naming consistency, and lean maintainability. |
 | 2026-04-29 | Prefer zero-dependency checks when they catch real operator mistakes. | Small built-in gates reduce CI and local risk without adding maintenance overhead. |
 
@@ -97,3 +97,4 @@ link checks can be added without a new dependency or noisy local friction.
 | Date | Work | Verification |
 |---|---|---|
 | 2026-04-29 | Added a zero-dependency shell syntax gate for deployment and operator scripts in Make, pre-commit, and the App workflow. | Ran `bash -n scripts/*.sh`, `make lint-scripts`, workflow/pre-commit YAML parsing, and documentation whitespace checks. |
+| 2026-04-29 | Renamed the active tracker to `docs/ROADMAP_V3.md` and updated roadmap references for version-suffix consistency. | Ran roadmap reference search and documentation whitespace checks. |

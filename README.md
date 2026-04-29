@@ -15,7 +15,7 @@ work.
 
 | Need | Go to |
 |---|---|
-| Current roadmap | [docs/ROADMAP_v3.md](docs/ROADMAP_v3.md) |
+| Current roadmap | [docs/ROADMAP_V3.md](docs/ROADMAP_V3.md) |
 | V2 roadmap history | [docs/ROADMAP_V2.md](docs/ROADMAP_V2.md) |
 | V1 roadmap history | [docs/ROADMAP.md](docs/ROADMAP.md) |
 | Architecture direction | [docs/architecture.md](docs/architecture.md) |
@@ -27,7 +27,7 @@ work.
 | Observability plan | [docs/observability.md](docs/observability.md) |
 | Architecture decisions | [docs/adr/](docs/adr/) |
 
-Read [docs/ROADMAP_v3.md](docs/ROADMAP_v3.md) before making DevOps,
+Read [docs/ROADMAP_V3.md](docs/ROADMAP_V3.md) before making DevOps,
 infrastructure, data-flow, observability, security, or operator workflow
 changes. V2 history remains in [docs/ROADMAP_V2.md](docs/ROADMAP_V2.md), and
 V1 history remains in [docs/ROADMAP.md](docs/ROADMAP.md).
@@ -85,7 +85,7 @@ aws-sdlc-containers/
 Target direction is an evolutionary monorepo with `apps/`, `packages/`,
 `infra/`, `db/`, `docker/`, and `docs/`. Future `ops/` and `security/`
 directories should appear only when they have real owned content. See
-[docs/ROADMAP_v3.md](docs/ROADMAP_v3.md) for the current phase checklist.
+[docs/ROADMAP_V3.md](docs/ROADMAP_V3.md) for the current phase checklist.
 
 ## Quick Local Path
 
@@ -155,7 +155,7 @@ confirmation. AWS authentication uses GitHub OIDC, not long-lived access keys.
 ## Later Phases
 
 This repo stays lean on purpose. Current operator-quality work is tracked in
-[docs/ROADMAP_v3.md](docs/ROADMAP_v3.md), V2 history remains in
+[docs/ROADMAP_V3.md](docs/ROADMAP_V3.md), V2 history remains in
 [docs/ROADMAP_V2.md](docs/ROADMAP_V2.md), V1 history remains in
 [docs/ROADMAP.md](docs/ROADMAP.md), and intentionally deferred hardening remains
 documented in
