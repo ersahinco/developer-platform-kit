@@ -1,7 +1,8 @@
 # ECS DevOps Monorepo Roadmap V3
 
 This file is the completed V3 progress tracker after the completed V1 and V2
-passes. Active work continues in [docs/ROADMAP_v4.md](ROADMAP_v4.md).
+passes. Active work continues in [docs/ROADMAP_V5.md](ROADMAP_V5.md); V4 is
+preserved in [docs/ROADMAP_v4.md](ROADMAP_v4.md).
 
 ## Current State
 
@@ -60,16 +61,17 @@ and preserve user-owned worktree changes.
 
 ## Next Session Should Start Here
 
-1. Read `docs/ROADMAP_v4.md` first, then this file, `docs/ROADMAP_V2.md`, `README.md`,
-   `docs/architecture.md`, and `.kiro/steering/engineering-principles.md`.
+1. Read `docs/ROADMAP_V5.md` first, then `docs/ROADMAP_v4.md`, this file,
+   `docs/ROADMAP_V2.md`, `README.md`, `docs/architecture.md`, and
+   `.kiro/steering/engineering-principles.md`.
 2. Check `git status --short` before editing. The `.gitignore` file may contain
    user-owned changes.
 3. Compare the current repo against `.idea/architecture.md`.
 4. Pick exactly one unchecked V3 item or one newly discovered smallest
    high-value SDLC/DevOps/infra/data/observability/naming consistency step.
-5. Make the smallest coherent change, verify it, update `docs/ROADMAP_v4.md`, and commit.
+5. Make the smallest coherent change, verify it, update the active roadmap, and commit.
 
-Recommended next pick: continue from `docs/ROADMAP_v4.md`. V3 is complete; keep
+Recommended next pick: continue from `docs/ROADMAP_V5.md`. V3 is complete; keep
 this file as history unless a V3 correction is needed.
 
 ## Documentation Ownership
@@ -78,7 +80,8 @@ this file as history unless a V3 correction is needed.
 - `docs/ROADMAP.md` is the completed V1 history.
 - `docs/ROADMAP_V2.md` is the completed V2 history.
 - `docs/ROADMAP_V3.md` is the completed V3 history.
-- `docs/ROADMAP_v4.md` is the current progress tracker.
+- `docs/ROADMAP_v4.md` is the completed V4 history.
+- `docs/ROADMAP_V5.md` is the current progress tracker.
 - `docs/deployment.md` is the detailed AWS operator runbook.
 - `docs/architecture.md` keeps long-form rationale and intentionally omitted
   hardening work.

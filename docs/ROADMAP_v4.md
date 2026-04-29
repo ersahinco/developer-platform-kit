@@ -1,8 +1,7 @@
 # ECS DevOps Monorepo Roadmap V4
 
-This file is the active cross-session tracker after the completed V1, V2, and
-V3 passes. Start here before changing SDLC, DevOps, infrastructure, data,
-observability, security, naming, or operator workflows.
+This file is the completed V4 cross-session tracker after the completed V1, V2,
+and V3 passes. Active work continues in [docs/ROADMAP_V5.md](ROADMAP_V5.md).
 
 ## Current State
 
@@ -127,9 +126,9 @@ through CI, infrastructure, observability, and operator documentation.
 
 ## Next Session Should Start Here
 
-1. Read this file first, then `docs/ROADMAP_V3.md`, `docs/ROADMAP_V2.md`,
-   `README.md`, `docs/architecture.md`, `.idea/architecture.md`, and
-   `.kiro/steering/engineering-principles.md`.
+1. Read `docs/ROADMAP_V5.md` first, then this file, `docs/ROADMAP_V3.md`,
+   `docs/ROADMAP_V2.md`, `README.md`, `docs/architecture.md`,
+   `.idea/architecture.md`, and `.kiro/steering/engineering-principles.md`.
 2. Check `git status --short` before editing. The `.gitignore` file may contain
    user-owned changes.
 3. Pick exactly one unchecked V4 item or one newly discovered smallest
@@ -137,11 +136,8 @@ through CI, infrastructure, observability, and operator documentation.
    step.
 4. Make the smallest coherent change, verify it, update this file, and commit.
 
-Recommended next pick: start a fresh V5 tracker or review the pending
-`.gitignore` cleanup as a separate slice after confirming it is intentional
-user-owned work. If continuing V4, prefer a documentation consolidation pass
-that summarizes completed production-grade slices rather than adding more
-runtime surface.
+Recommended next pick: continue from `docs/ROADMAP_V5.md`. V4 is complete; keep
+this file as history unless a V4 correction is needed.
 
 ## Documentation Ownership
 
@@ -149,7 +145,8 @@ runtime surface.
 - `docs/ROADMAP.md` is the completed V1 history.
 - `docs/ROADMAP_V2.md` is the completed V2 history.
 - `docs/ROADMAP_V3.md` is the completed V3 history.
-- `docs/ROADMAP_v4.md` is the current progress tracker.
+- `docs/ROADMAP_v4.md` is the completed V4 history.
+- `docs/ROADMAP_V5.md` is the current progress tracker.
 - `docs/deployment.md` is the detailed AWS operator runbook.
 - `docs/architecture.md` keeps long-form rationale and intentionally omitted
   hardening work.
