@@ -276,6 +276,23 @@ resource "aws_cloudwatch_log_metric_filter" "data_export_success" {
   }
 }
 
+resource "aws_cloudwatch_metric_alarm" "data_export_success_missing" {
+  alarm_name          = "${local.name}-data-export-success-missing"
+  alarm_description   = "No successful data export manifest was observed for two daily evaluation windows. Runbook: ops/runbooks/data-export-job-failure.md"
+  comparison_operator = "LessThanThreshold"
+  evaluation_periods  = 2
+  datapoints_to_alarm = 2
+  threshold           = 1
+  metric_name         = "SuccessCount"
+  namespace           = "${local.name}/DataExport"
+  period              = 86400
+  statistic           = "Sum"
+  treat_missing_data  = "breaching"
+  unit                = "Count"
+
+  tags = local.tags
+}
+
 data "aws_iam_policy_document" "data_export_scheduler_assume" {
   statement {
     actions = ["sts:AssumeRole"]

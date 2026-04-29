@@ -14,6 +14,8 @@ primary demo path.
   delivery failures on the scheduled data export job.
 - Terraform creates a CloudWatch Logs metric filter that counts successful data
   export manifest log lines.
+- Terraform creates a CloudWatch alarm when no successful data export is
+  observed for two daily evaluation windows.
 - Terraform creates a CloudWatch alarm for unhealthy ALB targets behind the app
   service.
 - Terraform creates CloudWatch alarms for app target 5xx responses and elevated
@@ -63,7 +65,9 @@ stack currently has one scheduled job. Its runbook is
 `ops/runbooks/data-export-job-failure.md`.
 The data export job also emits a JSON manifest on success; a CloudWatch Logs
 metric filter turns that log line into the custom
-`aws-sdlc-containers/DataExport` `SuccessCount` metric.
+`aws-sdlc-containers/DataExport` `SuccessCount` metric. A freshness alarm uses
+that metric and fires after two consecutive daily evaluation windows without a
+successful export, which avoids paging on small schedule delays.
 
 The app service health signal watches the ALB target group's
 `UnHealthyHostCount` metric. Its runbook is

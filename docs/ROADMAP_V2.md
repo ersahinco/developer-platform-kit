@@ -92,7 +92,7 @@ them only with real owned content.
 ### Phase 6: Data Job Operability
 
 - [x] Add operational signal for data export success or failure.
-- [ ] Add data freshness signal after export failure alarm exists.
+- [x] Add data freshness signal after export failure alarm exists.
 - [ ] Keep raw and manifest S3 conventions stable.
 - [ ] Do not add Glue, Athena, Kafka, Lake Formation, or larger data platform resources.
 
@@ -112,9 +112,10 @@ them only with real owned content.
 5. Run the relevant verification.
 6. Update this file before ending the session.
 
-Recommended next pick: add a data freshness signal using the data export
-`SuccessCount` metric. Keep it AWS-native and avoid Glue, Athena, Kafka, Lake
-Formation, or broader data platform resources.
+Recommended next pick: confirm the raw and manifest S3 conventions are stable,
+then mark the convention guardrail complete with a concise documentation note.
+Do not add Glue, Athena, Kafka, Lake Formation, or broader data platform
+resources.
 
 ## Documentation Ownership
 
@@ -153,3 +154,4 @@ Formation, or broader data platform resources.
 | 2026-04-29 | Documented the Phase 4 decision to defer base image digest pinning until automated digest renewal exists. | Documentation-only change; ran documentation whitespace checks. |
 | 2026-04-29 | Aligned quality gates by adding pre-commit hooks for the local secret scan and Pyright, while documenting slower checks that stay in Make and CI. | Ran the new pre-commit hooks, Ruff, Pyright, secret scan, and documentation whitespace checks. |
 | 2026-04-29 | Added a CloudWatch Logs metric filter that counts successful scheduled data export manifests as a custom `SuccessCount` metric. | Ran Terraform fmt, validate, tflint, Checkov, and documentation whitespace checks. |
+| 2026-04-29 | Added a data export freshness alarm that fires when no successful export is observed for two daily evaluation windows. | Ran Terraform fmt, validate, tflint, Checkov, and documentation whitespace checks. |

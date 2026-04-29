@@ -83,6 +83,11 @@ output "data_export_success_metric_name" {
   value       = "SuccessCount"
 }
 
+output "data_export_success_missing_alarm_name" {
+  description = "CloudWatch alarm for missing scheduled data export successes."
+  value       = aws_cloudwatch_metric_alarm.data_export_success_missing.alarm_name
+}
+
 output "liquibase_task_definition_arn" {
   description = "Liquibase task definition ARN for one-off schema migration tasks."
   value       = aws_ecs_task_definition.liquibase.arn

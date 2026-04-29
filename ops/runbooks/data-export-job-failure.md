@@ -1,8 +1,9 @@
 # Data Export Job Failure
 
 Use this runbook when the
-`aws-sdlc-containers-data-export-scheduler-target-errors` CloudWatch alarm is
-in `ALARM`.
+`aws-sdlc-containers-data-export-scheduler-target-errors` or
+`aws-sdlc-containers-data-export-success-missing` CloudWatch alarm is in
+`ALARM`.
 
 ## What The Alarm Means
 
@@ -14,13 +15,19 @@ This is a scheduler-to-ECS delivery signal. If the task starts and the
 container exits non-zero, inspect the ECS task and CloudWatch logs even if this
 alarm does not fire.
 
+The success-missing alarm watches the custom `aws-sdlc-containers/DataExport`
+`SuccessCount` metric emitted from successful manifest log lines. It fires when
+no successful export is observed for two consecutive daily evaluation windows.
+
 ## First Checks
 
 Confirm the alarm and schedule:
 
 ```bash
 aws cloudwatch describe-alarms \
-  --alarm-names aws-sdlc-containers-data-export-scheduler-target-errors \
+  --alarm-names \
+    "$(terraform -chdir=infra output -raw data_export_scheduler_target_errors_alarm_name)" \
+    "$(terraform -chdir=infra output -raw data_export_success_missing_alarm_name)" \
   --region eu-central-1
 
 aws scheduler get-schedule \
@@ -105,4 +112,5 @@ aws s3 ls \
 ```
 
 The alarm returns to `OK` after the next evaluation window has no target
-delivery errors.
+delivery errors or after the success metric has enough clean daily evaluation
+windows.
