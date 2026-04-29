@@ -33,5 +33,11 @@ class Settings(BaseSettings):
             self.backfill_database_url = f"postgresql://{self.db_user}:{self.db_password}@{self.db_host}:{self.db_port}/{self.db_name}"
         return self
 
+    @property
+    def required_backfill_database_url(self) -> str:
+        if self.backfill_database_url is None:
+            raise RuntimeError("BACKFILL_DATABASE_URL was not configured")
+        return self.backfill_database_url
+
 
 settings = Settings()

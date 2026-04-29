@@ -29,13 +29,15 @@ declared phases. Phase is detected from app_runtime_config at session start.
 
 import os
 from pathlib import Path
+from collections.abc import Generator
+from typing import Any
 
 import httpx
 import pytest
 from dotenv import load_dotenv
 from sqlalchemy import create_engine, text
 from sqlalchemy.engine import Engine
-from sqlalchemy.orm import sessionmaker
+from sqlalchemy.orm import Session, sessionmaker
 from sqlalchemy.pool import NullPool
 
 load_dotenv(Path(__file__).parent.parent / ".env", override=False)
@@ -100,7 +102,7 @@ _BACKFILL_JOB = "order_contact_email_backfill"
 
 
 @pytest.fixture(scope="session")
-def db_engine():
+def db_engine() -> Generator[Engine, None, None]:
     # NullPool: tests connect via PgBouncer (transaction mode) — same reason as
     # the app. A session-scoped pool would hold server connections idle between
     # tests, defeating PgBouncer's multiplexing.
@@ -110,7 +112,7 @@ def db_engine():
 
 
 @pytest.fixture
-def db_session(db_engine):
+def db_session(db_engine: Engine) -> Generator[Session, None, None]:
     """Rolls back after each test — no data persists."""
     session = sessionmaker(db_engine)()
     try:
@@ -121,7 +123,7 @@ def db_session(db_engine):
 
 
 @pytest.fixture
-def committed_db_session(db_engine):
+def committed_db_session(db_engine: Engine) -> Generator[Session, None, None]:
     """Commits so the running app and worker subprocess can see data; cleans up afterwards."""
     session = sessionmaker(db_engine)()
     watermark = session.execute(
@@ -166,12 +168,12 @@ def committed_db_session(db_engine):
 
 
 @pytest.fixture
-def base_url():
+def base_url() -> str:
     return os.environ.get("BASE_URL", "http://localhost:8000")
 
 
 @pytest.fixture
-def http_client(base_url):
+def http_client(base_url: str) -> Generator[httpx.Client, None, None]:
     with httpx.Client(base_url=base_url, timeout=30.0) as client:
         yield client
 
@@ -181,20 +183,22 @@ def http_client(base_url):
 # ---------------------------------------------------------------------------
 
 
-def pytest_collection_modifyitems(config, items):
+def pytest_collection_modifyitems(config: pytest.Config, items: list[pytest.Item]) -> None:
     """Skip tests whose require_phase marker does not match the live DB phase."""
     # Phase detection requires a DB connection — skip if DATABASE_URL is absent
     # (e.g. during collection-only runs or import checks).
     if "DATABASE_URL" not in os.environ:
         return
 
+    engine: Engine | None = None
     try:
         engine = create_engine(os.environ["DATABASE_URL"], poolclass=NullPool)
         phase = _detect_phase(engine)
     except Exception:
         return  # can't connect — don't skip anything, let tests fail naturally
     finally:
-        engine.dispose()
+        if engine is not None:
+            engine.dispose()
 
     for item in items:
         marker = item.get_closest_marker("require_phase")
@@ -209,7 +213,11 @@ def pytest_collection_modifyitems(config, items):
 # ---------------------------------------------------------------------------
 
 
-def post_order(http_client, billing_email="test@example.com", **kwargs):
+def post_order(
+    http_client: httpx.Client,
+    billing_email: str | None = "test@example.com",
+    **kwargs: Any,
+) -> int:
     # "10.00" as a string so Pydantic parses it as Decimal, not float.
     payload = {
         "customer_id": 1,
@@ -224,7 +232,7 @@ def post_order(http_client, billing_email="test@example.com", **kwargs):
     return resp.json()["id"]
 
 
-def contact_row(db_session, order_id):
+def contact_row(db_session: Session, order_id: int):
     return db_session.execute(
         text("SELECT billing_email FROM order_contact_email WHERE order_id=:oid"),
         {"oid": order_id},

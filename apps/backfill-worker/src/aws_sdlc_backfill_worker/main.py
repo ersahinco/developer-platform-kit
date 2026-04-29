@@ -13,7 +13,7 @@ def run_backfill() -> None:
     # Backfill uses long-running transactions that are incompatible with
     # pgbouncer's transaction-mode pool.
     engine = create_engine(
-        settings.backfill_database_url,
+        settings.required_backfill_database_url,
         pool_pre_ping=True,
         pool_size=1,
         max_overflow=0,

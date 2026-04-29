@@ -79,8 +79,9 @@ test: ## Run test suite (requires local services and app running)
 lint: lint-app lint-infra ## Run all linters
 
 .PHONY: lint-app
-lint-app: ## Lint Python (ruff)
+lint-app: ## Lint and type-check Python
 	uv run ruff check apps/ packages/ tests/ scripts/
+	uv run pyright
 
 .PHONY: lint-infra
 lint-infra: ## Lint Terraform (fmt check + tflint + checkov)

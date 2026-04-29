@@ -12,6 +12,7 @@ This project should demonstrate a complete but lean DevOps toolchain around ECS.
 | Local commit checks | pre-commit hooks |
 | Tests | pytest |
 | Python lint/format | ruff |
+| Python type checking | pyright, aligned with Pylance diagnostics |
 | Database migrations | Liquibase |
 | Infrastructure as code | Terraform |
 | Infrastructure checks | terraform fmt, terraform validate, tflint, checkov |
@@ -38,8 +39,8 @@ make fmt
 uv run pytest tests/ -v
 ```
 
-`ruff` is declared in the root development dependency group so `uv run ruff`
-does not depend on a globally installed binary.
+`ruff` and `pyright` are declared in the root development dependency group so
+local quality checks do not depend on globally installed binaries.
 
 ## Naming Conventions
 

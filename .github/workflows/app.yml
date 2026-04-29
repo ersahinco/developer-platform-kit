@@ -14,9 +14,11 @@ on:
       - "apps/backfill-worker/**"
       - "apps/data-export-job/**"
       - "packages/**"
+      - "pyproject.toml"
       - "db/**"
       - "tests/**"
       - "scripts/**"
+      - "uv.lock"
   push:
     branches: [main]
     paths:
@@ -25,9 +27,11 @@ on:
       - "apps/backfill-worker/**"
       - "apps/data-export-job/**"
       - "packages/**"
+      - "pyproject.toml"
       - "db/**"
       - "tests/**"
       - "scripts/**"
+      - "uv.lock"
 
 env:
   AWS_REGION: eu-central-1
@@ -91,7 +95,12 @@ jobs:
           enable-cache: true
 
       - name: Install dependencies
-        run: uv sync --frozen --all-packages --group test
+        run: uv sync --frozen --all-packages --group dev --group test
+
+      - name: Run Python static checks
+        run: |
+          uv run ruff check apps/ packages/ tests/ scripts/
+          uv run pyright
 
       - name: Init DB schema
         run: |

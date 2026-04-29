@@ -116,7 +116,9 @@ uv run python scripts/smoke_test.py
 Run tests:
 
 ```bash
-uv sync --all-packages --group test
+uv sync --all-packages --group dev --group test
+uv run ruff check apps/ packages/ tests/ scripts/
+uv run pyright
 uv run pytest tests/ -v
 ```
 

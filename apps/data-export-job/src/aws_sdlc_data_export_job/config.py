@@ -37,5 +37,11 @@ class Settings(BaseSettings):
             )
         return self
 
+    @property
+    def required_data_export_database_url(self) -> str:
+        if self.data_export_database_url is None:
+            raise RuntimeError("DATA_EXPORT_DATABASE_URL was not configured")
+        return self.data_export_database_url
+
 
 settings = Settings()

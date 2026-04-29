@@ -7,6 +7,7 @@ from pathlib import Path
 from typing import Any, Iterable, Mapping
 
 from sqlalchemy import create_engine, text
+from sqlalchemy.engine import RowMapping
 
 from aws_sdlc_data_export_job.config import settings
 
@@ -46,7 +47,7 @@ def _write_json(path: Path, payload: dict[str, Any]) -> None:
     os.replace(tmp_path, path)
 
 
-def _write_csv(path: Path, rows: Iterable[Mapping[str, Any]]) -> int:
+def _write_csv(path: Path, rows: Iterable[Mapping[str, Any] | RowMapping]) -> int:
     tmp_path = path.with_name(f"{path.name}.tmp")
     fieldnames = ["order_id", "billing_email", "source", "updated_at"]
     row_count = 0
@@ -112,7 +113,7 @@ def run_export(s3_client: Any | None = None) -> dict[str, Any]:
     manifest_key = manifest_path.relative_to(output_dir).as_posix()
 
     engine = create_engine(
-        settings.data_export_database_url,
+        settings.required_data_export_database_url,
         pool_pre_ping=True,
         pool_size=1,
         max_overflow=0,

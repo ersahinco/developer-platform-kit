@@ -11,6 +11,7 @@ dependencies = [
 
 [dependency-groups]
 dev = [
+    "pyright>=1.1.409",
     "ruff>=0.4.4",
 ]
 test = [
@@ -35,3 +36,15 @@ testpaths = ["tests"]
 markers = [
     "require_phase: skip test unless current migration phase matches",
 ]
+
+[tool.pyright]
+include = ["apps", "packages", "tests", "scripts"]
+extraPaths = [
+    "apps/api/src",
+    "apps/backfill-worker/src",
+    "apps/data-export-job/src",
+    "packages/adapters/src",
+    "packages/core/src",
+]
+pythonVersion = "3.12"
+typeCheckingMode = "standard"
