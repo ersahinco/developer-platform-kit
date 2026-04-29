@@ -16,7 +16,6 @@ work.
 | Need | Go to |
 |---|---|
 | Roadmaps and continuation rules | [docs/roadmaps.md](docs/roadmaps.md) |
-| Current roadmap | [docs/ROADMAP_V5.md](docs/ROADMAP_V5.md) |
 | Architecture direction | [docs/architecture.md](docs/architecture.md) |
 | Local development runbook | [docs/local-development.md](docs/local-development.md) |
 | AWS deployment/runbook | [docs/deployment.md](docs/deployment.md) |
@@ -83,7 +82,7 @@ aws-sdlc-containers/
 Target direction is an evolutionary monorepo with `apps/`, `packages/`,
 `infra/`, `db/`, `docker/`, and `docs/`. Future `ops/` and `security/`
 directories should appear only when they have real owned content. See
-[docs/ROADMAP_V5.md](docs/ROADMAP_V5.md) for the current phase checklist.
+[docs/roadmaps.md](docs/roadmaps.md) for the current phase checklist.
 
 ## Quick Local Path
 
