@@ -1,4 +1,5 @@
 import csv
+import hashlib
 import importlib
 import json
 import os
@@ -100,6 +101,8 @@ def test_data_export_writes_raw_csv_then_success_manifest(
     assert manifest["objects"]["raw"] == str(raw_path.relative_to(tmp_path))
     assert manifest["objects"]["manifest"] == str(manifest_path.relative_to(tmp_path))
     assert manifest["row_count"] >= 1
+    assert manifest["raw_byte_count"] == raw_path.stat().st_size
+    assert manifest["raw_sha256"] == hashlib.sha256(raw_path.read_bytes()).hexdigest()
 
     with raw_path.open(encoding="utf-8", newline="") as handle:
         rows = list(csv.DictReader(handle))
@@ -132,6 +135,9 @@ def test_data_export_is_idempotent_for_the_same_run_id(
     manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
     assert manifest["run_id"] == "same-run"
     assert manifest["objects"]["raw"].endswith("/same-run.csv")
+    assert manifest["raw_byte_count"] == (
+        tmp_path / "raw" / "order_contact_email" / "dt=2026-04-29" / "same-run.csv"
+    ).stat().st_size
 
 
 def _load_export_module(monkeypatch):
@@ -203,3 +209,22 @@ def test_s3_publish_skips_manifest_when_raw_upload_fails(monkeypatch, tmp_path):
         )
 
     assert s3_client.uploads == [("data-hub", raw_key)]
+
+
+def test_manifest_validation_rejects_raw_checksum_mismatch(monkeypatch, tmp_path):
+    export_main = _load_export_module(monkeypatch)
+    raw_path = tmp_path / "raw.csv"
+    raw_path.write_text("order_id,billing_email\n1,export@example.com\n", encoding="utf-8")
+    manifest = {
+        "status": "succeeded",
+        "row_count": 1,
+        "raw_byte_count": raw_path.stat().st_size,
+        "raw_sha256": hashlib.sha256(b"different raw content").hexdigest(),
+        "objects": {
+            "raw": "raw/order_contact_email/dt=2026-04-29/test-run.csv",
+            "manifest": "manifests/order_contact_email/dt=2026-04-29/test-run.json",
+        },
+    }
+
+    with pytest.raises(ValueError, match="raw_sha256 mismatch"):
+        export_main._validate_manifest_outputs(raw_path, manifest)

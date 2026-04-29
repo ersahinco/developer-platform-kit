@@ -1,5 +1,6 @@
 import csv
 import datetime
+import hashlib
 import json
 import os
 from decimal import Decimal
@@ -59,6 +60,48 @@ def _write_csv(path: Path, rows: Iterable[Mapping[str, Any] | RowMapping]) -> in
             row_count += 1
     os.replace(tmp_path, path)
     return row_count
+
+
+def _file_sha256(path: Path) -> str:
+    digest = hashlib.sha256()
+    with path.open("rb") as handle:
+        for chunk in iter(lambda: handle.read(1024 * 1024), b""):
+            digest.update(chunk)
+    return digest.hexdigest()
+
+
+def _validate_manifest_outputs(raw_path: Path, manifest: Mapping[str, Any]) -> None:
+    if manifest.get("status") != "succeeded":
+        raise ValueError("manifest status must be succeeded")
+
+    row_count = manifest.get("row_count")
+    if not isinstance(row_count, int) or row_count < 0:
+        raise ValueError("manifest row_count must be a non-negative integer")
+
+    objects = manifest.get("objects")
+    if not isinstance(objects, Mapping) or not isinstance(objects.get("raw"), str):
+        raise ValueError("manifest objects.raw must be present")
+
+    if not raw_path.exists():
+        raise FileNotFoundError(f"raw export is missing: {raw_path}")
+
+    expected_bytes = manifest.get("raw_byte_count")
+    actual_bytes = raw_path.stat().st_size
+    if expected_bytes != actual_bytes:
+        raise ValueError(
+            f"manifest raw_byte_count mismatch: expected {expected_bytes}, got {actual_bytes}"
+        )
+
+    expected_sha256 = manifest.get("raw_sha256")
+    actual_sha256 = _file_sha256(raw_path)
+    if expected_sha256 != actual_sha256:
+        raise ValueError("manifest raw_sha256 mismatch")
+
+
+def _validate_manifest_file(raw_path: Path, manifest_path: Path) -> dict[str, Any]:
+    manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+    _validate_manifest_outputs(raw_path, manifest)
+    return manifest
 
 
 def _s3_client() -> Any:
@@ -137,12 +180,16 @@ def run_export(s3_client: Any | None = None) -> dict[str, Any]:
         "exported_at": exported_at.isoformat(),
         "status": "succeeded",
         "row_count": row_count,
+        "raw_byte_count": raw_path.stat().st_size,
+        "raw_sha256": _file_sha256(raw_path),
         "objects": {
             "raw": raw_key,
             "manifest": manifest_key,
         },
     }
+    _validate_manifest_outputs(raw_path, manifest)
     _write_json(manifest_path, manifest)
+    manifest = _validate_manifest_file(raw_path, manifest_path)
 
     if settings.data_export_s3_bucket:
         _publish_s3_outputs(

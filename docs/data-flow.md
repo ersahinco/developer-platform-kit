@@ -45,7 +45,8 @@ pooling.
 
 `apps/data-export-job` is the first deliberately small data-hub-shaped job. It
 exports `order_contact_email` to local filesystem paths that mirror the S3
-convention, then writes a manifest only after the CSV succeeds.
+convention, then writes a manifest only after the CSV succeeds and the manifest
+has been validated against the raw file.
 
 The GitHub Actions app workflow validates the job, builds and scans its image,
 pushes it to ECR, and registers the latest task definition revision during
@@ -63,8 +64,9 @@ ad hoc local runs, set `DATA_EXPORT_OUTPUT_DIR` to a temporary directory and
 `DATA_EXPORT_RUN_ID` to make the output path deterministic.
 
 Set `DATA_EXPORT_S3_BUCKET` to enable S3 mode. The job still writes the raw CSV
-and manifest locally first, then uploads the raw object before the manifest. If
-the raw upload fails, the process exits non-zero before uploading a manifest.
+and manifest locally first, validates the manifest's raw byte count and SHA-256
+checksum, then uploads the raw object before the manifest. If the raw upload
+fails, the process exits non-zero before uploading a manifest.
 
 V2 keeps the object convention stable:
 `raw/order_contact_email/dt=<date>/<run-id>.csv` and
@@ -111,7 +113,8 @@ The first data hub should be deliberately small:
 - Prefixes for `raw/`, `curated/`, and `manifests/`.
 - Promote the existing local export job to an ECS data job. (Done.)
 - One EventBridge schedule that runs the job. (Done.)
-- One manifest file per export with row count, source query name, export time, and object keys.
+- One manifest file per export with row count, source query name, export time,
+  raw object key, raw byte count, raw SHA-256 checksum, and manifest object key.
 - No Glue catalog, Athena, Kafka, Lake Formation, or multi-account sharing in v1 or V2.
 
 ## Acceptance Criteria for v1
@@ -120,6 +123,8 @@ The first data hub should be deliberately small:
 - The same container can run as an ECS one-off or scheduled task.
 - Exports are idempotent for the same logical run ID.
 - The manifest is written only after data export succeeds.
+- The manifest's raw byte count and SHA-256 checksum match the raw CSV before
+  the manifest is uploaded or emitted as the success signal.
 - Failure leaves either no manifest or a manifest marked as failed.
 - IAM grants the job access only to the target bucket/prefix and required database secret.
 
