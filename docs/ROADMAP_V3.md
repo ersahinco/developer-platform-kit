@@ -1,8 +1,7 @@
 # ECS DevOps Monorepo Roadmap V3
 
-This file is the active cross-session tracker after the completed V1 and V2
-passes. Start here before changing SDLC, DevOps, infrastructure, data,
-observability, security, naming, or operator workflows.
+This file is the completed V3 progress tracker after the completed V1 and V2
+passes. Active work continues in [docs/ROADMAP_v4.md](ROADMAP_v4.md).
 
 ## Current State
 
@@ -61,25 +60,25 @@ and preserve user-owned worktree changes.
 
 ## Next Session Should Start Here
 
-1. Read this file first, then `docs/ROADMAP_V2.md`, `README.md`,
+1. Read `docs/ROADMAP_v4.md` first, then this file, `docs/ROADMAP_V2.md`, `README.md`,
    `docs/architecture.md`, and `.kiro/steering/engineering-principles.md`.
 2. Check `git status --short` before editing. The `.gitignore` file may contain
    user-owned changes.
 3. Compare the current repo against `.idea/architecture.md`.
 4. Pick exactly one unchecked V3 item or one newly discovered smallest
    high-value SDLC/DevOps/infra/data/observability/naming consistency step.
-5. Make the smallest coherent change, verify it, update this file, and commit.
+5. Make the smallest coherent change, verify it, update `docs/ROADMAP_v4.md`, and commit.
 
-Recommended next pick: V3 is complete. Start the next session by comparing the
-current repo against `.idea/architecture.md`, preserving the V3 guardrails, and
-creating a new tracker only if there is a clear next operator-maturity theme.
+Recommended next pick: continue from `docs/ROADMAP_v4.md`. V3 is complete; keep
+this file as history unless a V3 correction is needed.
 
 ## Documentation Ownership
 
 - `README.md` is the short project index.
 - `docs/ROADMAP.md` is the completed V1 history.
 - `docs/ROADMAP_V2.md` is the completed V2 history.
-- `docs/ROADMAP_V3.md` is the current progress tracker.
+- `docs/ROADMAP_V3.md` is the completed V3 history.
+- `docs/ROADMAP_v4.md` is the current progress tracker.
 - `docs/deployment.md` is the detailed AWS operator runbook.
 - `docs/architecture.md` keeps long-form rationale and intentionally omitted
   hardening work.
