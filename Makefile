@@ -76,7 +76,7 @@ test: ## Run test suite (requires local services and app running)
 # ── Lint & format ─────────────────────────────────────────────────────────────
 
 .PHONY: lint
-lint: secret-scan dependency-audit lint-app lint-scripts lint-infra ## Run all linters
+lint: secret-scan dependency-audit lint-app lint-scripts lint-docs lint-infra ## Run all linters
 
 .PHONY: lint-app
 lint-app: ## Lint and type-check Python
@@ -86,6 +86,10 @@ lint-app: ## Lint and type-check Python
 .PHONY: lint-scripts
 lint-scripts: ## Syntax-check shell scripts
 	bash -n scripts/*.sh
+
+.PHONY: lint-docs
+lint-docs: ## Check local Markdown links
+	python3 scripts/check_docs_links.py
 
 .PHONY: secret-scan
 secret-scan: ## Scan repository for high-confidence committed secrets

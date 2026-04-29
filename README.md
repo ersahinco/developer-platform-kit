@@ -125,6 +125,7 @@ uv run python scripts/dependency_audit.py
 uv run ruff check apps/ packages/ tests/ scripts/
 uv run pyright
 bash -n scripts/*.sh
+python3 scripts/check_docs_links.py
 uv run pytest tests/ -v
 ```
 

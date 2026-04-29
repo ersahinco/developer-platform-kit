@@ -35,6 +35,12 @@ repos:
         language: system
         files: ^scripts/.*\.sh$
 
+      - id: docs-links
+        name: docs local links
+        entry: python3 scripts/check_docs_links.py
+        language: system
+        pass_filenames: false
+
       - id: pyright
         name: pyright
         entry: uv run pyright

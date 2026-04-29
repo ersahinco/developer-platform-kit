@@ -45,19 +45,19 @@ and preserve user-owned worktree changes.
 ### Phase 1: Quality Gate Completeness
 
 - [x] Add a zero-dependency shell syntax gate for deployment and operator scripts.
-- [ ] Identify the next smallest local/CI/pre-commit alignment gap after shell syntax checks.
+- [x] Identify the next smallest local/CI/pre-commit alignment gap after shell syntax checks.
 
 ### Phase 2: Naming and Documentation Consistency
 
 - [x] Keep roadmap ownership clear now that V3 is active.
-- [ ] Remove stale references to completed trackers when they could mislead future sessions.
-- [ ] Keep `README.md` short and index-like.
+- [x] Remove stale references to completed trackers when they could mislead future sessions.
+- [x] Keep `README.md` short and index-like.
 
 ### Phase 3: Lean Maintainability
 
-- [ ] Prefer checks or simplifications that protect existing workflows over new abstractions.
-- [ ] Avoid adding directories or policy files until there is real owned content.
-- [ ] Keep `.idea/architecture.md` as inspiration, not a one-shot migration map.
+- [x] Prefer checks or simplifications that protect existing workflows over new abstractions.
+- [x] Avoid adding directories or policy files until there is real owned content.
+- [x] Keep `.idea/architecture.md` as inspiration, not a one-shot migration map.
 
 ## Next Session Should Start Here
 
@@ -70,8 +70,9 @@ and preserve user-owned worktree changes.
    high-value SDLC/DevOps/infra/data/observability/naming consistency step.
 5. Make the smallest coherent change, verify it, update this file, and commit.
 
-Recommended next pick: inspect whether workflow YAML validation or documentation
-link checks can be added without a new dependency or noisy local friction.
+Recommended next pick: V3 is complete. Start the next session by comparing the
+current repo against `.idea/architecture.md`, preserving the V3 guardrails, and
+creating a new tracker only if there is a clear next operator-maturity theme.
 
 ## Documentation Ownership
 
@@ -98,3 +99,4 @@ link checks can be added without a new dependency or noisy local friction.
 |---|---|---|
 | 2026-04-29 | Added a zero-dependency shell syntax gate for deployment and operator scripts in Make, pre-commit, and the App workflow. | Ran `bash -n scripts/*.sh`, `make lint-scripts`, workflow/pre-commit YAML parsing, and documentation whitespace checks. |
 | 2026-04-29 | Renamed the active tracker to `docs/ROADMAP_V3.md` and updated roadmap references for version-suffix consistency. | Ran roadmap reference search and documentation whitespace checks. |
+| 2026-04-29 | Completed the remaining V3 checklist with a dependency-free local Markdown link checker wired into Make, pre-commit, and CI. | Ran the docs link checker through direct, Make, and pre-commit paths; ran Ruff on the new script, YAML parsing for changed workflow/config files, and documentation whitespace checks. |
