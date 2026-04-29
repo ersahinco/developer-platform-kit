@@ -7,6 +7,8 @@
 - Base platform: one Terraform state, one VPC, one public API hostname, one ECS cluster, one long-running app service, PgBouncer in the app task, one PostgreSQL database, and one S3 data hub bucket.
 - Reference workload: additive Liquibase migrations, in-place ECS deploys, runtime `WRITE_MODE` and `READ_MODE` switches, and one-off worker tasks all operate against that same cluster and database.
 - Data workload: one scheduled ECS data export job writes the `order_contact_email` raw CSV and manifest objects to the S3 data hub bucket.
+- Async workload: the app publishes `order.created.v1` messages to one SQS FIFO
+  queue with an attached DLQ and idempotency key based on order ID.
 - Optional extensions: WAF, VPC endpoints, ECS Exec/SSM access, and similar operators-only features stay outside the base model even when they remain enabled in the deployed stack.
 - Extension rule: future observability stacks, extra public-edge controls, and workload-specific jobs should be added as extensions rather than folded into the core platform unless every workload would require them.
 
@@ -90,6 +92,28 @@ PgBouncer runs as a sidecar in every environment:
 Tests connect to the live DB via PgBouncer (same `DATABASE_URL` as the app) and to the running app via HTTP. `conftest.py` detects the current migration phase from `app_runtime_config` at session start and uses it to skip tests whose invariants don't hold in the current phase — `require_phase("dual", "switch")` skips in `legacy` and `post_contract`, for example. This means the same test suite runs at every phase of the runbook; only the relevant subset executes.
 
 `committed_db_session` cleans up test rows by watermark after each test. Teardown is unconditional — a failing assertion cannot leave the DB in a state that breaks subsequent tests.
+
+---
+
+## Async order events
+
+The first async workflow is deliberately narrow: after an order is created, the
+app publishes an `order.created.v1` message to an SQS FIFO queue when
+`ORDER_EVENTS_QUEUE_URL` is configured.
+
+The event contract uses `order.created.v1:<order_id>` for both `event_id` and
+`idempotency_key`. The SQS `MessageDeduplicationId` uses the same value, and
+`MessageGroupId` is scoped to `customer-<customer_id>` so events for the same
+customer stay ordered.
+
+The queue has a DLQ and a CloudWatch alarm for visible DLQ messages. The app
+emits `order_events_publish_total` with `succeeded`, `failed`, and `skipped`
+statuses so local and deployed operators can tell whether publish behavior is
+active. The runbook is
+`ops/runbooks/order-event-queue-failure.md`.
+
+No separate long-running consumer is added yet. A consumer should only appear
+when it owns a real side effect and can preserve the same idempotency contract.
 
 ---
 

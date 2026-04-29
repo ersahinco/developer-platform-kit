@@ -1,0 +1,122 @@
+# Order Event Queue Failure
+
+Use this runbook when the `aws-sdlc-containers-order-events-dlq-visible`
+CloudWatch alarm is in `ALARM`, or when app logs/metrics show failed
+`order.created.v1` publishes.
+
+## What The Alarm Means
+
+The app publishes `order.created.v1` messages to the SQS FIFO queue named
+`aws-sdlc-containers-order-events.fifo` when `ORDER_EVENTS_QUEUE_URL` is set.
+Each message uses:
+
+- `event_id`: `order.created.v1:<order_id>`
+- `idempotency_key`: `order.created.v1:<order_id>`
+- FIFO `MessageDeduplicationId`: same as `event_id`
+- FIFO `MessageGroupId`: `customer-<customer_id>`
+
+The DLQ alarm watches `AWS/SQS` `ApproximateNumberOfMessagesVisible` for
+`aws-sdlc-containers-order-events-dlq.fifo`. It fires when any message is
+visible in the DLQ.
+
+## First Checks
+
+Confirm the alarm:
+
+```bash
+aws cloudwatch describe-alarms \
+  --alarm-names "$(terraform -chdir=infra output -raw order_events_dlq_visible_alarm_name)" \
+  --region eu-central-1
+```
+
+Inspect the source queue and DLQ:
+
+```bash
+aws sqs get-queue-attributes \
+  --queue-url "$(terraform -chdir=infra output -raw order_events_queue_url)" \
+  --attribute-names All \
+  --region eu-central-1
+
+DLQ_URL="$(aws sqs get-queue-url \
+  --queue-name "$(terraform -chdir=infra output -raw order_events_dlq_name)" \
+  --query QueueUrl \
+  --output text \
+  --region eu-central-1)"
+
+aws sqs get-queue-attributes \
+  --queue-url "$DLQ_URL" \
+  --attribute-names All \
+  --region eu-central-1
+```
+
+Inspect app logs and publish metrics:
+
+```bash
+aws logs tail /ecs/aws-sdlc-containers/app \
+  --since 30m \
+  --region eu-central-1
+
+curl -fsS "https://$(terraform -chdir=infra output -raw api_fqdn)/metrics" \
+  -H "Authorization: Bearer $TOKEN" \
+  | rg 'order_events_publish_total'
+```
+
+## Common Causes
+
+- A downstream queue consumer failed the same message five times.
+- A deploy changed event payload handling without preserving idempotency.
+- The app task role lost `sqs:SendMessage` on the source queue.
+- `ORDER_EVENTS_QUEUE_URL` points at the wrong queue.
+- AWS SQS API calls from the private task cannot reach SQS through NAT or VPC
+  endpoints.
+
+## Recovery
+
+If the app cannot publish new order events, first restore publish ability:
+
+```bash
+aws ecs describe-services \
+  --cluster "$(terraform -chdir=infra output -raw ecs_cluster_name)" \
+  --services "$(terraform -chdir=infra output -raw app_service_name)" \
+  --region eu-central-1
+
+APP_TASK_ROLE_ARN="$(terraform -chdir=infra output -raw app_task_role_arn)"
+APP_TASK_ROLE_NAME="${APP_TASK_ROLE_ARN##*/}"
+
+aws iam get-role-policy \
+  --role-name "$APP_TASK_ROLE_NAME" \
+  --policy-name publish-order-events \
+  --region eu-central-1
+```
+
+If the failure started after a deploy, use
+[ECS Deploy Rollback](ecs-deploy-rollback.md) to restore the previous healthy
+task definition.
+
+Order creation is still allowed when publishing fails. If the publish failure
+window includes successful order writes, reconstruct missing events from the
+orders table after the queue path is healthy and preserve
+`order.created.v1:<order_id>` as the replay idempotency key.
+
+For DLQ messages, inspect before replaying:
+
+```bash
+aws sqs receive-message \
+  --queue-url "$DLQ_URL" \
+  --max-number-of-messages 10 \
+  --attribute-names All \
+  --message-attribute-names All \
+  --visibility-timeout 30 \
+  --region eu-central-1
+```
+
+Only replay messages after the consumer defect is fixed. Preserve the original
+`event_id` and `idempotency_key`; consumers must treat those as the duplicate
+detection key.
+
+## Success Criteria
+
+- New app logs contain `order_event_published` for created orders.
+- `/metrics` shows `order_events_publish_total{event_type="order.created.v1",status="succeeded"}` increasing.
+- The DLQ has zero visible messages.
+- The CloudWatch alarm returns to `OK`.

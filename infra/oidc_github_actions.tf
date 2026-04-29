@@ -75,6 +75,10 @@ locals {
   github_actions_scheduler_resources = [
     "arn:aws:scheduler:${local.region}:${local.account_id}:schedule/default/${local.github_actions_stack_scope}",
   ]
+
+  github_actions_sqs_resources = [
+    "arn:aws:sqs:${local.region}:${local.account_id}:${local.github_actions_stack_scope}",
+  ]
 }
 
 data "aws_iam_openid_connect_provider" "github" {
@@ -222,6 +226,21 @@ data "aws_iam_policy_document" "github_actions_compute_deploy" {
       "scheduler:UpdateSchedule",
     ]
     resources = local.github_actions_scheduler_resources
+  }
+
+  statement {
+    sid = "SQSManage"
+    actions = [
+      "sqs:CreateQueue",
+      "sqs:DeleteQueue",
+      "sqs:GetQueueAttributes",
+      "sqs:GetQueueUrl",
+      "sqs:ListQueueTags",
+      "sqs:SetQueueAttributes",
+      "sqs:TagQueue",
+      "sqs:UntagQueue",
+    ]
+    resources = local.github_actions_sqs_resources
   }
 }
 

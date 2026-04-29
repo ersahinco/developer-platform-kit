@@ -26,6 +26,8 @@ primary demo path.
   target response time behind the ALB.
 - Terraform creates CloudWatch alarms for RDS CPU, free storage, and database
   connection pressure.
+- Terraform creates a CloudWatch alarm when the order events DLQ has visible
+  messages.
 - Local Prometheus, Loki, Promtail, and Grafana run through the optional
   `observability` Docker Compose profile.
 
@@ -89,6 +91,12 @@ traffic before following the app or RDS runbooks. Rehearse this path with
 
 The RDS pressure signals watch `CPUUtilization`, `FreeStorageSpace`, and
 `DatabaseConnections`. Their runbook is `ops/runbooks/rds-pressure.md`.
+
+The async order event signal watches visible messages in the SQS DLQ for
+`order.created.v1`. Its runbook is
+`ops/runbooks/order-event-queue-failure.md`. The app also exposes
+`order_events_publish_total` from `/metrics` so local operators can distinguish
+successful, failed, and skipped publish attempts.
 
 Future AWS observability slices can choose whether to deploy:
 

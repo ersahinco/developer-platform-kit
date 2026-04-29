@@ -153,6 +153,21 @@ output "app_task_role_arn" {
   value       = module.ecs.services["app"].tasks_iam_role_arn
 }
 
+output "order_events_queue_url" {
+  description = "SQS FIFO queue URL for order.created.v1 events."
+  value       = aws_sqs_queue.order_events.url
+}
+
+output "order_events_dlq_name" {
+  description = "SQS DLQ name for order event messages that exceed the receive retry policy."
+  value       = aws_sqs_queue.order_events_dlq.name
+}
+
+output "order_events_dlq_visible_alarm_name" {
+  description = "CloudWatch alarm for visible messages in the order events DLQ."
+  value       = aws_cloudwatch_metric_alarm.order_events_dlq_visible.alarm_name
+}
+
 output "private_subnet_ids" {
   description = "Private subnet IDs used by the ECS service and one-off tasks."
   value       = module.vpc.private_subnets

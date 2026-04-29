@@ -210,7 +210,9 @@ module "ecs" {
             { name = "DB_PASSWORD", valueFrom = "${module.rds.db_instance_master_user_secret_arn}:password::" },
           ]
 
-          environment = []
+          environment = [
+            { name = "ORDER_EVENTS_QUEUE_URL", value = aws_sqs_queue.order_events.url },
+          ]
 
           # pgbouncer must be accepting connections before the app starts.
           dependsOn = [{ containerName = "pgbouncer", condition = "START" }]

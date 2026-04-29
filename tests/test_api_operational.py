@@ -4,7 +4,9 @@ from __future__ import annotations
 
 import os
 import sys
+import datetime
 from collections.abc import Iterator
+from decimal import Decimal
 from pathlib import Path
 from typing import Any
 
@@ -19,8 +21,10 @@ sys.path.insert(0, str(ROOT / "packages" / "core" / "src"))
 
 from fastapi.testclient import TestClient  # noqa: E402
 
-from aws_sdlc_api.main import app, get_db  # noqa: E402
+from aws_sdlc_api.events import OrderEventPublishError  # noqa: E402
+from aws_sdlc_api.main import app, get_db, get_order_event_publisher, get_order_repo  # noqa: E402
 from aws_sdlc_api.main import get_config_store  # noqa: E402
+from aws_sdlc_core.order import Order  # noqa: E402
 
 
 class _ReadySession:
@@ -44,6 +48,51 @@ class _ConfigStore:
         self._values[key] = value
 
 
+class _OrderRepo:
+    def __init__(self) -> None:
+        self.created: list[dict[str, object]] = []
+
+    def create_order(
+        self,
+        customer_id: int,
+        total_amount: Decimal,
+        order_status: str,
+        billing_email: str | None,
+    ) -> Order:
+        self.created.append(
+            {
+                "customer_id": customer_id,
+                "total_amount": total_amount,
+                "order_status": order_status,
+                "billing_email": billing_email,
+            }
+        )
+        now = datetime.datetime(2026, 4, 29, 12, 0, tzinfo=datetime.UTC)
+        return Order(
+            id=42,
+            customer_id=customer_id,
+            total_amount=total_amount,
+            order_status="SUBMITTED",
+            submitted_at=now,
+            created_at=now,
+            billing_email=billing_email,
+        )
+
+    def get_order(self, order_id: int) -> Order | None:
+        return None
+
+
+class _OrderEventPublisher:
+    def __init__(self, *, should_fail: bool = False) -> None:
+        self.should_fail = should_fail
+        self.published: list[Order] = []
+
+    def publish_order_created(self, order: Order) -> None:
+        if self.should_fail:
+            raise OrderEventPublishError("sqs unavailable")
+        self.published.append(order)
+
+
 def _override_db(session: object) -> None:
     def get_test_db() -> Iterator[object]:
         yield session
@@ -56,6 +105,20 @@ def _override_config_store(store: object) -> None:
         return store
 
     app.dependency_overrides[get_config_store] = get_test_config_store
+
+
+def _override_order_repo(repo: object) -> None:
+    def get_test_order_repo() -> object:
+        return repo
+
+    app.dependency_overrides[get_order_repo] = get_test_order_repo
+
+
+def _override_order_event_publisher(publisher: object) -> None:
+    def get_test_order_event_publisher() -> object:
+        return publisher
+
+    app.dependency_overrides[get_order_event_publisher] = get_test_order_event_publisher
 
 
 def test_ready_reports_database_ok_when_ping_succeeds() -> None:
@@ -127,3 +190,49 @@ def test_runtime_mode_getters_fail_when_config_is_missing() -> None:
 
     assert read_response.status_code == 503
     assert write_response.status_code == 503
+
+
+def test_create_order_publishes_order_created_event() -> None:
+    repo = _OrderRepo()
+    publisher = _OrderEventPublisher()
+    _override_order_repo(repo)
+    _override_order_event_publisher(publisher)
+    try:
+        with TestClient(app) as client:
+            response = client.post(
+                "/orders",
+                json={
+                    "customer_id": 7,
+                    "total_amount": "19.99",
+                    "status": "SUBMITTED",
+                    "billing_email": "customer@example.test",
+                },
+            )
+    finally:
+        app.dependency_overrides.clear()
+
+    assert response.status_code == 201
+    assert response.json()["id"] == 42
+    assert len(publisher.published) == 1
+    assert publisher.published[0].id == 42
+
+
+def test_create_order_still_returns_order_when_event_publish_fails() -> None:
+    _override_order_repo(_OrderRepo())
+    _override_order_event_publisher(_OrderEventPublisher(should_fail=True))
+    try:
+        with TestClient(app) as client:
+            response = client.post(
+                "/orders",
+                json={
+                    "customer_id": 7,
+                    "total_amount": "19.99",
+                    "status": "SUBMITTED",
+                    "billing_email": "customer@example.test",
+                },
+            )
+    finally:
+        app.dependency_overrides.clear()
+
+    assert response.status_code == 201
+    assert response.json()["id"] == 42

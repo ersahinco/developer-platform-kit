@@ -78,10 +78,10 @@ and commit. Preserve user-owned worktree changes.
 
 ### Phase 4: Async Event Processing
 
-- [ ] Add queue-backed async behavior only with a real event and idempotency
+- [x] Add queue-backed async behavior only with a real event and idempotency
   contract.
-- [ ] Include DLQ/failure handling, metrics or logs, tests, and a runbook.
-- [ ] Avoid adding a consumer app until the local behavior and infrastructure
+- [x] Include DLQ/failure handling, metrics or logs, tests, and a runbook.
+- [x] Avoid adding a consumer app until the local behavior and infrastructure
   contract are both justified.
 
 ### Phase 5: Documentation Consolidation
@@ -121,6 +121,7 @@ rules, and documentation ownership map.
 
 | Date | Work | Verification |
 |---|---|---|
+| 2026-04-29 | Added SQS FIFO-backed `order.created.v1` publishing from the API with an order-ID idempotency key, publish metrics, queue/DLQ/alarm Terraform resources, IAM wiring, tests, and an order event queue failure runbook. | Ran Ruff, Pyright, focused pytest coverage, Terraform fmt/validate, TFLint, Checkov, workflow/docs checks, and path-scoped git diff whitespace checks. |
 | 2026-04-29 | Added a roadmap index and continuation guide, trimmed repeated README roadmap guidance, and moved V5 session guidance to the shared roadmap page. | Ran Markdown link checks and path-scoped git diff whitespace checks. |
 | 2026-04-29 | Added read-only runtime mode endpoints and a post-deploy verifier that checks `/health`, `/ready`, `/metrics`, runtime modes, and optional ECS task/image metadata; wired it into the deploy workflow and Makefile. | Ran Ruff, Pyright, workflow policy checks, Markdown link checks, focused pytest coverage, and path-scoped git diff whitespace checks. |
 | 2026-04-29 | Added an app dependency-readiness incident drill that stops local PgBouncer, confirms `/health` stays live while `/ready` fails, maps symptoms to Prometheus/Grafana/Loki and AWS runbooks, and linked it from observability and app-health docs. | Ran Markdown link checks and path-scoped git diff whitespace checks. |

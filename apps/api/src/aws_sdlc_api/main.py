@@ -12,7 +12,14 @@ from starlette import status
 from starlette.responses import JSONResponse
 from starlette.responses import Response
 
+from aws_sdlc_api.config import settings
 from aws_sdlc_api.db import get_db
+from aws_sdlc_api.events import (
+    NoopOrderEventPublisher,
+    OrderEventPublisher,
+    OrderEventPublishError,
+    SqsOrderEventPublisher,
+)
 from aws_sdlc_api.schemas import (
     CreateOrderRequest,
     CustomerResponse,
@@ -24,8 +31,8 @@ from aws_sdlc_api.schemas import (
     WriteModeRequest,
     WriteModeResponse,
 )
-from aws_sdlc_core.ports import ConfigStore, CustomerRepository, OrderRepository
 from aws_sdlc_core.order import ReadModeValue, WriteModeValue
+from aws_sdlc_core.ports import ConfigStore, CustomerRepository, OrderRepository
 
 
 class _SuppressHealthChecks(logging.Filter):
@@ -122,9 +129,18 @@ def get_config_store(db: DbDep) -> ConfigStore:
     return SQLAlchemyConfigStore(session=db)
 
 
+def get_order_event_publisher() -> OrderEventPublisher:
+    if settings.order_events_queue_url is None:
+        return NoopOrderEventPublisher()
+    return SqsOrderEventPublisher(settings.order_events_queue_url)
+
+
 OrderRepoDep = Annotated[OrderRepository, Depends(get_order_repo)]
 CustomerRepoDep = Annotated[CustomerRepository, Depends(get_customer_repo)]
 ConfigStoreDep = Annotated[ConfigStore, Depends(get_config_store)]
+OrderEventPublisherDep = Annotated[
+    OrderEventPublisher, Depends(get_order_event_publisher)
+]
 
 
 @app.get("/health", response_model=HealthResponse)
@@ -163,13 +179,24 @@ def get_customer(customer_id: int, repo: CustomerRepoDep) -> CustomerResponse:
 
 
 @app.post("/orders", response_model=OrderResponse, status_code=201)
-def create_order(body: CreateOrderRequest, repo: OrderRepoDep) -> OrderResponse:
+def create_order(
+    body: CreateOrderRequest,
+    repo: OrderRepoDep,
+    event_publisher: OrderEventPublisherDep,
+) -> OrderResponse:
     order = repo.create_order(
         customer_id=body.customer_id,
         total_amount=body.total_amount,
         order_status=body.status,
         billing_email=body.billing_email,
     )
+    try:
+        event_publisher.publish_order_created(order)
+    except OrderEventPublishError:
+        # The publisher records failure metrics and logs. Do not turn a
+        # committed order into a retriable client error.
+        pass
+
     return OrderResponse(
         id=order.id,
         customer_id=order.customer_id,
