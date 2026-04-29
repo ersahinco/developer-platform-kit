@@ -23,6 +23,16 @@ output "app_unhealthy_targets_alarm_name" {
   value       = aws_cloudwatch_metric_alarm.app_unhealthy_targets.alarm_name
 }
 
+output "app_target_5xx_alarm_name" {
+  description = "CloudWatch alarm for target-generated 5xx responses behind the ALB."
+  value       = aws_cloudwatch_metric_alarm.app_target_5xx.alarm_name
+}
+
+output "app_target_latency_alarm_name" {
+  description = "CloudWatch alarm for elevated app target response time behind the ALB."
+  value       = aws_cloudwatch_metric_alarm.app_target_latency.alarm_name
+}
+
 output "ecr_app_repository_url" {
   description = "ECR URL for the app image."
   value       = module.ecr_app.repository_url

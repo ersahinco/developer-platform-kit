@@ -14,6 +14,8 @@ primary demo path.
   delivery failures on the scheduled data export job.
 - Terraform creates a CloudWatch alarm for unhealthy ALB targets behind the app
   service.
+- Terraform creates CloudWatch alarms for app target 5xx responses and elevated
+  target response time behind the ALB.
 - Local Prometheus, Loki, Promtail, and Grafana run through the optional
   `observability` Docker Compose profile.
 
@@ -59,6 +61,9 @@ stack currently has one scheduled job. Its runbook is
 The app service health signal watches the ALB target group's
 `UnHealthyHostCount` metric. Its runbook is
 `ops/runbooks/app-service-unhealthy.md`.
+
+The app edge symptom signals watch target-generated 5xx responses and p95 target
+response time. Their runbook is `ops/runbooks/app-edge-errors-latency.md`.
 
 Future AWS observability slices can choose whether to deploy:
 

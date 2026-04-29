@@ -138,6 +138,50 @@ resource "aws_cloudwatch_metric_alarm" "app_unhealthy_targets" {
   tags = local.tags
 }
 
+resource "aws_cloudwatch_metric_alarm" "app_target_5xx" {
+  alarm_name          = "${local.name}-app-target-5xx"
+  alarm_description   = "App targets returned 5xx responses behind the ALB. Runbook: ops/runbooks/app-edge-errors-latency.md"
+  comparison_operator = "GreaterThanThreshold"
+  evaluation_periods  = 1
+  datapoints_to_alarm = 1
+  threshold           = 0
+  metric_name         = "HTTPCode_Target_5XX_Count"
+  namespace           = "AWS/ApplicationELB"
+  period              = 300
+  statistic           = "Sum"
+  treat_missing_data  = "notBreaching"
+  unit                = "Count"
+
+  dimensions = {
+    LoadBalancer = aws_lb.this.arn_suffix
+    TargetGroup  = aws_lb_target_group.app.arn_suffix
+  }
+
+  tags = local.tags
+}
+
+resource "aws_cloudwatch_metric_alarm" "app_target_latency" {
+  alarm_name          = "${local.name}-app-target-latency"
+  alarm_description   = "App target p95 response time exceeded 2 seconds. Runbook: ops/runbooks/app-edge-errors-latency.md"
+  comparison_operator = "GreaterThanThreshold"
+  evaluation_periods  = 3
+  datapoints_to_alarm = 2
+  threshold           = 2
+  metric_name         = "TargetResponseTime"
+  namespace           = "AWS/ApplicationELB"
+  period              = 60
+  extended_statistic  = "p95"
+  treat_missing_data  = "notBreaching"
+  unit                = "Seconds"
+
+  dimensions = {
+    LoadBalancer = aws_lb.this.arn_suffix
+    TargetGroup  = aws_lb_target_group.app.arn_suffix
+  }
+
+  tags = local.tags
+}
+
 resource "aws_acm_certificate" "api" {
   domain_name       = local.api_fqdn
   validation_method = "DNS"
