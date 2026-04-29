@@ -25,15 +25,17 @@ The repository already implements the high-value parts of
   checks, and dependency/secret audits.
 
 V4 continues the architecture comparison without treating the reference tree as
-a migration checklist. Keep the application domain small and prefer complete
-operator workflows over new folders, apps, modules, or abstractions.
+a migration checklist. Keep the application domain small, but allow additional
+workloads or extensions to existing applications when they demonstrate
+production-grade SDLC, DevOps, infrastructure, data, observability, security, or
+maintainability principles for well-established services at scale.
 
 ## Missing Implementation Review
 
 | Architecture idea | Current decision | Why |
 |---|---|---|
 | `.editorconfig` baseline | Implemented in V4. | Small naming and formatting consistency gain with no dependency or runtime cost. |
-| Extra apps such as consumer, scheduler, and admin | Deferred. | No current domain workflow needs them; adding placeholders would violate lean development. |
+| Extra apps such as consumer, scheduler, and admin | Conditional V4 candidates. | Add one only when it owns a real production workflow such as async processing, scheduled operations, or operator repair tasks. Prefer extending an existing app when that proves the same principle with less surface. |
 | `packages/config`, `packages/telemetry`, and `packages/testing` | Deferred. | Existing config, metrics, and test fixtures are small enough in-place. Extract only when duplication appears. |
 | `infra/modules`, `infra/stacks`, and `infra/catalogs` | Deferred. | The binding engineering principles prefer one Terraform root until real lifecycle boundaries exist. |
 | `deploy/` task definition templates | Deferred. | ECS task definitions are Terraform-owned and rendered by CI from registered families; separate templates would duplicate ownership today. |
@@ -47,13 +49,34 @@ V4 focuses on lean consistency and trust in the delivery system:
 - Keep roadmap ownership current and unambiguous.
 - Close small architecture gaps only when they reduce mistakes immediately.
 - Prefer dependency-free or already-present tooling.
-- Keep SDLC, DevOps, infra, data, observability, and naming consistency ahead of
-  domain expansion.
+- Keep SDLC, DevOps, infra, data, observability, security, naming consistency,
+  and lean maintainability ahead of domain expansion.
+- Use the simple order/customer domain to demonstrate production patterns rather
+  than adding business breadth.
+- Allow a new workload when it proves a real operational pattern end to end:
+  build, deploy, runtime config, data ownership, metrics, alarms, runbook,
+  tests, and rollback.
 - Avoid empty directories, speculative packages, internal Terraform modules, or
   extra runtime apps.
 
 Each session should make one coherent improvement, verify it, update this file,
 and preserve user-owned worktree changes.
+
+## Candidate Production-Grade Slices
+
+These are valid V4 directions when implemented as complete, verified slices.
+Prefer the smallest slice that proves the principle from local development
+through CI, infrastructure, observability, and operator documentation.
+
+| Candidate | Preferred first shape | Production principle |
+|---|---|---|
+| API operational hardening | Extend `apps/api` with readiness semantics, request correlation, structured error responses, and focused tests. | Public services need diagnosable failures, stable contracts, and health signals that mean more than process liveness. |
+| Async order event processing | Add a small SQS-backed consumer or extend the worker only after a real event flow exists. | Scaled services decouple request handling from background side effects with idempotency, DLQs, metrics, and replay guidance. |
+| Scheduled maintenance workload | Extend `data-export-job` or add a scheduler only for a concrete maintenance/reporting task. | Recurring jobs need explicit ownership, idempotent outputs, freshness signals, and alarm-linked runbooks. |
+| Operator/admin task surface | Add admin commands only for real migration, repair, or verification workflows. | Production systems need auditable one-off operations without exposing speculative app endpoints. |
+| Data reliability refinement | Extend the export path with manifest validation, idempotent reruns, partition checks, or freshness tests. | Data jobs need recoverable outputs, explicit contracts, and observable success/failure states. |
+| Observability maturity | Add focused metrics, dashboard panels, or alarms for a newly demonstrated runtime behavior. | Monitoring should follow real behavior and runbooks, not exist as dashboard decoration. |
+| Security and supply-chain maturity | Add narrow checks or policies only when they protect an existing delivery path. | Shift-left controls should catch concrete mistakes without creating unused policy trees. |
 
 ## Phase Checklist
 
@@ -74,6 +97,30 @@ and preserve user-owned worktree changes.
 - [x] Avoid adding directories or policy files until there is real owned content.
 - [x] Keep the application domain simple unless a platform workflow needs a concrete example.
 
+### Phase 4: Production-Grade Runtime Patterns
+
+- [ ] Identify one existing workload that can be extended to show a production service principle before adding a new app.
+- [ ] Add request, background, or scheduled processing behavior only with tests, operational docs, and rollback notes.
+- [ ] Keep new runtime configuration minimal, documented, and safe by default.
+
+### Phase 5: Async and Scheduled Workloads
+
+- [ ] Add a consumer, scheduler, or admin workload only when it has concrete owned behavior and an end-to-end operator workflow.
+- [ ] Include idempotency, retries, failure handling, metrics, alarms, and runbook coverage for any new workload.
+- [ ] Avoid queue, event, or scheduler infrastructure unless local behavior and tests exist first.
+
+### Phase 6: Data and Observability at Scale
+
+- [ ] Strengthen the data export contract with rerun safety, manifest validation, or partition/freshness checks.
+- [ ] Add observability only for real service behavior, with a dashboard or alarm tied to an operator action.
+- [ ] Keep CloudWatch and local Prometheus/Grafana documentation aligned when new signals are added.
+
+### Phase 7: Security and Delivery Confidence
+
+- [ ] Prefer narrow policy checks that protect existing workflows over broad unused policy trees.
+- [ ] Keep GitHub OIDC, manual cloud-changing confirmations, image scanning, dependency auditing, and secret scanning aligned as workflows evolve.
+- [ ] Add exceptions or allowlists only when there is a real exception to track.
+
 ## Next Session Should Start Here
 
 1. Read this file first, then `docs/ROADMAP_V3.md`, `docs/ROADMAP_V2.md`,
@@ -82,12 +129,15 @@ and preserve user-owned worktree changes.
 2. Check `git status --short` before editing. The `.gitignore` file may contain
    user-owned changes.
 3. Pick exactly one unchecked V4 item or one newly discovered smallest
-   high-value SDLC/DevOps/infra/data/observability/naming consistency step.
+   high-value SDLC/DevOps/infra/data/observability/security/naming consistency
+   step.
 4. Make the smallest coherent change, verify it, update this file, and commit.
 
-Recommended next pick: review the pending `.gitignore` consistency cleanup as a
-separate slice, but first confirm it is intentional user-owned work and fix the
-trailing whitespace before staging it.
+Recommended next pick: choose one production-grade runtime slice that extends an
+existing workload before adding a new app. Good first candidates are API
+readiness/request correlation, data export rerun safety, or a concrete
+idempotent background workflow. Review the pending `.gitignore` cleanup as a
+separate slice only after confirming it is intentional user-owned work.
 
 ## Documentation Ownership
 
@@ -108,7 +158,8 @@ trailing whitespace before staging it.
 | 2026-04-29 | Track active post-V3 work in `docs/ROADMAP_v4.md`. | The user requested this exact tracker path for cross-session progress. |
 | 2026-04-29 | Add `.editorconfig` before larger architecture tree changes. | It implements a missing baseline from `.idea/architecture.md` without adding dependencies, runtime surface, or speculative folders. |
 | 2026-04-29 | Add a dependency-free GitHub workflow policy check instead of a general workflow linter. | The repo needs two concrete invariants protected locally and in CI; a broad linter would add dependency and maintenance surface. |
-| 2026-04-29 | Continue deferring extra apps, packages, Terraform splits, `deploy/`, and `security/` trees. | The current value is complete SDLC and operator reliability around a simple domain, not breadth of placeholders. |
+| 2026-04-29 | Allow additional workloads or extensions when they demonstrate a complete production-grade pattern. | The goal is not placeholder breadth; it is realistic service operation at scale around a simple domain. |
+| 2026-04-29 | Continue deferring packages, Terraform splits, `deploy/`, and `security/` trees until they have concrete ownership. | The current value is complete SDLC and operator reliability around a simple domain, not breadth of placeholders. |
 
 ## Completed Work Log
 
@@ -116,3 +167,4 @@ trailing whitespace before staging it.
 |---|---|---|
 | 2026-04-29 | Created the V4 tracker, recorded the architecture comparison decisions, repointed the README/current roadmap references, and added the missing `.editorconfig` baseline. | Ran documentation link checks, Markdown whitespace checks, and git diff review. |
 | 2026-04-29 | Added a dependency-free GitHub workflow policy check for path-filter self-coverage and OIDC workflow confirmation gates, wired it into Make, pre-commit, and the Security workflow, and documented the repo-specific scope. | Ran the workflow checker, focused Ruff, focused workflow-policy tests, documentation link checks, and path-scoped git diff whitespace checks. |
+| 2026-04-29 | Expanded V4 to include production-grade workload and application-extension candidates while preserving the one-slice, simple-domain guardrails. | Documentation-only change; ran documentation link checks and path-scoped git diff whitespace checks. |
