@@ -59,6 +59,10 @@ annotations and security tab results, not as a local pre-commit hook.
 Dependabot uses the `uv` ecosystem for Python dependency updates and the
 `github-actions` ecosystem for workflow action updates.
 
+The app workflow runs Trivy before pushing first-party app, worker, data export,
+Liquibase, and mirrored PgBouncer images to ECR. Terraform also enables ECR
+scan-on-push for each managed repository.
+
 ## Naming Conventions
 
 Keep names boring and ownership-oriented:

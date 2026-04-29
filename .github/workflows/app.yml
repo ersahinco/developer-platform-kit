@@ -274,6 +274,11 @@ jobs:
             echo "pgbouncer:$PGBOUNCER_TAG already in ECR — skipping"
           else
             docker pull edoburu/pgbouncer:$PGBOUNCER_TAG
+            docker run --rm \
+              -v /var/run/docker.sock:/var/run/docker.sock \
+              -v "$HOME/.cache/trivy:/root/.cache/trivy" \
+              ghcr.io/aquasecurity/trivy:0.69.3 image \
+              --exit-code 1 --severity CRITICAL --no-progress edoburu/pgbouncer:$PGBOUNCER_TAG
             docker tag  edoburu/pgbouncer:$PGBOUNCER_TAG \
                         ${{ env.ECR_REGISTRY }}/${{ env.STACK_NAME }}/pgbouncer:$PGBOUNCER_TAG
             docker push ${{ env.ECR_REGISTRY }}/${{ env.STACK_NAME }}/pgbouncer:$PGBOUNCER_TAG
