@@ -81,7 +81,7 @@ them only with real owned content.
 - [x] Add automated dependency update policy for Python dependencies.
 - [x] Add automated update policy for GitHub Actions.
 - [x] Keep Trivy before image push and ECR scan-on-push.
-- [ ] Avoid base image digest pinning unless automated digest renewal is added in the same slice.
+- [x] Avoid base image digest pinning unless automated digest renewal is added in the same slice.
 
 ### Phase 5: Quality Gate Alignment
 
@@ -112,9 +112,9 @@ them only with real owned content.
 5. Run the relevant verification.
 6. Update this file before ending the session.
 
-Recommended next pick: document why base image digest pinning stays deferred
-until automated digest renewal exists, then move to Phase 5 quality gate
-alignment.
+Recommended next pick: start Phase 5 by aligning `.pre-commit-config.yaml`,
+`make lint`, and CI around Ruff, Pyright, Terraform fmt, and lightweight checks.
+Document any intentional differences instead of making hooks slow by default.
 
 ## Documentation Ownership
 
@@ -150,3 +150,4 @@ alignment.
 | 2026-04-29 | Added weekly Dependabot `uv` updates for Python dependencies. | Parsed the Dependabot YAML and ran documentation whitespace checks. |
 | 2026-04-29 | Added weekly Dependabot updates for GitHub Actions. | Parsed the Dependabot YAML and ran documentation whitespace checks. |
 | 2026-04-29 | Confirmed ECR scan-on-push and made the mirrored PgBouncer image follow the same Trivy-before-push policy as first-party images. | Parsed the app workflow YAML and ran documentation whitespace checks. |
+| 2026-04-29 | Documented the Phase 4 decision to defer base image digest pinning until automated digest renewal exists. | Documentation-only change; ran documentation whitespace checks. |

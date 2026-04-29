@@ -63,6 +63,10 @@ The app workflow runs Trivy before pushing first-party app, worker, data export,
 Liquibase, and mirrored PgBouncer images to ECR. Terraform also enables ECR
 scan-on-push for each managed repository.
 
+Base image digest pinning remains deferred until automated digest renewal is
+added in the same change. Mutable version tags are less strict, but they avoid
+quietly freezing stale base layers without a renewal workflow.
+
 ## Naming Conventions
 
 Keep names boring and ownership-oriented:
