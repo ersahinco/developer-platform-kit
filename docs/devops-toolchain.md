@@ -18,6 +18,7 @@ This project should demonstrate a complete but lean DevOps toolchain around ECS.
 | Infrastructure as code | Terraform |
 | Infrastructure checks | terraform fmt, terraform validate, tflint, checkov |
 | CI/CD | GitHub Actions |
+| GitHub Actions updates | Dependabot weekly action updates |
 | AWS authentication | GitHub OIDC role assumption |
 | Secret scanning | Dependency-free high-confidence scanner in `scripts/secret_scan.py` |
 | Python dependency audit | `pip-audit` against a frozen `uv.lock` export |
@@ -55,9 +56,8 @@ runs `pip-audit` against those exact pins.
 CodeQL runs in GitHub Actions because its value is in GitHub code scanning
 annotations and security tab results, not as a local pre-commit hook.
 
-Dependabot uses the `uv` ecosystem for Python dependency updates. GitHub Actions
-updates are tracked as a separate V2 slice so action churn can be reviewed on
-its own.
+Dependabot uses the `uv` ecosystem for Python dependency updates and the
+`github-actions` ecosystem for workflow action updates.
 
 ## Naming Conventions
 
