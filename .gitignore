@@ -9,6 +9,7 @@ __pycache__/
 # Environment / secrets
 .env
 .env.*
+!.env.example
 aws_credentials
 .aws/credentials
 .aws/config
@@ -29,6 +30,7 @@ override.tf.json
 terraform.tfvars
 *.tfvars
 *.tfvars.json
+!infra/stack.tfvars
 
 # IDE/editor
 .vscode/
