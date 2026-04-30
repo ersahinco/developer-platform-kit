@@ -11,8 +11,10 @@ The repository is a lean AWS delivery sandbox around one intentionally simple
 order/customer workload:
 
 - FastAPI API with `/health`, `/ready`, `/metrics`, request ID propagation,
-  runtime `READ_MODE` and `WRITE_MODE` switches, and `order.created.v1` SQS
-  publishing.
+  runtime `READ_MODE` and `WRITE_MODE` switches, and optional
+  `Idempotency-Key` support for `POST /orders`.
+- Durable order event outbox with an order event relay/consumer service,
+  SQS FIFO delivery, duplicate receipts, and stale-event handling.
 - Checkpointed backfill worker with bounded pause/resume runs.
 - Scheduled ECS data export job with raw CSV output, validated manifests, and
   S3 data hub publishing.
@@ -72,7 +74,8 @@ switch reads, new writes, and contract.
 | 2026-04-29 | Keep the application domain simple. | The value is in ECS delivery, data safety, DevOps practices, and operator maturity, not broad business features. |
 | 2026-04-29 | Prefer Prometheus, Loki, and Grafana locally while using CloudWatch for AWS alarms. | The repo demonstrates local open-source observability and AWS-native operator signals. |
 | 2026-04-29 | Add folders only with real content. | Empty `ops/`, `security/`, `deploy/`, or package placeholders create ownership noise. |
-| 2026-04-29 | Use one SQS-backed order event before adding a consumer app. | The event, idempotency key, queue, DLQ, metrics, tests, and runbook prove async behavior without a placeholder runtime. |
+| 2026-04-29 | Use one SQS-backed order event before broadening async scope. | The event, idempotency key, queue, DLQ, metrics, tests, and runbook prove async behavior without expanding the domain. |
+| 2026-04-30 | Add one real order event relay/consumer instead of inline request publishing. | Async processing should practice outbox claiming, duplicate delivery, and late-arrival handling while keeping the order domain lean. |
 | 2026-04-30 | Prefer maintained tooling over bespoke quality scripts. | Standard tools reduce cognitive load and avoid custom mini-linters. |
 | 2026-04-30 | Use split manual workflows for cloud changes. | Terraform plans and app build/scan results should be reviewed before a separate apply/deploy trigger, without depending on paid environment reviewer gates. |
 

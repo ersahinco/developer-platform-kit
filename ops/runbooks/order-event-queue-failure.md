@@ -1,13 +1,15 @@
 # Order Event Queue Failure
 
 Use this runbook when the `aws-sdlc-containers-order-events-dlq-visible`
-CloudWatch alarm is in `ALARM`, or when app logs/metrics show failed
-`order.created.v1` publishes.
+CloudWatch alarm is in `ALARM`, or when consumer logs show failed
+`order.created.v1` relay or consume attempts.
 
 ## What The Alarm Means
 
-The app publishes `order.created.v1` messages to the SQS FIFO queue named
-`aws-sdlc-containers-order-events.fifo` when `ORDER_EVENTS_QUEUE_URL` is set.
+The order event consumer service relays `order.created.v1` messages from the
+database outbox to the SQS FIFO queue named
+`aws-sdlc-containers-order-events.fifo`, then consumes deliveries into
+`order_event_receipts`.
 Each message uses:
 
 - `event_id`: `order.created.v1:<order_id>`
@@ -49,30 +51,30 @@ aws sqs get-queue-attributes \
   --region eu-central-1
 ```
 
-Inspect app logs and publish metrics:
+Inspect app and consumer logs:
 
 ```bash
 aws logs tail /ecs/aws-sdlc-containers/app \
   --since 30m \
   --region eu-central-1
 
-curl -fsS "https://$(terraform -chdir=infra output -raw api_fqdn)/metrics" \
-  -H "Authorization: Bearer $TOKEN" \
-  | rg 'order_events_publish_total'
+aws logs tail /ecs/aws-sdlc-containers/order-event-consumer \
+  --since 30m \
+  --region eu-central-1
 ```
 
 ## Common Causes
 
 - A downstream queue consumer failed the same message five times.
 - A deploy changed event payload handling without preserving idempotency.
-- The app task role lost `sqs:SendMessage` on the source queue.
+- The order event consumer task role lost SQS permissions on the source queue.
 - `ORDER_EVENTS_QUEUE_URL` points at the wrong queue.
 - AWS SQS API calls from the private task cannot reach SQS through NAT or VPC
   endpoints.
 
 ## Recovery
 
-If the app cannot publish new order events, first restore publish ability:
+If the worker cannot relay or consume order events, first restore queue access:
 
 ```bash
 aws ecs describe-services \
@@ -80,12 +82,9 @@ aws ecs describe-services \
   --services "$(terraform -chdir=infra output -raw app_service_name)" \
   --region eu-central-1
 
-APP_TASK_ROLE_ARN="$(terraform -chdir=infra output -raw app_task_role_arn)"
-APP_TASK_ROLE_NAME="${APP_TASK_ROLE_ARN##*/}"
-
-aws iam get-role-policy \
-  --role-name "$APP_TASK_ROLE_NAME" \
-  --policy-name publish-order-events \
+aws ecs describe-services \
+  --cluster "$(terraform -chdir=infra output -raw ecs_cluster_name)" \
+  --services "$(terraform -chdir=infra output -raw order_event_consumer_service_name)" \
   --region eu-central-1
 ```
 
@@ -93,10 +92,9 @@ If the failure started after a deploy, use
 [ECS Deploy Rollback](ecs-deploy-rollback.md) to restore the previous healthy
 task definition.
 
-Order creation is still allowed when publishing fails. If the publish failure
-window includes successful order writes, reconstruct missing events from the
-orders table after the queue path is healthy and preserve
-`order.created.v1:<order_id>` as the replay idempotency key.
+Order creation is still allowed when relay fails because events remain durable
+in `outbox_messages`. After the queue path is healthy, the relay should publish
+pending rows without reconstructing events manually.
 
 For DLQ messages, inspect before replaying:
 
@@ -116,7 +114,8 @@ detection key.
 
 ## Success Criteria
 
-- New app logs contain `order_event_published` for created orders.
-- `/metrics` shows `order_events_publish_total{event_type="order.created.v1",status="succeeded"}` increasing.
+- Consumer logs contain `outbox_relay` and `order_event_consumed` entries.
+- `outbox_messages` rows move from `pending` or `processing` to `published`.
+- `order_event_receipts` records the consumed `event_id`.
 - The DLQ has zero visible messages.
 - The CloudWatch alarm returns to `OK`.

@@ -53,6 +53,11 @@ output "ecr_data_export_job_repository_url" {
   value       = module.ecr_data_export_job.repository_url
 }
 
+output "ecr_order_event_consumer_repository_url" {
+  description = "ECR URL for the order event consumer image."
+  value       = module.ecr_order_event_consumer.repository_url
+}
+
 output "worker_task_definition_arn" {
   description = "Worker task definition ARN. Pass to `aws ecs run-task` to trigger a backfill."
   value       = aws_ecs_task_definition.worker.arn
@@ -61,6 +66,11 @@ output "worker_task_definition_arn" {
 output "data_export_job_task_definition_arn" {
   description = "Data export job task definition ARN used by EventBridge Scheduler."
   value       = aws_ecs_task_definition.data_export_job.arn
+}
+
+output "order_event_consumer_service_name" {
+  description = "ECS service name for the order event relay/consumer."
+  value       = aws_ecs_service.order_event_consumer.name
 }
 
 output "data_export_schedule_name" {

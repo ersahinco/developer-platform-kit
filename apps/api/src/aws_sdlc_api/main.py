@@ -4,7 +4,7 @@ import uuid
 from typing import Annotated
 from typing import cast
 
-from fastapi import Depends, FastAPI, HTTPException, Request
+from fastapi import Depends, FastAPI, Header, HTTPException, Request
 from prometheus_client import CONTENT_TYPE_LATEST, Counter, Histogram, generate_latest
 from sqlalchemy import text
 from sqlalchemy.orm import Session
@@ -31,6 +31,7 @@ from aws_sdlc_api.schemas import (
     WriteModeResponse,
 )
 from aws_sdlc_core.order import ReadModeValue, WriteModeValue
+from aws_sdlc_core.idempotency import IdempotencyRepository, order_request_hash
 from aws_sdlc_core.order_submission import (
     CustomerNotFoundError,
     InvalidOrderAmountError,
@@ -133,6 +134,12 @@ def get_outbox_repo(db: DbDep) -> OutboxRepository:
     return SQLAlchemyOutboxRepository(session=db)
 
 
+def get_idempotency_repo(db: DbDep) -> IdempotencyRepository:
+    from aws_sdlc_adapters.db.repository import SQLAlchemyIdempotencyRepository
+
+    return SQLAlchemyIdempotencyRepository(session=db)
+
+
 def get_config_store(db: DbDep) -> ConfigStore:
     from aws_sdlc_adapters.db.repository import SQLAlchemyConfigStore
 
@@ -145,9 +152,24 @@ def get_order_event_publisher() -> OrderEventPublisher:
     return SqsOrderEventPublisher(settings.order_events_queue_url)
 
 
+def _begin_idempotent_request(
+    *,
+    idempotency: IdempotencyRepository,
+    key: str,
+    request_hash: str,
+):
+    deadline = time.monotonic() + 5
+    while True:
+        result = idempotency.begin(key=key, request_hash=request_hash)
+        if result.status != "processing" or time.monotonic() >= deadline:
+            return result
+        time.sleep(0.05)
+
+
 OrderRepoDep = Annotated[OrderRepository, Depends(get_order_repo)]
 CustomerRepoDep = Annotated[CustomerRepository, Depends(get_customer_repo)]
 OutboxRepoDep = Annotated[OutboxRepository, Depends(get_outbox_repo)]
+IdempotencyRepoDep = Annotated[IdempotencyRepository, Depends(get_idempotency_repo)]
 ConfigStoreDep = Annotated[ConfigStore, Depends(get_config_store)]
 OrderEventPublisherDep = Annotated[
     OrderEventPublisher, Depends(get_order_event_publisher)
@@ -196,7 +218,42 @@ def create_order(
     customers: CustomerRepoDep,
     outbox: OutboxRepoDep,
     event_publisher: OrderEventPublisherDep,
-) -> OrderResponse:
+    idempotency: IdempotencyRepoDep,
+    idempotency_key: Annotated[str | None, Header(alias="Idempotency-Key")] = None,
+) -> OrderResponse | JSONResponse:
+    request_hash = order_request_hash(
+        customer_id=body.customer_id,
+        total_amount=body.total_amount,
+        billing_email=str(body.billing_email) if body.billing_email else None,
+    )
+    if idempotency_key is not None:
+        idempotency_key = idempotency_key.strip()
+        if not idempotency_key or len(idempotency_key) > 200:
+            raise HTTPException(
+                status_code=400,
+                detail="Idempotency-Key must be between 1 and 200 characters",
+            )
+        begin = _begin_idempotent_request(
+            idempotency=idempotency,
+            key=idempotency_key,
+            request_hash=request_hash,
+        )
+        if begin.status == "conflict":
+            raise HTTPException(
+                status_code=409,
+                detail="Idempotency-Key was already used with a different request",
+            )
+        if begin.status == "replay":
+            return JSONResponse(
+                status_code=begin.response_status_code or status.HTTP_201_CREATED,
+                content=begin.response_payload or {},
+            )
+        if begin.status == "processing":
+            raise HTTPException(
+                status_code=409,
+                detail="Idempotency-Key is still processing",
+            )
+
     try:
         order = submit_order(
             customer_id=body.customer_id,
@@ -206,17 +263,37 @@ def create_order(
             orders=repo,
         )
     except CustomerNotFoundError as exc:
+        if idempotency_key is not None:
+            payload: dict[str, object] = {"detail": str(exc)}
+            idempotency.complete(
+                key=idempotency_key,
+                response_status_code=status.HTTP_404_NOT_FOUND,
+                response_payload=payload,
+            )
+            return JSONResponse(status_code=status.HTTP_404_NOT_FOUND, content=payload)
         raise HTTPException(status_code=404, detail=str(exc)) from exc
     except InvalidOrderAmountError as exc:
+        if idempotency_key is not None:
+            payload = {"detail": str(exc)}
+            idempotency.complete(
+                key=idempotency_key,
+                response_status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+                response_payload=payload,
+            )
+            return JSONResponse(
+                status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+                content=payload,
+            )
         raise HTTPException(status_code=422, detail=str(exc)) from exc
 
-    dispatch_pending_outbox_messages(
-        outbox=outbox,
-        publisher=event_publisher,
-        limit=10,
-    )
+    if settings.dispatch_outbox_inline:
+        dispatch_pending_outbox_messages(
+            outbox=outbox,
+            publisher=event_publisher,
+            limit=10,
+        )
 
-    return OrderResponse(
+    response = OrderResponse(
         id=order.id,
         customer_id=order.customer_id,
         total_amount=order.total_amount,
@@ -225,6 +302,16 @@ def create_order(
         created_at=order.created_at,
         billing_email=order.billing_email,
     )
+    if idempotency_key is not None:
+        payload = cast(dict[str, object], response.model_dump(mode="json"))
+        idempotency.complete(
+            key=idempotency_key,
+            response_status_code=status.HTTP_201_CREATED,
+            response_payload=payload,
+        )
+        return JSONResponse(status_code=status.HTTP_201_CREATED, content=payload)
+
+    return response
 
 
 @app.get("/orders/{order_id}", response_model=OrderResponse)

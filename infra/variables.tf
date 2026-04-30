@@ -110,6 +110,24 @@ variable "data_export_schedule_expression" {
   default     = "rate(1 day)"
 }
 
+variable "order_event_consumer_cpu" {
+  description = "Fargate task CPU units for the order event relay/consumer service."
+  type        = number
+  default     = 256
+}
+
+variable "order_event_consumer_memory" {
+  description = "Fargate task memory (MiB) for the order event relay/consumer service."
+  type        = number
+  default     = 512
+}
+
+variable "order_event_consumer_desired_count" {
+  description = "Desired number of order event relay/consumer tasks."
+  type        = number
+  default     = 1
+}
+
 # ── RDS ───────────────────────────────────────────────────────────────────────
 
 variable "rds_instance_class" {

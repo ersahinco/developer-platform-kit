@@ -1,3 +1,5 @@
+from typing import Literal
+
 from pydantic import PostgresDsn, model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
@@ -7,20 +9,21 @@ class Settings(BaseSettings):
         env_file=".env", env_file_encoding="utf-8", extra="ignore"
     )
 
-    # PostgresDsn validates scheme, host, and path at startup — misconfigured
-    # URLs fail immediately rather than at the first DB call.
     database_url: PostgresDsn | None = None
-
-    # ECS injects DB_PASSWORD from Secrets Manager. The full URL is composed
-    # below so the password is never stored in the task definition plaintext.
-    # db_host defaults to localhost (pgbouncer sidecar in the same ECS task).
     db_password: str | None = None
     db_user: str = "app"
     db_host: str = "localhost"
     db_port: int = 5432
     db_name: str = "aws_sdlc_containers"
+
     order_events_queue_url: str | None = None
-    dispatch_outbox_inline: bool = False
+    order_events_worker_mode: Literal["relay", "consumer", "both"] = "both"
+    order_events_worker_run_once: bool = False
+    order_events_relay_batch_size: int = 10
+    order_events_receive_max_messages: int = 10
+    order_events_receive_wait_seconds: int = 10
+    order_events_visibility_timeout_seconds: int = 60
+    order_events_idle_sleep_seconds: float = 1.0
 
     @model_validator(mode="after")
     def compose_database_url(self) -> "Settings":
@@ -31,6 +34,12 @@ class Settings(BaseSettings):
                 f"postgresql://{self.db_user}:{self.db_password}@{self.db_host}:{self.db_port}/{self.db_name}"
             )
         return self
+
+    @property
+    def required_queue_url(self) -> str:
+        if self.order_events_queue_url is None:
+            raise ValueError("ORDER_EVENTS_QUEUE_URL must be set")
+        return self.order_events_queue_url
 
 
 settings = Settings()

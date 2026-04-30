@@ -47,7 +47,7 @@ jobs:
 
       - name: Verify approved images exist
         run: |
-          for repo in app worker data-export-job liquibase; do
+          for repo in app worker data-export-job order-event-consumer liquibase; do
             aws ecr describe-images \
               --repository-name "${{ env.STACK_NAME }}/${repo}" \
               --image-ids "imageTag=${{ inputs.image_tag }}"
@@ -154,6 +154,17 @@ jobs:
 
       - name: Register data export task definition
         run: scripts/ci_register_ecs_task_definition.sh "${{ steps.render-data-export.outputs.task-definition }}"
+
+      - name: Render order event consumer task definition
+        id: render-order-event-consumer
+        uses: aws-actions/amazon-ecs-render-task-definition@v1.8.4
+        with:
+          task-definition-family: aws-sdlc-containers-order-event-consumer
+          container-name: order-event-consumer
+          image: ${{ env.ECR_REGISTRY }}/${{ env.STACK_NAME }}/order-event-consumer:${{ inputs.image_tag }}
+
+      - name: Deploy order event consumer service
+        run: scripts/ci_deploy_ecs_service.sh aws-sdlc-containers order-event-consumer "${{ steps.render-order-event-consumer.outputs.task-definition }}"
 
       - name: Run backfill worker
         run: |

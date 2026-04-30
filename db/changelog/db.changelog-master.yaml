@@ -25,3 +25,7 @@ databaseChangeLog:
   # 005 — Order event outbox: durable handoff between order commits and SQS publishing.
   - include:
       file: changelog/005-order-event-outbox.yaml
+
+  # 006 — Application reliability: request idempotency and consumed event receipts.
+  - include:
+      file: changelog/006-application-reliability.yaml

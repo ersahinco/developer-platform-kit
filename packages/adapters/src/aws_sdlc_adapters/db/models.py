@@ -102,3 +102,57 @@ class OutboxMessageModel(Base):
     updated_at: Mapped[datetime.datetime] = mapped_column(
         TIMESTAMP(timezone=True), nullable=False, server_default="NOW()"
     )
+
+
+class IdempotencyKeyModel(Base):
+    __tablename__ = "idempotency_keys"
+    __table_args__ = (
+        Index("ix_idempotency_keys_status_expires", "status", "processing_expires_at"),
+    )
+
+    key: Mapped[str] = mapped_column(String(200), primary_key=True)
+    request_hash: Mapped[str] = mapped_column(String(64), nullable=False)
+    status: Mapped[str] = mapped_column(String(32), nullable=False)
+    response_status_code: Mapped[int | None] = mapped_column(Integer)
+    response_payload: Mapped[dict[str, object] | None] = mapped_column(JSONB)
+    processing_expires_at: Mapped[datetime.datetime] = mapped_column(
+        TIMESTAMP(timezone=True), nullable=False
+    )
+    last_error: Mapped[str | None] = mapped_column(Text)
+    created_at: Mapped[datetime.datetime] = mapped_column(
+        TIMESTAMP(timezone=True), nullable=False, server_default="NOW()"
+    )
+    updated_at: Mapped[datetime.datetime] = mapped_column(
+        TIMESTAMP(timezone=True), nullable=False, server_default="NOW()"
+    )
+
+
+class OrderEventReceiptModel(Base):
+    __tablename__ = "order_event_receipts"
+    __table_args__ = (
+        Index(
+            "ix_order_event_receipts_aggregate",
+            "aggregate_type",
+            "aggregate_id",
+            "event_type",
+            "occurred_at",
+        ),
+    )
+
+    event_id: Mapped[str] = mapped_column(String(200), primary_key=True)
+    event_type: Mapped[str] = mapped_column(String(100), nullable=False)
+    aggregate_type: Mapped[str] = mapped_column(String(100), nullable=False)
+    aggregate_id: Mapped[int] = mapped_column(BigInteger, nullable=False)
+    idempotency_key: Mapped[str] = mapped_column(String(200), nullable=False)
+    occurred_at: Mapped[datetime.datetime] = mapped_column(
+        TIMESTAMP(timezone=True), nullable=False
+    )
+    payload: Mapped[dict[str, object]] = mapped_column(JSONB, nullable=False)
+    status: Mapped[str] = mapped_column(String(32), nullable=False)
+    duplicate_count: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    first_seen_at: Mapped[datetime.datetime] = mapped_column(
+        TIMESTAMP(timezone=True), nullable=False, server_default="NOW()"
+    )
+    last_seen_at: Mapped[datetime.datetime] = mapped_column(
+        TIMESTAMP(timezone=True), nullable=False, server_default="NOW()"
+    )

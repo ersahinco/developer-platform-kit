@@ -2,7 +2,7 @@ import datetime
 import threading
 import time
 from decimal import Decimal
-from typing import cast
+from typing import Any, cast
 
 from sqlalchemy import or_, select
 from sqlalchemy.dialects.postgresql import insert as pg_insert
@@ -11,17 +11,22 @@ from sqlalchemy.orm import Session
 from aws_sdlc_adapters.db.models import (
     AppRuntimeConfigModel,
     CustomerModel,
+    IdempotencyKeyModel,
     OutboxMessageModel,
+    OrderEventReceiptModel,
     OrderContactEmailModel,
     OrderModel,
 )
 from aws_sdlc_core.customer import Customer
+from aws_sdlc_core.idempotency import IdempotencyBeginResult
 from aws_sdlc_core.order import Order, ReadModeValue, WriteModeValue
+from aws_sdlc_core.order_event_receipts import OrderEventReceiptResult
 from aws_sdlc_core.order_events import OrderEventMessage, order_created_message
 from aws_sdlc_core.outbox import OutboxMessage
 from aws_sdlc_core.ports import ConfigStore, CustomerRepository, OrderRepository
 
 _TTL_SECONDS = 5  # re-read app_runtime_config at most every 5 seconds
+_IDEMPOTENCY_PROCESSING_SECONDS = 60
 
 
 class _ConfigCache:
@@ -320,3 +325,156 @@ def _to_outbox_message(row: OutboxMessageModel) -> OutboxMessage:
         payload=row.payload,
         attempt_count=row.attempt_count,
     )
+
+
+class SQLAlchemyIdempotencyRepository:
+    def __init__(self, session: Session) -> None:
+        self._session = session
+
+    def begin(self, *, key: str, request_hash: str) -> IdempotencyBeginResult:
+        now = datetime.datetime.now(tz=datetime.UTC)
+        processing_expires_at = now + datetime.timedelta(
+            seconds=_IDEMPOTENCY_PROCESSING_SECONDS
+        )
+        result = self._session.execute(
+            pg_insert(IdempotencyKeyModel)
+            .values(
+                key=key,
+                request_hash=request_hash,
+                status="processing",
+                processing_expires_at=processing_expires_at,
+                created_at=now,
+                updated_at=now,
+            )
+            .on_conflict_do_nothing(index_elements=["key"])
+        )
+        self._session.commit()
+        if cast(Any, result).rowcount == 1:
+            return IdempotencyBeginResult(status="started")
+
+        row = self._session.get(IdempotencyKeyModel, key)
+        if row is None:
+            return IdempotencyBeginResult(status="processing")
+        if row.request_hash != request_hash:
+            return IdempotencyBeginResult(status="conflict")
+        if row.status == "completed":
+            return IdempotencyBeginResult(
+                status="replay",
+                response_status_code=row.response_status_code,
+                response_payload=row.response_payload,
+            )
+        if row.processing_expires_at <= now:
+            row.status = "processing"
+            row.response_status_code = None
+            row.response_payload = None
+            row.processing_expires_at = processing_expires_at
+            row.last_error = None
+            row.updated_at = now
+            self._session.commit()
+            return IdempotencyBeginResult(status="started")
+        return IdempotencyBeginResult(status="processing")
+
+    def complete(
+        self,
+        *,
+        key: str,
+        response_status_code: int,
+        response_payload: dict[str, object],
+    ) -> None:
+        row = self._session.get(IdempotencyKeyModel, key)
+        if row is None:
+            return
+        now = datetime.datetime.now(tz=datetime.UTC)
+        row.status = "completed"
+        row.response_status_code = response_status_code
+        row.response_payload = response_payload
+        row.last_error = None
+        row.updated_at = now
+        self._session.commit()
+
+    def fail(self, *, key: str, error: str) -> None:
+        row = self._session.get(IdempotencyKeyModel, key)
+        if row is None:
+            return
+        now = datetime.datetime.now(tz=datetime.UTC)
+        row.status = "failed"
+        row.last_error = error[:2000]
+        row.updated_at = now
+        self._session.commit()
+
+
+class SQLAlchemyOrderEventReceiptRepository:
+    def __init__(self, session: Session) -> None:
+        self._session = session
+
+    def record(
+        self,
+        payload: dict[str, object],
+        *,
+        now: datetime.datetime,
+    ) -> OrderEventReceiptResult:
+        event_id = _required_str(payload, "event_id")
+        event_type = _required_str(payload, "event_type")
+        idempotency_key = _required_str(payload, "idempotency_key")
+        occurred_at = _parse_event_time(_required_str(payload, "occurred_at"))
+        order_payload = payload.get("order")
+        if not isinstance(order_payload, dict):
+            raise ValueError("order event payload must include an order object")
+        aggregate_id = int(order_payload["id"])
+
+        existing = self._session.get(OrderEventReceiptModel, event_id)
+        if existing is not None:
+            existing.duplicate_count += 1
+            existing.last_seen_at = now
+            self._session.commit()
+            return OrderEventReceiptResult(status="duplicate", event_id=event_id)
+
+        later_processed = self._session.execute(
+            select(OrderEventReceiptModel.event_id)
+            .where(
+                OrderEventReceiptModel.event_type == event_type,
+                OrderEventReceiptModel.aggregate_type == "order",
+                OrderEventReceiptModel.aggregate_id == aggregate_id,
+                OrderEventReceiptModel.status == "processed",
+                OrderEventReceiptModel.occurred_at > occurred_at,
+            )
+            .limit(1)
+        ).scalar_one_or_none()
+        receipt_status = "ignored_stale" if later_processed else "processed"
+
+        self._session.add(
+            OrderEventReceiptModel(
+                event_id=event_id,
+                event_type=event_type,
+                aggregate_type="order",
+                aggregate_id=aggregate_id,
+                idempotency_key=idempotency_key,
+                occurred_at=occurred_at,
+                payload=payload,
+                status=receipt_status,
+                duplicate_count=0,
+                first_seen_at=now,
+                last_seen_at=now,
+            )
+        )
+        self._session.commit()
+        return OrderEventReceiptResult(
+            status="ignored_stale"
+            if receipt_status == "ignored_stale"
+            else "processed",
+            event_id=event_id,
+        )
+
+
+def _required_str(payload: dict[str, object], key: str) -> str:
+    value = payload.get(key)
+    if not isinstance(value, str) or not value:
+        raise ValueError(f"order event payload must include {key}")
+    return value
+
+
+def _parse_event_time(value: str) -> datetime.datetime:
+    parsed = datetime.datetime.fromisoformat(value.replace("Z", "+00:00"))
+    if parsed.tzinfo is None:
+        parsed = parsed.replace(tzinfo=datetime.UTC)
+    return parsed.astimezone(datetime.UTC)

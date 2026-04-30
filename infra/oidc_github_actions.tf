@@ -24,6 +24,7 @@ locals {
     module.ecr_app.repository_arn,
     module.ecr_worker.repository_arn,
     module.ecr_data_export_job.repository_arn,
+    module.ecr_order_event_consumer.repository_arn,
     module.ecr_liquibase.repository_arn,
     module.ecr_pgbouncer.repository_arn,
   ]

@@ -8,7 +8,8 @@
 - Reference workload: additive Liquibase migrations, in-place ECS deploys, runtime `WRITE_MODE` and `READ_MODE` switches, and one-off worker tasks all operate against that same cluster and database.
 - Data workload: one scheduled ECS data export job writes the `order_contact_email` raw CSV and manifest objects to the S3 data hub bucket.
 - Async workload: the app publishes `order.created.v1` messages to one SQS FIFO
-  queue with an attached DLQ and idempotency key based on order ID.
+  queue through a durable outbox relay, and the order event consumer records
+  idempotent receipts for processed deliveries.
 - Optional extensions: WAF, VPC endpoints, ECS Exec/SSM access, and similar operators-only features stay outside the base model even when they remain enabled in the deployed stack.
 - Extension rule: future observability stacks, extra public-edge controls, and workload-specific jobs should be added as extensions rather than folded into the core platform unless every workload would require them.
 
@@ -98,22 +99,38 @@ Tests connect to the live DB via PgBouncer (same `DATABASE_URL` as the app) and 
 ## Async order events
 
 The first async workflow is deliberately narrow: after an order is created, the
-app publishes an `order.created.v1` message to an SQS FIFO queue when
-`ORDER_EVENTS_QUEUE_URL` is configured.
+app writes an `order.created.v1` message to `outbox_messages` in the same
+database transaction as the order. The `order-event-consumer` runtime relays
+pending outbox rows to SQS and consumes SQS deliveries into
+`order_event_receipts`.
 
 The event contract uses `order.created.v1:<order_id>` for both `event_id` and
 `idempotency_key`. The SQS `MessageDeduplicationId` uses the same value, and
 `MessageGroupId` is scoped to `customer-<customer_id>` so events for the same
 customer stay ordered.
 
-The queue has a DLQ and a CloudWatch alarm for visible DLQ messages. The app
-emits `order_events_publish_total` with `succeeded`, `failed`, and `skipped`
-statuses so local and deployed operators can tell whether publish behavior is
-active. The runbook is
-`ops/runbooks/order-event-queue-failure.md`.
+The outbox relay claims rows with `FOR UPDATE SKIP LOCKED`, marks successful
+publishes as `published`, and leaves failed publishes retryable with backoff.
+The consumer deduplicates by `event_id`, increments duplicate counts for repeat
+deliveries, and records late/stale events as `ignored_stale` when a newer event
+for the same aggregate has already been processed.
 
-No separate long-running consumer is added yet. A consumer should only appear
-when it owns a real side effect and can preserve the same idempotency contract.
+The queue has a DLQ and a CloudWatch alarm for visible DLQ messages. The
+runbook is `ops/runbooks/order-event-queue-failure.md`.
+
+## Request idempotency
+
+`POST /orders` accepts an optional `Idempotency-Key` header. When present, the
+API hashes the stable request body fields and stores the in-flight request in
+`idempotency_keys`.
+
+- Same key and same request: returns the stored original response.
+- Same key and different request: returns `409`.
+- Concurrent same-key requests: one request creates the order; retrying callers
+  wait briefly for the stored response and receive the same order response.
+
+Clients that omit `Idempotency-Key` keep the original behavior: every successful
+`POST /orders` creates a new order.
 
 ---
 

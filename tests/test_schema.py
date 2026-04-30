@@ -41,6 +41,32 @@ _OUTBOX_TABLE_COLUMNS = {
     "updated_at",
 }
 
+_IDEMPOTENCY_TABLE_COLUMNS = {
+    "key",
+    "request_hash",
+    "status",
+    "response_status_code",
+    "response_payload",
+    "processing_expires_at",
+    "last_error",
+    "created_at",
+    "updated_at",
+}
+
+_ORDER_EVENT_RECEIPT_TABLE_COLUMNS = {
+    "event_id",
+    "event_type",
+    "aggregate_type",
+    "aggregate_id",
+    "idempotency_key",
+    "occurred_at",
+    "payload",
+    "status",
+    "duplicate_count",
+    "first_seen_at",
+    "last_seen_at",
+}
+
 
 def test_orders_stable_columns_present(db_engine):
     """orders table retains all bootstrap-era columns throughout the migration."""
@@ -103,6 +129,34 @@ def test_outbox_messages_table_exists_with_expected_contract(db_engine):
     assert "uq_outbox_messages_event_id" in unique_constraints
     assert "chk_outbox_messages_status_known" in check_constraints
     assert "chk_outbox_messages_attempt_count_non_negative" in check_constraints
+
+
+def test_idempotency_keys_table_exists_with_expected_contract(db_engine):
+    """idempotency_keys stores replayable POST responses and in-flight state."""
+    inspector = inspect(db_engine)
+    cols = {c["name"] for c in inspector.get_columns("idempotency_keys")}
+    missing = _IDEMPOTENCY_TABLE_COLUMNS - cols
+    assert not missing, f"missing columns: {missing}"
+
+    check_constraints = {
+        c["name"] for c in inspector.get_check_constraints("idempotency_keys")
+    }
+    assert "chk_idempotency_keys_status_known" in check_constraints
+    assert "chk_idempotency_keys_completed_has_response" in check_constraints
+
+
+def test_order_event_receipts_table_exists_with_expected_contract(db_engine):
+    """order_event_receipts records consumed async events and duplicate counts."""
+    inspector = inspect(db_engine)
+    cols = {c["name"] for c in inspector.get_columns("order_event_receipts")}
+    missing = _ORDER_EVENT_RECEIPT_TABLE_COLUMNS - cols
+    assert not missing, f"missing columns: {missing}"
+
+    check_constraints = {
+        c["name"] for c in inspector.get_check_constraints("order_event_receipts")
+    }
+    assert "chk_order_event_receipts_status_known" in check_constraints
+    assert "chk_order_event_receipts_duplicate_count_non_negative" in check_constraints
 
 
 @pytest.mark.require_phase("post_contract")

@@ -25,6 +25,7 @@ members = [
     "apps/api",
     "apps/backfill-worker",
     "apps/data-export-job",
+    "apps/order-event-consumer",
     "packages/core",
     "packages/adapters",
 ]
@@ -45,6 +46,7 @@ extraPaths = [
     "apps/api/src",
     "apps/backfill-worker/src",
     "apps/data-export-job/src",
+    "apps/order-event-consumer/src",
     "packages/adapters/src",
     "packages/core/src",
 ]

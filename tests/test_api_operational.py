@@ -26,6 +26,7 @@ from aws_sdlc_api.main import (  # noqa: E402
     app,
     get_customer_repo,
     get_db,
+    get_idempotency_repo,
     get_order_event_publisher,
     get_outbox_repo,
     get_order_repo,
@@ -172,6 +173,23 @@ class _OutboxRepo:
         )
 
 
+class _IdempotencyRepo:
+    def begin(self, *, key: str, request_hash: str) -> object:
+        raise AssertionError("not used without an Idempotency-Key header")
+
+    def complete(
+        self,
+        *,
+        key: str,
+        response_status_code: int,
+        response_payload: dict[str, object],
+    ) -> None:
+        raise AssertionError("not used without an Idempotency-Key header")
+
+    def fail(self, *, key: str, error: str) -> None:
+        raise AssertionError("not used without an Idempotency-Key header")
+
+
 def _override_db(session: object) -> None:
     def get_test_db() -> Iterator[object]:
         yield session
@@ -212,6 +230,13 @@ def _override_outbox_repo(repo: object) -> None:
         return repo
 
     app.dependency_overrides[get_outbox_repo] = get_test_outbox_repo
+
+
+def _override_idempotency_repo(repo: object) -> None:
+    def get_test_idempotency_repo() -> object:
+        return repo
+
+    app.dependency_overrides[get_idempotency_repo] = get_test_idempotency_repo
 
 
 def test_ready_reports_database_ok_when_ping_succeeds() -> None:
@@ -285,7 +310,7 @@ def test_runtime_mode_getters_fail_when_config_is_missing() -> None:
     assert write_response.status_code == 503
 
 
-def test_create_order_publishes_order_created_event() -> None:
+def test_create_order_records_outbox_without_inline_dispatch() -> None:
     repo = _OrderRepo()
     outbox = _OutboxRepo()
     publisher = _OrderEventPublisher()
@@ -293,6 +318,7 @@ def test_create_order_publishes_order_created_event() -> None:
     _override_customer_repo(_CustomerRepo())
     _override_outbox_repo(outbox)
     _override_order_event_publisher(publisher)
+    _override_idempotency_repo(_IdempotencyRepo())
     try:
         with TestClient(app) as client:
             response = client.post(
@@ -308,17 +334,17 @@ def test_create_order_publishes_order_created_event() -> None:
 
     assert response.status_code == 201
     assert response.json()["id"] == 42
-    assert len(publisher.published) == 1
-    assert publisher.published[0].event_id == "order.created.v1:42"
-    assert outbox.published == [1]
+    assert publisher.published == []
+    assert outbox.published == []
 
 
-def test_create_order_still_returns_order_when_event_publish_fails() -> None:
+def test_create_order_inline_dispatch_can_be_disabled() -> None:
     outbox = _OutboxRepo()
     _override_order_repo(_OrderRepo())
     _override_customer_repo(_CustomerRepo())
     _override_outbox_repo(outbox)
     _override_order_event_publisher(_OrderEventPublisher(should_fail=True))
+    _override_idempotency_repo(_IdempotencyRepo())
     try:
         with TestClient(app) as client:
             response = client.post(
@@ -335,8 +361,7 @@ def test_create_order_still_returns_order_when_event_publish_fails() -> None:
     assert response.status_code == 201
     assert response.json()["id"] == 42
     assert outbox.published == []
-    assert len(outbox.failed) == 1
-    assert outbox.failed[0]["message_id"] == 1
+    assert outbox.failed == []
 
 
 def test_create_order_returns_404_when_customer_is_missing() -> None:

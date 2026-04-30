@@ -1,5 +1,9 @@
 """test_api.py — HTTP layer integration tests."""
 
+from concurrent.futures import ThreadPoolExecutor
+import uuid
+
+import httpx
 import pytest
 from sqlalchemy import text
 
@@ -38,7 +42,93 @@ def test_create_order_records_order_created_outbox_message(http_client, db_sessi
     assert row.message_group_id == "customer-1"
     assert row.message_deduplication_id == f"order.created.v1:{order_id}"
     assert row.payload["event_id"] == f"order.created.v1:{order_id}"
-    assert row.status in {"pending", "processing", "published"}
+    assert row.status == "pending"
+
+
+def test_create_order_replays_same_response_for_idempotency_key(
+    http_client, db_session
+):
+    """POST /orders with the same Idempotency-Key replays the original response."""
+    payload = {
+        "customer_id": 1,
+        "total_amount": "10.00",
+        "billing_email": "idem@example.com",
+    }
+    headers = {"Idempotency-Key": f"test-create-order-replay-{uuid.uuid4().hex}"}
+
+    first = http_client.post("/orders", json=payload, headers=headers)
+    second = http_client.post("/orders", json=payload, headers=headers)
+
+    assert first.status_code == 201
+    assert second.status_code == 201
+    assert second.json() == first.json()
+
+    order_id = first.json()["id"]
+    outbox_count = db_session.execute(
+        text(
+            "SELECT COUNT(*) FROM outbox_messages "
+            "WHERE aggregate_type='order' AND aggregate_id=:id"
+        ),
+        {"id": order_id},
+    ).scalar_one()
+    assert outbox_count == 1
+
+
+def test_create_order_idempotency_key_rejects_different_request(http_client):
+    """Reusing a key with a different request body returns 409."""
+    headers = {"Idempotency-Key": f"test-create-order-conflict-{uuid.uuid4().hex}"}
+    first = http_client.post(
+        "/orders",
+        json={"customer_id": 1, "total_amount": "10.00"},
+        headers=headers,
+    )
+    second = http_client.post(
+        "/orders",
+        json={"customer_id": 1, "total_amount": "11.00"},
+        headers=headers,
+    )
+
+    assert first.status_code == 201
+    assert second.status_code == 409
+
+
+def test_create_order_without_idempotency_key_still_creates_each_request(http_client):
+    """Clients that do not send Idempotency-Key keep the original create semantics."""
+    first = post_order(http_client, billing_email="no-key-a@example.com")
+    second = post_order(http_client, billing_email="no-key-b@example.com")
+
+    assert first != second
+
+
+def test_concurrent_same_key_requests_create_one_order(base_url, db_session):
+    """Concurrent same-key retries serialize to one persisted order."""
+    payload = {
+        "customer_id": 1,
+        "total_amount": "10.00",
+        "billing_email": "concurrent-idem@example.com",
+    }
+    headers = {"Idempotency-Key": f"test-concurrent-create-order-{uuid.uuid4().hex}"}
+
+    def submit() -> httpx.Response:
+        with httpx.Client(base_url=base_url, timeout=30.0) as client:
+            return client.post("/orders", json=payload, headers=headers)
+
+    with ThreadPoolExecutor(max_workers=2) as executor:
+        responses = list(executor.map(lambda _: submit(), range(2)))
+
+    assert [r.status_code for r in responses] == [201, 201]
+    order_ids = {r.json()["id"] for r in responses}
+    assert len(order_ids) == 1
+    order_id = order_ids.pop()
+
+    outbox_count = db_session.execute(
+        text(
+            "SELECT COUNT(*) FROM outbox_messages "
+            "WHERE aggregate_type='order' AND aggregate_id=:id"
+        ),
+        {"id": order_id},
+    ).scalar_one()
+    assert outbox_count == 1
 
 
 def test_order_not_found_returns_404(http_client):

@@ -153,6 +153,13 @@ def committed_db_session(db_engine: Engine) -> Generator[Session, None, None]:
                 {"m": watermark},
             )
             conn.execute(
+                text(
+                    "DELETE FROM order_event_receipts "
+                    "WHERE aggregate_type = 'order' AND aggregate_id > :m"
+                ),
+                {"m": watermark},
+            )
+            conn.execute(
                 text("DELETE FROM order_contact_email WHERE order_id > :m"),
                 {"m": watermark},
             )

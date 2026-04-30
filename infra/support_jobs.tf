@@ -130,6 +130,46 @@ module "ecr_data_export_job" {
   tags = local.tags
 }
 
+module "ecr_order_event_consumer" {
+  source  = "terraform-aws-modules/ecr/aws"
+  version = "~> 3.0"
+
+  repository_name                 = "${local.name}/order-event-consumer"
+  repository_image_tag_mutability = "IMMUTABLE"
+  repository_image_scan_on_push   = true
+
+  repository_read_write_access_arns = [aws_iam_role.github_actions.arn]
+
+  repository_lifecycle_policy = jsonencode({
+    rules = [
+      {
+        rulePriority = 1
+        description  = "Expire untagged images after 1 day"
+        selection = {
+          tagStatus   = "untagged"
+          countType   = "sinceImagePushed"
+          countUnit   = "days"
+          countNumber = 1
+        }
+        action = { type = "expire" }
+      },
+      {
+        rulePriority = 2
+        description  = "Keep last 10 sha- tagged images"
+        selection = {
+          tagStatus     = "tagged"
+          tagPrefixList = ["sha-"]
+          countType     = "imageCountMoreThan"
+          countNumber   = 10
+        }
+        action = { type = "expire" }
+      }
+    ]
+  })
+
+  tags = local.tags
+}
+
 ################################################################################
 # Worker task definition — one-off Fargate task triggered by CI for backfill.
 # Connects directly to RDS (not via pgbouncer) — backfill transactions are
@@ -394,6 +434,104 @@ resource "aws_cloudwatch_metric_alarm" "data_export_scheduler_target_errors" {
   # name. This stack currently owns one schedule in the default group.
   dimensions = {
     ScheduleGroup = "default"
+  }
+
+  tags = local.tags
+}
+
+################################################################################
+# Order event consumer — one small async runtime that relays durable outbox
+# messages to SQS and consumes order.created.v1 deliveries into an idempotent
+# receipt table.
+################################################################################
+
+resource "aws_iam_role" "order_event_consumer" {
+  name               = "${local.name}-order-event-consumer"
+  assume_role_policy = data.aws_iam_policy_document.task_exec_assume.json
+  tags               = local.tags
+}
+
+data "aws_iam_policy_document" "order_event_consumer_sqs" {
+  statement {
+    sid = "RelayAndConsumeOrderEvents"
+    actions = [
+      "sqs:DeleteMessage",
+      "sqs:GetQueueAttributes",
+      "sqs:ReceiveMessage",
+      "sqs:SendMessage",
+    ]
+    resources = [aws_sqs_queue.order_events.arn]
+  }
+}
+
+resource "aws_iam_role_policy" "order_event_consumer_sqs" {
+  name   = "order-events-relay-consume"
+  role   = aws_iam_role.order_event_consumer.id
+  policy = data.aws_iam_policy_document.order_event_consumer_sqs.json
+}
+
+resource "aws_ecs_task_definition" "order_event_consumer" {
+  family                   = "${local.name}-order-event-consumer"
+  requires_compatibilities = ["FARGATE"]
+  network_mode             = "awsvpc"
+  cpu                      = var.order_event_consumer_cpu
+  memory                   = var.order_event_consumer_memory
+  execution_role_arn       = aws_iam_role.task_exec.arn
+  task_role_arn            = aws_iam_role.order_event_consumer.arn
+
+  container_definitions = jsonencode([
+    {
+      name      = "order-event-consumer"
+      image     = "${module.ecr_order_event_consumer.repository_url}:${var.initial_image_tag}"
+      essential = true
+      secrets = [
+        { name = "DB_PASSWORD", valueFrom = "${module.rds.db_instance_master_user_secret_arn}:password::" },
+      ]
+      environment = [
+        { name = "DB_HOST", value = module.rds.db_instance_address },
+        { name = "DB_PORT", value = tostring(module.rds.db_instance_port) },
+        { name = "DB_NAME", value = "aws_sdlc_containers" },
+        { name = "ORDER_EVENTS_QUEUE_URL", value = aws_sqs_queue.order_events.url },
+        { name = "ORDER_EVENTS_WORKER_MODE", value = "both" },
+      ]
+      logConfiguration = {
+        logDriver = "awslogs"
+        options = {
+          "awslogs-group"         = "/ecs/${local.name}/order-event-consumer"
+          "awslogs-region"        = local.region
+          "awslogs-stream-prefix" = "order-event-consumer"
+        }
+      }
+    }
+  ])
+
+  tags = local.tags
+}
+
+resource "aws_cloudwatch_log_group" "order_event_consumer" {
+  name              = "/ecs/${local.name}/order-event-consumer"
+  retention_in_days = 14
+  tags              = local.tags
+}
+
+resource "aws_ecs_service" "order_event_consumer" {
+  name            = "order-event-consumer"
+  cluster         = module.ecs.cluster_arn
+  task_definition = aws_ecs_task_definition.order_event_consumer.arn
+  desired_count   = var.order_event_consumer_desired_count
+  launch_type     = "FARGATE"
+
+  deployment_minimum_healthy_percent = 100
+  deployment_maximum_percent         = 200
+
+  network_configuration {
+    assign_public_ip = false
+    security_groups  = [aws_security_group.app.id]
+    subnets          = module.vpc.private_subnets
+  }
+
+  lifecycle {
+    ignore_changes = [task_definition]
   }
 
   tags = local.tags

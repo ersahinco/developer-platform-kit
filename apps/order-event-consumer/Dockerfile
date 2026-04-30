@@ -10,23 +10,23 @@ COPY apps/data-export-job/pyproject.toml apps/data-export-job/pyproject.toml
 COPY apps/order-event-consumer/pyproject.toml apps/order-event-consumer/pyproject.toml
 COPY packages/core/pyproject.toml packages/core/pyproject.toml
 COPY packages/adapters/pyproject.toml packages/adapters/pyproject.toml
-COPY apps/backfill-worker/src apps/backfill-worker/src
-RUN uv sync --frozen --no-dev --package aws-sdlc-containers-backfill-worker
+COPY apps/order-event-consumer/src apps/order-event-consumer/src
+COPY packages/core/src packages/core/src
+COPY packages/adapters/src packages/adapters/src
+RUN uv sync --frozen --no-dev --package aws-sdlc-containers-order-event-consumer
 
-# Tag-only (no digest) — Trivy scans the built image in CI for CVEs before push.
-# Digest pinning requires automated renewal (Renovate/Dependabot) to stay secure;
-# without it, a stale digest is worse than a fresh tag + CVE scan.
 FROM python:3.14-slim
 
-# Non-root user — do not run application processes as root
 RUN useradd --no-create-home --shell /bin/false app
 USER app
 
-WORKDIR /app/apps/backfill-worker/src
+WORKDIR /app/apps/order-event-consumer/src
 COPY --from=builder /app/.venv /app/.venv
-COPY --from=builder /app/apps/backfill-worker/src /app/apps/backfill-worker/src
+COPY --from=builder /app/apps/order-event-consumer/src /app/apps/order-event-consumer/src
+COPY --from=builder /app/packages/core/src /app/packages/core/src
+COPY --from=builder /app/packages/adapters/src /app/packages/adapters/src
 
 ENV PATH="/app/.venv/bin:$PATH"
-ENV PYTHONPATH="/app/apps/backfill-worker/src"
+ENV PYTHONPATH="/app/apps/order-event-consumer/src:/app/packages/core/src:/app/packages/adapters/src"
 
-CMD ["python", "-m", "aws_sdlc_backfill_worker.main"]
+CMD ["python", "-m", "aws_sdlc_order_event_consumer.main"]
