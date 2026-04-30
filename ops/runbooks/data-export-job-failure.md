@@ -87,9 +87,10 @@ TASK_ARN=$(scripts/ci_run_ecs_task.sh \
   "$subnet_id" \
   "$sg_id")
 
-scripts/ci_wait_for_ecs_task_stopped.sh \
-  "$(terraform -chdir=infra output -raw ecs_cluster_name)" \
-  "$TASK_ARN"
+aws ecs wait tasks-stopped \
+  --cluster "$(terraform -chdir=infra output -raw ecs_cluster_name)" \
+  --tasks "$TASK_ARN" \
+  --region eu-central-1
 
 scripts/ci_assert_ecs_task_succeeded.sh \
   "$(terraform -chdir=infra output -raw ecs_cluster_name)" \

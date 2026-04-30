@@ -47,8 +47,8 @@ repos:
         language: system
         files: ^\.github/workflows/.*\.ya?ml$
 
-      - id: dockerfile-policy
-        name: Dockerfile policy
+      - id: dockerfile-lint
+        name: Dockerfile lint
         entry: hadolint db/Dockerfile apps/api/Dockerfile apps/backfill-worker/Dockerfile apps/data-export-job/Dockerfile
         language: system
         pass_filenames: false

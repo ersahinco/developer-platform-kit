@@ -359,7 +359,7 @@ jobs:
             "${{ steps.register-liquibase.outputs.task_def_arn }}" \
             "${{ steps.net.outputs.subnet_id }}" \
             "${{ steps.net.outputs.sg_id }}")
-          scripts/ci_wait_for_ecs_task_stopped.sh aws-sdlc-containers "$TASK_ARN"
+          aws ecs wait tasks-stopped --cluster aws-sdlc-containers --tasks "$TASK_ARN"
           scripts/ci_assert_ecs_task_succeeded.sh aws-sdlc-containers "$TASK_ARN" Liquibase
 
   deploy:
