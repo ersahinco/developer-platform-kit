@@ -12,12 +12,11 @@ brew "node@24"
 brew "pre-commit"
 brew "python@3.14"
 brew "semgrep"
-brew "session-manager-plugin"
 brew "tflint"
 brew "trivy"
 brew "uv"
 
-cask "docker"
+cask "docker-desktop"
 cask "session-manager-plugin"
 
 # Install Terraform from HashiCorp's signed release channel. The current
