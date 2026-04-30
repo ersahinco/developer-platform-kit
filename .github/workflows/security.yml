@@ -55,7 +55,7 @@ jobs:
             -v "${{ github.workspace }}:/repo" \
             -w /repo \
             hadolint/hadolint:v2.14.0-debian \
-            db/Dockerfile apps/api/Dockerfile apps/backfill-worker/Dockerfile apps/data-export-job/Dockerfile apps/order-event-consumer/Dockerfile
+            hadolint db/Dockerfile apps/api/Dockerfile apps/backfill-worker/Dockerfile apps/data-export-job/Dockerfile apps/order-event-consumer/Dockerfile
 
       - name: Run Python dependency audit
         run: |

@@ -6,6 +6,7 @@ import uuid
 from pathlib import Path
 
 from sqlalchemy import text
+from sqlalchemy.orm import Session
 
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "packages" / "adapters" / "src"))
@@ -27,7 +28,13 @@ def _message(event_id: str) -> OrderEventMessage:
     )
 
 
+def _clear_outbox(session: Session) -> None:
+    session.execute(text("DELETE FROM outbox_messages"))
+    session.commit()
+
+
 def test_outbox_enqueue_claim_and_mark_published(committed_db_session) -> None:
+    _clear_outbox(committed_db_session)
     repo = SQLAlchemyOutboxRepository(committed_db_session)
     event_id = f"order.created.v1:test-published-{uuid.uuid4().hex}"
     repo.enqueue(_message(event_id))
@@ -49,6 +56,7 @@ def test_outbox_enqueue_claim_and_mark_published(committed_db_session) -> None:
 
 
 def test_outbox_failed_message_is_retryable(committed_db_session) -> None:
+    _clear_outbox(committed_db_session)
     repo = SQLAlchemyOutboxRepository(committed_db_session)
     repo.enqueue(_message(f"order.created.v1:test-failed-{uuid.uuid4().hex}"))
     now = datetime.datetime.now(tz=datetime.UTC)
@@ -75,6 +83,7 @@ def test_outbox_failed_message_is_retryable(committed_db_session) -> None:
 
 
 def test_outbox_enqueue_is_idempotent_by_event_id(committed_db_session) -> None:
+    _clear_outbox(committed_db_session)
     repo = SQLAlchemyOutboxRepository(committed_db_session)
     event_id = f"order.created.v1:test-idempotent-enqueue-{uuid.uuid4().hex}"
 
@@ -91,6 +100,7 @@ def test_outbox_enqueue_is_idempotent_by_event_id(committed_db_session) -> None:
 def test_processing_message_is_reclaimed_after_lock_expiry(
     committed_db_session,
 ) -> None:
+    _clear_outbox(committed_db_session)
     repo = SQLAlchemyOutboxRepository(committed_db_session)
     repo.enqueue(_message(f"order.created.v1:test-lock-expiry-{uuid.uuid4().hex}"))
     now = datetime.datetime.now(tz=datetime.UTC)
