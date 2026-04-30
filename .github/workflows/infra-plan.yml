@@ -48,7 +48,7 @@ jobs:
           terraform validate
         working-directory: infra
 
-      - uses: terraform-linters/setup-tflint@v4
+      - uses: terraform-linters/setup-tflint@v6
         with:
           tflint_version: ${{ env.TFLINT_VERSION }}
 
