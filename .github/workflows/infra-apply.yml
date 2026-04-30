@@ -33,7 +33,7 @@ jobs:
     steps:
       - name: Resolve plan run
         id: plan
-        uses: actions/github-script@v7
+        uses: actions/github-script@v9
         with:
           script: |
             const run_id = Number('${{ inputs.plan_run_id }}');
