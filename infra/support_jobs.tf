@@ -401,7 +401,7 @@ resource "aws_cloudwatch_metric_alarm" "data_export_scheduler_target_errors" {
 
 ################################################################################
 # Liquibase task definition — one-off Fargate task for schema migrations.
-# Uses a custom image built FROM liquibase/liquibase:4.33.0 with the db/changelog/
+# Uses a custom image built FROM liquibase/liquibase:5.0.2 with the db/changelog/
 # directory baked in (see db/Dockerfile). The app image stays free of Liquibase
 # and its JVM dependency.
 # Connects directly to RDS (not pgbouncer) — DDL requires a session connection.

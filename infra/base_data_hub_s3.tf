@@ -17,6 +17,10 @@ locals {
 }
 
 resource "aws_s3_bucket" "data_hub" {
+  #checkov:skip=CKV_AWS_18:Access log buckets add unrelated storage/cost for this sandbox export landing zone.
+  #checkov:skip=CKV_AWS_144:Cross-region replication is a production recovery control, not needed for this disposable sandbox bucket.
+  #checkov:skip=CKV_AWS_145:S3-managed AES256 encryption is sufficient here; KMS adds cost and key operations for no sandbox benefit.
+  #checkov:skip=CKV2_AWS_62:No downstream event consumer exists yet; adding notifications would be placeholder infrastructure.
   bucket = local.data_hub_bucket_name
 
   tags = merge(local.tags, {

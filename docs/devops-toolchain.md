@@ -8,6 +8,7 @@ This project should demonstrate a complete but lean DevOps toolchain around ECS.
 |---|---|
 | Source control | Git monorepo |
 | Local orchestration | Docker Compose |
+| Standard workstation | Dev Container with project quality tools installed |
 | Python dependency management | `uv` workspace |
 | Python dependency updates | Dependabot weekly `uv` updates |
 | Local commit checks | pre-commit hooks |
@@ -41,6 +42,11 @@ This project should demonstrate a complete but lean DevOps toolchain around ECS.
 - Keep scripts small, explicit, and easy to inspect.
 
 ## Local Quality Commands
+
+For the most reproducible workstation, open the repository in the dev
+container. It is intentionally a development shell, not another app runtime:
+the existing Docker Compose services still provide Postgres, PgBouncer,
+Liquibase, the API, workers, and data jobs.
 
 ```bash
 make pre-commit

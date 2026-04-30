@@ -38,9 +38,9 @@ module "rds" {
   identifier = local.name
 
   engine               = "postgres"
-  engine_version       = "16"
-  family               = "postgres16"
-  major_engine_version = "16"
+  engine_version       = "18.3"
+  family               = "postgres18"
+  major_engine_version = "18"
   instance_class       = var.rds_instance_class
 
   allocated_storage     = var.rds_allocated_storage_gb

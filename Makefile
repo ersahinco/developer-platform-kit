@@ -2,6 +2,8 @@
 # Makefile — local dev, single-stack infra, and operator commands
 #
 # Prerequisites (install once):
+#   Recommended: open the repo in its dev container.
+#   Or install locally:
 #   brew install uv terraform tflint checkov pre-commit session-manager-plugin actionlint lychee hadolint gitleaks
 #
 # Usage:

@@ -88,9 +88,13 @@ directories should appear only when they have real owned content. See
 Prerequisites:
 
 - Docker Desktop
-- Python 3.12+
+- Python 3.14+
 - `uv`
-- Optional quality tools for `make lint`: actionlint, lychee, hadolint, and gitleaks
+- Optional: VS Code or another editor with Dev Containers support. The
+  repository dev container installs the Python, Terraform, Docker, AWS, and
+  quality-tooling baseline used by the project.
+- If you do not use the dev container, install optional quality tools for
+  `make lint`: actionlint, lychee, hadolint, and gitleaks.
 
 Start local Postgres and PgBouncer:
 

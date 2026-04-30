@@ -8,9 +8,26 @@ worker in `apps/backfill-worker/`, and the local data export job in
 ## Prerequisites
 
 - Docker Desktop
-- Python 3.12+
+- Python 3.14+
 - `uv`
 - Optional infra and quality tools: Terraform, tflint, checkov, pre-commit, AWS CLI, Session Manager plugin, actionlint, lychee, hadolint, and gitleaks
+
+The recommended way to keep a personal machine aligned with the project
+toolchain is to open the repository in its dev container. It installs Python
+3.14, `uv`, Docker CLI/Compose access, Terraform 1.15.0, TFLint, Checkov,
+pre-commit, AWS CLI, actionlint, lychee, hadolint, and gitleaks.
+
+In VS Code, run **Dev Containers: Reopen in Container**. On first create, the
+container runs:
+
+```bash
+uv sync --all-packages --group dev --group test
+pre-commit install --hook-type pre-commit --hook-type pre-push
+```
+
+Inside the dev container, commands that connect back to local Docker Compose
+services use `host.docker.internal` defaults. Outside the dev container, keep
+using `localhost` as shown below.
 
 ## Environment Variables
 

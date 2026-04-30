@@ -1,5 +1,5 @@
 terraform {
-  required_version = ">= 1.11.1"
+  required_version = ">= 1.15.0"
 
   required_providers {
     aws = {
@@ -16,13 +16,13 @@ terraform {
   # compatibility with older runbooks and IAM policy surfaces, but this backend
   # does not currently set `dynamodb_table`.
   #
-  # State key is supplied at init time via -backend-config="key=..." for the
-  # single stack without relying on Terraform workspaces.
+  # Single stack state key. CI and Makefile still pass the same value via
+  # -backend-config so operators can see the selected state key explicitly.
   backend "s3" {
     bucket       = "aws-sdlc-containers-tfstate-691627364817"
+    key          = "aws-sdlc-containers/stack.tfstate"
     region       = "eu-central-1"
     use_lockfile = true
     encrypt      = true
-    # key is intentionally omitted — pass -backend-config="key=aws-sdlc-containers/stack.tfstate"
   }
 }
