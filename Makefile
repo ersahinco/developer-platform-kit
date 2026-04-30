@@ -2,7 +2,7 @@
 # Makefile — local dev, single-stack infra, and operator commands
 #
 # Prerequisites (install once):
-#   brew install uv terraform tflint checkov pre-commit session-manager-plugin
+#   brew install uv terraform tflint checkov pre-commit session-manager-plugin actionlint lychee hadolint gitleaks
 #
 # Usage:
 #   make help                — list all targets
@@ -59,7 +59,7 @@ observability-stop: ## Stop local observability services
 
 .PHONY: migrate
 migrate: ## Run Liquibase migrations against local DB
-	./scripts/run_liquibase.sh update
+	docker compose --profile migration -f docker-compose.yml run --rm liquibase update
 
 .PHONY: seed
 seed: ## Seed local DB with test data
@@ -88,24 +88,27 @@ lint-scripts: ## Syntax-check shell scripts
 	bash -n scripts/*.sh
 
 .PHONY: lint-docs
-lint-docs: ## Check local Markdown links
-	python3 scripts/check_docs_links.py
+lint-docs: ## Check Markdown links
+	lychee README.md 'docs/**/*.md' 'ops/**/*.md'
 
 .PHONY: lint-workflows
-lint-workflows: ## Check GitHub workflow policy
-	python3 scripts/check_workflows.py
+lint-workflows: ## Lint GitHub workflows
+	actionlint
 
 .PHONY: lint-dockerfiles
-lint-dockerfiles: ## Check Dockerfile policy
-	python3 scripts/check_dockerfiles.py
+lint-dockerfiles: ## Lint Dockerfiles
+	hadolint db/Dockerfile apps/*/Dockerfile
 
 .PHONY: secret-scan
-secret-scan: ## Scan repository for high-confidence committed secrets
-	uv run python scripts/secret_scan.py .
+secret-scan: ## Scan repository for committed secrets
+	gitleaks dir . --redact --no-banner
 
 .PHONY: dependency-audit
 dependency-audit: ## Audit uv-locked Python dependencies for known vulnerabilities
-	uv run python scripts/dependency_audit.py
+	@tmpfile=$$(mktemp); \
+	trap 'rm -f "$$tmpfile"' EXIT; \
+	uv --quiet export --format requirements.txt --all-packages --all-groups --no-emit-project --no-emit-workspace --frozen --output-file "$$tmpfile"; \
+	uv run pip-audit -r "$$tmpfile" --disable-pip --require-hashes --progress-spinner off --desc off --aliases off
 
 .PHONY: lint-infra
 lint-infra: ## Lint Terraform (fmt check + tflint + checkov)

@@ -135,7 +135,12 @@ jobs:
             http://localhost:8000/health
 
       - name: Advance to dual-write phase
-        run: uv run python scripts/set_runtime_config.py write-mode dual
+        run: |
+          curl --fail --show-error --silent \
+            -X POST \
+            -H "Content-Type: application/json" \
+            --data '{"mode":"dual"}' \
+            http://localhost:8000/admin/write-mode
 
       - name: Run tests
         run: uv run pytest tests/ -v

@@ -10,7 +10,7 @@ worker in `apps/backfill-worker/`, and the local data export job in
 - Docker Desktop
 - Python 3.12+
 - `uv`
-- Optional infra tools: Terraform, tflint, checkov, pre-commit, AWS CLI, and Session Manager plugin
+- Optional infra and quality tools: Terraform, tflint, checkov, pre-commit, AWS CLI, Session Manager plugin, actionlint, lychee, hadolint, and gitleaks
 
 ## Environment Variables
 
@@ -80,7 +80,7 @@ Open `http://localhost:5050` with email `admin@local.dev` and password
 ### 2. Apply Liquibase migrations
 
 ```bash
-./scripts/run_liquibase.sh update
+docker compose --profile migration -f docker-compose.yml run --rm liquibase update
 ```
 
 This creates the bootstrap schema, the runtime config table, and the expanded
@@ -102,7 +102,7 @@ orders.
 ```bash
 docker compose build app
 docker compose up -d app
-uv run python scripts/smoke_test.py
+curl --fail --show-error http://localhost:8000/health
 ```
 
 ### 5. Advance writes to dual mode
@@ -111,7 +111,11 @@ After `order_contact_email` exists, tell the app to write to both tables:
 
 ```bash
 export BASE_URL=http://localhost:8000
-uv run python scripts/set_runtime_config.py write-mode dual
+curl --fail --show-error \
+  -X POST \
+  -H "Content-Type: application/json" \
+  --data '{"mode":"dual"}' \
+  "$BASE_URL/admin/write-mode"
 ```
 
 The app updates the DB-backed runtime config through the admin API and drops
@@ -144,7 +148,11 @@ checkpoint.
 
 ```bash
 export BASE_URL=http://localhost:8000
-uv run python scripts/set_runtime_config.py read-mode new
+curl --fail --show-error \
+  -X POST \
+  -H "Content-Type: application/json" \
+  --data '{"mode":"new"}' \
+  "$BASE_URL/admin/read-mode"
 ```
 
 Run the full test suite:
@@ -161,7 +169,11 @@ phase-specific assertions that do not apply.
 ### 8. Advance writes to new mode
 
 ```bash
-uv run python scripts/set_runtime_config.py write-mode new
+curl --fail --show-error \
+  -X POST \
+  -H "Content-Type: application/json" \
+  --data '{"mode":"new"}' \
+  "$BASE_URL/admin/write-mode"
 ```
 
 This stops writing to `orders.billing_email` and prepares for the contract
@@ -170,7 +182,7 @@ phase.
 ### 9. Apply the contract migration
 
 ```bash
-./scripts/run_liquibase.sh update
+docker compose --profile migration -f docker-compose.yml run --rm liquibase update
 ```
 
 The contract migration drops `orders.billing_email`. This is irreversible in a

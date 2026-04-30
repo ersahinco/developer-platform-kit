@@ -25,7 +25,7 @@ repos:
     hooks:
       - id: secret-scan
         name: secret scan
-        entry: uv run python scripts/secret_scan.py .
+        entry: gitleaks dir . --redact --no-banner
         language: system
         pass_filenames: false
 
@@ -37,19 +37,19 @@ repos:
 
       - id: docs-links
         name: docs local links
-        entry: python3 scripts/check_docs_links.py
+        entry: lychee README.md docs/**/*.md ops/**/*.md
         language: system
         pass_filenames: false
 
-      - id: workflow-policy
-        name: GitHub workflow policy
-        entry: python3 scripts/check_workflows.py
+      - id: actionlint
+        name: actionlint
+        entry: actionlint
         language: system
-        pass_filenames: false
+        files: ^\.github/workflows/.*\.ya?ml$
 
       - id: dockerfile-policy
         name: Dockerfile policy
-        entry: python3 scripts/check_dockerfiles.py
+        entry: hadolint db/Dockerfile apps/api/Dockerfile apps/backfill-worker/Dockerfile apps/data-export-job/Dockerfile
         language: system
         pass_filenames: false
 

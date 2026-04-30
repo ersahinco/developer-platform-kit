@@ -16,6 +16,8 @@ jobs:
 
     steps:
       - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
 
       - uses: astral-sh/setup-uv@v4
         with:
@@ -30,16 +32,47 @@ jobs:
         run: uv sync --frozen --all-packages --group dev --group test
 
       - name: Run secret scan
-        run: python scripts/secret_scan.py .
+        run: |
+          docker run --rm \
+            -v "${{ github.workspace }}:/repo" \
+            ghcr.io/gitleaks/gitleaks:latest dir /repo --redact --no-banner
 
-      - name: Check local Markdown links
-        run: python3 scripts/check_docs_links.py
+      - name: Check Markdown links
+        uses: lycheeverse/lychee-action@v2
+        with:
+          args: README.md 'docs/**/*.md' 'ops/**/*.md'
 
-      - name: Check GitHub workflow policy
-        run: python3 scripts/check_workflows.py
+      - name: Lint GitHub workflows
+        run: |
+          docker run --rm \
+            -v "${{ github.workspace }}:/repo" \
+            -w /repo \
+            rhysd/actionlint:latest
 
-      - name: Check Dockerfile policy
-        run: python3 scripts/check_dockerfiles.py
+      - name: Lint Dockerfiles
+        run: |
+          docker run --rm \
+            -v "${{ github.workspace }}:/repo" \
+            -w /repo \
+            hadolint/hadolint:latest-debian \
+            db/Dockerfile apps/api/Dockerfile apps/backfill-worker/Dockerfile apps/data-export-job/Dockerfile
 
       - name: Run Python dependency audit
-        run: uv run python scripts/dependency_audit.py
+        run: |
+          tmpfile="$(mktemp)"
+          trap 'rm -f "$tmpfile"' EXIT
+          uv --quiet export \
+            --format requirements.txt \
+            --all-packages \
+            --all-groups \
+            --no-emit-project \
+            --no-emit-workspace \
+            --frozen \
+            --output-file "$tmpfile"
+          uv run pip-audit \
+            -r "$tmpfile" \
+            --disable-pip \
+            --require-hashes \
+            --progress-spinner off \
+            --desc off \
+            --aliases off

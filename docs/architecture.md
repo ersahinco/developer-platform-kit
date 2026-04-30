@@ -59,7 +59,7 @@ request.
 - `READ_MODE` (`legacy` → `new`) controls which table serves reads. Decoupled from `WRITE_MODE` so the read cutover can be verified and rolled back independently.
 - Both flags are stored in `app_runtime_config` and cached with a 5 s TTL — no redeploy needed to advance or roll back a phase.
 - `ConfigStore` port + `SQLAlchemyConfigStore` keep the flag persistence behind an abstraction so the repository never imports HTTP or config concerns directly.
-- `/admin/read-mode` and `/admin/write-mode` expose the switches as HTTP endpoints for the runbook and `scripts/set_runtime_config.py`.
+- `/admin/read-mode` and `/admin/write-mode` expose the switches as HTTP endpoints for the runbook and CI `curl` commands.
 - `require_phase` markers in the test suite gate each test to the phases where its invariant holds, detected from the live `app_runtime_config` rows at session start.
 
 ### Relationship with Liquibase

@@ -90,6 +90,7 @@ Prerequisites:
 - Docker Desktop
 - Python 3.12+
 - `uv`
+- Optional quality tools for `make lint`: actionlint, lychee, hadolint, and gitleaks
 
 Start local Postgres and PgBouncer:
 
@@ -109,19 +110,20 @@ Start the app and smoke test it:
 ```bash
 docker compose build app
 docker compose up -d app
-uv run python scripts/smoke_test.py
+curl --fail --show-error http://localhost:8000/health
 ```
 
 Run tests:
 
 ```bash
 uv sync --all-packages --group dev --group test
-uv run python scripts/secret_scan.py .
-uv run python scripts/dependency_audit.py
-uv run ruff check apps/ packages/ tests/ scripts/
-uv run pyright
-bash -n scripts/*.sh
-python3 scripts/check_docs_links.py
+make secret-scan
+make dependency-audit
+make lint-app
+make lint-scripts
+make lint-docs
+make lint-workflows
+make lint-dockerfiles
 uv run pytest tests/ -v
 ```
 
@@ -141,7 +143,7 @@ and Grafana setup.
 
 GitHub Actions workflows keep security, app, and infrastructure concerns separate:
 
-- `security.yml`: high-confidence secret scanning and Python dependency audit on pull requests and `main`.
+- `security.yml`: standard secret scanning, docs/workflow/Dockerfile checks, and Python dependency audit on pull requests and `main`.
 - `codeql.yml`: GitHub-native Python SAST on pull requests and `main`.
 - `infra.yml`: Terraform fmt, validate, tflint, checkov, PR plan, and manual apply.
 - `app.yml`: local workload validation, image build, Trivy scan, ECR push, Liquibase task, ECS service deploy, worker task run, and data export task registration.
