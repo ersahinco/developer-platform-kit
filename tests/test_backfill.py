@@ -22,22 +22,20 @@ _JOB = "order_contact_email_backfill"
 
 def _run_worker(**extra_env):
     env = {**os.environ, **extra_env}
-    # Always derive BACKFILL_DATABASE_URL from DATABASE_URL so the worker subprocess
-    # reaches Postgres on localhost, not the Docker-internal hostname.
-    # conftest.py loads .env via load_dotenv which puts BACKFILL_DATABASE_URL=...@db:5432
-    # into os.environ — that Docker hostname is unreachable from the host machine.
-    # Overwrite unconditionally unless the caller explicitly passed one in extra_env.
-    if "BACKFILL_DATABASE_URL" not in extra_env:
+    # Always derive BACKFILL_DATABASE_URL from DATABASE_URL so the worker
+    # subprocess reaches the same Postgres host as the tests, but bypasses
+    # PgBouncer on the direct Postgres port.
+    if not env.get("BACKFILL_DATABASE_URL"):
         db_url = env.get(
             "DATABASE_URL",
             "postgresql://postgres:postgres@localhost:6432/aws_sdlc_containers",
         )
-        # Parse and replace host/port so the worker subprocess reaches Postgres
-        # on localhost rather than the Docker-internal hostname from .env.
         parsed = urlparse(db_url)
-        direct = parsed._replace(
-            netloc=f"{parsed.username}:{parsed.password}@localhost:5432"
-        )
+        host = parsed.hostname or "localhost"
+        if host in {"db", "pgbouncer"}:
+            host = "localhost"
+        auth = f"{parsed.username}:{parsed.password}@" if parsed.username else ""
+        direct = parsed._replace(netloc=f"{auth}{host}:5432")
         env["BACKFILL_DATABASE_URL"] = urlunparse(direct)
     # uv run --package resolves the worker's deps from the workspace without
     # hardcoding a venv path. The module entrypoint matches the Docker container.

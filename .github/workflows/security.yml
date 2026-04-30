@@ -15,18 +15,18 @@ jobs:
     timeout-minutes: 10
 
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
         with:
           fetch-depth: 0
 
-      - uses: astral-sh/setup-uv@v4
+      - uses: astral-sh/setup-uv@v8
         with:
-          version: "0.6.16"
+          version: "0.11.8"
           enable-cache: true
 
-      - uses: actions/setup-python@v5
+      - uses: actions/setup-python@v6
         with:
-          python-version: "3.12"
+          python-version: "3.14"
 
       - name: Install dependencies
         run: uv sync --frozen --all-packages --group dev --group test
@@ -35,7 +35,7 @@ jobs:
         run: |
           docker run --rm \
             -v "${{ github.workspace }}:/repo" \
-            ghcr.io/gitleaks/gitleaks:latest dir /repo --redact --no-banner
+            ghcr.io/gitleaks/gitleaks:v8.30.1 dir /repo --redact --no-banner
 
       - name: Check Markdown links
         uses: lycheeverse/lychee-action@v2
@@ -47,14 +47,14 @@ jobs:
           docker run --rm \
             -v "${{ github.workspace }}:/repo" \
             -w /repo \
-            rhysd/actionlint:latest
+            rhysd/actionlint:1.7.12
 
       - name: Lint Dockerfiles
         run: |
           docker run --rm \
             -v "${{ github.workspace }}:/repo" \
             -w /repo \
-            hadolint/hadolint:latest-debian \
+            hadolint/hadolint:v2.14.0-debian \
             db/Dockerfile apps/api/Dockerfile apps/backfill-worker/Dockerfile apps/data-export-job/Dockerfile
 
       - name: Run Python dependency audit

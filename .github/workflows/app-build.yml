@@ -51,7 +51,7 @@ jobs:
 
     services:
       postgres:
-        image: postgres:16
+        image: postgres:18.3
         env:
           POSTGRES_DB: aws_sdlc_containers
           POSTGRES_USER: postgres
@@ -87,11 +87,11 @@ jobs:
       SEED_NUM_ORDERS: 1000
 
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
 
-      - uses: astral-sh/setup-uv@v4
+      - uses: astral-sh/setup-uv@v8
         with:
-          version: "0.6.16"
+          version: "0.11.8"
           enable-cache: true
 
       - name: Install dependencies
@@ -113,10 +113,10 @@ jobs:
 
       - name: Run Liquibase migrations
         run: |
-          docker pull liquibase/liquibase:4.33.0
+          docker build -t aws-sdlc-containers-liquibase:test db/
           docker run --rm --network host \
             -v "${{ github.workspace }}/db:/liquibase/db" \
-            liquibase/liquibase:4.33.0 \
+            aws-sdlc-containers-liquibase:test \
               --changelog-file=changelog/db.changelog-master.yaml \
               --search-path=/liquibase/db \
               --url=jdbc:postgresql://localhost:5432/aws_sdlc_containers \
@@ -156,7 +156,7 @@ jobs:
       actions: read
 
     steps:
-      - uses: actions/github-script@v7
+      - uses: actions/github-script@v9
         with:
           script: |
             if (context.eventName !== 'push') {
@@ -252,10 +252,10 @@ jobs:
       image_tag: sha-${{ github.sha }}
 
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
 
       - name: Configure AWS credentials
-        uses: aws-actions/configure-aws-credentials@v4
+        uses: aws-actions/configure-aws-credentials@v6
         with:
           role-to-assume: ${{ secrets.AWS_ROLE_ARN }}
           aws-region: ${{ env.AWS_REGION }}
@@ -286,7 +286,7 @@ jobs:
             docker run --rm \
               -v /var/run/docker.sock:/var/run/docker.sock \
               -v "$HOME/.cache/trivy:/root/.cache/trivy" \
-              ghcr.io/aquasecurity/trivy:0.69.3 image \
+              ghcr.io/aquasecurity/trivy:0.70.0 image \
               --exit-code 1 --severity CRITICAL --no-progress "edoburu/pgbouncer:${PGBOUNCER_TAG}"
             docker tag  "edoburu/pgbouncer:${PGBOUNCER_TAG}" \
                         "${{ env.ECR_REGISTRY }}/${{ env.STACK_NAME }}/pgbouncer:${PGBOUNCER_TAG}"
@@ -299,7 +299,7 @@ jobs:
             docker run --rm \
               -v /var/run/docker.sock:/var/run/docker.sock \
               -v "$HOME/.cache/trivy:/root/.cache/trivy" \
-              ghcr.io/aquasecurity/trivy:0.69.3 image \
+              ghcr.io/aquasecurity/trivy:0.70.0 image \
               --exit-code 1 --severity CRITICAL --no-progress "$1"
           }
           scan "${{ env.ECR_REGISTRY }}/${{ env.STACK_NAME }}/app:sha-${{ github.sha }}" &

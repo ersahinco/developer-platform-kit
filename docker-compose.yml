@@ -1,6 +1,6 @@
 services:
   db:
-    image: postgres:16
+    image: postgres:18.3
     environment:
       POSTGRES_DB: ${POSTGRES_DB:-aws_sdlc_containers}
       POSTGRES_USER: ${POSTGRES_USER:-postgres}
@@ -8,7 +8,7 @@ services:
     ports:
       - "${POSTGRES_PORT:-5432}:5432"
     volumes:
-      - db_data:/var/lib/postgresql/data
+      - db_data:/var/lib/postgresql
       - ./db/sql/bootstrap.sql:/docker-entrypoint-initdb.d/01-bootstrap.sql
       # observability.sql removed — backfill_progress is owned by Liquibase changeset 003.
     healthcheck:
@@ -50,7 +50,9 @@ services:
       start_period: 5s
 
   liquibase:
-    image: liquibase/liquibase:4.33.0
+    build:
+      context: db
+    image: aws-sdlc-containers-liquibase:local
     volumes:
       - ./db:/liquibase/db
     environment:
@@ -111,7 +113,7 @@ services:
       - data
 
   pgadmin:
-    image: dpage/pgadmin4:latest
+    image: dpage/pgadmin4:9.14.0
     environment:
       PGADMIN_DEFAULT_EMAIL: ${PGADMIN_DEFAULT_EMAIL:-admin@local.dev}
       PGADMIN_DEFAULT_PASSWORD: ${PGADMIN_DEFAULT_PASSWORD:-admin}
@@ -129,7 +131,7 @@ services:
       - tools
 
   prometheus:
-    image: prom/prometheus:${PROMETHEUS_TAG:-v2.55.1}
+    image: prom/prometheus:${PROMETHEUS_TAG:-v3.11.2}
     command:
       - --config.file=/etc/prometheus/prometheus.yml
       - --storage.tsdb.path=/prometheus
@@ -145,7 +147,7 @@ services:
       - observability
 
   loki:
-    image: grafana/loki:${LOKI_TAG:-3.2.1}
+    image: grafana/loki:${LOKI_TAG:-3.6.10}
     command: -config.file=/etc/loki/loki.yml
     volumes:
       - ./docker/observability/loki/loki.yml:/etc/loki/loki.yml:ro
@@ -156,7 +158,7 @@ services:
       - observability
 
   promtail:
-    image: grafana/promtail:${PROMTAIL_TAG:-3.2.1}
+    image: grafana/promtail:${PROMTAIL_TAG:-3.6.10}
     command: -config.file=/etc/promtail/promtail.yml
     volumes:
       - ./docker/observability/promtail/promtail.yml:/etc/promtail/promtail.yml:ro
@@ -168,7 +170,7 @@ services:
       - observability
 
   grafana:
-    image: grafana/grafana:${GRAFANA_TAG:-11.3.0}
+    image: grafana/grafana:${GRAFANA_TAG:-13.0.1}
     environment:
       GF_SECURITY_ADMIN_USER: ${GRAFANA_ADMIN_USER:-admin}
       GF_SECURITY_ADMIN_PASSWORD: ${GRAFANA_ADMIN_PASSWORD:-admin}

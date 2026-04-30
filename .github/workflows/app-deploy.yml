@@ -31,7 +31,7 @@ jobs:
     environment: aws
 
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
 
       - name: Validate image tag
         run: |
@@ -40,7 +40,7 @@ jobs:
             *) echo "image_tag must start with sha-" >&2; exit 1 ;;
           esac
 
-      - uses: aws-actions/configure-aws-credentials@v4
+      - uses: aws-actions/configure-aws-credentials@v6
         with:
           role-to-assume: ${{ secrets.AWS_ROLE_ARN }}
           aws-region: ${{ env.AWS_REGION }}
@@ -59,7 +59,7 @@ jobs:
 
       - name: Render liquibase task definition
         id: render-liquibase
-        uses: aws-actions/amazon-ecs-render-task-definition@v1
+        uses: aws-actions/amazon-ecs-render-task-definition@v1.8.4
         with:
           task-definition-family: aws-sdlc-containers-liquibase
           container-name: liquibase
@@ -88,7 +88,7 @@ jobs:
     environment: aws
 
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
 
       - name: Validate image tag
         run: |
@@ -97,7 +97,7 @@ jobs:
             *) echo "image_tag must start with sha-" >&2; exit 1 ;;
           esac
 
-      - uses: aws-actions/configure-aws-credentials@v4
+      - uses: aws-actions/configure-aws-credentials@v6
         with:
           role-to-assume: ${{ secrets.AWS_ROLE_ARN }}
           aws-region: ${{ env.AWS_REGION }}
@@ -108,7 +108,7 @@ jobs:
 
       - name: Render app task definition
         id: render-app
-        uses: aws-actions/amazon-ecs-render-task-definition@v1
+        uses: aws-actions/amazon-ecs-render-task-definition@v1.8.4
         with:
           task-definition-family: aws-sdlc-containers
           container-name: app
@@ -134,7 +134,7 @@ jobs:
 
       - name: Render worker task definition
         id: render-worker
-        uses: aws-actions/amazon-ecs-render-task-definition@v1
+        uses: aws-actions/amazon-ecs-render-task-definition@v1.8.4
         with:
           task-definition-family: aws-sdlc-containers-worker
           container-name: worker
@@ -146,7 +146,7 @@ jobs:
 
       - name: Render data export task definition
         id: render-data-export
-        uses: aws-actions/amazon-ecs-render-task-definition@v1
+        uses: aws-actions/amazon-ecs-render-task-definition@v1.8.4
         with:
           task-definition-family: aws-sdlc-containers-data-export-job
           container-name: data-export-job

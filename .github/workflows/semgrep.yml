@@ -30,10 +30,10 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 15
     container:
-      image: semgrep/semgrep:1.160.0
+      image: semgrep/semgrep:1.161.0
 
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
 
       - name: Run Semgrep Community Edition
         run: semgrep scan --config auto apps/ packages/ scripts/

@@ -1,9 +1,12 @@
-FROM liquibase/liquibase:4.33.0
+FROM liquibase/liquibase:5.0.2
+
+ARG POSTGRESQL_JDBC_VERSION=42.7.11
 
 # lpm is a CLI tool for installing Liquibase extensions — never used at runtime.
 # Removing it eliminates CVE-2024-24790 and CVE-2025-68121 in its bundled Go stdlib.
 # Must switch to root temporarily — the base image runs as a non-root user.
 USER root
+ADD --chmod=0644 https://repo.maven.apache.org/maven2/org/postgresql/postgresql/${POSTGRESQL_JDBC_VERSION}/postgresql-${POSTGRESQL_JDBC_VERSION}.jar /liquibase/lib/postgresql.jar
 RUN rm -f /liquibase/bin/lpm
 USER liquibase
 

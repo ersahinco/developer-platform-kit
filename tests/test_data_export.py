@@ -21,15 +21,17 @@ def _direct_database_url(env: dict[str, str]) -> str:
         "postgresql://postgres:postgres@localhost:6432/aws_sdlc_containers",
     )
     parsed = urlparse(db_url)
-    direct = parsed._replace(
-        netloc=f"{parsed.username}:{parsed.password}@localhost:5432"
-    )
+    host = parsed.hostname or "localhost"
+    if host in {"db", "pgbouncer"}:
+        host = "localhost"
+    auth = f"{parsed.username}:{parsed.password}@" if parsed.username else ""
+    direct = parsed._replace(netloc=f"{auth}{host}:5432")
     return urlunparse(direct)
 
 
 def _run_export(output_dir: Path, run_id: str, export_date: str):
     env = {**os.environ}
-    env["DATA_EXPORT_DATABASE_URL"] = _direct_database_url(env)
+    env.setdefault("DATA_EXPORT_DATABASE_URL", _direct_database_url(env))
     env["DATA_EXPORT_OUTPUT_DIR"] = str(output_dir)
     env["DATA_EXPORT_RUN_ID"] = run_id
     env["DATA_EXPORT_DATE"] = export_date
