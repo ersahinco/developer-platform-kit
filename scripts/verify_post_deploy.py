@@ -31,8 +31,9 @@ import subprocess
 import sys
 from dataclasses import dataclass
 from typing import Any
-from urllib.error import HTTPError, URLError
-from urllib.request import Request, urlopen
+from urllib.parse import urlparse
+
+import httpx
 
 
 @dataclass
@@ -51,17 +52,29 @@ def _headers(accept: str | None = None) -> dict[str, str]:
     return headers
 
 
+def _validated_base_url(base_url: str) -> str:
+    parsed = urlparse(base_url)
+    if parsed.scheme not in {"http", "https"} or not parsed.netloc:
+        raise ValueError("BASE_URL must be an absolute http:// or https:// URL")
+    return base_url.rstrip("/")
+
+
 def _get_json(base_url: str, path: str) -> tuple[int, dict[str, Any]]:
-    request = Request(f"{base_url}{path}", headers=_headers("application/json"))
-    with urlopen(request, timeout=10) as response:
-        body = response.read().decode("utf-8")
-        return response.status, json.loads(body)
+    response = httpx.get(
+        f"{_validated_base_url(base_url)}{path}",
+        headers=_headers("application/json"),
+        timeout=10,
+    )
+    return response.status_code, response.json()
 
 
 def _get_text(base_url: str, path: str) -> tuple[int, str]:
-    request = Request(f"{base_url}{path}", headers=_headers())
-    with urlopen(request, timeout=10) as response:
-        return response.status, response.read().decode("utf-8")
+    response = httpx.get(
+        f"{_validated_base_url(base_url)}{path}",
+        headers=_headers(),
+        timeout=10,
+    )
+    return response.status_code, response.text
 
 
 def _check_http(base_url: str) -> list[CheckResult]:
@@ -75,7 +88,7 @@ def _check_http(base_url: str) -> list[CheckResult]:
                 f"/health returned {status_code} with status={health.get('status')!r}",
             )
         )
-    except (HTTPError, URLError, TimeoutError, json.JSONDecodeError) as exc:
+    except (httpx.HTTPError, ValueError, json.JSONDecodeError) as exc:
         results.append(CheckResult(False, f"/health request failed: {exc}"))
 
     try:
@@ -89,7 +102,7 @@ def _check_http(base_url: str) -> list[CheckResult]:
                 f"/ready returned {status_code} with status={ready.get('status')!r} database={checks.get('database')!r}",
             )
         )
-    except (HTTPError, URLError, TimeoutError, json.JSONDecodeError) as exc:
+    except (httpx.HTTPError, ValueError, json.JSONDecodeError) as exc:
         results.append(CheckResult(False, f"/ready request failed: {exc}"))
 
     try:
@@ -102,7 +115,7 @@ def _check_http(base_url: str) -> list[CheckResult]:
                 f"/metrics returned {status_code} request_count={has_request_count} request_latency={has_request_latency}",
             )
         )
-    except (HTTPError, URLError, TimeoutError) as exc:
+    except (httpx.HTTPError, ValueError) as exc:
         results.append(CheckResult(False, f"/metrics request failed: {exc}"))
 
     return results
@@ -113,7 +126,7 @@ def _check_runtime_mode(
 ) -> CheckResult:
     try:
         status_code, response = _get_json(base_url, path)
-    except (HTTPError, URLError, TimeoutError, json.JSONDecodeError) as exc:
+    except (httpx.HTTPError, ValueError, json.JSONDecodeError) as exc:
         return CheckResult(False, f"{path} request failed: {exc}")
 
     mode = response.get("mode")
@@ -139,7 +152,11 @@ def _check_ecs() -> list[CheckResult]:
     cluster = os.environ.get("ECS_CLUSTER")
     service_name = os.environ.get("ECS_SERVICE")
     if not cluster and not service_name:
-        return [CheckResult(True, "ECS checks skipped; ECS_CLUSTER and ECS_SERVICE are not set")]
+        return [
+            CheckResult(
+                True, "ECS checks skipped; ECS_CLUSTER and ECS_SERVICE are not set"
+            )
+        ]
     if not cluster or not service_name:
         return [CheckResult(False, "ECS_CLUSTER and ECS_SERVICE must be set together")]
 
@@ -151,7 +168,14 @@ def _check_ecs() -> list[CheckResult]:
 
     try:
         service_response = _aws_json(
-            ["ecs", "describe-services", "--cluster", cluster, "--services", service_name],
+            [
+                "ecs",
+                "describe-services",
+                "--cluster",
+                cluster,
+                "--services",
+                service_name,
+            ],
             region,
         )
         services = service_response.get("services", [])
@@ -166,10 +190,20 @@ def _check_ecs() -> list[CheckResult]:
         )
 
         task_response = _aws_json(
-            ["ecs", "describe-task-definition", "--task-definition", task_definition_arn],
+            [
+                "ecs",
+                "describe-task-definition",
+                "--task-definition",
+                task_definition_arn,
+            ],
             region,
         )
-    except (KeyError, StopIteration, subprocess.CalledProcessError, json.JSONDecodeError) as exc:
+    except (
+        KeyError,
+        StopIteration,
+        subprocess.CalledProcessError,
+        json.JSONDecodeError,
+    ) as exc:
         return [CheckResult(False, f"ECS metadata check failed: {exc}")]
 
     task_definition = task_response["taskDefinition"]

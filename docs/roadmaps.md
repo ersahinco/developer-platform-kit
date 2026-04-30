@@ -23,7 +23,7 @@ order/customer workload:
   pressure, data export failures, app dependency-readiness drills, and order
   event queue failures.
 - Local and CI checks for Ruff, Pyright, pytest, Terraform, TFLint, Checkov,
-  CodeQL, Trivy, dependency audit, secret scanning, docs links, workflow
+  Semgrep CE, Trivy, dependency audit, secret scanning, docs links, workflow
   linting, Dockerfile linting, and shell syntax.
 
 The reference workload remains the zero-downtime schema evolution from
@@ -74,11 +74,12 @@ switch reads, new writes, and contract.
 | 2026-04-29 | Add folders only with real content. | Empty `ops/`, `security/`, `deploy/`, or package placeholders create ownership noise. |
 | 2026-04-29 | Use one SQS-backed order event before adding a consumer app. | The event, idempotency key, queue, DLQ, metrics, tests, and runbook prove async behavior without a placeholder runtime. |
 | 2026-04-30 | Prefer maintained tooling over bespoke quality scripts. | Standard tools reduce cognitive load and avoid custom mini-linters. |
+| 2026-04-30 | Use split manual workflows for cloud changes. | Terraform plans and app build/scan results should be reviewed before a separate apply/deploy trigger, without depending on paid environment reviewer gates. |
 
 ## Recent Changelog
 
 | Date | Work | Verification |
 |---|---|---|
-| 2026-04-29 | Added local observability, data export, operator runbooks, CloudWatch alarms, CodeQL, Dependabot, Trivy, and repo-wide Pyright. | Ran focused tests, Ruff, Pyright, Terraform fmt/validate, TFLint, Checkov, and docs checks as relevant. |
+| 2026-04-29 | Added local observability, data export, operator runbooks, CloudWatch alarms, SAST, Dependabot, Trivy, and repo-wide Pyright. | Ran focused tests, Ruff, Pyright, Terraform fmt/validate, TFLint, Checkov, and docs checks as relevant. |
 | 2026-04-29 | Added dependency-readiness drill, post-deploy verification, queue-backed order events, DLQ alarm, metrics, and order event runbook. | Ran Ruff, Pyright, focused pytest, Terraform fmt/validate, TFLint, Checkov, workflow/docs checks, and whitespace checks. |
 | 2026-04-30 | Replaced bespoke quality scripts with standard tools and removed low-value wrapper tests. | Ran `bash -n`, `git diff --check`, Ruff, Pyright, dependency audit, and pytest. |

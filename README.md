@@ -37,8 +37,8 @@ operator workflow changes.
 | Data export flow | Local and scheduled ECS export job with raw output, manifest, and S3 data hub writes | `apps/data-export-job/src/aws_sdlc_data_export_job/main.py`, `infra/base_data_hub_s3.tf`, `infra/support_jobs.tf` |
 | Runtime config | DB-backed `WRITE_MODE` and `READ_MODE` switches | `packages/adapters/src/aws_sdlc_adapters/db/repository.py` |
 | Connection pooling | PgBouncer in transaction mode | `docker-compose.yml`, `db/pgbouncer/pgbouncer.ini` |
-| ECS deployment | Rolling app deploy plus one-off Liquibase and worker tasks | `.github/workflows/app.yml`, `infra/support_jobs.tf` |
-| Infrastructure delivery | Terraform validate, plan, and manual apply | `.github/workflows/infra.yml`, `infra/` |
+| ECS deployment | Build/scan approval followed by rolling app deploy plus one-off Liquibase and worker tasks | `.github/workflows/app-build.yml`, `.github/workflows/app-deploy.yml`, `infra/support_jobs.tf` |
+| Infrastructure delivery | Terraform validate, reviewed plan, and separate manual apply | `.github/workflows/infra-plan.yml`, `.github/workflows/infra-apply.yml`, `infra/` |
 
 ## Reference Workload
 
@@ -144,12 +144,13 @@ and Grafana setup.
 GitHub Actions workflows keep security, app, and infrastructure concerns separate:
 
 - `security.yml`: standard secret scanning, docs/workflow/Dockerfile checks, and Python dependency audit on pull requests and `main`.
-- `codeql.yml`: GitHub-native Python SAST on pull requests and `main`.
-- `infra.yml`: Terraform fmt, validate, tflint, checkov, PR plan, and manual apply.
-- `app.yml`: local workload validation, image build, Trivy scan, ECR push, Liquibase task, ECS service deploy, worker task run, and data export task registration.
+- `semgrep.yml`: Semgrep Community Edition SAST on pull requests and `main`.
+- `infra-plan.yml` / `infra-apply.yml`: Terraform fmt, validate, tflint, checkov, reviewed plan artifact, and separate manual apply of the reviewed plan.
+- `app-build.yml` / `app-deploy.yml`: local workload validation, image build, Trivy scan, ECR push, then separate manual migration, ECS service deploy, verification, worker task run, and data export task registration.
 
-Cloud-changing jobs are manual through `workflow_dispatch` and require typed
-confirmation. AWS authentication uses GitHub OIDC, not long-lived access keys.
+Cloud-changing jobs are split so review happens between plan/build-scan and
+apply/deploy, without requiring paid environment reviewer gates. AWS
+authentication uses GitHub OIDC, not long-lived access keys.
 
 ## Later Phases
 

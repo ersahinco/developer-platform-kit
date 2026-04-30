@@ -48,9 +48,9 @@ exports `order_contact_email` to local filesystem paths that mirror the S3
 convention, then writes a manifest only after the CSV succeeds and the manifest
 has been validated against the raw file.
 
-The GitHub Actions app workflow validates the job, builds and scans its image,
-pushes it to ECR, and registers the latest task definition revision during
-manual deploys. The scheduled task owns recurring exports; the normal app
+The GitHub Actions App Build workflow validates the job, builds and scans its
+image, pushes it to ECR, and App Deploy registers the latest task definition
+revision during manual deploys. The scheduled task owns recurring exports; the normal app
 deploy does not run an export immediately.
 
 Run it locally through Docker Compose:

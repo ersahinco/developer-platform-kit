@@ -26,7 +26,7 @@ This project should demonstrate a complete but lean DevOps toolchain around ECS.
 | AWS authentication | GitHub OIDC role assumption |
 | Secret scanning | Gitleaks |
 | Python dependency audit | Direct `pip-audit` against a frozen `uv.lock` export |
-| SAST | GitHub CodeQL for Python |
+| SAST | Semgrep Community Edition |
 | Image registry | ECR |
 | Image security | Trivy before push, ECR scanning configured in Terraform |
 | Runtime | ECS Fargate |
@@ -35,7 +35,8 @@ This project should demonstrate a complete but lean DevOps toolchain around ECS.
 
 - Keep `.pre-commit-config.yaml` aligned with `make lint` and `make fmt`.
 - Keep all quality gates runnable locally and in CI.
-- Keep deployment confirmation manual for AWS-changing workflows.
+- Keep AWS-changing workflows split so humans review Terraform plan output or
+  build/scan results before triggering apply or deploy.
 - Document Bitbucket Pipelines equivalents without maintaining duplicate pipelines.
 - Keep scripts small, explicit, and easy to inspect.
 
@@ -65,11 +66,12 @@ Pre-commit runs lightweight file hygiene, Ruff, Terraform fmt, shell script
 syntax checks, standard docs/workflow/Dockerfile checks, Gitleaks, and Pyright.
 Pyright is intentionally included because type regressions are cheap to catch
 before commit and have already been a repo-wide quality goal. Network-backed or
-slower checks stay in Make and CI: dependency audit, TFLint, Checkov, CodeQL,
+slower checks stay in Make and CI: dependency audit, TFLint, Checkov, Semgrep,
 Terraform validate/plan, Docker builds, Trivy, and pytest.
 
-CodeQL runs in GitHub Actions because its value is in GitHub code scanning
-annotations and security tab results, not as a local pre-commit hook.
+Semgrep Community Edition runs in GitHub Actions as the repo's SAST gate. It is
+kept out of pre-commit because full-code SAST is slower than the local edit loop
+and should run consistently in CI.
 
 SBOM generation remains deferred until a CI upload, registry attachment,
 release artifact, or compliance process consumes it. Generating an unused SBOM
@@ -82,8 +84,8 @@ there is a real cross-tool exception process. Do not add
 Dependabot uses the `uv` ecosystem for Python dependency updates and the
 `github-actions` ecosystem for workflow action updates.
 
-The app workflow runs Trivy before pushing first-party app, worker, data export,
-Liquibase, and mirrored PgBouncer images to ECR. Terraform also enables ECR
+The App Build workflow runs Trivy before pushing first-party app, worker, data
+export, Liquibase, and mirrored PgBouncer images to ECR. Terraform also enables ECR
 scan-on-push for each managed repository.
 
 Base image digest pinning remains deferred until automated digest renewal is
@@ -113,6 +115,8 @@ Bitbucket Pipelines as follows:
 
 - `pull_request` workflows map to pull request pipelines.
 - `workflow_dispatch` maps to manually triggered custom pipelines.
+- Separate plan/build and apply/deploy workflows map to manual approval steps
+  without requiring paid environment reviewer features.
 - GitHub Environments map to deployment environments.
 - GitHub OIDC role assumption maps to Bitbucket OIDC federation with AWS STS.
 - Reusable workflow steps map to YAML anchors or shared pipe definitions.

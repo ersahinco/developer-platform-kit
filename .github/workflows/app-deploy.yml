@@ -1,0 +1,168 @@
+name: App Deploy
+
+on:
+  workflow_dispatch:
+    inputs:
+      image_tag:
+        description: "Approved immutable image tag from the App build run, for example sha-<commit>."
+        required: true
+        type: string
+      confirm_deploy:
+        description: "Type deploy to confirm migration, deployment, verification, and worker run."
+        required: true
+        type: string
+
+env:
+  AWS_REGION: eu-central-1
+  ECR_REGISTRY: 691627364817.dkr.ecr.eu-central-1.amazonaws.com
+  STACK_NAME: aws-sdlc-containers
+  ROOT_DOMAIN: ersahinco-sandbox.eu
+
+permissions:
+  id-token: write
+  contents: read
+
+jobs:
+  migrate:
+    name: Migrate
+    if: inputs.confirm_deploy == 'deploy'
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    environment: aws
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Validate image tag
+        run: |
+          case "${{ inputs.image_tag }}" in
+            sha-*) ;;
+            *) echo "image_tag must start with sha-" >&2; exit 1 ;;
+          esac
+
+      - uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ secrets.AWS_ROLE_ARN }}
+          aws-region: ${{ env.AWS_REGION }}
+
+      - name: Verify approved images exist
+        run: |
+          for repo in app worker data-export-job liquibase; do
+            aws ecr describe-images \
+              --repository-name "${{ env.STACK_NAME }}/${repo}" \
+              --image-ids "imageTag=${{ inputs.image_tag }}"
+          done
+
+      - name: Resolve network config
+        id: net
+        run: scripts/ci_resolve_ecs_network.sh "${{ env.STACK_NAME }}"
+
+      - name: Render liquibase task definition
+        id: render-liquibase
+        uses: aws-actions/amazon-ecs-render-task-definition@v1
+        with:
+          task-definition-family: aws-sdlc-containers-liquibase
+          container-name: liquibase
+          image: ${{ env.ECR_REGISTRY }}/${{ env.STACK_NAME }}/liquibase:${{ inputs.image_tag }}
+
+      - name: Register liquibase task definition
+        id: register-liquibase
+        run: scripts/ci_register_ecs_task_definition.sh "${{ steps.render-liquibase.outputs.task-definition }}"
+
+      - name: Run Liquibase
+        run: |
+          TASK_ARN=$(scripts/ci_run_ecs_task.sh \
+            aws-sdlc-containers \
+            "${{ steps.register-liquibase.outputs.task_def_arn }}" \
+            "${{ steps.net.outputs.subnet_id }}" \
+            "${{ steps.net.outputs.sg_id }}")
+          aws ecs wait tasks-stopped --cluster aws-sdlc-containers --tasks "$TASK_ARN"
+          scripts/ci_assert_ecs_task_succeeded.sh aws-sdlc-containers "$TASK_ARN" Liquibase
+
+  deploy:
+    name: Deploy
+    needs: migrate
+    if: inputs.confirm_deploy == 'deploy'
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    environment: aws
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Validate image tag
+        run: |
+          case "${{ inputs.image_tag }}" in
+            sha-*) ;;
+            *) echo "image_tag must start with sha-" >&2; exit 1 ;;
+          esac
+
+      - uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ secrets.AWS_ROLE_ARN }}
+          aws-region: ${{ env.AWS_REGION }}
+
+      - name: Resolve network config
+        id: net
+        run: scripts/ci_resolve_ecs_network.sh "${{ env.STACK_NAME }}"
+
+      - name: Render app task definition
+        id: render-app
+        uses: aws-actions/amazon-ecs-render-task-definition@v1
+        with:
+          task-definition-family: aws-sdlc-containers
+          container-name: app
+          image: ${{ env.ECR_REGISTRY }}/${{ env.STACK_NAME }}/app:${{ inputs.image_tag }}
+
+      - name: Deploy app service
+        run: scripts/ci_deploy_ecs_service.sh aws-sdlc-containers app "${{ steps.render-app.outputs.task-definition }}"
+
+      - name: Verify deployed app
+        env:
+          BASE_URL: https://api.${{ env.ROOT_DOMAIN }}
+          ECS_CLUSTER: aws-sdlc-containers
+          ECS_SERVICE: app
+          EXPECTED_TASK_FAMILY: aws-sdlc-containers
+          EXPECTED_IMAGE_TAG: ${{ inputs.image_tag }}
+        run: |
+          TOKEN=$(aws secretsmanager get-secret-value \
+            --secret-id aws-sdlc-containers/api-token \
+            --region ${{ env.AWS_REGION }} \
+            --query SecretString \
+            --output text)
+          TOKEN="$TOKEN" python3 scripts/verify_post_deploy.py
+
+      - name: Render worker task definition
+        id: render-worker
+        uses: aws-actions/amazon-ecs-render-task-definition@v1
+        with:
+          task-definition-family: aws-sdlc-containers-worker
+          container-name: worker
+          image: ${{ env.ECR_REGISTRY }}/${{ env.STACK_NAME }}/worker:${{ inputs.image_tag }}
+
+      - name: Register worker task definition
+        id: register-worker
+        run: scripts/ci_register_ecs_task_definition.sh "${{ steps.render-worker.outputs.task-definition }}"
+
+      - name: Render data export task definition
+        id: render-data-export
+        uses: aws-actions/amazon-ecs-render-task-definition@v1
+        with:
+          task-definition-family: aws-sdlc-containers-data-export-job
+          container-name: data-export-job
+          image: ${{ env.ECR_REGISTRY }}/${{ env.STACK_NAME }}/data-export-job:${{ inputs.image_tag }}
+
+      - name: Register data export task definition
+        run: scripts/ci_register_ecs_task_definition.sh "${{ steps.render-data-export.outputs.task-definition }}"
+
+      - name: Run backfill worker
+        run: |
+          TASK_ARN=$(scripts/ci_run_ecs_task.sh \
+            aws-sdlc-containers \
+            "${{ steps.register-worker.outputs.task_def_arn }}" \
+            "${{ steps.net.outputs.subnet_id }}" \
+            "${{ steps.net.outputs.sg_id }}")
+          echo "Backfill task: $TASK_ARN"
+          echo "Monitor: CloudWatch Logs /ecs/aws-sdlc-containers/worker"
+          scripts/ci_poll_ecs_task_until_stopped.sh aws-sdlc-containers "$TASK_ARN" Worker
+          scripts/ci_assert_ecs_task_succeeded.sh aws-sdlc-containers "$TASK_ARN" "Backfill worker"

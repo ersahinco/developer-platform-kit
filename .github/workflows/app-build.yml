@@ -1,15 +1,15 @@
-name: App
+name: App Build
 
 on:
   workflow_dispatch:
     inputs:
-      confirm_deploy:
-        description: "Type deploy to confirm build, migrate, deploy, and worker run against the shared AWS stack."
+      confirm_build:
+        description: "Type build to confirm build, scan, and push images for later deployment approval."
         required: true
         type: string
   pull_request:
     paths:
-      - ".github/workflows/app.yml"
+      - ".github/workflows/app-build.yml"
       - "apps/api/**"
       - "apps/backfill-worker/**"
       - "apps/data-export-job/**"
@@ -22,7 +22,7 @@ on:
   push:
     branches: [main]
     paths:
-      - ".github/workflows/app.yml"
+      - ".github/workflows/app-build.yml"
       - "apps/api/**"
       - "apps/backfill-worker/**"
       - "apps/data-export-job/**"
@@ -39,9 +39,8 @@ env:
   STACK_NAME: aws-sdlc-containers
   ROOT_DOMAIN: ersahinco-sandbox.eu
 
-# PRs and pushes validate the reference workload locally. Cloud deployment is
-# manual-only through workflow_dispatch and requires a typed confirmation so a
-# human can review before migrating or changing the shared stack.
+# PRs and pushes validate the reference workload locally. Manual runs build,
+# scan, and push immutable images only; deployment is a separate approval step.
 jobs:
   validate-and-test:
     name: Validate & Test
@@ -100,6 +99,7 @@ jobs:
 
       - name: Run Python static checks
         run: |
+          uv run ruff format --check apps/ packages/ tests/ scripts/
           uv run ruff check apps/ packages/ tests/ scripts/
           uv run pyright
 
@@ -149,8 +149,8 @@ jobs:
         if: always()
         run: pkill -f "uvicorn" || true
 
-  wait-for-infra:
-    name: Wait For Infra
+  wait-for-infra-plan:
+    name: Wait For Infra Plan
     runs-on: ubuntu-latest
     permissions:
       actions: read
@@ -166,7 +166,7 @@ jobs:
 
             const owner = context.repo.owner;
             const repo = context.repo.repo;
-            const workflow_id = 'infra.yml';
+            const workflow_id = 'infra-plan.yml';
             const head_sha = context.sha;
             const changedPaths = new Set(
               (context.payload.commits || []).flatMap(commit => [
@@ -176,11 +176,11 @@ jobs:
               ])
             );
             const requiresInfra = [...changedPaths].some(path =>
-              path === '.github/workflows/infra.yml' || path.startsWith('infra/')
+              path === '.github/workflows/infra-plan.yml' || path.startsWith('infra/')
             );
 
             if (!requiresInfra) {
-              core.info('This push did not touch infra; no infra workflow wait needed.');
+              core.info('This push did not touch infra; no infra plan wait needed.');
               return;
             }
 
@@ -209,7 +209,7 @@ jobs:
 
               const blocking = runs.filter(run => activeStatuses.has(run.status));
               if (blocking.length > 0) {
-                core.info(`Waiting for Infra workflow on ${head_sha} to finish...`);
+                core.info(`Waiting for Infra Plan workflow on ${head_sha} to finish...`);
                 await sleep(30000);
                 continue;
               }
@@ -219,7 +219,7 @@ jobs:
                 .sort((a, b) => new Date(b.created_at) - new Date(a.created_at));
 
               if (completed.length === 0) {
-                core.info(`Waiting for Infra workflow on ${head_sha} to be created...`);
+                core.info(`Waiting for Infra Plan workflow on ${head_sha} to be created...`);
                 await sleep(30000);
                 continue;
               }
@@ -227,21 +227,21 @@ jobs:
               const latest = completed[0];
               if (latest.conclusion !== 'success') {
                 core.setFailed(
-                  `Infra workflow for ${head_sha} concluded with ${latest.conclusion}.`
+                  `Infra Plan workflow for ${head_sha} concluded with ${latest.conclusion}.`
                 );
                 return;
               }
 
-              core.info('Infra workflow completed successfully for this commit.');
+              core.info('Infra Plan workflow completed successfully for this commit.');
               return;
             }
 
-            core.setFailed('Timed out waiting for Infra workflow to finish.');
+            core.setFailed('Timed out waiting for Infra Plan workflow to finish.');
 
   build-and-push:
-    name: Build & Push to ECR
-    needs: [validate-and-test, wait-for-infra]
-    if: github.event_name == 'workflow_dispatch' && inputs.confirm_deploy == 'deploy'
+    name: Build, Scan & Push to ECR
+    needs: [validate-and-test, wait-for-infra-plan]
+    if: github.event_name == 'workflow_dispatch' && inputs.confirm_build == 'build'
     runs-on: ubuntu-latest
     timeout-minutes: 30
     environment: aws
@@ -267,10 +267,10 @@ jobs:
         env:
           TAG: sha-${{ github.sha }}
         run: |
-          docker build -f apps/api/Dockerfile -t ${{ env.ECR_REGISTRY }}/${{ env.STACK_NAME }}/app:$TAG . &
-          docker build -f apps/backfill-worker/Dockerfile -t ${{ env.ECR_REGISTRY }}/${{ env.STACK_NAME }}/worker:$TAG . &
-          docker build -f apps/data-export-job/Dockerfile -t ${{ env.ECR_REGISTRY }}/${{ env.STACK_NAME }}/data-export-job:$TAG . &
-          docker build -t ${{ env.ECR_REGISTRY }}/${{ env.STACK_NAME }}/liquibase:$TAG db/ &
+          docker build -f apps/api/Dockerfile -t "${{ env.ECR_REGISTRY }}/${{ env.STACK_NAME }}/app:${TAG}" . &
+          docker build -f apps/backfill-worker/Dockerfile -t "${{ env.ECR_REGISTRY }}/${{ env.STACK_NAME }}/worker:${TAG}" . &
+          docker build -f apps/data-export-job/Dockerfile -t "${{ env.ECR_REGISTRY }}/${{ env.STACK_NAME }}/data-export-job:${TAG}" . &
+          docker build -t "${{ env.ECR_REGISTRY }}/${{ env.STACK_NAME }}/liquibase:${TAG}" db/ &
           wait
 
       - name: Mirror pgbouncer to ECR
@@ -279,18 +279,18 @@ jobs:
         run: |
           if aws ecr describe-images \
             --repository-name ${{ env.STACK_NAME }}/pgbouncer \
-            --image-ids imageTag=$PGBOUNCER_TAG 2>/dev/null; then
-            echo "pgbouncer:$PGBOUNCER_TAG already in ECR — skipping"
+            --image-ids "imageTag=${PGBOUNCER_TAG}" 2>/dev/null; then
+            echo "pgbouncer:${PGBOUNCER_TAG} already in ECR — skipping"
           else
-            docker pull edoburu/pgbouncer:$PGBOUNCER_TAG
+            docker pull "edoburu/pgbouncer:${PGBOUNCER_TAG}"
             docker run --rm \
               -v /var/run/docker.sock:/var/run/docker.sock \
               -v "$HOME/.cache/trivy:/root/.cache/trivy" \
               ghcr.io/aquasecurity/trivy:0.69.3 image \
-              --exit-code 1 --severity CRITICAL --no-progress edoburu/pgbouncer:$PGBOUNCER_TAG
-            docker tag  edoburu/pgbouncer:$PGBOUNCER_TAG \
-                        ${{ env.ECR_REGISTRY }}/${{ env.STACK_NAME }}/pgbouncer:$PGBOUNCER_TAG
-            docker push ${{ env.ECR_REGISTRY }}/${{ env.STACK_NAME }}/pgbouncer:$PGBOUNCER_TAG
+              --exit-code 1 --severity CRITICAL --no-progress "edoburu/pgbouncer:${PGBOUNCER_TAG}"
+            docker tag  "edoburu/pgbouncer:${PGBOUNCER_TAG}" \
+                        "${{ env.ECR_REGISTRY }}/${{ env.STACK_NAME }}/pgbouncer:${PGBOUNCER_TAG}"
+            docker push "${{ env.ECR_REGISTRY }}/${{ env.STACK_NAME }}/pgbouncer:${PGBOUNCER_TAG}"
           fi
 
       - name: Scan images
@@ -302,10 +302,10 @@ jobs:
               ghcr.io/aquasecurity/trivy:0.69.3 image \
               --exit-code 1 --severity CRITICAL --no-progress "$1"
           }
-          scan ${{ env.ECR_REGISTRY }}/${{ env.STACK_NAME }}/app:sha-${{ github.sha }} &
-          scan ${{ env.ECR_REGISTRY }}/${{ env.STACK_NAME }}/worker:sha-${{ github.sha }} &
-          scan ${{ env.ECR_REGISTRY }}/${{ env.STACK_NAME }}/data-export-job:sha-${{ github.sha }} &
-          scan ${{ env.ECR_REGISTRY }}/${{ env.STACK_NAME }}/liquibase:sha-${{ github.sha }} &
+          scan "${{ env.ECR_REGISTRY }}/${{ env.STACK_NAME }}/app:sha-${{ github.sha }}" &
+          scan "${{ env.ECR_REGISTRY }}/${{ env.STACK_NAME }}/worker:sha-${{ github.sha }}" &
+          scan "${{ env.ECR_REGISTRY }}/${{ env.STACK_NAME }}/data-export-job:sha-${{ github.sha }}" &
+          scan "${{ env.ECR_REGISTRY }}/${{ env.STACK_NAME }}/liquibase:sha-${{ github.sha }}" &
           wait
 
       - name: Push images
@@ -313,136 +313,19 @@ jobs:
           TAG: sha-${{ github.sha }}
         run: |
           for repo in app worker data-export-job liquibase; do
-            docker push ${{ env.ECR_REGISTRY }}/${{ env.STACK_NAME }}/${repo}:$TAG &
+            docker push "${{ env.ECR_REGISTRY }}/${{ env.STACK_NAME }}/${repo}:${TAG}" &
           done
           wait
 
-  migrate:
-    name: Migrate
-    needs: build-and-push
-    runs-on: ubuntu-latest
-    timeout-minutes: 15
-    environment: aws
-    permissions:
-      id-token: write
-      contents: read
-
-    steps:
-      - uses: actions/checkout@v4
-
-      - uses: aws-actions/configure-aws-credentials@v4
-        with:
-          role-to-assume: ${{ secrets.AWS_ROLE_ARN }}
-          aws-region: ${{ env.AWS_REGION }}
-
-      - name: Resolve network config
-        id: net
-        run: scripts/ci_resolve_ecs_network.sh "${{ env.STACK_NAME }}"
-
-      - name: Render liquibase task definition
-        id: render-liquibase
-        uses: aws-actions/amazon-ecs-render-task-definition@v1
-        with:
-          task-definition-family: aws-sdlc-containers-liquibase
-          container-name: liquibase
-          image: ${{ env.ECR_REGISTRY }}/${{ env.STACK_NAME }}/liquibase:${{ needs.build-and-push.outputs.image_tag }}
-
-      - name: Register liquibase task definition
-        id: register-liquibase
-        run: scripts/ci_register_ecs_task_definition.sh "${{ steps.render-liquibase.outputs.task-definition }}"
-
-      - name: Run Liquibase
-        # Schema changes are applied to the current database before the app deploy.
-        run: |
-          TASK_ARN=$(scripts/ci_run_ecs_task.sh \
-            aws-sdlc-containers \
-            "${{ steps.register-liquibase.outputs.task_def_arn }}" \
-            "${{ steps.net.outputs.subnet_id }}" \
-            "${{ steps.net.outputs.sg_id }}")
-          aws ecs wait tasks-stopped --cluster aws-sdlc-containers --tasks "$TASK_ARN"
-          scripts/ci_assert_ecs_task_succeeded.sh aws-sdlc-containers "$TASK_ARN" Liquibase
-
-  deploy:
-    name: Deploy
-    needs: [build-and-push, migrate]
-    runs-on: ubuntu-latest
-    timeout-minutes: 60
-    environment: aws
-    permissions:
-      id-token: write
-      contents: read
-
-    steps:
-      - uses: actions/checkout@v4
-
-      - uses: aws-actions/configure-aws-credentials@v4
-        with:
-          role-to-assume: ${{ secrets.AWS_ROLE_ARN }}
-          aws-region: ${{ env.AWS_REGION }}
-
-      - name: Resolve network config
-        id: net
-        run: scripts/ci_resolve_ecs_network.sh "${{ env.STACK_NAME }}"
-
-      - name: Render app task definition
-        id: render-app
-        uses: aws-actions/amazon-ecs-render-task-definition@v1
-        with:
-          task-definition-family: aws-sdlc-containers
-          container-name: app
-          image: ${{ env.ECR_REGISTRY }}/${{ env.STACK_NAME }}/app:${{ needs.build-and-push.outputs.image_tag }}
-
-      - name: Deploy app service
-        run: scripts/ci_deploy_ecs_service.sh aws-sdlc-containers app "${{ steps.render-app.outputs.task-definition }}"
-
-      - name: Verify deployed app
+      - name: Publish build summary
         env:
-          BASE_URL: https://api.${{ env.ROOT_DOMAIN }}
-          ECS_CLUSTER: aws-sdlc-containers
-          ECS_SERVICE: app
-          EXPECTED_TASK_FAMILY: aws-sdlc-containers
-          EXPECTED_IMAGE_TAG: ${{ needs.build-and-push.outputs.image_tag }}
+          TAG: sha-${{ github.sha }}
         run: |
-          TOKEN=$(aws secretsmanager get-secret-value \
-            --secret-id aws-sdlc-containers/api-token \
-            --region ${{ env.AWS_REGION }} \
-            --query SecretString \
-            --output text)
-          TOKEN="$TOKEN" python3 scripts/verify_post_deploy.py
-
-      - name: Render worker task definition
-        id: render-worker
-        uses: aws-actions/amazon-ecs-render-task-definition@v1
-        with:
-          task-definition-family: aws-sdlc-containers-worker
-          container-name: worker
-          image: ${{ env.ECR_REGISTRY }}/${{ env.STACK_NAME }}/worker:${{ needs.build-and-push.outputs.image_tag }}
-
-      - name: Register worker task definition
-        id: register-worker
-        run: scripts/ci_register_ecs_task_definition.sh "${{ steps.render-worker.outputs.task-definition }}"
-
-      - name: Render data export task definition
-        id: render-data-export
-        uses: aws-actions/amazon-ecs-render-task-definition@v1
-        with:
-          task-definition-family: aws-sdlc-containers-data-export-job
-          container-name: data-export-job
-          image: ${{ env.ECR_REGISTRY }}/${{ env.STACK_NAME }}/data-export-job:${{ needs.build-and-push.outputs.image_tag }}
-
-      - name: Register data export task definition
-        # EventBridge Scheduler targets the task family and picks up this latest revision.
-        run: scripts/ci_register_ecs_task_definition.sh "${{ steps.render-data-export.outputs.task-definition }}"
-
-      - name: Run backfill worker
-        # The backfill stays a separate one-off task; it is not folded into the app service.
-        run: |
-          TASK_ARN=$(scripts/ci_run_ecs_task.sh \
-            aws-sdlc-containers \
-            "${{ steps.register-worker.outputs.task_def_arn }}" \
-            "${{ steps.net.outputs.subnet_id }}" \
-            "${{ steps.net.outputs.sg_id }}")
-          echo "Backfill task: $TASK_ARN"
-          echo "Monitor: CloudWatch Logs /ecs/aws-sdlc-containers/worker"
-          scripts/ci_poll_ecs_task_until_stopped.sh aws-sdlc-containers "$TASK_ARN" Worker
-          scripts/ci_assert_ecs_task_succeeded.sh aws-sdlc-containers "$TASK_ARN" "Backfill worker"
+          {
+            echo "### App images ready for deployment approval"
+            echo ""
+            echo "Commit: ${{ github.sha }}"
+            echo "Image tag: ${TAG}"
+            echo ""
+            echo "Run the App Deploy workflow with this image tag after review."
+          } >> "$GITHUB_STEP_SUMMARY"

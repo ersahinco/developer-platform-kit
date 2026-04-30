@@ -18,14 +18,17 @@ Safe rollout does not come from duplicating infrastructure. It comes from additi
 
 ## Pipeline shape
 
-Two GitHub Actions workflows remain, but both target the same stack:
+GitHub Actions workflows are split by review boundary. They all target the same
+stack, but cloud-changing steps only run after a separate manual trigger:
 
-- `infra.yml`
-  PR: lint + `terraform plan`
-  Merge to `main`: `terraform apply`
-- `app.yml`
-  PR: validate and test
-  Merge to `main`: validate → build → push → migrate → deploy → backfill worker
+- `infra-plan.yml`
+  PR, push, manual: lint + validate + `terraform plan`, then publish plan output.
+- `infra-apply.yml`
+  Manual: apply a reviewed `infra-plan.yml` artifact by workflow run ID.
+- `app-build.yml`
+  PR and push: validate and test. Manual: validate → build → scan → push images.
+- `app-deploy.yml`
+  Manual: migrate → deploy → verify → register support task definitions → run backfill worker.
 
 ## GitHub setup
 
@@ -35,11 +38,10 @@ Create one GitHub Environment named `aws` and store:
 
 That is the only AWS secret the workflows need. Other runtime values are resolved from the stack at deploy time.
 
-Cloud-changing workflow jobs do not run automatically on merge. `infra.yml`
-requires a manual `workflow_dispatch` run with `confirm_apply` set to `apply`;
-`app.yml` requires a manual `workflow_dispatch` run with `confirm_deploy` set
-to `deploy`. If the repository plan supports Environment required reviewers,
-also add reviewers to the `aws` environment for an additional approval pause.
+Cloud-changing workflow jobs do not run automatically on merge. Review the
+`Infra Plan` output before running `Infra Apply`, and review the `App Build`
+logs and image tag before running `App Deploy`. This does not rely on paid
+GitHub Environment required reviewer gates.
 
 ## Bootstrap
 
@@ -144,9 +146,10 @@ make infra-apply-iam
 ```
 
 This targeted apply creates the GitHub Actions IAM role and policies that
-`.github/workflows/infra.yml` and `.github/workflows/app.yml` assume through
-OIDC. It may also create ECR repositories because the role policies reference
-repository ARNs.
+`.github/workflows/infra-plan.yml`, `.github/workflows/infra-apply.yml`,
+`.github/workflows/app-build.yml`, and `.github/workflows/app-deploy.yml`
+assume through OIDC. It may also create ECR repositories because the role
+policies reference repository ARNs.
 
 Store the role ARN in the GitHub Environment named `aws`:
 

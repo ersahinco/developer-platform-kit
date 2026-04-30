@@ -1,0 +1,99 @@
+name: Infra Apply
+
+on:
+  workflow_dispatch:
+    inputs:
+      plan_run_id:
+        description: "Workflow run ID from the Infra Plan run to apply."
+        required: true
+        type: string
+      confirm_apply:
+        description: "Type apply to confirm Terraform apply against the shared AWS stack."
+        required: true
+        type: string
+
+env:
+  AWS_REGION: eu-central-1
+  TF_VERSION: 1.11.1
+  TF_STATE_KEY: aws-sdlc-containers/stack.tfstate
+
+permissions:
+  actions: read
+  contents: read
+  id-token: write
+
+jobs:
+  apply:
+    name: Apply Reviewed Plan
+    if: inputs.confirm_apply == 'apply'
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    environment: aws
+
+    steps:
+      - name: Resolve plan run
+        id: plan
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const run_id = Number('${{ inputs.plan_run_id }}');
+            if (!Number.isSafeInteger(run_id)) {
+              core.setFailed('plan_run_id must be a numeric workflow run ID.');
+              return;
+            }
+
+            const { data: run } = await github.rest.actions.getWorkflowRun({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              run_id,
+            });
+
+            if (run.name !== 'Infra Plan') {
+              core.setFailed(`Expected an Infra Plan workflow run, got ${run.name}.`);
+              return;
+            }
+            if (!['push', 'workflow_dispatch'].includes(run.event)) {
+              core.setFailed(`Plan run ${run_id} came from ${run.event}; apply only accepts main-branch push or manual plan runs.`);
+              return;
+            }
+            if (run.head_branch !== context.payload.repository.default_branch) {
+              core.setFailed(`Plan run ${run_id} was for ${run.head_branch}; expected ${context.payload.repository.default_branch}.`);
+              return;
+            }
+            if (run.status !== 'completed' || run.conclusion !== 'success') {
+              core.setFailed(`Plan run ${run_id} is ${run.status}/${run.conclusion}.`);
+              return;
+            }
+
+            core.setOutput('head_sha', run.head_sha);
+
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ steps.plan.outputs.head_sha }}
+
+      - uses: actions/download-artifact@v4
+        with:
+          name: terraform-plan-${{ inputs.plan_run_id }}
+          run-id: ${{ inputs.plan_run_id }}
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          path: .
+
+      - uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: ${{ env.TF_VERSION }}
+
+      - uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ secrets.AWS_ROLE_ARN }}
+          aws-region: ${{ env.AWS_REGION }}
+
+      - name: terraform init
+        run: |
+          terraform init \
+            -backend-config="key=${{ env.TF_STATE_KEY }}" \
+            -reconfigure
+        working-directory: infra
+
+      - name: terraform apply reviewed plan
+        run: terraform apply -auto-approve stack.tfplan
+        working-directory: infra
