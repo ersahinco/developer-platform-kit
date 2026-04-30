@@ -45,7 +45,10 @@ def run_backfill() -> None:
                         "ORDER BY id "
                         "LIMIT :batch_size"
                     ),
-                    {"last_id": last_order_id, "batch_size": settings.backfill_batch_size},
+                    {
+                        "last_id": last_order_id,
+                        "batch_size": settings.backfill_batch_size,
+                    },
                 ).fetchall()
 
                 if not batch:
@@ -58,7 +61,10 @@ def run_backfill() -> None:
                         "VALUES (:order_id, :billing_email, 'backfill') "
                         "ON CONFLICT (order_id) DO NOTHING"
                     ),
-                    [{"order_id": r.id, "billing_email": r.billing_email} for r in batch],
+                    [
+                        {"order_id": r.id, "billing_email": r.billing_email}
+                        for r in batch
+                    ],
                 )
 
                 new_last = batch[-1].id
@@ -80,7 +86,13 @@ def run_backfill() -> None:
             elapsed_ms = (time.monotonic() - start) * 1000
             batches_processed += 1
             print(
-                json.dumps({"last_order_id": last_order_id, "inserted": len(batch), "elapsed_ms": round(elapsed_ms, 1)}),
+                json.dumps(
+                    {
+                        "last_order_id": last_order_id,
+                        "inserted": len(batch),
+                        "elapsed_ms": round(elapsed_ms, 1),
+                    }
+                ),
                 flush=True,
             )
 

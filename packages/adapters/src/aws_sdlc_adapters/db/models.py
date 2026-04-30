@@ -1,7 +1,9 @@
 import datetime
 from decimal import Decimal
 
-from sqlalchemy import BigInteger, ForeignKey, Numeric, String, TIMESTAMP
+from sqlalchemy import BigInteger, ForeignKey, Index, Integer, Numeric, String, Text
+from sqlalchemy import TIMESTAMP, UniqueConstraint
+from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.orm import Mapped, mapped_column
 
 from aws_sdlc_adapters.db.base import Base
@@ -57,5 +59,46 @@ class CustomerModel(Base):
     id: Mapped[int] = mapped_column(BigInteger, primary_key=True, autoincrement=True)
     name: Mapped[str] = mapped_column(String(255), nullable=False)
     created_at: Mapped[datetime.datetime] = mapped_column(
+        TIMESTAMP(timezone=True), nullable=False, server_default="NOW()"
+    )
+
+
+class OutboxMessageModel(Base):
+    __tablename__ = "outbox_messages"
+    __table_args__ = (
+        UniqueConstraint("event_id", name="uq_outbox_messages_event_id"),
+        Index(
+            "ix_outbox_messages_dispatch",
+            "status",
+            "next_attempt_at",
+            "locked_until",
+        ),
+        Index("ix_outbox_messages_aggregate", "aggregate_type", "aggregate_id"),
+    )
+
+    id: Mapped[int] = mapped_column(BigInteger, primary_key=True, autoincrement=True)
+    event_type: Mapped[str] = mapped_column(String(100), nullable=False)
+    event_id: Mapped[str] = mapped_column(String(200), nullable=False)
+    aggregate_type: Mapped[str] = mapped_column(String(100), nullable=False)
+    aggregate_id: Mapped[int] = mapped_column(BigInteger, nullable=False)
+    message_group_id: Mapped[str] = mapped_column(String(200), nullable=False)
+    message_deduplication_id: Mapped[str] = mapped_column(String(200), nullable=False)
+    payload: Mapped[dict[str, object]] = mapped_column(JSONB, nullable=False)
+    status: Mapped[str] = mapped_column(String(32), nullable=False, default="pending")
+    attempt_count: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    next_attempt_at: Mapped[datetime.datetime] = mapped_column(
+        TIMESTAMP(timezone=True), nullable=False
+    )
+    locked_until: Mapped[datetime.datetime | None] = mapped_column(
+        TIMESTAMP(timezone=True)
+    )
+    published_at: Mapped[datetime.datetime | None] = mapped_column(
+        TIMESTAMP(timezone=True)
+    )
+    last_error: Mapped[str | None] = mapped_column(Text)
+    created_at: Mapped[datetime.datetime] = mapped_column(
+        TIMESTAMP(timezone=True), nullable=False, server_default="NOW()"
+    )
+    updated_at: Mapped[datetime.datetime] = mapped_column(
         TIMESTAMP(timezone=True), nullable=False, server_default="NOW()"
     )

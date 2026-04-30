@@ -2,7 +2,7 @@ import abc
 from decimal import Decimal
 
 from aws_sdlc_core.customer import Customer
-from aws_sdlc_core.order import Order, OrderStatus
+from aws_sdlc_core.order import Order
 
 
 class OrderRepository(abc.ABC):
@@ -11,7 +11,6 @@ class OrderRepository(abc.ABC):
         self,
         customer_id: int,
         total_amount: Decimal,
-        order_status: OrderStatus,
         billing_email: str | None,
     ) -> Order: ...
 

@@ -41,6 +41,10 @@ from sqlalchemy.orm import Session, sessionmaker
 from sqlalchemy.pool import NullPool
 
 load_dotenv(Path(__file__).parent.parent / ".env", override=False)
+os.environ.setdefault(
+    "DATABASE_URL",
+    "postgresql://postgres:postgres@localhost:6432/aws_sdlc_containers",
+)
 
 
 # ---------------------------------------------------------------------------
@@ -142,6 +146,13 @@ def committed_db_session(db_engine: Engine) -> Generator[Session, None, None]:
         session.close()
         with db_engine.connect() as conn:
             conn.execute(
+                text(
+                    "DELETE FROM outbox_messages "
+                    "WHERE aggregate_type = 'order' AND aggregate_id > :m"
+                ),
+                {"m": watermark},
+            )
+            conn.execute(
                 text("DELETE FROM order_contact_email WHERE order_id > :m"),
                 {"m": watermark},
             )
@@ -183,7 +194,9 @@ def http_client(base_url: str) -> Generator[httpx.Client, None, None]:
 # ---------------------------------------------------------------------------
 
 
-def pytest_collection_modifyitems(config: pytest.Config, items: list[pytest.Item]) -> None:
+def pytest_collection_modifyitems(
+    config: pytest.Config, items: list[pytest.Item]
+) -> None:
     """Skip tests whose require_phase marker does not match the live DB phase."""
     # Phase detection requires a DB connection — skip if DATABASE_URL is absent
     # (e.g. during collection-only runs or import checks).
@@ -222,7 +235,6 @@ def post_order(
     payload = {
         "customer_id": 1,
         "total_amount": "10.00",
-        "status": "SUBMITTED",
         **kwargs,
     }
     if billing_email is not None:

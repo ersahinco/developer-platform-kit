@@ -17,7 +17,6 @@ from aws_sdlc_api.db import get_db
 from aws_sdlc_api.events import (
     NoopOrderEventPublisher,
     OrderEventPublisher,
-    OrderEventPublishError,
     SqsOrderEventPublisher,
 )
 from aws_sdlc_api.schemas import (
@@ -32,6 +31,12 @@ from aws_sdlc_api.schemas import (
     WriteModeResponse,
 )
 from aws_sdlc_core.order import ReadModeValue, WriteModeValue
+from aws_sdlc_core.order_submission import (
+    CustomerNotFoundError,
+    InvalidOrderAmountError,
+    submit_order,
+)
+from aws_sdlc_core.outbox import OutboxRepository, dispatch_pending_outbox_messages
 from aws_sdlc_core.ports import ConfigStore, CustomerRepository, OrderRepository
 
 
@@ -107,7 +112,6 @@ async def observe_requests(request: Request, call_next) -> Response:
     return response
 
 
-
 def get_order_repo(db: DbDep) -> OrderRepository:
     # Import here, not at module level — keeps the API adapter decoupled from
     # the DB adapter at import time. The port is the compile-time contract;
@@ -121,6 +125,12 @@ def get_customer_repo(db: DbDep) -> CustomerRepository:
     from aws_sdlc_adapters.db.repository import SQLAlchemyCustomerRepository
 
     return SQLAlchemyCustomerRepository(session=db)
+
+
+def get_outbox_repo(db: DbDep) -> OutboxRepository:
+    from aws_sdlc_adapters.db.repository import SQLAlchemyOutboxRepository
+
+    return SQLAlchemyOutboxRepository(session=db)
 
 
 def get_config_store(db: DbDep) -> ConfigStore:
@@ -137,6 +147,7 @@ def get_order_event_publisher() -> OrderEventPublisher:
 
 OrderRepoDep = Annotated[OrderRepository, Depends(get_order_repo)]
 CustomerRepoDep = Annotated[CustomerRepository, Depends(get_customer_repo)]
+OutboxRepoDep = Annotated[OutboxRepository, Depends(get_outbox_repo)]
 ConfigStoreDep = Annotated[ConfigStore, Depends(get_config_store)]
 OrderEventPublisherDep = Annotated[
     OrderEventPublisher, Depends(get_order_event_publisher)
@@ -182,20 +193,28 @@ def get_customer(customer_id: int, repo: CustomerRepoDep) -> CustomerResponse:
 def create_order(
     body: CreateOrderRequest,
     repo: OrderRepoDep,
+    customers: CustomerRepoDep,
+    outbox: OutboxRepoDep,
     event_publisher: OrderEventPublisherDep,
 ) -> OrderResponse:
-    order = repo.create_order(
-        customer_id=body.customer_id,
-        total_amount=body.total_amount,
-        order_status=body.status,
-        billing_email=body.billing_email,
-    )
     try:
-        event_publisher.publish_order_created(order)
-    except OrderEventPublishError:
-        # The publisher records failure metrics and logs. Do not turn a
-        # committed order into a retriable client error.
-        pass
+        order = submit_order(
+            customer_id=body.customer_id,
+            total_amount=body.total_amount,
+            billing_email=str(body.billing_email) if body.billing_email else None,
+            customers=customers,
+            orders=repo,
+        )
+    except CustomerNotFoundError as exc:
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
+    except InvalidOrderAmountError as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from exc
+
+    dispatch_pending_outbox_messages(
+        outbox=outbox,
+        publisher=event_publisher,
+        limit=10,
+    )
 
     return OrderResponse(
         id=order.id,

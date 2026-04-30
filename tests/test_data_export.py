@@ -21,7 +21,9 @@ def _direct_database_url(env: dict[str, str]) -> str:
         "postgresql://postgres:postgres@localhost:6432/aws_sdlc_containers",
     )
     parsed = urlparse(db_url)
-    direct = parsed._replace(netloc=f"{parsed.username}:{parsed.password}@localhost:5432")
+    direct = parsed._replace(
+        netloc=f"{parsed.username}:{parsed.password}@localhost:5432"
+    )
     return urlunparse(direct)
 
 
@@ -84,7 +86,9 @@ def test_data_export_writes_raw_csv_then_success_manifest(
     result = _run_export(tmp_path, run_id="test-run", export_date="2026-04-29")
 
     assert result.returncode == 0, result.stderr
-    raw_path = tmp_path / "raw" / "order_contact_email" / "dt=2026-04-29" / "test-run.csv"
+    raw_path = (
+        tmp_path / "raw" / "order_contact_email" / "dt=2026-04-29" / "test-run.csv"
+    )
     manifest_path = (
         tmp_path
         / "manifests"
@@ -135,9 +139,12 @@ def test_data_export_is_idempotent_for_the_same_run_id(
     manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
     assert manifest["run_id"] == "same-run"
     assert manifest["objects"]["raw"].endswith("/same-run.csv")
-    assert manifest["raw_byte_count"] == (
-        tmp_path / "raw" / "order_contact_email" / "dt=2026-04-29" / "same-run.csv"
-    ).stat().st_size
+    assert (
+        manifest["raw_byte_count"]
+        == (tmp_path / "raw" / "order_contact_email" / "dt=2026-04-29" / "same-run.csv")
+        .stat()
+        .st_size
+    )
 
 
 def _load_export_module(monkeypatch):
@@ -167,7 +174,9 @@ def test_s3_publish_uploads_raw_before_manifest(monkeypatch, tmp_path):
     export_main = _load_export_module(monkeypatch)
     raw_path = tmp_path / "raw.csv"
     manifest_path = tmp_path / "manifest.json"
-    raw_path.write_text("order_id,billing_email\n1,export@example.com\n", encoding="utf-8")
+    raw_path.write_text(
+        "order_id,billing_email\n1,export@example.com\n", encoding="utf-8"
+    )
     manifest_path.write_text('{"status":"succeeded"}\n', encoding="utf-8")
     s3_client = RecordingS3Client()
 
@@ -194,7 +203,9 @@ def test_s3_publish_skips_manifest_when_raw_upload_fails(monkeypatch, tmp_path):
     raw_key = "raw/order_contact_email/dt=2026-04-29/test-run.csv"
     raw_path = tmp_path / "raw.csv"
     manifest_path = tmp_path / "manifest.json"
-    raw_path.write_text("order_id,billing_email\n1,export@example.com\n", encoding="utf-8")
+    raw_path.write_text(
+        "order_id,billing_email\n1,export@example.com\n", encoding="utf-8"
+    )
     manifest_path.write_text('{"status":"succeeded"}\n', encoding="utf-8")
     s3_client = RecordingS3Client(fail_on_key=raw_key)
 
@@ -214,7 +225,9 @@ def test_s3_publish_skips_manifest_when_raw_upload_fails(monkeypatch, tmp_path):
 def test_manifest_validation_rejects_raw_checksum_mismatch(monkeypatch, tmp_path):
     export_main = _load_export_module(monkeypatch)
     raw_path = tmp_path / "raw.csv"
-    raw_path.write_text("order_id,billing_email\n1,export@example.com\n", encoding="utf-8")
+    raw_path.write_text(
+        "order_id,billing_email\n1,export@example.com\n", encoding="utf-8"
+    )
     manifest = {
         "status": "succeeded",
         "row_count": 1,

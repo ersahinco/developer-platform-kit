@@ -17,3 +17,11 @@ databaseChangeLog:
   #        Previously in docker-entrypoint-initdb.d/observability.sql (init-only, not idempotent).
   - include:
       file: changelog/003-backfill-progress.yaml
+
+  # 004 — Order invariants: DB guardrails for status lifecycle values and positive totals.
+  - include:
+      file: changelog/004-order-invariants.yaml
+
+  # 005 — Order event outbox: durable handoff between order commits and SQS publishing.
+  - include:
+      file: changelog/005-order-event-outbox.yaml

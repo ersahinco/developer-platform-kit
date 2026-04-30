@@ -1,18 +1,27 @@
+default_install_hook_types: [pre-commit, pre-push]
+default_stages: [pre-commit]
+
 repos:
   - repo: https://github.com/pre-commit/pre-commit-hooks
     rev: v4.6.0
     hooks:
       - id: trailing-whitespace
+        stages: [pre-commit]
       - id: end-of-file-fixer
+        stages: [pre-commit]
       - id: check-yaml
+        stages: [pre-commit]
       - id: check-merge-conflict
+        stages: [pre-commit]
 
   - repo: https://github.com/astral-sh/ruff-pre-commit
     rev: v0.4.4
     hooks:
       - id: ruff
         args: [--fix]
+        stages: [pre-commit]
       - id: ruff-format
+        stages: [pre-commit]
 
   - repo: https://github.com/antonbabenko/pre-commit-terraform
     rev: v1.92.0
@@ -20,6 +29,7 @@ repos:
       - id: terraform_fmt
         args:
           - --args=-recursive
+        stages: [pre-commit]
 
   - repo: local
     hooks:
@@ -28,33 +38,53 @@ repos:
         entry: gitleaks dir . --redact --no-banner
         language: system
         pass_filenames: false
+        stages: [pre-commit]
 
       - id: shell-syntax
         name: shell script syntax
         entry: bash -n
         language: system
         files: ^scripts/.*\.sh$
+        stages: [pre-commit]
 
       - id: docs-links
         name: docs local links
         entry: lychee README.md docs/**/*.md ops/**/*.md
         language: system
         pass_filenames: false
+        stages: [pre-commit]
 
       - id: actionlint
         name: actionlint
         entry: actionlint
         language: system
         files: ^\.github/workflows/.*\.ya?ml$
+        stages: [pre-commit]
 
       - id: dockerfile-lint
         name: Dockerfile lint
         entry: hadolint db/Dockerfile apps/api/Dockerfile apps/backfill-worker/Dockerfile apps/data-export-job/Dockerfile
         language: system
         pass_filenames: false
+        stages: [pre-commit]
 
       - id: pyright
         name: pyright
         entry: uv run pyright
         language: system
         pass_filenames: false
+        stages: [pre-commit]
+
+      - id: python-lint-push
+        name: python lint on push
+        entry: make lint-app
+        language: system
+        pass_filenames: false
+        stages: [pre-push]
+
+      - id: python-format-check-push
+        name: python format check on push
+        entry: uv run ruff format --check apps/ packages/ tests/ scripts/
+        language: system
+        pass_filenames: false
+        stages: [pre-push]
