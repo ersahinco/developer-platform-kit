@@ -10,12 +10,38 @@ worker in `apps/backfill-worker/`, and the local data export job in
 - Docker Desktop
 - Python 3.14+
 - `uv`
-- Optional infra and quality tools: Terraform, tflint, checkov, pre-commit, AWS CLI, Session Manager plugin, actionlint, lychee, hadolint, and gitleaks
+- Optional native infra and quality tools: Terraform, Go, Node.js LTS, npm,
+  TypeScript, tflint, checkov, pre-commit, AWS CLI, Session Manager plugin,
+  actionlint, lychee, hadolint, gitleaks, Trivy, and Semgrep CE
 
 The recommended way to keep a personal machine aligned with the project
 toolchain is to open the repository in its dev container. It installs Python
-3.14, `uv`, Docker CLI/Compose access, Terraform 1.15.0, TFLint, Checkov,
-pre-commit, AWS CLI, actionlint, lychee, hadolint, and gitleaks.
+3.14, `uv`, Docker CLI/Compose access, Terraform 1.15.0, Go 1.26.2,
+Node.js 24 LTS, npm 11.13.0, TypeScript 6.0.3, TFLint, Checkov, pre-commit,
+AWS CLI, actionlint, lychee, hadolint, and gitleaks.
+
+For native macOS development outside the dev container, use the checked-in
+`Brewfile` for the tools Homebrew owns well:
+
+```bash
+brew update
+brew bundle install
+brew upgrade
+brew cleanup
+```
+
+Install or update Terraform separately from HashiCorp's signed release channel
+at version 1.15.0. Avoid prerelease Terraform builds. For JavaScript tooling,
+keep Node on the current LTS line and install the pinned globals when you need
+them on the host:
+
+```bash
+npm install --global npm@11.13.0 typescript@6.0.3
+```
+
+This repo does not use Entire.io or similar newer workstation wrappers. Keep
+local tooling on mainstream project or vendor channels unless a real project
+need appears.
 
 In VS Code, run **Dev Containers: Reopen in Container**. On first create, the
 container runs:

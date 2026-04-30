@@ -8,7 +8,8 @@ This project should demonstrate a complete but lean DevOps toolchain around ECS.
 |---|---|
 | Source control | Git monorepo |
 | Local orchestration | Docker Compose |
-| Standard workstation | Dev Container with project quality tools installed |
+| Standard workstation | Dev Container with pinned project quality tools installed |
+| Native macOS workstation | `Brewfile` plus explicit HashiCorp Terraform install |
 | Python dependency management | `uv` workspace |
 | Python dependency updates | Dependabot weekly `uv` updates |
 | Local commit checks | pre-commit hooks |
@@ -31,6 +32,20 @@ This project should demonstrate a complete but lean DevOps toolchain around ECS.
 | Image registry | ECR |
 | Image security | Trivy before push, ECR scanning configured in Terraform |
 | Runtime | ECS Fargate |
+
+## Workstation Baseline
+
+Prefer the dev container for exact reproducibility. It pins the daily toolchain
+used by the project: Python 3.14, `uv`, Terraform 1.15.0, Go 1.26.2,
+Node.js 24 LTS, npm 11.13.0, TypeScript 6.0.3, AWS CLI v2, TFLint, Checkov,
+pre-commit, actionlint, lychee, hadolint, gitleaks, and Docker CLI/Compose
+access.
+
+For native macOS work, `Brewfile` installs the same mainstream tool families
+where Homebrew is the right channel. Terraform is intentionally documented
+outside `Brewfile` because HashiCorp's signed release channel is the source of
+truth for the exact stable version. Stay on stable releases and avoid preview
+or release-candidate builds for project tooling.
 
 ## Hardening Goals
 

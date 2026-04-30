@@ -12,6 +12,7 @@ case "$arch" in
     gitleaks_arch="x64"
     hadolint_arch="x86_64"
     lychee_target="x86_64-unknown-linux-gnu"
+    node_arch="x64"
     tflint_arch="amd64"
     ;;
   arm64)
@@ -19,6 +20,7 @@ case "$arch" in
     gitleaks_arch="arm64"
     hadolint_arch="arm64"
     lychee_target="aarch64-unknown-linux-gnu"
+    node_arch="arm64"
     tflint_arch="arm64"
     ;;
   *)
@@ -26,6 +28,52 @@ case "$arch" in
     exit 1
     ;;
 esac
+
+go_sha256() {
+  local version="$1"
+
+  case "${version}-${go_arch}" in
+    1.26.2-amd64)
+      echo "990e6b4bbba816dc3ee129eaeaf4b42f17c2800b88a2166c265ac1a200262282"
+      ;;
+    1.26.2-arm64)
+      echo "c958a1fe1b361391db163a485e21f5f228142d6f8b584f6bef89b26f66dc5b23"
+      ;;
+    *)
+      echo "Missing pinned Go checksum for ${version}-${go_arch}" >&2
+      exit 1
+      ;;
+  esac
+}
+
+install_go() {
+  local version="${GO_VERSION:-1.26.2}"
+  local archive="go${version}.linux-${go_arch}.tar.gz"
+  local checksum
+  checksum="$(go_sha256 "$version")"
+
+  curl -fsSL "https://go.dev/dl/${archive}" -o "$tmp_dir/${archive}"
+  echo "${checksum}  ${tmp_dir}/${archive}" | sha256sum --check -
+  rm -rf /usr/local/go
+  tar -C /usr/local -xzf "$tmp_dir/${archive}"
+}
+
+install_node() {
+  local version="${NODE_VERSION:-24.15.0}"
+  local archive="node-v${version}-linux-${node_arch}.tar.xz"
+
+  curl -fsSL "https://nodejs.org/dist/v${version}/${archive}" -o "$tmp_dir/${archive}"
+  curl -fsSL "https://nodejs.org/dist/v${version}/SHASUMS256.txt" -o "$tmp_dir/node-shasums.txt"
+  (cd "$tmp_dir" && grep "  ${archive}$" node-shasums.txt | sha256sum --check -)
+  tar -C /usr/local --strip-components=1 -xJf "$tmp_dir/${archive}"
+}
+
+install_javascript_tools() {
+  local npm_version="${NPM_VERSION:-11.13.0}"
+  local typescript_version="${TYPESCRIPT_VERSION:-6.0.3}"
+
+  npm install --global "npm@${npm_version}" "typescript@${typescript_version}"
+}
 
 install_tflint() {
   local version="${TFLINT_VERSION:-0.62.0}"
@@ -72,6 +120,9 @@ install_lychee() {
   install -m 0755 "$(find "$tmp_dir/lychee" -type f -name lychee | head -n 1)" "$bin_dir/lychee"
 }
 
+install_go
+install_node
+install_javascript_tools
 install_tflint
 install_actionlint
 install_gitleaks

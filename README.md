@@ -91,10 +91,13 @@ Prerequisites:
 - Python 3.14+
 - `uv`
 - Optional: VS Code or another editor with Dev Containers support. The
-  repository dev container installs the Python, Terraform, Docker, AWS, and
-  quality-tooling baseline used by the project.
+  repository dev container installs the Python, Terraform, Go, Node.js,
+  Docker, AWS, and quality-tooling baseline used by the project.
 - If you do not use the dev container, install optional quality tools for
-  `make lint`: actionlint, lychee, hadolint, and gitleaks.
+  `make lint`: actionlint, lychee, hadolint, and gitleaks. On macOS,
+  `brew bundle install` uses the checked-in `Brewfile` for mainstream local
+  tools; install Terraform 1.15.0 separately from HashiCorp's signed release
+  channel.
 
 Start local Postgres and PgBouncer:
 
