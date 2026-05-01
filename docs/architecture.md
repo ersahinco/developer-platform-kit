@@ -1,10 +1,14 @@
 # Architecture
 
-`aws-sdlc-containers` keeps the current platform deliberately small: one AWS stack, one ECS cluster, one PostgreSQL database, and one reference workload that proves safe in-place rollout.
+`aws-sdlc-containers` keeps the current platform deliberately small: one AWS
+account/region, one ECS cluster, one PostgreSQL database, and one reference
+workload that proves safe in-place rollout.
 
 ## Current platform contract
 
-- Base platform: one Terraform state, one VPC, one public API hostname, one ECS cluster, one long-running app service, PgBouncer in the app task, one PostgreSQL database, and one S3 data hub bucket.
+- Base platform: split platform/app Terraform state, one VPC, one public API
+  hostname, one ECS cluster, one long-running app service, PgBouncer in the app
+  task, one PostgreSQL database, and one S3 data hub bucket.
 - Reference workload: additive Liquibase migrations, in-place ECS deploys, runtime `WRITE_MODE` and `READ_MODE` switches, and one-off worker tasks all operate against that same cluster and database.
 - Data workload: one scheduled ECS data export job writes the `order_contact_email` raw CSV and manifest objects to the S3 data hub bucket.
 - Async workload: the app publishes `order.created.v1` messages to one SQS FIFO
@@ -134,21 +138,25 @@ Clients that omit `Idempotency-Key` keep the original behavior: every successful
 
 ---
 
-## Single stack strategy
+## Split-root stack strategy
 
-The project uses one long-lived AWS stack rather than separate dev/prod stacks or ephemeral preview environments. The rationale:
+The project uses one long-lived AWS stack split into platform and app
+Terraform roots rather than separate dev/prod stacks or ephemeral preview
+environments. The rationale:
 
 - The safe rollout mechanism already exists inside the workload: additive Liquibase changes, independent task definitions, runtime read/write switches, and a checkpointed worker.
 - Separate stacks would add naming, state, workflow, and documentation overhead without improving the migration behavior being demonstrated here.
+- Platform resources such as VPC networking and GitHub OIDC have a different
+  lifecycle from app resources such as RDS, ECS, ALB, workload jobs, and
+  observability.
 - The project stays easier to understand when the interesting part is the in-place migration sequence, not environment promotion choreography.
 
 **Reset procedure**:
 
 ```bash
-cd infra
-terraform init -backend-config="key=aws-sdlc-containers/stack.tfstate" -reconfigure
-terraform destroy -var-file=stack.tfvars
-terraform apply   -var-file=stack.tfvars
+terraform -chdir=infra/app init -backend-config="key=aws-sdlc-containers/app.tfstate" -reconfigure
+terraform -chdir=infra/app destroy -var-file=stack.tfvars
+terraform -chdir=infra/app apply   -var-file=stack.tfvars
 ```
 
 Then re-run the full runbook from step 2 against the fresh RDS instance.

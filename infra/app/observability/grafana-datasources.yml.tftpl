@@ -12,11 +12,11 @@ datasources:
     uid: Prometheus
     type: prometheus
     access: proxy
-    url: http://prometheus:9090
+    url: http://prometheus.${dns_namespace}:9090
     isDefault: true
   - name: Loki
     orgId: 1
     uid: Loki
     type: loki
     access: proxy
-    url: http://loki:3100
+    url: http://loki.${dns_namespace}:3100

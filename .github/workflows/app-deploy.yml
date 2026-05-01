@@ -17,6 +17,7 @@ env:
   ECR_REGISTRY: 691627364817.dkr.ecr.eu-central-1.amazonaws.com
   STACK_NAME: aws-sdlc-containers
   ROOT_DOMAIN: ersahinco-sandbox.eu
+  PGBOUNCER_TAG: v1.25.1-p0
 
 permissions:
   id-token: write
@@ -52,6 +53,9 @@ jobs:
               --repository-name "${{ env.STACK_NAME }}/${repo}" \
               --image-ids "imageTag=${{ inputs.image_tag }}"
           done
+          aws ecr describe-images \
+            --repository-name "${{ env.STACK_NAME }}/pgbouncer" \
+            --image-ids "imageTag=${{ env.PGBOUNCER_TAG }}"
 
       - name: Resolve network config
         id: net

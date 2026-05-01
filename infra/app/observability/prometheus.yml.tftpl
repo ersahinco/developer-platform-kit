@@ -10,14 +10,14 @@ scrape_configs:
     metrics_path: /metrics
     static_configs:
       - targets:
-          - app:8000
+          - app.${dns_namespace}:8000
 
   - job_name: prometheus
     static_configs:
       - targets:
-          - prometheus:9090
+          - prometheus.${dns_namespace}:9090
 
   - job_name: loki
     static_configs:
       - targets:
-          - loki:3100
+          - loki.${dns_namespace}:3100

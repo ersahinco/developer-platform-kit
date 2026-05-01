@@ -2,8 +2,8 @@
 
 This file is the current continuation guide for platform, infrastructure,
 DevOps, observability, data-flow, incident, rollout, async, and operator work.
-Keep it short and current; detailed design rationale belongs in the focused
-docs under `docs/` and `infra/`.
+Keep it short and current; retire session notes once their durable facts have
+landed in canonical docs or code.
 
 ## Current Status
 
@@ -18,8 +18,10 @@ order/customer workload:
 - Checkpointed backfill worker with bounded pause/resume runs.
 - Scheduled ECS data export job with raw CSV output, validated manifests, and
   S3 data hub publishing.
-- Single-root Terraform stack for ECS, RDS, ALB, ECR, S3 data hub, SQS order
-  events, EventBridge, CloudWatch alarms, and GitHub OIDC.
+- Split Terraform roots: platform owns VPC networking, endpoints, domain/account
+  lookups, and GitHub OIDC/CI IAM; app owns ECS, RDS, ALB/API edge, ECR, S3
+  data hub, SQS order events, EventBridge, CloudWatch app alarms, and optional
+  observability.
 - Local Prometheus, Loki, Promtail, and Grafana observability profile.
 - Runbooks for deployment rollback, app health, app edge symptoms, RDS
   pressure, data export failures, app dependency-readiness drills, and order
@@ -34,7 +36,8 @@ switch reads, new writes, and contract.
 
 ## Current Direction
 
-- Keep the repo single-stack until separate lifecycle boundaries are real.
+- Rebuild and push app images after the ECR recreation, then continue with the
+  app-owned observability deployment.
 - Keep the current platform/operator story intact while the next pass improves
   `apps/` and `packages/`.
 - Make the application layer more meaningful and production-shaped without
@@ -51,6 +54,8 @@ switch reads, new writes, and contract.
 3. Keep docs aligned with the actual repo shape.
 4. Verify with the relevant local checks.
 5. Commit only related files.
+6. Do not add new docs/runbooks/drills unless they replace stale material or
+   document an operator action someone can actually run.
 
 ## Documentation Ownership
 
@@ -62,13 +67,16 @@ switch reads, new writes, and contract.
 - `docs/observability.md` explains Prometheus, Loki, Grafana, and CloudWatch
   signals.
 - `docs/data-flow.md` explains the migration and data export flow.
-- `infra/README.md` explains the Terraform root and split criteria.
+- `infra/README.md` explains the Terraform platform/app roots.
 - `ops/` contains concrete drills and runbooks only.
 
 ## Decisions
 
 | Date | Decision | Rationale |
 |---|---|---|
+| 2026-05-02 | Complete the Terraform split and remove the legacy root. | Platform and app now deploy from separate state keys; keeping the old root would invite accidental duplicate ownership. |
+| 2026-05-02 | Keep docs canonical instead of session-shaped. | Roadmap sessions are useful while working, but permanent docs should be short, current, and operator-owned. |
+| 2026-05-01 | Split Terraform into platform/bootstrap and app roots before ECS Grafana-stack deployment. | VPC and GitHub OIDC have a different lifecycle from RDS, ECS compute, ALB/API edge, workload resources, and observability; the app-owned stack needs a clean deployment root before observability can be runtime-validated. |
 | 2026-04-29 | Keep one Terraform root until lifecycle boundaries become real. | Multiple stacks add naming, state, workflow, and documentation overhead before the project has repeated infrastructure shape. |
 | 2026-04-29 | Use an evolutionary monorepo structure. | The safe-rollout demo should remain usable while the repo shape improves. |
 | 2026-04-29 | Keep the application domain simple. | The value is in ECS delivery, data safety, DevOps practices, and operator maturity, not broad business features. |

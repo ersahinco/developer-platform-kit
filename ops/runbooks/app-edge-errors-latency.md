@@ -20,13 +20,18 @@ unhealthy instead, use `ops/runbooks/app-service-unhealthy.md`.
 
 ## First Checks
 
+If `terraform -chdir=infra/app output -raw app_symptom_cloudwatch_alarms_enabled`
+returns `false`, these CloudWatch symptom alarms were intentionally disabled
+after Grafana-stack dual-run. Use the Grafana-stack checks below, then continue
+with ECS service and task inspection.
+
 Confirm alarm state:
 
 ```bash
 aws cloudwatch describe-alarms \
   --alarm-names \
-    "$(terraform -chdir=infra output -raw app_target_5xx_alarm_name)" \
-    "$(terraform -chdir=infra output -raw app_target_latency_alarm_name)" \
+    "$(terraform -chdir=infra/app output -raw app_target_5xx_alarm_name)" \
+    "$(terraform -chdir=infra/app output -raw app_target_latency_alarm_name)" \
   --region eu-central-1
 ```
 
@@ -38,17 +43,35 @@ aws logs tail /ecs/aws-sdlc-containers/app \
   --region eu-central-1
 ```
 
+## Grafana-Stack Checks
+
+When the optional Grafana stack is enabled and reachable, check the provisioned
+`App Overview` dashboard first for app route 5xxs and p95 request latency. The
+matching Prometheus alerts are:
+
+- `AppRequest5xxSymptoms`
+- `AppRequestLatencyHigh`
+
+Use Loki for app log context during the same window:
+
+```logql
+{container="app"} |= "ERROR"
+```
+
+Keep the CloudWatch alarm check above in the flow because the ALB metric remains
+the edge/platform view of what clients experienced.
+
 Inspect ECS service events and task state:
 
 ```bash
 aws ecs describe-services \
-  --cluster "$(terraform -chdir=infra output -raw ecs_cluster_name)" \
-  --services "$(terraform -chdir=infra output -raw app_service_name)" \
+  --cluster "$(terraform -chdir=infra/app output -raw ecs_cluster_name)" \
+  --services "$(terraform -chdir=infra/app output -raw app_service_name)" \
   --region eu-central-1
 
 aws ecs list-tasks \
-  --cluster "$(terraform -chdir=infra output -raw ecs_cluster_name)" \
-  --service-name "$(terraform -chdir=infra output -raw app_service_name)" \
+  --cluster "$(terraform -chdir=infra/app output -raw ecs_cluster_name)" \
+  --service-name "$(terraform -chdir=infra/app output -raw app_service_name)" \
   --desired-status RUNNING \
   --region eu-central-1
 ```
@@ -56,7 +79,7 @@ aws ecs list-tasks \
 Smoke the public API:
 
 ```bash
-curl -fsS "https://$(terraform -chdir=infra output -raw api_fqdn)/health"
+curl -fsS "https://$(terraform -chdir=infra/app output -raw api_fqdn)/health"
 ```
 
 ## Common Causes
@@ -76,8 +99,8 @@ previous revision and complete the rollback safely:
 
 ```bash
 aws ecs update-service \
-  --cluster "$(terraform -chdir=infra output -raw ecs_cluster_name)" \
-  --service "$(terraform -chdir=infra output -raw app_service_name)" \
+  --cluster "$(terraform -chdir=infra/app output -raw ecs_cluster_name)" \
+  --service "$(terraform -chdir=infra/app output -raw app_service_name)" \
   --task-definition "<previous-task-definition-arn>" \
   --force-new-deployment \
   --region eu-central-1
@@ -91,11 +114,11 @@ Confirm recovery:
 
 ```bash
 aws ecs wait services-stable \
-  --cluster "$(terraform -chdir=infra output -raw ecs_cluster_name)" \
-  --services "$(terraform -chdir=infra output -raw app_service_name)" \
+  --cluster "$(terraform -chdir=infra/app output -raw ecs_cluster_name)" \
+  --services "$(terraform -chdir=infra/app output -raw app_service_name)" \
   --region eu-central-1
 
-curl -fsS "https://$(terraform -chdir=infra output -raw api_fqdn)/health"
+curl -fsS "https://$(terraform -chdir=infra/app output -raw api_fqdn)/health"
 ```
 
 The alarms return to `OK` after the next clean evaluation windows.

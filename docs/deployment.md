@@ -1,30 +1,32 @@
 # Deployment
 
-This project intentionally uses a single AWS stack.
+This project uses one AWS account/region and two Terraform roots split by
+lifecycle.
 
-- One ECS cluster
-- One PostgreSQL database
-- One public API hostname
-- One Terraform state
+- `infra/platform`: VPC networking, VPC endpoints, account/domain lookups, and
+  GitHub Actions OIDC/CI IAM.
+- `infra/app`: RDS, ECS compute, ECR repositories, ALB/API edge, S3 data hub,
+  workload jobs/queues, app IAM, CloudWatch app alarms, and optional
+  Grafana/Loki/Prometheus observability.
 
 Safe rollout does not come from duplicating infrastructure. It comes from additive schema changes, separate task definitions, runtime read/write switches, and one-off worker tasks running against the same database.
 
 ## Current platform contract
 
-- Base stack: one VPC, one public ALB/TLS/DNS entrypoint, one ECS cluster, one long-running app service with PgBouncer, one PostgreSQL database, and one Terraform state.
+- Base stack: one VPC, one public ALB/TLS/DNS entrypoint, one ECS cluster, one long-running app service with PgBouncer, one PostgreSQL database, and split platform/app Terraform state.
 - Reference workload: the app, Liquibase task, and backfill worker all operate inside that same stack. Rollout stays in place through additive schema changes, task definition updates, runtime switches, and one-off tasks.
 - Optional extensions: WAF, VPC endpoints, ECS Exec/SSM access, and similar add-ons are outside the base contract. They may remain enabled in this repo for parity, but the base stack does not depend on them conceptually.
 - Future additions: observability, extra operator tooling, and workload-specific jobs should stay as extensions unless they become mandatory for every workload that uses this repo.
 
 ## Pipeline shape
 
-GitHub Actions workflows are split by review boundary. They all target the same
-stack, but cloud-changing steps only run after a separate manual trigger:
+GitHub Actions workflows are split by review boundary. Cloud-changing steps
+only run after a separate manual trigger:
 
 - `infra-plan.yml`
-  PR, push, manual: lint + validate + `terraform plan`, then publish plan output.
+  PR, push, manual: lint + validate + platform plan + app plan, then publish plan output.
 - `infra-apply.yml`
-  Manual: apply a reviewed `infra-plan.yml` artifact by workflow run ID.
+  Manual: apply reviewed platform and app plan artifacts by workflow run ID.
 - `app-build.yml`
   PR and push: validate and test. Manual: validate → build → scan → push images.
 - `app-deploy.yml`
@@ -45,9 +47,9 @@ GitHub Environment required reviewer gates.
 
 ## Bootstrap
 
-Run this sequence once per fresh AWS account before the first full
-`make infra-apply`. The bootstrap path exists because Terraform cannot create
-the remote state bucket or the GitHub Actions role before it can initialize and
+Run this sequence once per fresh AWS account before the first full split-root
+apply. The bootstrap path exists because Terraform cannot create the remote
+state bucket or the GitHub Actions role before it can initialize and
 authenticate.
 
 Prerequisites:
@@ -57,27 +59,29 @@ Prerequisites:
   CloudWatch resources.
 - The target region is `eu-central-1`.
 - A public Route 53 hosted zone already exists for `root_domain` in
-  `infra/stack.tfvars` (currently `ersahinco-sandbox.eu`).
+  `infra/platform/stack.tfvars` (currently `ersahinco-sandbox.eu`).
 - The GitHub repository has an Environment named `aws`.
 - GitHub CLI access can set environment secrets for the repository.
 
 Set the operator-owned values first:
 
 ```bash
-$EDITOR infra/stack.tfvars
+$EDITOR infra/platform/stack.tfvars
+$EDITOR infra/app/stack.tfvars
 ```
 
 At minimum, confirm:
 
-- `root_domain` matches the public hosted zone.
+- `root_domain` in `infra/platform/stack.tfvars` matches the public hosted zone.
 - `api_token_secret_name` is the Secrets Manager name the ALB auth rule should
-  read.
+  read, if overridden in `infra/app/stack.tfvars`.
 
 For a different AWS account than the checked-in sandbox, also align the
 account-specific Terraform backend values before bootstrapping:
 
 - `ACCOUNT_ID` in `Makefile`
-- `bucket` in `infra/versions.tf`
+- `bucket` in `infra/platform/versions.tf`
+- `bucket` in `infra/app/versions.tf`
 
 Terraform backend blocks cannot read normal Terraform variables, so the backend
 bucket name is intentionally a literal value.
@@ -113,16 +117,17 @@ This target is idempotent. It creates or confirms:
 - DynamoDB table: `terraform-locks`
 - IAM OIDC provider: `token.actions.githubusercontent.com`
 
-Terraform uses one state object:
+Terraform uses two state objects:
 
 ```bash
-aws-sdlc-containers/stack.tfstate
+aws-sdlc-containers/platform.tfstate
+aws-sdlc-containers/app.tfstate
 ```
 
 The active backend lock is Terraform's S3 native lockfile through
-`use_lockfile = true` in `infra/versions.tf`. The `terraform-locks` DynamoDB
-table is still bootstrapped for compatibility with older runbooks and IAM
-policy surfaces, but this backend does not currently set `dynamodb_table`.
+`use_lockfile = true` in each root's `versions.tf`. The `terraform-locks`
+DynamoDB table is still bootstrapped for compatibility with older runbooks and
+IAM policy surfaces, but the current backends do not set `dynamodb_table`.
 
 Confirm the Route 53 zone can be found before applying the stack:
 
@@ -138,18 +143,17 @@ The full Terraform stack creates the ACM certificate for
 the public load balancer. The hosted zone itself is intentionally a
 pre-existing account/domain prerequisite.
 
-Break the GitHub Actions bootstrap cycle by creating the OIDC-assumable role
-and ECR repositories from local credentials:
+Create platform first from local credentials:
 
 ```bash
-make infra-apply-iam
+make infra-platform-plan
+make infra-platform-apply
 ```
 
-This targeted apply creates the GitHub Actions IAM role and policies that
+This creates the GitHub Actions IAM role and policies that
 `.github/workflows/infra-plan.yml`, `.github/workflows/infra-apply.yml`,
 `.github/workflows/app-build.yml`, and `.github/workflows/app-deploy.yml`
-assume through OIDC. It may also create ECR repositories because the role
-policies reference repository ARNs.
+assume through OIDC, along with VPC networking and shared platform outputs.
 
 Store the role ARN in the GitHub Environment named `aws`:
 
@@ -168,16 +172,16 @@ gh secret list \
   --repo ersahinco/aws-sdlc-containers
 ```
 
-After that, local and GitHub Actions Terraform runs should authenticate the
-same way against the same state:
+After that, deploy the app root:
 
 ```bash
-make infra-plan
-make infra-apply
+make infra-app-plan
+make infra-app-apply
 ```
 
-The full apply creates live infrastructure and cost-bearing resources including
-VPC networking, NAT, RDS, ALB, ECS, CloudWatch logs, DNS, and certificates.
+The full split apply creates live infrastructure and cost-bearing resources
+including VPC networking, NAT, RDS, ALB, ECS, CloudWatch logs, DNS, and
+certificates.
 
 Useful bootstrap checks:
 
@@ -187,7 +191,11 @@ aws s3api get-bucket-versioning \
 
 aws s3api head-object \
   --bucket aws-sdlc-containers-tfstate-<account-id> \
-  --key aws-sdlc-containers/stack.tfstate
+  --key aws-sdlc-containers/platform.tfstate
+
+aws s3api head-object \
+  --bucket aws-sdlc-containers-tfstate-<account-id> \
+  --key aws-sdlc-containers/app.tfstate
 
 aws iam list-open-id-connect-providers
 
@@ -197,18 +205,20 @@ aws iam get-role \
 make infra-plan
 ```
 
-Most operator-set values live in `infra/stack.tfvars`.
+Operator-set values live in `infra/platform/stack.tfvars` and
+`infra/app/stack.tfvars`.
 
 ## Naming
 
-Resources use the single stack prefix `aws-sdlc-containers`.
+Resources use the project prefix `aws-sdlc-containers`.
 
 - ECS cluster: `aws-sdlc-containers`
 - ECS service: `app`
 - App task family: `aws-sdlc-containers`
 - Worker task family: `aws-sdlc-containers-worker`
 - Liquibase task family: `aws-sdlc-containers-liquibase`
-- ECR repos: `aws-sdlc-containers/{app,worker,liquibase,pgbouncer}`
+- ECR repos:
+  `aws-sdlc-containers/{app,worker,data-export-job,order-event-consumer,liquibase,pgbouncer}`
 - API hostname: `api.<root_domain>`
 
 ## Rollout model
@@ -309,4 +319,4 @@ and before registering one-off worker or data export task definitions.
 
 ## Canonical source
 
-This file is the operator-facing source of truth for the current single-stack rollout. See `architecture.md` for the design rationale and extension boundaries.
+This file is the operator-facing source of truth for the current split-root rollout. See `architecture.md` for the design rationale and extension boundaries.

@@ -22,7 +22,7 @@ Confirm the alarm:
 
 ```bash
 aws cloudwatch describe-alarms \
-  --alarm-names "$(terraform -chdir=infra output -raw app_unhealthy_targets_alarm_name)" \
+  --alarm-names "$(terraform -chdir=infra/app output -raw app_unhealthy_targets_alarm_name)" \
   --region eu-central-1
 ```
 
@@ -30,8 +30,8 @@ Inspect the ECS service and recent events:
 
 ```bash
 aws ecs describe-services \
-  --cluster "$(terraform -chdir=infra output -raw ecs_cluster_name)" \
-  --services "$(terraform -chdir=infra output -raw app_service_name)" \
+  --cluster "$(terraform -chdir=infra/app output -raw ecs_cluster_name)" \
+  --services "$(terraform -chdir=infra/app output -raw app_service_name)" \
   --region eu-central-1
 ```
 
@@ -39,13 +39,13 @@ List running and recently stopped app tasks:
 
 ```bash
 aws ecs list-tasks \
-  --cluster "$(terraform -chdir=infra output -raw ecs_cluster_name)" \
-  --service-name "$(terraform -chdir=infra output -raw app_service_name)" \
+  --cluster "$(terraform -chdir=infra/app output -raw ecs_cluster_name)" \
+  --service-name "$(terraform -chdir=infra/app output -raw app_service_name)" \
   --desired-status RUNNING \
   --region eu-central-1
 
 aws ecs list-tasks \
-  --cluster "$(terraform -chdir=infra output -raw ecs_cluster_name)" \
+  --cluster "$(terraform -chdir=infra/app output -raw ecs_cluster_name)" \
   --family aws-sdlc-containers \
   --desired-status STOPPED \
   --region eu-central-1
@@ -59,10 +59,29 @@ aws logs tail /ecs/aws-sdlc-containers/app \
   --region eu-central-1
 ```
 
+## Grafana-Stack Checks
+
+When the optional Grafana stack is enabled and reachable, check the provisioned
+`App Overview` dashboard for `/health` and `/ready` request symptoms, then use
+Loki to inspect app and PgBouncer logs from the same time window:
+
+```logql
+{container="app"} |= "ERROR"
+```
+
+```logql
+{container="pgbouncer"}
+```
+
+The matching app-level Prometheus alert for dependency readiness symptoms is
+`AppReadinessFailures`. Keep the CloudWatch target-health alarm in the flow
+because ALB target health is still the platform signal for whether ECS tasks can
+serve traffic.
+
 Check the public health endpoint:
 
 ```bash
-curl -i "https://$(terraform -chdir=infra output -raw api_fqdn)/health"
+curl -i "https://$(terraform -chdir=infra/app output -raw api_fqdn)/health"
 ```
 
 ## Common Causes
@@ -81,8 +100,8 @@ identify the previous revision and complete the rollback safely:
 
 ```bash
 aws ecs update-service \
-  --cluster "$(terraform -chdir=infra output -raw ecs_cluster_name)" \
-  --service "$(terraform -chdir=infra output -raw app_service_name)" \
+  --cluster "$(terraform -chdir=infra/app output -raw ecs_cluster_name)" \
+  --service "$(terraform -chdir=infra/app output -raw app_service_name)" \
   --task-definition "<previous-task-definition-arn>" \
   --force-new-deployment \
   --region eu-central-1
@@ -92,15 +111,15 @@ Wait for the service to stabilize:
 
 ```bash
 aws ecs wait services-stable \
-  --cluster "$(terraform -chdir=infra output -raw ecs_cluster_name)" \
-  --services "$(terraform -chdir=infra output -raw app_service_name)" \
+  --cluster "$(terraform -chdir=infra/app output -raw ecs_cluster_name)" \
+  --services "$(terraform -chdir=infra/app output -raw app_service_name)" \
   --region eu-central-1
 ```
 
 Confirm the API is healthy:
 
 ```bash
-curl -fsS "https://$(terraform -chdir=infra output -raw api_fqdn)/health"
+curl -fsS "https://$(terraform -chdir=infra/app output -raw api_fqdn)/health"
 ```
 
 The alarm returns to `OK` after the ALB target group reports no unhealthy app

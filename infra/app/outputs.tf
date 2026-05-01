@@ -23,14 +23,19 @@ output "app_unhealthy_targets_alarm_name" {
   value       = aws_cloudwatch_metric_alarm.app_unhealthy_targets.alarm_name
 }
 
+output "app_symptom_cloudwatch_alarms_enabled" {
+  description = "Whether app target 5xx and latency CloudWatch alarms are enabled."
+  value       = var.enable_app_symptom_cloudwatch_alarms
+}
+
 output "app_target_5xx_alarm_name" {
   description = "CloudWatch alarm for target-generated 5xx responses behind the ALB."
-  value       = aws_cloudwatch_metric_alarm.app_target_5xx.alarm_name
+  value       = var.enable_app_symptom_cloudwatch_alarms ? aws_cloudwatch_metric_alarm.app_target_5xx[0].alarm_name : null
 }
 
 output "app_target_latency_alarm_name" {
   description = "CloudWatch alarm for elevated app target response time behind the ALB."
-  value       = aws_cloudwatch_metric_alarm.app_target_latency.alarm_name
+  value       = var.enable_app_symptom_cloudwatch_alarms ? aws_cloudwatch_metric_alarm.app_target_latency[0].alarm_name : null
 }
 
 output "ecr_app_repository_url" {
@@ -93,9 +98,14 @@ output "data_export_success_metric_name" {
   value       = "SuccessCount"
 }
 
+output "data_export_success_cloudwatch_alarm_enabled" {
+  description = "Whether the data export success CloudWatch metric filter and freshness alarm are enabled."
+  value       = var.enable_data_export_success_cloudwatch_alarm
+}
+
 output "data_export_success_missing_alarm_name" {
   description = "CloudWatch alarm for missing scheduled data export successes."
-  value       = aws_cloudwatch_metric_alarm.data_export_success_missing.alarm_name
+  value       = var.enable_data_export_success_cloudwatch_alarm ? aws_cloudwatch_metric_alarm.data_export_success_missing[0].alarm_name : null
 }
 
 output "liquibase_task_definition_arn" {
@@ -144,7 +154,7 @@ output "data_hub_prefixes" {
 }
 
 output "ecs_cluster_name" {
-  description = "ECS cluster name for the single stack."
+  description = "ECS cluster name for the app stack."
   value       = module.ecs.cluster_name
 }
 
@@ -180,7 +190,7 @@ output "order_events_dlq_visible_alarm_name" {
 
 output "private_subnet_ids" {
   description = "Private subnet IDs used by the ECS service and one-off tasks."
-  value       = module.vpc.private_subnets
+  value       = local.platform.private_subnet_ids
 }
 
 output "app_security_group_id" {
@@ -190,5 +200,35 @@ output "app_security_group_id" {
 
 output "github_actions_role_arn" {
   description = "IAM role ARN assumed by GitHub Actions through OIDC."
-  value       = aws_iam_role.github_actions.arn
+  value       = local.github_actions_role_arn
+}
+
+output "observability_stack_enabled" {
+  description = "Whether the optional ECS Grafana/Loki/Prometheus stack is enabled."
+  value       = var.enable_observability_stack
+}
+
+output "observability_bucket_name" {
+  description = "S3 bucket for optional observability config and Loki storage."
+  value       = var.enable_observability_stack ? aws_s3_bucket.observability[0].bucket : null
+}
+
+output "observability_private_namespace" {
+  description = "Private Cloud Map namespace used by the optional observability stack."
+  value       = var.enable_observability_stack ? aws_service_discovery_private_dns_namespace.observability[0].name : null
+}
+
+output "observability_grafana_service_name" {
+  description = "ECS service name for optional Grafana."
+  value       = var.enable_observability_stack ? aws_ecs_service.grafana[0].name : null
+}
+
+output "observability_loki_service_name" {
+  description = "ECS service name for optional Loki."
+  value       = var.enable_observability_stack ? aws_ecs_service.loki[0].name : null
+}
+
+output "observability_prometheus_service_name" {
+  description = "ECS service name for optional Prometheus."
+  value       = var.enable_observability_stack ? aws_ecs_service.prometheus[0].name : null
 }

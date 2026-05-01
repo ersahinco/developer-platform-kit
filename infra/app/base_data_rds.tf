@@ -11,7 +11,7 @@ resource "aws_security_group" "rds" {
   # changes force replacement and a fixed name collides in the same VPC.
   name_prefix = "${local.name}-rds-"
   description = "Postgres from ECS app tasks only - no public access"
-  vpc_id      = module.vpc.vpc_id
+  vpc_id      = local.platform.vpc_id
 
   lifecycle {
     create_before_destroy = true
@@ -57,7 +57,7 @@ module "rds" {
 
   multi_az               = var.rds_multi_az
   create_db_subnet_group = true
-  subnet_ids             = module.vpc.intra_subnets
+  subnet_ids             = local.platform.intra_subnet_ids
   vpc_security_group_ids = [aws_security_group.rds.id]
   publicly_accessible    = false
 

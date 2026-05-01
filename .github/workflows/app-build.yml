@@ -40,6 +40,7 @@ env:
   ECR_REGISTRY: 691627364817.dkr.ecr.eu-central-1.amazonaws.com
   STACK_NAME: aws-sdlc-containers
   ROOT_DOMAIN: ersahinco-sandbox.eu
+  PGBOUNCER_TAG: v1.25.1-p0
 
 # PRs and pushes validate the reference workload locally. Manual runs build,
 # scan, and push immutable images only; deployment is a separate approval step.
@@ -277,8 +278,6 @@ jobs:
           wait
 
       - name: Mirror pgbouncer to ECR
-        env:
-          PGBOUNCER_TAG: v1.25.1-p0
         run: |
           if aws ecr describe-images \
             --repository-name ${{ env.STACK_NAME }}/pgbouncer \

@@ -25,9 +25,9 @@ Confirm alarm state:
 ```bash
 aws cloudwatch describe-alarms \
   --alarm-names \
-    "$(terraform -chdir=infra output -raw rds_cpu_high_alarm_name)" \
-    "$(terraform -chdir=infra output -raw rds_free_storage_low_alarm_name)" \
-    "$(terraform -chdir=infra output -raw rds_connections_high_alarm_name)" \
+    "$(terraform -chdir=infra/app output -raw rds_cpu_high_alarm_name)" \
+    "$(terraform -chdir=infra/app output -raw rds_free_storage_low_alarm_name)" \
+    "$(terraform -chdir=infra/app output -raw rds_connections_high_alarm_name)" \
   --region eu-central-1
 ```
 
@@ -35,7 +35,7 @@ Inspect the DB instance:
 
 ```bash
 aws rds describe-db-instances \
-  --db-instance-identifier "$(terraform -chdir=infra output -raw rds_instance_identifier)" \
+  --db-instance-identifier "$(terraform -chdir=infra/app output -raw rds_instance_identifier)" \
   --region eu-central-1
 ```
 
@@ -79,12 +79,12 @@ Confirm recovery:
 ```bash
 aws cloudwatch describe-alarms \
   --alarm-names \
-    "$(terraform -chdir=infra output -raw rds_cpu_high_alarm_name)" \
-    "$(terraform -chdir=infra output -raw rds_free_storage_low_alarm_name)" \
-    "$(terraform -chdir=infra output -raw rds_connections_high_alarm_name)" \
+    "$(terraform -chdir=infra/app output -raw rds_cpu_high_alarm_name)" \
+    "$(terraform -chdir=infra/app output -raw rds_free_storage_low_alarm_name)" \
+    "$(terraform -chdir=infra/app output -raw rds_connections_high_alarm_name)" \
   --region eu-central-1
 
-curl -fsS "https://$(terraform -chdir=infra output -raw api_fqdn)/health"
+curl -fsS "https://$(terraform -chdir=infra/app output -raw api_fqdn)/health"
 ```
 
 The alarms return to `OK` after the next clean evaluation windows.

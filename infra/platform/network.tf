@@ -1,15 +1,32 @@
 ################################################################################
-# Optional networking features
-#
-# These endpoints keep ECS traffic on the AWS network and reduce dependence on
-# the NAT Gateway, but they are not required for the lean base stack itself.
-# They stay enabled by default in this phase so the deployed behavior is
-# unchanged while the boundaries become explicit.
+# Platform network
+# VPC, subnet tiers, NAT, and AWS service endpoints are app-independent AWS
+# platform resources. App-owned roots consume these IDs through remote state.
 ################################################################################
 
+module "vpc" {
+  source  = "terraform-aws-modules/vpc/aws"
+  version = "~> 6.0"
+
+  name = local.name
+  cidr = var.vpc_cidr
+  azs  = local.azs
+
+  private_subnets = [for i, _ in local.azs : cidrsubnet(var.vpc_cidr, 4, i)]
+  public_subnets  = [for i, _ in local.azs : cidrsubnet(var.vpc_cidr, 8, 100 + i)]
+  intra_subnets   = [for i, _ in local.azs : cidrsubnet(var.vpc_cidr, 8, 200 + i)]
+
+  enable_nat_gateway     = true
+  single_nat_gateway     = var.single_nat_gateway
+  one_nat_gateway_per_az = !var.single_nat_gateway
+
+  enable_dns_hostnames = true
+  enable_dns_support   = true
+
+  tags = local.tags
+}
+
 resource "aws_security_group" "vpc_endpoints" {
-  # name_prefix + create_before_destroy: same reason as alb SG — description
-  # changes force replacement and a fixed name collides in the same VPC.
   name_prefix = "${local.name}-vpc-endpoints-"
   description = "Allow HTTPS from private subnets to AWS Interface Endpoints"
   vpc_id      = module.vpc.vpc_id
@@ -19,7 +36,7 @@ resource "aws_security_group" "vpc_endpoints" {
   }
 
   ingress {
-    description = "HTTPS from ECS tasks"
+    description = "HTTPS from app-owned private resources"
     from_port   = 443
     to_port     = 443
     protocol    = "tcp"
@@ -29,7 +46,6 @@ resource "aws_security_group" "vpc_endpoints" {
   tags = local.tags
 }
 
-# ECR API — image manifest and auth calls
 resource "aws_vpc_endpoint" "ecr_api" {
   vpc_id              = module.vpc.vpc_id
   service_name        = "com.amazonaws.${local.region}.ecr.api"
@@ -40,7 +56,6 @@ resource "aws_vpc_endpoint" "ecr_api" {
   tags                = merge(local.tags, { Name = "${local.name}-ecr-api" })
 }
 
-# ECR DKR — image layer pulls
 resource "aws_vpc_endpoint" "ecr_dkr" {
   vpc_id              = module.vpc.vpc_id
   service_name        = "com.amazonaws.${local.region}.ecr.dkr"
@@ -51,7 +66,6 @@ resource "aws_vpc_endpoint" "ecr_dkr" {
   tags                = merge(local.tags, { Name = "${local.name}-ecr-dkr" })
 }
 
-# Secrets Manager — DB password injection at task startup
 resource "aws_vpc_endpoint" "secretsmanager" {
   vpc_id              = module.vpc.vpc_id
   service_name        = "com.amazonaws.${local.region}.secretsmanager"
@@ -62,7 +76,6 @@ resource "aws_vpc_endpoint" "secretsmanager" {
   tags                = merge(local.tags, { Name = "${local.name}-secretsmanager" })
 }
 
-# CloudWatch Logs — container log delivery from awslogs driver
 resource "aws_vpc_endpoint" "logs" {
   vpc_id              = module.vpc.vpc_id
   service_name        = "com.amazonaws.${local.region}.logs"
@@ -73,7 +86,6 @@ resource "aws_vpc_endpoint" "logs" {
   tags                = merge(local.tags, { Name = "${local.name}-logs" })
 }
 
-# S3 Gateway Endpoint — ECR stores image layers in S3; Gateway endpoints are free
 resource "aws_vpc_endpoint" "s3" {
   vpc_id            = module.vpc.vpc_id
   service_name      = "com.amazonaws.${local.region}.s3"
@@ -82,9 +94,6 @@ resource "aws_vpc_endpoint" "s3" {
   tags              = merge(local.tags, { Name = "${local.name}-s3" })
 }
 
-# SSM Messages — required for ECS Exec (db-tunnel, db-exec) and SSM Session
-# Manager. This stays alongside the other optional endpoint resources because it
-# is only needed when ECS Exec support is enabled.
 resource "aws_vpc_endpoint" "ssmmessages" {
   vpc_id              = module.vpc.vpc_id
   service_name        = "com.amazonaws.${local.region}.ssmmessages"

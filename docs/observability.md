@@ -58,6 +58,10 @@ Grafana credentials default to `admin` / `admin` and can be overridden through
 The local stack contains:
 
 - Prometheus scraping the app `/metrics` endpoint.
+- Prometheus scraping its own runtime metrics and Loki runtime metrics, enabling
+  upstream/community component dashboards when imported.
+- Prometheus loading local app alert rules from
+  `docker/observability/prometheus/rules/`.
 - Loki storing local container logs.
 - Promtail reading Docker container logs through the Docker socket.
 - Grafana data sources and dashboard provisioning, including a readiness-failure
@@ -88,6 +92,9 @@ The local Grafana dashboard also surfaces `/ready` 5xx responses separately so
 operators can distinguish dependency-readiness symptoms from general request
 traffic before following the app or RDS runbooks. Rehearse this path with
 [App Dependency Readiness Drill](../ops/drills/app-dependency-readiness.md).
+Prometheus also loads local alert rules for readiness failures, app request 5xx
+symptoms, and p95 request latency so the same `/metrics` contract can back local
+Grafana-stack alerting before any CloudWatch app-level reduction.
 
 The RDS pressure signals watch `CPUUtilization`, `FreeStorageSpace`, and
 `DatabaseConnections`. Their runbook is `ops/runbooks/rds-pressure.md`.
@@ -96,16 +103,52 @@ The async order event signal watches visible messages in the SQS DLQ for
 `order.created.v1`. Its runbook is
 `ops/runbooks/order-event-queue-failure.md`. The app also exposes
 `order_events_publish_total` from `/metrics` so local operators can distinguish
-successful, failed, and skipped publish attempts.
+successful, failed, and skipped publish attempts. Prometheus loads a local rule
+for `order_events_publish_total{status="failed"}` to make publish failures part
+of the local app observability contract.
 
-Future AWS observability slices can choose whether to deploy:
+## Optional ECS Grafana Stack
 
-- Prometheus/Loki/Grafana on ECS for open-source control.
-- Amazon Managed Grafana plus CloudWatch for lower operational overhead.
-- CloudWatch-only for the smallest AWS footprint.
+`infra/app` contains an opt-in ECS/Fargate Grafana, Loki, and Prometheus stack.
+It is app-owned, disabled by default, and reuses the local dashboard,
+datasource, and Prometheus rule files from `docker/observability/`.
 
-The default implementation path remains local Prometheus, Loki, and Grafana
-first.
+Enable it only after the app images have been pushed and the base app services
+are healthy:
+
+```bash
+aws secretsmanager create-secret \
+  --name aws-sdlc-containers/grafana-admin \
+  --secret-string '<strong-password>' \
+  --region eu-central-1
+
+terraform -chdir=infra/app apply \
+  -var-file=stack.tfvars \
+  -var enable_observability_stack=true
+```
+
+The stack is private inside the VPC. Use ECS Exec or a temporary operator path
+to inspect Grafana, Prometheus, or Loki; do not make Grafana public as part of
+the first enablement slice.
+
+## CloudWatch Reduction Rules
+
+Do not reduce CloudWatch until the matching Grafana-stack signal has dual-run in
+ECS. Keep these AWS/platform signals in CloudWatch:
+
+- ALB target health.
+- RDS CPU, storage, and connection pressure.
+- EventBridge Scheduler delivery failures.
+- SQS DLQ visibility while SQS remains the transport.
+- CloudWatch logs for observability service bootstrap diagnostics.
+
+Only these app-level CloudWatch surfaces have reduction toggles, and both
+default to `true`:
+
+| Variable | CloudWatch surface | Disable only after |
+|---|---|---|
+| `enable_app_symptom_cloudwatch_alarms` | ALB target 5xx and latency symptom alarms | Prometheus/Grafana app 5xx and latency alerts have dual-run through at least one deploy cycle. |
+| `enable_data_export_success_cloudwatch_alarm` | Data-export success metric filter and freshness alarm | A Grafana-stack freshness signal from job metrics or Loki has dual-run. |
 
 ## Acceptance Criteria
 
@@ -113,6 +156,7 @@ first.
 - Grafana dashboard loads from provisioning and includes the readiness-failure
   stat.
 - Loki shows app logs.
+- Prometheus loads local app alert rules.
 - `/metrics` does not change `/health`, `/ready`, request ID propagation, or API
   behavior.
 - Observability remains optional for the base app rollout.

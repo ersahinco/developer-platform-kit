@@ -18,7 +18,7 @@ module "ecr_liquibase" {
   repository_image_tag_mutability = "IMMUTABLE"
   repository_image_scan_on_push   = true
 
-  repository_read_write_access_arns = [aws_iam_role.github_actions.arn]
+  repository_read_write_access_arns = [local.github_actions_role_arn]
 
   repository_lifecycle_policy = jsonencode({
     rules = [
@@ -58,7 +58,7 @@ module "ecr_worker" {
   repository_image_tag_mutability = "IMMUTABLE"
   repository_image_scan_on_push   = true
 
-  repository_read_write_access_arns = [aws_iam_role.github_actions.arn]
+  repository_read_write_access_arns = [local.github_actions_role_arn]
 
   repository_lifecycle_policy = jsonencode({
     rules = [
@@ -98,7 +98,7 @@ module "ecr_data_export_job" {
   repository_image_tag_mutability = "IMMUTABLE"
   repository_image_scan_on_push   = true
 
-  repository_read_write_access_arns = [aws_iam_role.github_actions.arn]
+  repository_read_write_access_arns = [local.github_actions_role_arn]
 
   repository_lifecycle_policy = jsonencode({
     rules = [
@@ -138,7 +138,7 @@ module "ecr_order_event_consumer" {
   repository_image_tag_mutability = "IMMUTABLE"
   repository_image_scan_on_push   = true
 
-  repository_read_write_access_arns = [aws_iam_role.github_actions.arn]
+  repository_read_write_access_arns = [local.github_actions_role_arn]
 
   repository_lifecycle_policy = jsonencode({
     rules = [
@@ -304,6 +304,8 @@ resource "aws_cloudwatch_log_group" "data_export_job" {
 }
 
 resource "aws_cloudwatch_log_metric_filter" "data_export_success" {
+  count = var.enable_data_export_success_cloudwatch_alarm ? 1 : 0
+
   name           = "${local.name}-data-export-success"
   log_group_name = aws_cloudwatch_log_group.data_export_job.name
   pattern        = "{ ($.dataset = \"order_contact_email\") && ($.status = \"succeeded\") }"
@@ -317,6 +319,8 @@ resource "aws_cloudwatch_log_metric_filter" "data_export_success" {
 }
 
 resource "aws_cloudwatch_metric_alarm" "data_export_success_missing" {
+  count = var.enable_data_export_success_cloudwatch_alarm ? 1 : 0
+
   alarm_name          = "${local.name}-data-export-success-missing"
   alarm_description   = "No successful data export manifest was observed for two daily evaluation windows. Runbook: ops/runbooks/data-export-job-failure.md"
   comparison_operator = "LessThanThreshold"
@@ -405,7 +409,7 @@ resource "aws_scheduler_schedule" "data_export_job" {
       network_configuration {
         assign_public_ip = false
         security_groups  = [aws_security_group.app.id]
-        subnets          = module.vpc.private_subnets
+        subnets          = local.platform.private_subnet_ids
       }
     }
 
@@ -527,7 +531,7 @@ resource "aws_ecs_service" "order_event_consumer" {
   network_configuration {
     assign_public_ip = false
     security_groups  = [aws_security_group.app.id]
-    subnets          = module.vpc.private_subnets
+    subnets          = local.platform.private_subnet_ids
   }
 
   lifecycle {

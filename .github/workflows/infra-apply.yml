@@ -8,14 +8,15 @@ on:
         required: true
         type: string
       confirm_apply:
-        description: "Type apply to confirm Terraform apply against the shared AWS stack."
+        description: "Type apply to confirm Terraform apply against platform and app roots."
         required: true
         type: string
 
 env:
   AWS_REGION: eu-central-1
   TF_VERSION: 1.15.0
-  TF_STATE_KEY: aws-sdlc-containers/stack.tfstate
+  TF_PLATFORM_STATE_KEY: aws-sdlc-containers/platform.tfstate
+  TF_APP_STATE_KEY: aws-sdlc-containers/app.tfstate
 
 permissions:
   actions: read
@@ -24,10 +25,10 @@ permissions:
 
 jobs:
   apply:
-    name: Apply Reviewed Plan
+    name: Apply Reviewed Plans
     if: inputs.confirm_apply == 'apply'
     runs-on: ubuntu-latest
-    timeout-minutes: 15
+    timeout-minutes: 45
     environment: aws
 
     steps:
@@ -87,13 +88,24 @@ jobs:
           role-to-assume: ${{ secrets.AWS_ROLE_ARN }}
           aws-region: ${{ env.AWS_REGION }}
 
-      - name: terraform init
+      - name: terraform init platform
         run: |
           terraform init \
-            -backend-config="key=${{ env.TF_STATE_KEY }}" \
+            -backend-config="key=${{ env.TF_PLATFORM_STATE_KEY }}" \
             -reconfigure
-        working-directory: infra
+        working-directory: infra/platform
 
-      - name: terraform apply reviewed plan
-        run: terraform apply -auto-approve stack.tfplan
-        working-directory: infra
+      - name: terraform apply platform reviewed plan
+        run: terraform apply -auto-approve platform.tfplan
+        working-directory: infra/platform
+
+      - name: terraform init app
+        run: |
+          terraform init \
+            -backend-config="key=${{ env.TF_APP_STATE_KEY }}" \
+            -reconfigure
+        working-directory: infra/app
+
+      - name: terraform apply app reviewed plan
+        run: terraform apply -auto-approve app.tfplan
+        working-directory: infra/app

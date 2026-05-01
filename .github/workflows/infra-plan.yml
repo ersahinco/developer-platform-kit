@@ -6,21 +6,22 @@ on:
     paths:
       - ".github/workflows/infra-plan.yml"
       - "infra/**"
+      - "docker/observability/**"
   push:
     branches: [main]
     paths:
       - ".github/workflows/infra-plan.yml"
       - "infra/**"
+      - "docker/observability/**"
 
 env:
   AWS_REGION: eu-central-1
   TF_VERSION: 1.15.0
   TFLINT_VERSION: v0.62.0
-  TF_STATE_KEY: aws-sdlc-containers/stack.tfstate
+  TF_PLATFORM_STATE_KEY: aws-sdlc-containers/platform.tfstate
+  TF_APP_STATE_KEY: aws-sdlc-containers/app.tfstate
   TF_VARS_FILE: stack.tfvars
 
-# PRs, pushes, and manual runs validate and produce a Terraform plan artifact.
-# Applying that reviewed plan is a separate manual workflow.
 permissions:
   contents: read
   pull-requests: write
@@ -39,24 +40,35 @@ jobs:
           terraform_version: ${{ env.TF_VERSION }}
 
       - name: terraform fmt
-        run: terraform fmt -check -recursive
-        working-directory: infra
+        run: terraform fmt -check -recursive infra
 
-      - name: terraform validate
+      - name: terraform validate platform
         run: |
           terraform init -backend=false
           terraform validate
-        working-directory: infra
+        working-directory: infra/platform
+
+      - name: terraform validate app
+        run: |
+          terraform init -backend=false
+          terraform validate
+        working-directory: infra/app
 
       - uses: terraform-linters/setup-tflint@v6
         with:
           tflint_version: ${{ env.TFLINT_VERSION }}
 
-      - name: tflint
+      - name: tflint platform
         run: |
           tflint --init
           tflint --format compact
-        working-directory: infra
+        working-directory: infra/platform
+
+      - name: tflint app
+        run: |
+          tflint --init
+          tflint --format compact
+        working-directory: infra/app
 
       - name: checkov
         uses: bridgecrewio/checkov-action@v12.3100.0
@@ -83,32 +95,54 @@ jobs:
           role-to-assume: ${{ secrets.AWS_ROLE_ARN }}
           aws-region: ${{ env.AWS_REGION }}
 
-      - name: terraform init
+      - name: terraform init platform
         run: |
           terraform init \
-            -backend-config="key=${{ env.TF_STATE_KEY }}" \
+            -backend-config="key=${{ env.TF_PLATFORM_STATE_KEY }}" \
             -reconfigure
-        working-directory: infra
+        working-directory: infra/platform
 
-      - name: terraform plan
-        id: plan
+      - name: terraform plan platform
+        id: platform-plan
         run: |
-          terraform plan -var-file="${{ env.TF_VARS_FILE }}" -no-color -out=stack.tfplan 2>&1 \
-            | tee plan_output.txt
+          terraform plan -var-file="${{ env.TF_VARS_FILE }}" -no-color -out=platform.tfplan 2>&1 \
+            | tee platform_plan_output.txt
           echo "exitcode=${PIPESTATUS[0]}" >> "$GITHUB_OUTPUT"
-        working-directory: infra
+        working-directory: infra/platform
+        continue-on-error: true
+
+      - name: terraform init app
+        run: |
+          terraform init \
+            -backend-config="key=${{ env.TF_APP_STATE_KEY }}" \
+            -reconfigure
+        working-directory: infra/app
+
+      - name: terraform plan app
+        id: app-plan
+        run: |
+          terraform plan -var-file="${{ env.TF_VARS_FILE }}" -no-color -out=app.tfplan 2>&1 \
+            | tee app_plan_output.txt
+          echo "exitcode=${PIPESTATUS[0]}" >> "$GITHUB_OUTPUT"
+        working-directory: infra/app
         continue-on-error: true
 
       - name: Publish plan summary
         run: |
           {
-            echo "### Terraform plan"
+            echo "### Terraform platform plan"
             echo ""
             echo "Workflow run: ${{ github.run_id }}"
             echo "Commit: ${{ github.sha }}"
             echo ""
             echo '```'
-            sed -n '1,500p' infra/plan_output.txt
+            sed -n '1,350p' infra/platform/platform_plan_output.txt
+            echo '```'
+            echo ""
+            echo "### Terraform app plan"
+            echo ""
+            echo '```'
+            sed -n '1,350p' infra/app/app_plan_output.txt
             echo '```'
           } >> "$GITHUB_STEP_SUMMARY"
 
@@ -117,8 +151,10 @@ jobs:
         with:
           name: terraform-plan-${{ github.run_id }}
           path: |
-            infra/stack.tfplan
-            infra/plan_output.txt
+            infra/platform/platform.tfplan
+            infra/platform/platform_plan_output.txt
+            infra/app/app.tfplan
+            infra/app/app_plan_output.txt
           retention-days: 14
 
       - name: Post plan to PR
@@ -127,17 +163,20 @@ jobs:
         with:
           script: |
             const fs = require('fs');
-            const plan = fs.readFileSync('infra/plan_output.txt', 'utf8');
-            const truncated = plan.length > 60000
-              ? plan.slice(0, 60000) + '\n\n... (truncated)'
-              : plan;
+            const platform = fs.readFileSync('infra/platform/platform_plan_output.txt', 'utf8');
+            const app = fs.readFileSync('infra/app/app_plan_output.txt', 'utf8');
+            const body = `### Terraform platform plan\n\`\`\`\n${platform.slice(0, 30000)}\n\`\`\`\n\n### Terraform app plan\n\`\`\`\n${app.slice(0, 30000)}\n\`\`\``;
             github.rest.issues.createComment({
               issue_number: context.issue.number,
               owner: context.repo.owner,
               repo: context.repo.repo,
-              body: `### Terraform plan\n\`\`\`\n${truncated}\n\`\`\``
+              body,
             });
 
-      - name: Fail if plan failed
-        if: steps.plan.outputs.exitcode != '0'
+      - name: Fail if platform plan failed
+        if: steps.platform-plan.outputs.exitcode != '0'
+        run: exit 1
+
+      - name: Fail if app plan failed
+        if: steps.app-plan.outputs.exitcode != '0'
         run: exit 1

@@ -1,37 +1,19 @@
 ################################################################################
-# GitHub Actions OIDC federation
+# GitHub Actions CI IAM policies
 #
-# Keep one deployment role for this repository. The trust relationship stays
-# repo-scoped, while the attached managed policies are organized by operational
-# concern so reviews can focus on one surface area at a time.
-#
-# Base GitHub Actions OIDC is intentionally kept in this single file so one
-# conceptual area does not get spread across too many files. Optional policy
-# extensions remain isolated in `oidc_optional_features.tf`.
+# Platform owns the single GitHub Actions role and the CI policy attachments.
+# App-owned roots attach repository policies to that platform role where a
+# workload resource needs a resource policy, but the role identity and managed
+# policies stay here.
 ################################################################################
 
 locals {
-  github_actions_oidc_subjects = [
-    "repo:ersahinco/aws-sdlc-containers:environment:*",
-    "repo:ersahinco/aws-sdlc-containers:ref:refs/heads/main",
-    "repo:ersahinco/aws-sdlc-containers:ref:refs/pull/*/head",
-  ]
-
-  github_actions_state_bucket_name = "aws-sdlc-containers-tfstate-${local.account_id}"
-  github_actions_stack_scope       = "aws-sdlc-containers*"
-
-  github_actions_ecr_push_repositories = [
-    module.ecr_app.repository_arn,
-    module.ecr_worker.repository_arn,
-    module.ecr_data_export_job.repository_arn,
-    module.ecr_order_event_consumer.repository_arn,
-    module.ecr_liquibase.repository_arn,
-    module.ecr_pgbouncer.repository_arn,
-  ]
+  github_actions_stack_scope = "${local.name}*"
+  data_hub_bucket_name       = "${local.name}-data-hub-${local.account_id}"
 
   github_actions_logs_manage_resources = [
-    "arn:aws:logs:${local.region}:${local.account_id}:log-group:/ecs/aws-sdlc-containers*",
-    "arn:aws:logs:${local.region}:${local.account_id}:log-group:/ecs/aws-sdlc-containers*:*",
+    "arn:aws:logs:${local.region}:${local.account_id}:log-group:/ecs/${local.github_actions_stack_scope}",
+    "arn:aws:logs:${local.region}:${local.account_id}:log-group:/ecs/${local.github_actions_stack_scope}:*",
     "arn:aws:logs:${local.region}:${local.account_id}:log-group:/aws/ecs/*",
     "arn:aws:logs:${local.region}:${local.account_id}:log-group:/aws/ecs/*:*",
   ]
@@ -56,9 +38,9 @@ locals {
   ]
 
   github_actions_alb_manage_resources = [
-    "arn:aws:elasticloadbalancing:${local.region}:${local.account_id}:loadbalancer/app/aws-sdlc-containers*/*",
-    "arn:aws:elasticloadbalancing:${local.region}:${local.account_id}:targetgroup/aws-sdlc-containers*/*",
-    "arn:aws:elasticloadbalancing:${local.region}:${local.account_id}:listener/app/aws-sdlc-containers*/*/*",
+    "arn:aws:elasticloadbalancing:${local.region}:${local.account_id}:loadbalancer/app/${local.github_actions_stack_scope}/*",
+    "arn:aws:elasticloadbalancing:${local.region}:${local.account_id}:targetgroup/${local.github_actions_stack_scope}/*",
+    "arn:aws:elasticloadbalancing:${local.region}:${local.account_id}:listener/app/${local.github_actions_stack_scope}/*/*",
   ]
 
   github_actions_acm_certificate_resources = [
@@ -82,68 +64,9 @@ locals {
   ]
 }
 
-data "aws_iam_openid_connect_provider" "github" {
-  url = "https://token.actions.githubusercontent.com"
-}
-
-data "aws_iam_policy_document" "github_actions_assume" {
-  statement {
-    actions = ["sts:AssumeRoleWithWebIdentity"]
-
-    principals {
-      type        = "Federated"
-      identifiers = [data.aws_iam_openid_connect_provider.github.arn]
-    }
-
-    condition {
-      test     = "StringEquals"
-      variable = "token.actions.githubusercontent.com:aud"
-      values   = ["sts.amazonaws.com"]
-    }
-
-    condition {
-      test     = "StringLike"
-      variable = "token.actions.githubusercontent.com:sub"
-      values   = local.github_actions_oidc_subjects
-    }
-  }
-}
-
-resource "aws_iam_role" "github_actions" {
-  name               = "${local.name}-github-actions"
-  assume_role_policy = data.aws_iam_policy_document.github_actions_assume.json
-  tags               = local.tags
-}
-
 ################################################################################
 # Base policy documents
 ################################################################################
-
-data "aws_iam_policy_document" "github_actions_state_access" {
-  statement {
-    sid = "TerraformState"
-    actions = [
-      "s3:GetObject",
-      "s3:PutObject",
-      "s3:DeleteObject",
-      "s3:ListBucket",
-    ]
-    resources = [
-      "arn:aws:s3:::${local.github_actions_state_bucket_name}",
-      "arn:aws:s3:::${local.github_actions_state_bucket_name}/*",
-    ]
-  }
-
-  statement {
-    sid = "TerraformStateLock"
-    actions = [
-      "dynamodb:GetItem",
-      "dynamodb:PutItem",
-      "dynamodb:DeleteItem",
-    ]
-    resources = ["arn:aws:dynamodb:${local.region}:${local.account_id}:table/terraform-locks"]
-  }
-}
 
 data "aws_iam_policy_document" "github_actions_compute_deploy" {
   statement {
@@ -263,7 +186,9 @@ data "aws_iam_policy_document" "github_actions_ecr" {
       "ecr:BatchGetImage",
       "ecr:GetDownloadUrlForLayer",
     ]
-    resources = local.github_actions_ecr_push_repositories
+    resources = [
+      "arn:aws:ecr:${local.region}:${local.account_id}:repository/${local.github_actions_stack_scope}",
+    ]
   }
 
   statement {
@@ -579,12 +504,6 @@ data "aws_iam_policy_document" "github_actions_identity_kms" {
 # resources, and conditions.
 ################################################################################
 
-resource "aws_iam_policy" "github_actions_state_access" {
-  name   = "${local.name}-github-actions-state-access"
-  policy = data.aws_iam_policy_document.github_actions_state_access.json
-  tags   = local.tags
-}
-
 resource "aws_iam_policy" "github_actions_compute_deploy" {
   name   = "${local.name}-github-actions-compute-deploy"
   policy = data.aws_iam_policy_document.github_actions_compute_deploy.json
@@ -629,7 +548,6 @@ resource "aws_iam_policy" "github_actions_identity_kms" {
 
 resource "aws_iam_role_policy_attachment" "github_actions_managed" {
   for_each = {
-    state_access   = aws_iam_policy.github_actions_state_access.arn
     compute_deploy = aws_iam_policy.github_actions_compute_deploy.arn
     ecr            = aws_iam_policy.github_actions_ecr.arn
     networking     = aws_iam_policy.github_actions_networking.arn

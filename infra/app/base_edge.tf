@@ -9,7 +9,7 @@ resource "aws_security_group" "alb" {
   # a duplicate-name collision in the same VPC.
   name_prefix = "${local.name}-alb-"
   description = "ALB: HTTPS from internet only, egress to app tasks"
-  vpc_id      = module.vpc.vpc_id
+  vpc_id      = local.platform.vpc_id
 
   lifecycle {
     create_before_destroy = true
@@ -41,7 +41,7 @@ resource "aws_security_group" "app" {
   # changes force replacement and a fixed name collides in the same VPC.
   name_prefix = "${local.name}-app-"
   description = "App tasks: inbound from ALB only, HTTPS egress to AWS APIs, Postgres to RDS"
-  vpc_id      = module.vpc.vpc_id
+  vpc_id      = local.platform.vpc_id
 
   lifecycle {
     create_before_destroy = true
@@ -74,7 +74,7 @@ resource "aws_security_group" "app" {
     from_port   = 5432
     to_port     = 5432
     protocol    = "tcp"
-    cidr_blocks = [var.vpc_cidr]
+    cidr_blocks = [local.vpc_cidr]
   }
 
   tags = local.tags
@@ -85,7 +85,7 @@ resource "aws_lb" "this" {
   internal           = false
   load_balancer_type = "application"
   security_groups    = [aws_security_group.alb.id]
-  subnets            = module.vpc.public_subnets
+  subnets            = local.platform.public_subnet_ids
   # Drop invalid HTTP headers — prevents header smuggling attacks at no cost.
   drop_invalid_header_fields = true
   tags                       = local.tags
@@ -95,7 +95,7 @@ resource "aws_lb_target_group" "app" {
   name        = local.name
   port        = 8000
   protocol    = "HTTP"
-  vpc_id      = module.vpc.vpc_id
+  vpc_id      = local.platform.vpc_id
   target_type = "ip" # required for Fargate — each task gets its own ENI
 
   # 5s: faster than the default 300s. Keep above 0 — ECS needs a moment to
@@ -139,6 +139,8 @@ resource "aws_cloudwatch_metric_alarm" "app_unhealthy_targets" {
 }
 
 resource "aws_cloudwatch_metric_alarm" "app_target_5xx" {
+  count = var.enable_app_symptom_cloudwatch_alarms ? 1 : 0
+
   alarm_name          = "${local.name}-app-target-5xx"
   alarm_description   = "App targets returned 5xx responses behind the ALB. Runbook: ops/runbooks/app-edge-errors-latency.md"
   comparison_operator = "GreaterThanThreshold"
@@ -161,6 +163,8 @@ resource "aws_cloudwatch_metric_alarm" "app_target_5xx" {
 }
 
 resource "aws_cloudwatch_metric_alarm" "app_target_latency" {
+  count = var.enable_app_symptom_cloudwatch_alarms ? 1 : 0
+
   alarm_name          = "${local.name}-app-target-latency"
   alarm_description   = "App target p95 response time exceeded 2 seconds. Runbook: ops/runbooks/app-edge-errors-latency.md"
   comparison_operator = "GreaterThanThreshold"
@@ -202,7 +206,7 @@ resource "aws_route53_record" "api_cert_validation" {
     }
   }
 
-  zone_id         = data.aws_route53_zone.public.zone_id
+  zone_id         = local.platform.route53_public_zone_id
   name            = each.value.name
   type            = each.value.type
   ttl             = 60
@@ -267,7 +271,7 @@ resource "aws_lb_listener_rule" "auth" {
 }
 
 resource "aws_route53_record" "api_alias" {
-  zone_id = data.aws_route53_zone.public.zone_id
+  zone_id = local.platform.route53_public_zone_id
   name    = local.api_fqdn
   type    = "A"
 

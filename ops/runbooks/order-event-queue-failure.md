@@ -27,7 +27,7 @@ Confirm the alarm:
 
 ```bash
 aws cloudwatch describe-alarms \
-  --alarm-names "$(terraform -chdir=infra output -raw order_events_dlq_visible_alarm_name)" \
+  --alarm-names "$(terraform -chdir=infra/app output -raw order_events_dlq_visible_alarm_name)" \
   --region eu-central-1
 ```
 
@@ -35,12 +35,12 @@ Inspect the source queue and DLQ:
 
 ```bash
 aws sqs get-queue-attributes \
-  --queue-url "$(terraform -chdir=infra output -raw order_events_queue_url)" \
+  --queue-url "$(terraform -chdir=infra/app output -raw order_events_queue_url)" \
   --attribute-names All \
   --region eu-central-1
 
 DLQ_URL="$(aws sqs get-queue-url \
-  --queue-name "$(terraform -chdir=infra output -raw order_events_dlq_name)" \
+  --queue-name "$(terraform -chdir=infra/app output -raw order_events_dlq_name)" \
   --query QueueUrl \
   --output text \
   --region eu-central-1)"
@@ -63,6 +63,25 @@ aws logs tail /ecs/aws-sdlc-containers/order-event-consumer \
   --region eu-central-1
 ```
 
+## Grafana-Stack Checks
+
+When the optional Grafana stack is enabled and reachable, check the provisioned
+`App Overview` dashboard for `order_events_publish_total` outcomes. The matching
+Prometheus alert is `OrderEventPublishFailures`.
+
+Use Loki for app and consumer log context during the same window:
+
+```logql
+{container="app"} |= "order_event_publish_failed"
+```
+
+```logql
+{container="order-event-consumer"}
+```
+
+Keep the SQS DLQ CloudWatch alarm in the flow until the later messaging
+roadmap sessions replace SQS or provide an equivalent parking-stream signal.
+
 ## Common Causes
 
 - A downstream queue consumer failed the same message five times.
@@ -78,13 +97,13 @@ If the worker cannot relay or consume order events, first restore queue access:
 
 ```bash
 aws ecs describe-services \
-  --cluster "$(terraform -chdir=infra output -raw ecs_cluster_name)" \
-  --services "$(terraform -chdir=infra output -raw app_service_name)" \
+  --cluster "$(terraform -chdir=infra/app output -raw ecs_cluster_name)" \
+  --services "$(terraform -chdir=infra/app output -raw app_service_name)" \
   --region eu-central-1
 
 aws ecs describe-services \
-  --cluster "$(terraform -chdir=infra output -raw ecs_cluster_name)" \
-  --services "$(terraform -chdir=infra output -raw order_event_consumer_service_name)" \
+  --cluster "$(terraform -chdir=infra/app output -raw ecs_cluster_name)" \
+  --services "$(terraform -chdir=infra/app output -raw order_event_consumer_service_name)" \
   --region eu-central-1
 ```
 

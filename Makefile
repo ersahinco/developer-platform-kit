@@ -1,5 +1,5 @@
 # ─────────────────────────────────────────────────────────────────────────────
-# Makefile — local dev, single-stack infra, and operator commands
+# Makefile — local dev, split-root infra, and operator commands
 #
 # Prerequisites (install once):
 #   Recommended: open the repo in its dev container.
@@ -16,8 +16,8 @@
 #
 #   make bootstrap           — one-time AWS account setup, idempotent
 #
-#   make infra-plan          — terraform plan for the single stack
-#   make infra-apply         — terraform apply for the single stack
+#   make infra-platform-plan — terraform plan for platform/bootstrap root
+#   make infra-app-plan      — terraform plan for app-owned root
 #
 #   make app-deploy          — force new ECS deployment
 #
@@ -29,13 +29,15 @@
 
 .DEFAULT_GOAL := help
 
-AWS_REGION      := eu-central-1
-ACCOUNT_ID      := 691627364817
-TF_STATE_BUCKET := aws-sdlc-containers-tfstate-$(ACCOUNT_ID)
-TF_LOCK_TABLE   := terraform-locks
-ROOT_DOMAIN     ?= ersahinco-sandbox.eu
-TF_STATE_KEY    := aws-sdlc-containers/stack.tfstate
-TF_VARS_FILE    := stack.tfvars
+AWS_REGION             := eu-central-1
+ACCOUNT_ID             := 691627364817
+TF_STATE_BUCKET        := aws-sdlc-containers-tfstate-$(ACCOUNT_ID)
+TF_LOCK_TABLE          := terraform-locks
+ROOT_DOMAIN            ?= ersahinco-sandbox.eu
+TF_PLATFORM_STATE_KEY  := aws-sdlc-containers/platform.tfstate
+TF_APP_STATE_KEY       := aws-sdlc-containers/app.tfstate
+TF_PLATFORM_VARS_FILE  := stack.tfvars
+TF_APP_VARS_FILE       := stack.tfvars
 
 # ── Help ──────────────────────────────────────────────────────────────────────
 
@@ -116,7 +118,8 @@ dependency-audit: ## Audit uv-locked Python dependencies for known vulnerabiliti
 .PHONY: lint-infra
 lint-infra: ## Lint Terraform (fmt check + tflint + checkov)
 	terraform fmt -check -recursive infra/
-	cd infra && tflint --init && tflint --format compact
+	cd infra/platform && tflint --init && tflint --format compact
+	cd infra/app && tflint --init && tflint --format compact
 	checkov -d infra --framework terraform --config-file infra/.checkov.yaml
 
 .PHONY: fmt
@@ -165,47 +168,41 @@ bootstrap: ## One-time AWS account setup — idempotent, safe to re-run
 			--thumbprint-list 6938fd4d98bab03faadb97b34396831e3780aea1
 	@echo "Bootstrap complete."
 
-# ── Infra — single stack ──────────────────────────────────────────────────────
-#
-# All targets below operate on the same long-lived stack. This repo does not
-# maintain separate dev/prod Terraform states or promotion environments.
-# ─────────────────────────────────────────────────────────────────────────────
+# ── Infra — split roots ───────────────────────────────────────────────────────
 
-.PHONY: infra-init
-infra-init:
-	cd infra && terraform init \
-		-backend-config="key=$(TF_STATE_KEY)" \
+.PHONY: infra-platform-init
+infra-platform-init:
+	cd infra/platform && terraform init \
+		-backend-config="key=$(TF_PLATFORM_STATE_KEY)" \
 		-reconfigure
 
+.PHONY: infra-platform-plan
+infra-platform-plan: infra-platform-init ## Terraform plan — platform/bootstrap root
+	cd infra/platform && terraform plan -var-file=$(TF_PLATFORM_VARS_FILE)
+
+.PHONY: infra-platform-apply
+infra-platform-apply: infra-platform-init ## Terraform apply — platform/bootstrap root
+	cd infra/platform && terraform apply -var-file=$(TF_PLATFORM_VARS_FILE)
+
+.PHONY: infra-app-init
+infra-app-init:
+	cd infra/app && terraform init \
+		-backend-config="key=$(TF_APP_STATE_KEY)" \
+		-reconfigure
+
+.PHONY: infra-app-plan
+infra-app-plan: infra-app-init ## Terraform plan — app-owned root
+	cd infra/app && terraform plan -var-file=$(TF_APP_VARS_FILE)
+
+.PHONY: infra-app-apply
+infra-app-apply: infra-app-init ## Terraform apply — app-owned root
+	cd infra/app && terraform apply -var-file=$(TF_APP_VARS_FILE)
+
 .PHONY: infra-plan
-infra-plan: infra-init ## Terraform plan — single stack
-	cd infra && terraform plan -var-file=$(TF_VARS_FILE)
+infra-plan: infra-platform-plan infra-app-plan ## Terraform plan — platform then app roots
 
 .PHONY: infra-apply
-infra-apply: infra-init ## Terraform apply — single stack
-	cd infra && terraform apply -var-file=$(TF_VARS_FILE)
-
-.PHONY: infra-apply-iam
-infra-apply-iam: infra-init ## Targeted apply: GitHub Actions IAM only — breaks bootstrap permission cycle
-	cd infra && terraform apply -var-file=$(TF_VARS_FILE) \
-		-target=aws_iam_role.github_actions \
-		-target=aws_iam_policy.github_actions_state_access \
-		-target=aws_iam_policy.github_actions_compute_deploy \
-		-target=aws_iam_policy.github_actions_ecr \
-		-target=aws_iam_policy.github_actions_networking \
-		-target=aws_iam_policy.github_actions_edge_dns \
-		-target=aws_iam_policy.github_actions_logs_secrets \
-		-target=aws_iam_policy.github_actions_data_hub \
-		-target=aws_iam_policy.github_actions_identity_kms \
-		-target=aws_iam_policy.github_actions_networking_vpc_endpoints \
-		-target=aws_iam_policy.github_actions_edge_waf \
-		-target=aws_iam_role_policy_attachment.github_actions_managed \
-		-target=aws_iam_role_policy_attachment.github_actions_networking_vpc_endpoints \
-		-target=aws_iam_role_policy_attachment.github_actions_edge_waf
-
-.PHONY: infra-destroy
-infra-destroy: infra-init ## Terraform destroy — single stack
-	cd infra && terraform destroy -var-file=$(TF_VARS_FILE)
+infra-apply: infra-platform-apply infra-app-apply ## Terraform apply — platform then app roots
 
 # ── App — deploy ──────────────────────────────────────────────────────────────
 

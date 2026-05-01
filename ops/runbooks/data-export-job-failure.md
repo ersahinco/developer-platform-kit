@@ -21,18 +21,23 @@ no successful export is observed for two consecutive daily evaluation windows.
 
 ## First Checks
 
+If `terraform -chdir=infra/app output -raw data_export_success_cloudwatch_alarm_enabled`
+returns `false`, the success-missing CloudWatch alarm was intentionally disabled
+after Grafana-stack dual-run. Still check the Scheduler delivery alarm, then use
+the Grafana-stack freshness checks below.
+
 Confirm the alarm and schedule:
 
 ```bash
 aws cloudwatch describe-alarms \
   --alarm-names \
-    "$(terraform -chdir=infra output -raw data_export_scheduler_target_errors_alarm_name)" \
-    "$(terraform -chdir=infra output -raw data_export_success_missing_alarm_name)" \
+    "$(terraform -chdir=infra/app output -raw data_export_scheduler_target_errors_alarm_name)" \
+    "$(terraform -chdir=infra/app output -raw data_export_success_missing_alarm_name)" \
   --region eu-central-1
 
 aws scheduler get-schedule \
   --group-name default \
-  --name "$(terraform -chdir=infra output -raw data_export_schedule_name)" \
+  --name "$(terraform -chdir=infra/app output -raw data_export_schedule_name)" \
   --region eu-central-1
 ```
 
@@ -40,7 +45,7 @@ Check recent stopped tasks for the data export family:
 
 ```bash
 aws ecs list-tasks \
-  --cluster "$(terraform -chdir=infra output -raw ecs_cluster_name)" \
+  --cluster "$(terraform -chdir=infra/app output -raw ecs_cluster_name)" \
   --family aws-sdlc-containers-data-export-job \
   --desired-status STOPPED \
   --region eu-central-1
@@ -50,7 +55,7 @@ Describe any recent task ARN returned by `list-tasks`:
 
 ```bash
 aws ecs describe-tasks \
-  --cluster "$(terraform -chdir=infra output -raw ecs_cluster_name)" \
+  --cluster "$(terraform -chdir=infra/app output -raw ecs_cluster_name)" \
   --tasks "<task-arn>" \
   --region eu-central-1
 ```
@@ -62,6 +67,21 @@ aws logs tail /ecs/aws-sdlc-containers/data-export-job \
   --since 2h \
   --region eu-central-1
 ```
+
+## Grafana-Stack Checks
+
+When the optional Grafana stack is enabled and data export job logs are routed
+to Loki, inspect successful and failed manifest log records there before
+changing CloudWatch alarms:
+
+```logql
+{container="data-export-job"} | json | dataset="order_contact_email"
+```
+
+A future Grafana-stack freshness alert should be based on either that successful
+manifest log record or a native data-export job metric. Until that replacement
+is deployed and dual-run, the CloudWatch `SuccessCount` metric filter and
+success-missing alarm remain authoritative.
 
 ## Common Causes
 
@@ -82,18 +102,18 @@ GITHUB_OUTPUT=/tmp/data-export-network.env \
 source /tmp/data-export-network.env
 
 TASK_ARN=$(scripts/ci_run_ecs_task.sh \
-  "$(terraform -chdir=infra output -raw ecs_cluster_name)" \
+  "$(terraform -chdir=infra/app output -raw ecs_cluster_name)" \
   "aws-sdlc-containers-data-export-job" \
   "$subnet_id" \
   "$sg_id")
 
 aws ecs wait tasks-stopped \
-  --cluster "$(terraform -chdir=infra output -raw ecs_cluster_name)" \
+  --cluster "$(terraform -chdir=infra/app output -raw ecs_cluster_name)" \
   --tasks "$TASK_ARN" \
   --region eu-central-1
 
 scripts/ci_assert_ecs_task_succeeded.sh \
-  "$(terraform -chdir=infra output -raw ecs_cluster_name)" \
+  "$(terraform -chdir=infra/app output -raw ecs_cluster_name)" \
   "$TASK_ARN" \
   "Data export job"
 ```
@@ -102,12 +122,12 @@ Confirm that the expected S3 objects exist:
 
 ```bash
 aws s3 ls \
-  "s3://$(terraform -chdir=infra output -raw data_hub_bucket_name)/raw/order_contact_email/" \
+  "s3://$(terraform -chdir=infra/app output -raw data_hub_bucket_name)/raw/order_contact_email/" \
   --recursive \
   --region eu-central-1
 
 aws s3 ls \
-  "s3://$(terraform -chdir=infra output -raw data_hub_bucket_name)/manifests/order_contact_email/" \
+  "s3://$(terraform -chdir=infra/app output -raw data_hub_bucket_name)/manifests/order_contact_email/" \
   --recursive \
   --region eu-central-1
 ```

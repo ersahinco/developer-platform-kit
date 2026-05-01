@@ -5,19 +5,24 @@ variable "aws_region" {
 }
 
 variable "stack_name" {
-  description = "Single stack name used as the resource prefix/tag across the project."
+  description = "Shared stack name used as the resource prefix/tag."
   type        = string
   default     = "aws-sdlc-containers"
 }
 
-
-# ── Networking ────────────────────────────────────────────────────────────────
-
-variable "vpc_cidr" {
-  description = "CIDR block for the VPC."
+variable "platform_state_bucket" {
+  description = "Terraform state bucket containing the platform root state."
   type        = string
-  default     = "10.0.0.0/16"
+  default     = "aws-sdlc-containers-tfstate-691627364817"
 }
+
+variable "platform_state_key" {
+  description = "Terraform state key for platform outputs consumed by this app root."
+  type        = string
+  default     = "aws-sdlc-containers/platform.tfstate"
+}
+
+# ── Edge ──────────────────────────────────────────────────────────────────────
 
 variable "alb_ingress_cidr" {
   description = "CIDR allowed to reach the ALB on port 443. Open to 0.0.0.0/0 because HTTPS plus the fixed-token check is the access control layer."
@@ -29,23 +34,6 @@ variable "api_token_secret_name" {
   description = "Secrets Manager secret name holding the API bearer token. Create it out of band and keep it out of Terraform state and tfvars."
   type        = string
   default     = "aws-sdlc-containers/api-token"
-}
-
-variable "root_domain" {
-  description = "Public Route 53 root domain registered in this AWS account (for example: example-sandbox.click). The API hostname is created as api.<root_domain>."
-  type        = string
-}
-
-variable "az_count" {
-  description = "Number of availability zones to use for subnet groups. Keep 2 for a lean setup; RDS subnet groups require at least 2 AZs even when the DB instance itself is single-AZ."
-  type        = number
-  default     = 2
-}
-
-variable "single_nat_gateway" {
-  description = "Share one NAT Gateway across all subnets to keep the stack lean."
-  type        = bool
-  default     = true
 }
 
 # ── ECS ───────────────────────────────────────────────────────────────────────
@@ -126,6 +114,94 @@ variable "order_event_consumer_desired_count" {
   description = "Desired number of order event relay/consumer tasks."
   type        = number
   default     = 1
+}
+
+# ── CloudWatch app-level reduction toggles ───────────────────────────────────
+
+variable "enable_app_symptom_cloudwatch_alarms" {
+  description = "Keep CloudWatch alarms for app target 5xx and latency symptoms. Defaults true; set false only after deployed Grafana-stack alerts have dual-run successfully."
+  type        = bool
+  default     = true
+}
+
+variable "enable_data_export_success_cloudwatch_alarm" {
+  description = "Keep the CloudWatch Logs metric filter and freshness alarm for successful data exports. Defaults true; set false only after a Grafana-stack data export freshness signal has dual-run successfully."
+  type        = bool
+  default     = true
+}
+
+# ── Optional ECS Grafana stack ────────────────────────────────────────────────
+
+variable "enable_observability_stack" {
+  description = "Deploy the optional ECS/Fargate Grafana, Loki, and Prometheus stack. Defaults to false so the base plan remains unchanged."
+  type        = bool
+  default     = false
+}
+
+variable "grafana_admin_secret_name" {
+  description = "Secrets Manager secret name holding the Grafana admin password. Create this out of band before enabling the observability stack."
+  type        = string
+  default     = "aws-sdlc-containers/grafana-admin"
+}
+
+variable "observability_config_loader_image" {
+  description = "Upstream AWS CLI image used as an init sidecar to copy observability config from S3 into task-local volumes."
+  type        = string
+  default     = "public.ecr.aws/aws-cli/aws-cli:2.32.3"
+}
+
+variable "grafana_image" {
+  description = "Upstream Grafana image for the optional observability stack."
+  type        = string
+  default     = "grafana/grafana:13.0.1"
+}
+
+variable "loki_image" {
+  description = "Upstream Loki image for the optional observability stack."
+  type        = string
+  default     = "grafana/loki:3.6.10"
+}
+
+variable "prometheus_image" {
+  description = "Upstream Prometheus image for the optional observability stack."
+  type        = string
+  default     = "prom/prometheus:v3.11.2"
+}
+
+variable "grafana_cpu" {
+  description = "Fargate task CPU units for the optional Grafana service."
+  type        = number
+  default     = 256
+}
+
+variable "grafana_memory" {
+  description = "Fargate task memory (MiB) for the optional Grafana service."
+  type        = number
+  default     = 512
+}
+
+variable "loki_cpu" {
+  description = "Fargate task CPU units for the optional Loki service."
+  type        = number
+  default     = 512
+}
+
+variable "loki_memory" {
+  description = "Fargate task memory (MiB) for the optional Loki service."
+  type        = number
+  default     = 1024
+}
+
+variable "prometheus_cpu" {
+  description = "Fargate task CPU units for the optional Prometheus service."
+  type        = number
+  default     = 512
+}
+
+variable "prometheus_memory" {
+  description = "Fargate task memory (MiB) for the optional Prometheus service."
+  type        = number
+  default     = 1024
 }
 
 # ── RDS ───────────────────────────────────────────────────────────────────────

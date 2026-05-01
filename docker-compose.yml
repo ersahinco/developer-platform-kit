@@ -137,6 +137,7 @@ services:
       - --storage.tsdb.path=/prometheus
     volumes:
       - ./docker/observability/prometheus/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - ./docker/observability/prometheus/rules:/etc/prometheus/rules:ro
       - prometheus_data:/prometheus
     ports:
       - "${PROMETHEUS_PORT:-9090}:9090"

@@ -17,7 +17,7 @@ module "ecr_app" {
   repository_image_tag_mutability = "IMMUTABLE"
   repository_image_scan_on_push   = true
 
-  repository_read_write_access_arns = [aws_iam_role.github_actions.arn]
+  repository_read_write_access_arns = [local.github_actions_role_arn]
 
   repository_lifecycle_policy = jsonencode({
     rules = [
@@ -63,7 +63,7 @@ module "ecr_pgbouncer" {
   repository_image_tag_mutability = "IMMUTABLE"
   repository_image_scan_on_push   = true
 
-  repository_read_write_access_arns = [aws_iam_role.github_actions.arn]
+  repository_read_write_access_arns = [local.github_actions_role_arn]
 
   repository_lifecycle_policy = jsonencode({
     rules = [
@@ -250,13 +250,19 @@ module "ecs" {
         }
       }
 
-      subnet_ids = module.vpc.private_subnets
-      vpc_id     = module.vpc.vpc_id
+      subnet_ids = local.platform.private_subnet_ids
+      vpc_id     = local.platform.vpc_id
 
       # Use the pre-created SG so RDS can reference it without a circular
       # dependency (RDS SG → app SG → ECS module → RDS endpoint → RDS → RDS SG).
       create_security_group = false
       security_group_ids    = [aws_security_group.app.id]
+
+      service_registries = var.enable_observability_stack ? {
+        registry_arn   = aws_service_discovery_service.app[0].arn
+        container_name = "app"
+        container_port = 8000
+      } : null
     }
   }
 

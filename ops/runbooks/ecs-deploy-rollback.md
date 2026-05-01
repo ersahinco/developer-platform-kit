@@ -13,8 +13,8 @@ Confirm the current service state:
 
 ```bash
 aws ecs describe-services \
-  --cluster "$(terraform -chdir=infra output -raw ecs_cluster_name)" \
-  --services "$(terraform -chdir=infra output -raw app_service_name)" \
+  --cluster "$(terraform -chdir=infra/app output -raw ecs_cluster_name)" \
+  --services "$(terraform -chdir=infra/app output -raw app_service_name)" \
   --region eu-central-1 \
   --query 'services[0].{status:status,taskDefinition:taskDefinition,deployments:deployments[*].{status:status,taskDefinition:taskDefinition,rolloutState:rolloutState,running:runningCount,pending:pendingCount}}'
 ```
@@ -47,8 +47,8 @@ Update the service:
 
 ```bash
 aws ecs update-service \
-  --cluster "$(terraform -chdir=infra output -raw ecs_cluster_name)" \
-  --service "$(terraform -chdir=infra output -raw app_service_name)" \
+  --cluster "$(terraform -chdir=infra/app output -raw ecs_cluster_name)" \
+  --service "$(terraform -chdir=infra/app output -raw app_service_name)" \
   --task-definition "$PREVIOUS_TASK_DEFINITION_ARN" \
   --force-new-deployment \
   --region eu-central-1
@@ -58,8 +58,8 @@ Wait for stabilization:
 
 ```bash
 aws ecs wait services-stable \
-  --cluster "$(terraform -chdir=infra output -raw ecs_cluster_name)" \
-  --services "$(terraform -chdir=infra output -raw app_service_name)" \
+  --cluster "$(terraform -chdir=infra/app output -raw ecs_cluster_name)" \
+  --services "$(terraform -chdir=infra/app output -raw app_service_name)" \
   --region eu-central-1
 ```
 
@@ -68,7 +68,7 @@ aws ecs wait services-stable \
 Check the public health endpoint:
 
 ```bash
-curl -fsS "https://$(terraform -chdir=infra output -raw api_fqdn)/health"
+curl -fsS "https://$(terraform -chdir=infra/app output -raw api_fqdn)/health"
 ```
 
 Confirm alarms and service events:
@@ -76,14 +76,14 @@ Confirm alarms and service events:
 ```bash
 aws cloudwatch describe-alarms \
   --alarm-names \
-    "$(terraform -chdir=infra output -raw app_unhealthy_targets_alarm_name)" \
-    "$(terraform -chdir=infra output -raw app_target_5xx_alarm_name)" \
-    "$(terraform -chdir=infra output -raw app_target_latency_alarm_name)" \
+    "$(terraform -chdir=infra/app output -raw app_unhealthy_targets_alarm_name)" \
+    "$(terraform -chdir=infra/app output -raw app_target_5xx_alarm_name)" \
+    "$(terraform -chdir=infra/app output -raw app_target_latency_alarm_name)" \
   --region eu-central-1
 
 aws ecs describe-services \
-  --cluster "$(terraform -chdir=infra output -raw ecs_cluster_name)" \
-  --services "$(terraform -chdir=infra output -raw app_service_name)" \
+  --cluster "$(terraform -chdir=infra/app output -raw ecs_cluster_name)" \
+  --services "$(terraform -chdir=infra/app output -raw app_service_name)" \
   --region eu-central-1 \
   --query 'services[0].events[:10]'
 ```

@@ -5,11 +5,11 @@ software development lifecycle around ECS: local development, CI/CD, immutable
 container images, reproducible Terraform, database migration safety, and
 workload operations.
 
-The project is intentionally small today: one AWS stack, one ECS cluster, one
-FastAPI app, one backfill worker, one scheduled data export job, PgBouncer,
-Liquibase, one PostgreSQL database, and one S3 data hub bucket. It is being shaped
-gradually into a modular monolith monorepo for app, infra, data, and DevOps
-work.
+The project is intentionally small today: one ECS cluster, one FastAPI app, one
+backfill worker, one scheduled data export job, PgBouncer, Liquibase, one
+PostgreSQL database, one S3 data hub bucket, and split platform/app Terraform
+roots. It is being shaped gradually into a modular monolith monorepo for app,
+infra, data, and DevOps work.
 
 ## Start Here
 
@@ -34,10 +34,10 @@ operator workflow changes.
 |---|---|---|
 | SDLC baseline | GitHub Actions, immutable ECR tags, reproducible Terraform state | `.github/workflows/`, `infra/`, `Makefile` |
 | Safe schema rollout | Expand, dual-write, backfill, switch, contract | `db/changelog/`, `apps/backfill-worker/src/aws_sdlc_backfill_worker/main.py` |
-| Data export flow | Local and scheduled ECS export job with raw output, manifest, and S3 data hub writes | `apps/data-export-job/src/aws_sdlc_data_export_job/main.py`, `infra/base_data_hub_s3.tf`, `infra/support_jobs.tf` |
+| Data export flow | Local and scheduled ECS export job with raw output, manifest, and S3 data hub writes | `apps/data-export-job/src/aws_sdlc_data_export_job/main.py`, `infra/app/base_data_hub_s3.tf`, `infra/app/support_jobs.tf` |
 | Runtime config | DB-backed `WRITE_MODE` and `READ_MODE` switches | `packages/adapters/src/aws_sdlc_adapters/db/repository.py` |
 | Connection pooling | PgBouncer in transaction mode | `docker-compose.yml`, `db/pgbouncer/pgbouncer.ini` |
-| ECS deployment | Build/scan approval followed by rolling app deploy plus one-off Liquibase and worker tasks | `.github/workflows/app-build.yml`, `.github/workflows/app-deploy.yml`, `infra/support_jobs.tf` |
+| ECS deployment | Build/scan approval followed by rolling app deploy plus one-off Liquibase and worker tasks | `.github/workflows/app-build.yml`, `.github/workflows/app-deploy.yml`, `infra/app/support_jobs.tf` |
 | Infrastructure delivery | Terraform validate, reviewed plan, and separate manual apply | `.github/workflows/infra-plan.yml`, `.github/workflows/infra-apply.yml`, `infra/` |
 
 ## Reference Workload
@@ -64,24 +64,28 @@ aws-sdlc-containers/
 |-- apps/
 |   |-- api/             # FastAPI workload
 |   |-- backfill-worker/ # Backfill worker workload
-|   `-- data-export-job/ # Data export job
+|   |-- data-export-job/ # Data export job
+|   `-- order-event-consumer/
 |-- packages/
 |   |-- core/            # Pure domain entities and ports
 |   `-- adapters/        # SQLAlchemy/Postgres adapter implementations
 |-- db/                  # Liquibase changelog and Postgres assets
-|-- infra/               # Single-stack Terraform
+|-- infra/
+|   |-- platform/        # VPC, endpoints, Route 53 lookup, GitHub OIDC/CI IAM
+|   `-- app/             # ECS, RDS, ALB, ECR, S3, SQS, jobs, observability
 |-- scripts/             # Local and CI helper scripts
 |-- tests/               # Pytest integration tests
 |-- docs/                # Roadmap and docs entrypoints
+|-- ops/                 # Concrete drills and runbooks
+|-- docker/              # Local observability assets
 |-- .github/workflows/   # App and infra workflows
 |-- docker-compose.yml
 `-- Makefile
 ```
 
 Target direction is an evolutionary monorepo with `apps/`, `packages/`,
-`infra/`, `db/`, `docker/`, and `docs/`. Future `ops/` and `security/`
-directories should appear only when they have real owned content. See
-[docs/roadmaps.md](docs/roadmaps.md) for the current phase checklist.
+`infra/`, `db/`, `docker/`, `docs/`, and `ops/` content that has a concrete
+owner. See [docs/roadmaps.md](docs/roadmaps.md) for continuation rules.
 
 ## Quick Local Path
 
