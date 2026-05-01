@@ -37,9 +37,8 @@ locals {
   platform = data.terraform_remote_state.platform.outputs
   api_fqdn = "api.${local.platform.root_domain}"
 
-  github_actions_role_arn  = local.platform.github_actions_role_arn
-  github_actions_role_name = local.platform.github_actions_role_name
-  vpc_cidr                 = local.platform.vpc_cidr
+  github_actions_role_arn = local.platform.github_actions_role_arn
+  vpc_cidr                = local.platform.vpc_cidr
 
   tags = {
     Project   = var.stack_name
