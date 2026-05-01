@@ -30,6 +30,7 @@ locals {
 
   github_actions_compute_role_resources = [
     "arn:aws:iam::${local.account_id}:role/${local.github_actions_stack_scope}",
+    "arn:aws:iam::${local.account_id}:role/app-tasks-*",
   ]
 
   github_actions_iam_manage_resources = [
