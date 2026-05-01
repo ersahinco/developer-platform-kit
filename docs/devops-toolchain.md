@@ -106,8 +106,8 @@ Dependabot uses the `uv` ecosystem for Python dependency updates and the
 `github-actions` ecosystem for workflow action updates.
 
 The App Build workflow runs Trivy before pushing first-party app, worker, data
-export, Liquibase, and mirrored PgBouncer images to ECR. Terraform also enables ECR
-scan-on-push for each managed repository.
+export, Liquibase, and the patched PgBouncer sidecar image to ECR. Terraform
+also enables ECR scan-on-push for each managed repository.
 
 Base image digest pinning remains deferred until automated digest renewal is
 added in the same change. Mutable version tags are less strict, but they avoid

@@ -155,8 +155,8 @@ module "ecs" {
         # pgbouncer connects to RDS using the secret injected via DB_HOST / DB_PORT /
         # DB_NAME / DB_USER / DB_PASSWORD environment variables.
         pgbouncer = {
-          # Mirrored to ECR by CI to avoid Docker Hub unauthenticated pull rate limits.
-          # Upstream: edoburu/pgbouncer:v1.25.1-p0
+          # Built from edoburu/pgbouncer:v1.25.1-p0 with Alpine security updates,
+          # then pushed to ECR by CI to avoid Docker Hub pull rate limits.
           image     = "${module.ecr_pgbouncer.repository_url}:v1.25.1-p0"
           essential = true
 
