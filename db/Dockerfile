@@ -16,7 +16,9 @@ USER liquibase
 # that match the application code being deployed.
 COPY changelog/ /liquibase/changelog/
 
+WORKDIR /liquibase
+
 # Default command — runs all pending changesets. The ECS task definition sets
 # LIQUIBASE_COMMAND_URL / USERNAME / PASSWORD via Secrets Manager injection,
 # so no credentials are baked into the image.
-CMD ["--changelog-file=changelog/db.changelog-master.yaml", "update"]
+CMD ["--search-path=/liquibase", "--changelog-file=changelog/db.changelog-master.yaml", "update"]

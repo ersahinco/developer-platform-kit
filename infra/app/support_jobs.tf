@@ -569,8 +569,14 @@ resource "aws_ecs_task_definition" "liquibase" {
       # CI always calls render-task-definition + register-task-definition
       # with the real SHA before running this one-off task — Terraform's
       # registered revision is never used directly after bootstrap.
-      image     = "${module.ecr_liquibase.repository_url}:${var.initial_image_tag}"
-      essential = true
+      image            = "${module.ecr_liquibase.repository_url}:${var.initial_image_tag}"
+      essential        = true
+      workingDirectory = "/liquibase"
+      command = [
+        "--search-path=/liquibase",
+        "--changelog-file=changelog/db.changelog-master.yaml",
+        "update",
+      ]
 
       secrets = [
         # RDS-managed secret only has username + password. Host/port/dbname are static.

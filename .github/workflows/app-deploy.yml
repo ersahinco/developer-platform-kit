@@ -69,6 +69,35 @@ jobs:
           container-name: liquibase
           image: ${{ env.ECR_REGISTRY }}/${{ env.STACK_NAME }}/liquibase:${{ inputs.image_tag }}
 
+      - name: Normalize liquibase command
+        env:
+          TASK_DEFINITION_PATH: ${{ steps.render-liquibase.outputs.task-definition }}
+        run: |
+          python3 - <<'PY'
+          import json
+          import os
+
+          path = os.environ["TASK_DEFINITION_PATH"]
+          with open(path, encoding="utf-8") as handle:
+            task_definition = json.load(handle)
+
+          for container in task_definition["containerDefinitions"]:
+            if container["name"] == "liquibase":
+              container["workingDirectory"] = "/liquibase"
+              container["command"] = [
+                "--search-path=/liquibase",
+                "--changelog-file=changelog/db.changelog-master.yaml",
+                "update",
+              ]
+              break
+          else:
+            raise SystemExit("liquibase container not found in rendered task definition")
+
+          with open(path, "w", encoding="utf-8") as handle:
+            json.dump(task_definition, handle, indent=2)
+            handle.write("\n")
+          PY
+
       - name: Register liquibase task definition
         id: register-liquibase
         run: scripts/ci_register_ecs_task_definition.sh "${{ steps.render-liquibase.outputs.task-definition }}"
