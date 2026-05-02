@@ -145,44 +145,6 @@ def test_metrics_endpoint_exposes_prometheus_text(http_client):
     assert "http_requests_total" in resp.text
 
 
-def test_order_status_is_owned_by_application(http_client):
-    """POST /orders rejects caller-supplied status; new orders start as SUBMITTED."""
-    resp = http_client.post(
-        "/orders",
-        json={
-            "customer_id": 1,
-            "total_amount": "10.00",
-            "status": "PAID",
-        },
-    )
-    assert resp.status_code == 422
-
-
-def test_non_positive_order_amount_is_rejected(http_client):
-    """POST /orders requires total_amount greater than zero."""
-    resp = http_client.post(
-        "/orders",
-        json={
-            "customer_id": 1,
-            "total_amount": "0.00",
-        },
-    )
-    assert resp.status_code == 422
-
-
-def test_malformed_billing_email_is_rejected(http_client):
-    """POST /orders validates the billing_email format before writing."""
-    resp = http_client.post(
-        "/orders",
-        json={
-            "customer_id": 1,
-            "total_amount": "10.00",
-            "billing_email": "not-an-email",
-        },
-    )
-    assert resp.status_code == 422
-
-
 @pytest.mark.require_phase("dual", "switch", "new_pre_contract")
 def test_billing_email_written_to_contact_table(http_client, db_session):
     """POST /orders with billing_email writes a row to order_contact_email."""

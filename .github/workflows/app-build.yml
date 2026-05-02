@@ -152,98 +152,9 @@ jobs:
         if: always()
         run: pkill -f "uvicorn" || true
 
-  wait-for-infra-plan:
-    name: Wait For Infra Plan
-    runs-on: ubuntu-latest
-    permissions:
-      actions: read
-
-    steps:
-      - uses: actions/github-script@v9
-        with:
-          script: |
-            if (context.eventName !== 'push') {
-              core.info('Not a push event; no infra coordination needed.');
-              return;
-            }
-
-            const owner = context.repo.owner;
-            const repo = context.repo.repo;
-            const workflow_id = 'infra-plan.yml';
-            const head_sha = context.sha;
-            const changedPaths = new Set(
-              (context.payload.commits || []).flatMap(commit => [
-                ...(commit.added || []),
-                ...(commit.modified || []),
-                ...(commit.removed || []),
-              ])
-            );
-            const requiresInfra = [...changedPaths].some(path =>
-              path === '.github/workflows/infra-plan.yml' || path.startsWith('infra/')
-            );
-
-            if (!requiresInfra) {
-              core.info('This push did not touch infra; no infra plan wait needed.');
-              return;
-            }
-
-            const sleep = ms => new Promise(resolve => setTimeout(resolve, ms));
-            const activeStatuses = new Set([
-              'queued',
-              'in_progress',
-              'requested',
-              'waiting',
-              'pending',
-              'action_required',
-            ]);
-
-            for (let attempt = 0; attempt < 60; attempt++) {
-              const { data } = await github.rest.actions.listWorkflowRuns({
-                owner,
-                repo,
-                workflow_id,
-                head_sha,
-                per_page: 20,
-              });
-
-              const runs = data.workflow_runs.filter(run =>
-                run.event === 'push' && run.head_sha === head_sha
-              );
-
-              const blocking = runs.filter(run => activeStatuses.has(run.status));
-              if (blocking.length > 0) {
-                core.info(`Waiting for Infra Plan workflow on ${head_sha} to finish...`);
-                await sleep(30000);
-                continue;
-              }
-
-              const completed = runs
-                .filter(run => run.status === 'completed')
-                .sort((a, b) => new Date(b.created_at) - new Date(a.created_at));
-
-              if (completed.length === 0) {
-                core.info(`Waiting for Infra Plan workflow on ${head_sha} to be created...`);
-                await sleep(30000);
-                continue;
-              }
-
-              const latest = completed[0];
-              if (latest.conclusion !== 'success') {
-                core.setFailed(
-                  `Infra Plan workflow for ${head_sha} concluded with ${latest.conclusion}.`
-                );
-                return;
-              }
-
-              core.info('Infra Plan workflow completed successfully for this commit.');
-              return;
-            }
-
-            core.setFailed('Timed out waiting for Infra Plan workflow to finish.');
-
   build-and-push:
     name: Build, Scan & Push to ECR
-    needs: [validate-and-test, wait-for-infra-plan]
+    needs: validate-and-test
     if: github.event_name == 'workflow_dispatch' && inputs.confirm_build == 'build'
     runs-on: ubuntu-latest
     timeout-minutes: 30

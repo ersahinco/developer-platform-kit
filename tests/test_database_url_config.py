@@ -1,15 +1,6 @@
 from __future__ import annotations
 
 import os
-import sys
-from pathlib import Path
-
-
-ROOT = Path(__file__).resolve().parents[1]
-sys.path.insert(0, str(ROOT / "apps" / "api" / "src"))
-sys.path.insert(0, str(ROOT / "apps" / "backfill-worker" / "src"))
-sys.path.insert(0, str(ROOT / "apps" / "data-export-job" / "src"))
-sys.path.insert(0, str(ROOT / "apps" / "order-event-consumer" / "src"))
 
 _TEST_DATABASE_URL = "postgresql://postgres:postgres@localhost:5432/aws_sdlc_containers"
 os.environ.setdefault("DATABASE_URL", _TEST_DATABASE_URL)

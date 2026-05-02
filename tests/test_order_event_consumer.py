@@ -1,16 +1,9 @@
 from __future__ import annotations
 
 import json
-import sys
-from pathlib import Path
 from typing import Any
 
 from sqlalchemy import text
-
-ROOT = Path(__file__).resolve().parents[1]
-sys.path.insert(0, str(ROOT / "apps" / "order-event-consumer" / "src"))
-sys.path.insert(0, str(ROOT / "packages" / "adapters" / "src"))
-sys.path.insert(0, str(ROOT / "packages" / "core" / "src"))
 
 from aws_sdlc_order_event_consumer.main import consume_order_events_once  # noqa: E402
 

@@ -3,21 +3,14 @@
 from __future__ import annotations
 
 import os
-import sys
 import datetime
 from collections.abc import Iterator
 from decimal import Decimal
-from pathlib import Path
 from typing import Any
 
 os.environ.setdefault(
     "DATABASE_URL", "postgresql://postgres:postgres@localhost:5432/aws_sdlc_containers"
 )
-
-ROOT = Path(__file__).resolve().parents[1]
-sys.path.insert(0, str(ROOT / "apps" / "api" / "src"))
-sys.path.insert(0, str(ROOT / "packages" / "adapters" / "src"))
-sys.path.insert(0, str(ROOT / "packages" / "core" / "src"))
 
 from fastapi.testclient import TestClient  # noqa: E402
 

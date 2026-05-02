@@ -57,6 +57,7 @@ aws ssm start-session \
   --parameters "{\"host\":[\"$RDS_HOST\"],\"portNumber\":[\"5432\"],\"localPortNumber\":[\"15433\"]}" \
   --region "$AWS_REGION" &
 SSM_PID=$!
+trap 'kill "$SSM_PID" 2>/dev/null || true' EXIT
 
 echo "→ waiting for tunnel on port 15433…"
 for i in $(seq 1 20); do
@@ -72,6 +73,4 @@ DATABASE_URL="postgresql://${DB_USER}:${DB_PASS}@localhost:15433/aws_sdlc_contai
   SEED_NUM_ORDERS="$SEED_NUM_ORDERS" \
   uv run python scripts/seed_data.py
 SEED_EXIT=$?
-
-kill $SSM_PID 2>/dev/null || true
 exit $SEED_EXIT

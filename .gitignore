@@ -35,7 +35,8 @@ override.tf.json
 terraform.tfvars
 *.tfvars
 *.tfvars.json
-!infra/stack.tfvars
+!infra/app/stack.tfvars
+!infra/platform/stack.tfvars
 
 # IDE/editor
 .vscode/

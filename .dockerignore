@@ -23,4 +23,9 @@ crash.log
 # Local runtime noise
 *.log
 *.pid
+compose.override.yaml
+compose.override.yml
+compose.*.yaml
+compose.*.yml
+!compose.yaml
 docker-compose.override.yml
