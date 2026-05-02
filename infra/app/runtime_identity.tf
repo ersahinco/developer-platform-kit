@@ -1,8 +1,9 @@
 ################################################################################
-# Workload runtime IAM
+# Runtime identity
 #
-# GitHub Actions OIDC lives in infra/platform. This file keeps the ECS task
-# execution role definitions that are assumed after deployment.
+# GitHub Actions OIDC lives in infra/platform. This file keeps shared ECS task
+# execution identity for workloads after deployment. Workload-specific task role
+# policies stay next to the workload capability that needs them.
 ################################################################################
 
 data "aws_iam_policy_document" "task_exec_assume" {

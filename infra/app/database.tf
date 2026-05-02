@@ -1,5 +1,9 @@
 ################################################################################
-# Base data — RDS
+# Application database
+#
+# RDS is the AWS implementation here, but the file boundary is the app's
+# primary relational persistence.
+#
 # manage_master_user_password=true: RDS generates and rotates the password in
 # Secrets Manager automatically. v7 drops `password` in favour of write-only
 # `password_wo` — with manage_master_user_password=true neither is needed.

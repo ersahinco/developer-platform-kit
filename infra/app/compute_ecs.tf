@@ -1,5 +1,5 @@
 ################################################################################
-# Base compute — core repositories and ECS service
+# App compute — core repositories and ECS service
 ################################################################################
 
 ################################################################################
@@ -265,4 +265,31 @@ module "ecs" {
   }
 
   tags = local.tags
+}
+
+################################################################################
+# ECS Exec — SSM permissions on the app task role
+#
+# This belongs with the app ECS service because it is an operational capability
+# of that service. It supports `aws ecs execute-command` and SSM port forwarding
+# to RDS without a bastion host.
+################################################################################
+
+resource "aws_iam_role_policy" "task_ssm_exec" {
+  name = "ssm-exec"
+  role = module.ecs.services["app"].tasks_iam_role_name
+
+  policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [{
+      Effect = "Allow"
+      Action = [
+        "ssmmessages:CreateControlChannel",
+        "ssmmessages:CreateDataChannel",
+        "ssmmessages:OpenControlChannel",
+        "ssmmessages:OpenDataChannel",
+      ]
+      Resource = "*" # ssmmessages has no resource-level scope — AWS API limitation
+    }]
+  })
 }

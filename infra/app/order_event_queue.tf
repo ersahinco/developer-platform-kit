@@ -1,5 +1,9 @@
 ################################################################################
-# Async order events — one concrete SQS-backed event workflow.
+# Order event queue
+#
+# SQS is the current AWS transport for order.created.v1. Keep the queue, app
+# publish IAM, and DLQ alarm together because they are one app messaging
+# capability.
 ################################################################################
 
 resource "aws_sqs_queue" "order_events_dlq" {

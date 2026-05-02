@@ -1,9 +1,9 @@
 ################################################################################
-# Base data hub - S3 export bucket
+# Data export storage
 #
-# This bucket is the first AWS landing zone for the local data export job. S3
-# prefixes are virtual, so Terraform only owns the durable bucket guardrails here;
-# the data export job writes raw files and manifests when the ECS job is added.
+# S3 is the AWS implementation for exported raw files and manifests. Prefixes
+# are virtual, so Terraform owns the durable bucket guardrails while the data
+# export job writes objects at runtime.
 ################################################################################
 
 locals {
