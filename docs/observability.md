@@ -121,8 +121,9 @@ of the local app observability contract.
 ## Optional ECS Grafana Stack
 
 `infra/app` contains an opt-in ECS/Fargate Grafana, Loki, and Prometheus stack.
-It is app-owned, disabled by default, and reuses the local dashboard,
-datasource, and Prometheus rule files from `observability/`.
+It is app-owned, disabled by the variable default, and enabled for this sandbox
+through `infra/app/stack.tfvars`. It reuses the local dashboard, datasource,
+and Prometheus rule files from `observability/`.
 AWS-specific templates under `infra/app/templates/observability/` adapt only
 the parts that differ in ECS, such as Cloud Map service names and Loki S3
 storage.
@@ -137,8 +138,7 @@ aws secretsmanager create-secret \
   --region eu-central-1
 
 terraform -chdir=infra/app apply \
-  -var-file=stack.tfvars \
-  -var enable_observability_stack=true
+  -var-file=stack.tfvars
 ```
 
 The stack is private inside the VPC. Use ECS Exec or a temporary operator path

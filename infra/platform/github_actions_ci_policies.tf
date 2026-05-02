@@ -10,6 +10,7 @@
 locals {
   github_actions_stack_scope = "${local.name}*"
   data_hub_bucket_name       = "${local.name}-data-hub-${local.account_id}"
+  observability_bucket_name  = "${local.name}-observability-${local.account_id}"
 
   github_actions_logs_manage_resources = [
     "arn:aws:logs:${local.region}:${local.account_id}:log-group:/ecs/${local.github_actions_stack_scope}",
@@ -54,6 +55,14 @@ locals {
 
   github_actions_data_hub_bucket_resources = [
     "arn:aws:s3:::${local.data_hub_bucket_name}",
+  ]
+
+  github_actions_observability_bucket_resources = [
+    "arn:aws:s3:::${local.observability_bucket_name}",
+  ]
+
+  github_actions_observability_object_resources = [
+    "arn:aws:s3:::${local.observability_bucket_name}/*",
   ]
 
   github_actions_scheduler_resources = [
@@ -166,6 +175,26 @@ data "aws_iam_policy_document" "github_actions_compute_deploy" {
       "sqs:UntagQueue",
     ]
     resources = local.github_actions_sqs_resources
+  }
+
+  statement {
+    sid = "CloudMapManage"
+    actions = [
+      "servicediscovery:CreatePrivateDnsNamespace",
+      "servicediscovery:CreateService",
+      "servicediscovery:DeleteNamespace",
+      "servicediscovery:DeleteService",
+      "servicediscovery:GetNamespace",
+      "servicediscovery:GetOperation",
+      "servicediscovery:GetService",
+      "servicediscovery:ListNamespaces",
+      "servicediscovery:ListServices",
+      "servicediscovery:ListTagsForResource",
+      "servicediscovery:TagResource",
+      "servicediscovery:UntagResource",
+      "servicediscovery:UpdateService",
+    ]
+    resources = ["*"]
   }
 }
 
@@ -425,6 +454,7 @@ data "aws_iam_policy_document" "github_actions_data_hub" {
       "s3:GetBucketAcl",
       "s3:GetBucketLocation",
       "s3:GetBucketOwnershipControls",
+      "s3:GetBucketPolicy",
       "s3:GetBucketPublicAccessBlock",
       "s3:GetBucketTagging",
       "s3:GetBucketVersioning",
@@ -439,6 +469,41 @@ data "aws_iam_policy_document" "github_actions_data_hub" {
       "s3:PutLifecycleConfiguration",
     ]
     resources = local.github_actions_data_hub_bucket_resources
+  }
+
+  statement {
+    sid = "ObservabilityConfigBucketManage"
+    actions = [
+      "s3:CreateBucket",
+      "s3:DeleteBucket",
+      "s3:GetBucketAcl",
+      "s3:GetBucketLocation",
+      "s3:GetBucketOwnershipControls",
+      "s3:GetBucketPolicy",
+      "s3:GetBucketPublicAccessBlock",
+      "s3:GetBucketTagging",
+      "s3:GetBucketVersioning",
+      "s3:GetEncryptionConfiguration",
+      "s3:GetLifecycleConfiguration",
+      "s3:ListBucket",
+      "s3:PutBucketOwnershipControls",
+      "s3:PutBucketPublicAccessBlock",
+      "s3:PutBucketTagging",
+      "s3:PutBucketVersioning",
+      "s3:PutEncryptionConfiguration",
+      "s3:PutLifecycleConfiguration",
+    ]
+    resources = local.github_actions_observability_bucket_resources
+  }
+
+  statement {
+    sid = "ObservabilityConfigObjectsManage"
+    actions = [
+      "s3:DeleteObject",
+      "s3:GetObject",
+      "s3:PutObject",
+    ]
+    resources = local.github_actions_observability_object_resources
   }
 }
 
