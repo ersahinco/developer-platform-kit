@@ -1,8 +1,8 @@
 ################################################################################
 # Workload runtime IAM
 #
-# GitHub Actions OIDC lives in the `oidc_*.tf` files. This file keeps the ECS
-# task execution role definitions that are assumed after deployment.
+# GitHub Actions OIDC lives in infra/platform. This file keeps the ECS task
+# execution role definitions that are assumed after deployment.
 ################################################################################
 
 data "aws_iam_policy_document" "task_exec_assume" {

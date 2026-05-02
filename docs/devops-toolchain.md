@@ -121,7 +121,7 @@ Keep names boring and ownership-oriented:
 |---|---|
 | Apps | `apps/<runtime-entrypoint>/`, for example `api`, `backfill-worker`, `data-export-job`. |
 | Packages | `packages/<library>/` with import names under `aws_sdlc_*`. |
-| Terraform files | `base_*` for required stack concerns, `optional_*` for explicit extensions, `oidc_*` for GitHub role/policy concerns, and `support_*` for one-off operational tasks. |
+| Terraform files | Name files by app-owned domain or capability, such as `edge.tf`, `rds.tf`, `compute_ecs.tf`, `order_events.tf`, `workload_jobs.tf`, and `observability_stack.tf`. Keep resource-specific CloudWatch alarms next to the resource they observe. |
 | CI scripts | `scripts/ci_*` for GitHub Actions/AWS deployment helpers. |
 | Local/operator scripts | Verb-first or domain-first names such as `db_tunnel.sh`, `db_seed_tunnel.sh`, and `seed_data.py`. |
 | Local tool entrypoints | Keep conventional root files at root: `compose.yaml`, `pyproject.toml`, `uv.lock`, `Makefile`, and `.dockerignore`. |
