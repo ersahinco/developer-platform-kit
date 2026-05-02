@@ -116,7 +116,7 @@ lint-workflows: ## Lint GitHub workflows
 
 .PHONY: lint-dockerfiles
 lint-dockerfiles: ## Lint Dockerfiles
-	hadolint db/Dockerfile apps/*/Dockerfile
+	hadolint db/Dockerfile db/pgbouncer/Dockerfile apps/*/Dockerfile
 
 .PHONY: secret-scan
 secret-scan: ## Scan repository for committed secrets

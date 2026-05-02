@@ -21,6 +21,8 @@ clearer than you found it.
   right Terraform root; add spend only when it buys a clear operating signal.
 - Not overengineered: use boring platform patterns and established tools before
   custom abstractions, extra services, or new frameworks.
+- No dead paths: remove or update stale code, docs, tests, scripts, workflows,
+  and path filters in the same slice that makes them obsolete.
 - Organized by control boundary: keep GitHub workflows split by responsibility
   (`app-build`, `app-deploy`, `infra-plan`, `infra-apply`, `security`,
   `semgrep`) and Terraform split by lifecycle (`infra/platform` for bootstrap

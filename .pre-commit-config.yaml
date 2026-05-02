@@ -49,7 +49,7 @@ repos:
 
       - id: docs-links
         name: docs local links
-        entry: lychee README.md docs/**/*.md ops/**/*.md
+        entry: lychee README.md docs/**/*.md
         language: system
         pass_filenames: false
         stages: [pre-commit]
@@ -63,7 +63,7 @@ repos:
 
       - id: dockerfile-lint
         name: Dockerfile lint
-        entry: hadolint db/Dockerfile apps/api/Dockerfile apps/backfill-worker/Dockerfile apps/data-export-job/Dockerfile
+        entry: hadolint db/Dockerfile db/pgbouncer/Dockerfile apps/api/Dockerfile apps/backfill-worker/Dockerfile apps/data-export-job/Dockerfile apps/order-event-consumer/Dockerfile
         language: system
         pass_filenames: false
         stages: [pre-commit]
