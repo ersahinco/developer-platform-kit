@@ -120,7 +120,7 @@ deliveries, and records late/stale events as `ignored_stale` when a newer event
 for the same aggregate has already been processed.
 
 The queue has a DLQ and a CloudWatch alarm for visible DLQ messages. The
-runbook is `ops/runbooks/order-event-queue-failure.md`.
+runbook is `docs/runbooks/order-event-queue-failure.md`.
 
 ## Request idempotency
 

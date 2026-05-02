@@ -75,7 +75,7 @@ observability profile is opt-in and not started by default.
 The first AWS-native signal is intentionally small: a CloudWatch alarm watches
 `AWS/Scheduler` `TargetErrorCount` for the default schedule group, where the
 stack currently has one scheduled job. Its runbook is
-`ops/runbooks/data-export-job-failure.md`.
+[Data Export Job Failure](runbooks/data-export-job-failure.md).
 The data export job also emits a JSON manifest on success; a CloudWatch Logs
 metric filter turns that log line into the custom
 `aws-sdlc-containers/DataExport` `SuccessCount` metric. A freshness alarm uses
@@ -84,24 +84,25 @@ successful export, which avoids paging on small schedule delays.
 
 The app service health signal watches the ALB target group's
 `UnHealthyHostCount` metric. Its runbook is
-`ops/runbooks/app-service-unhealthy.md`.
+[App Service Unhealthy](runbooks/app-service-unhealthy.md).
 
 The app edge symptom signals watch target-generated 5xx responses and p95 target
-response time. Their runbook is `ops/runbooks/app-edge-errors-latency.md`.
+response time. Their runbook is
+[App Edge Errors Or Latency](runbooks/app-edge-errors-latency.md).
 The local Grafana dashboard also surfaces `/ready` 5xx responses separately so
 operators can distinguish dependency-readiness symptoms from general request
 traffic before following the app or RDS runbooks. Rehearse this path with
-[App Dependency Readiness Drill](../ops/drills/app-dependency-readiness.md).
+[App Dependency Readiness Drill](drills/app-dependency-readiness.md).
 Prometheus also loads local alert rules for readiness failures, app request 5xx
 symptoms, and p95 request latency so the same `/metrics` contract can back local
 Grafana-stack alerting before any CloudWatch app-level reduction.
 
 The RDS pressure signals watch `CPUUtilization`, `FreeStorageSpace`, and
-`DatabaseConnections`. Their runbook is `ops/runbooks/rds-pressure.md`.
+`DatabaseConnections`. Their runbook is [RDS Pressure](runbooks/rds-pressure.md).
 
 The async order event signal watches visible messages in the SQS DLQ for
 `order.created.v1`. Its runbook is
-`ops/runbooks/order-event-queue-failure.md`. The app also exposes
+[Order Event Queue Failure](runbooks/order-event-queue-failure.md). The app also exposes
 `order_events_publish_total` from `/metrics` so local operators can distinguish
 successful, failed, and skipped publish attempts. Prometheus loads a local rule
 for `order_events_publish_total{status="failed"}` to make publish failures part

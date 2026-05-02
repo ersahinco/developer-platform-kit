@@ -15,10 +15,12 @@ infra, data, and DevOps work.
 
 | Need | Go to |
 |---|---|
+| How to continue work cleanly | [docs/engineering-loop.md](docs/engineering-loop.md) |
 | Roadmaps and continuation rules | [docs/roadmaps.md](docs/roadmaps.md) |
 | Architecture direction | [docs/architecture.md](docs/architecture.md) |
 | Local development runbook | [docs/local-development.md](docs/local-development.md) |
 | AWS deployment/runbook | [docs/deployment.md](docs/deployment.md) |
+| Incident runbooks and drills | [docs/runbooks/README.md](docs/runbooks/README.md) and [docs/drills/README.md](docs/drills/README.md) |
 | Terraform root guide | [infra/README.md](infra/README.md) |
 | DevOps toolchain | [docs/devops-toolchain.md](docs/devops-toolchain.md) |
 | Data flow plan | [docs/data-flow.md](docs/data-flow.md) |
@@ -75,8 +77,7 @@ aws-sdlc-containers/
 |   `-- app/             # ECS, RDS, ALB, ECR, S3, SQS, jobs, observability
 |-- scripts/             # Local and CI helper scripts
 |-- tests/               # Pytest integration tests
-|-- docs/                # Roadmap and docs entrypoints
-|-- ops/                 # Concrete drills and runbooks
+|-- docs/                # Roadmaps, guides, runbooks, and drills
 |-- docker/              # Local observability assets
 |-- .github/workflows/   # App and infra workflows
 |-- docker-compose.yml
@@ -84,8 +85,8 @@ aws-sdlc-containers/
 ```
 
 Target direction is an evolutionary monorepo with `apps/`, `packages/`,
-`infra/`, `db/`, `docker/`, `docs/`, and `ops/` content that has a concrete
-owner. See [docs/roadmaps.md](docs/roadmaps.md) for continuation rules.
+`infra/`, `db/`, `docker/`, and `docs/` content that has a concrete owner. See
+[docs/roadmaps.md](docs/roadmaps.md) for continuation rules.
 
 ## Quick Local Path
 

@@ -322,7 +322,7 @@ resource "aws_cloudwatch_metric_alarm" "data_export_success_missing" {
   count = var.enable_data_export_success_cloudwatch_alarm ? 1 : 0
 
   alarm_name          = "${local.name}-data-export-success-missing"
-  alarm_description   = "No successful data export manifest was observed for two daily evaluation windows. Runbook: ops/runbooks/data-export-job-failure.md"
+  alarm_description   = "No successful data export manifest was observed for two daily evaluation windows. Runbook: docs/runbooks/data-export-job-failure.md"
   comparison_operator = "LessThanThreshold"
   evaluation_periods  = 2
   datapoints_to_alarm = 2
@@ -422,7 +422,7 @@ resource "aws_scheduler_schedule" "data_export_job" {
 
 resource "aws_cloudwatch_metric_alarm" "data_export_scheduler_target_errors" {
   alarm_name          = "${local.name}-data-export-scheduler-target-errors"
-  alarm_description   = "EventBridge Scheduler target delivery failed for the data export schedule group. Runbook: ops/runbooks/data-export-job-failure.md"
+  alarm_description   = "EventBridge Scheduler target delivery failed for the data export schedule group. Runbook: docs/runbooks/data-export-job-failure.md"
   comparison_operator = "GreaterThanThreshold"
   evaluation_periods  = 1
   datapoints_to_alarm = 1

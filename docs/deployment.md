@@ -300,7 +300,7 @@ continue to reference the exact images that were validated earlier in the
 pipeline.
 
 If a deploy reaches ECS but causes unhealthy targets, target 5xxs, or latency
-alarms, use `ops/runbooks/ecs-deploy-rollback.md` to identify the previous
+alarms, use `docs/runbooks/ecs-deploy-rollback.md` to identify the previous
 healthy task definition revision and roll the app service back without changing
 database state.
 

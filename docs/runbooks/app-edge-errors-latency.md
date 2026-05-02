@@ -16,7 +16,7 @@ response time is above two seconds for at least two out of three one-minute
 evaluation periods.
 
 Both alarms mean traffic is reaching the app target group. If targets are
-unhealthy instead, use `ops/runbooks/app-service-unhealthy.md`.
+unhealthy instead, use [App Service Unhealthy](app-service-unhealthy.md).
 
 ## First Checks
 
@@ -94,7 +94,7 @@ curl -fsS "https://$(terraform -chdir=infra/app output -raw api_fqdn)/health"
 ## Recovery
 
 If the alarms started after a deploy, roll back to the previous healthy task
-definition revision. Use `ops/runbooks/ecs-deploy-rollback.md` to identify the
+definition revision. Use [ECS Deploy Rollback](ecs-deploy-rollback.md) to identify the
 previous revision and complete the rollback safely:
 
 ```bash

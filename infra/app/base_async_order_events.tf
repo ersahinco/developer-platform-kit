@@ -45,7 +45,7 @@ resource "aws_iam_role_policy" "app_order_events_sqs" {
 
 resource "aws_cloudwatch_metric_alarm" "order_events_dlq_visible" {
   alarm_name          = "${local.name}-order-events-dlq-visible"
-  alarm_description   = "Order event messages are visible in the DLQ. Runbook: ops/runbooks/order-event-queue-failure.md"
+  alarm_description   = "Order event messages are visible in the DLQ. Runbook: docs/runbooks/order-event-queue-failure.md"
   comparison_operator = "GreaterThanThreshold"
   evaluation_periods  = 1
   datapoints_to_alarm = 1

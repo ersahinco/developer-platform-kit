@@ -126,7 +126,8 @@ Keep names boring and ownership-oriented:
 | Local/operator scripts | Verb-first or domain-first names such as `db_tunnel.sh`, `db_seed_tunnel.sh`, and `seed_data.py`. |
 
 Do not add empty top-level folders from the inspired architecture. Create
-`ops/`, `security/`, or extra `packages/*` only when there is real content and
+`docs/runbooks/`, `docs/drills/`, `security/`, or extra `packages/*` only when
+there is real content and
 a clear owner.
 
 ## Bitbucket Pipelines Equivalence

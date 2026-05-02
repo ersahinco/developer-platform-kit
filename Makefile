@@ -94,7 +94,7 @@ lint-scripts: ## Syntax-check shell scripts
 
 .PHONY: lint-docs
 lint-docs: ## Check Markdown links
-	lychee README.md 'docs/**/*.md' 'ops/**/*.md'
+	lychee README.md 'docs/**/*.md'
 
 .PHONY: lint-workflows
 lint-workflows: ## Lint GitHub workflows

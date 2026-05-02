@@ -121,7 +121,7 @@ resource "aws_lb_target_group" "app" {
 
 resource "aws_cloudwatch_metric_alarm" "app_unhealthy_targets" {
   alarm_name          = "${local.name}-app-unhealthy-targets"
-  alarm_description   = "ALB reports unhealthy app targets. Runbook: ops/runbooks/app-service-unhealthy.md"
+  alarm_description   = "ALB reports unhealthy app targets. Runbook: docs/runbooks/app-service-unhealthy.md"
   comparison_operator = "GreaterThanThreshold"
   evaluation_periods  = 3
   datapoints_to_alarm = 2
@@ -145,7 +145,7 @@ resource "aws_cloudwatch_metric_alarm" "app_target_5xx" {
   count = var.enable_app_symptom_cloudwatch_alarms ? 1 : 0
 
   alarm_name          = "${local.name}-app-target-5xx"
-  alarm_description   = "App targets returned 5xx responses behind the ALB. Runbook: ops/runbooks/app-edge-errors-latency.md"
+  alarm_description   = "App targets returned 5xx responses behind the ALB. Runbook: docs/runbooks/app-edge-errors-latency.md"
   comparison_operator = "GreaterThanThreshold"
   evaluation_periods  = 1
   datapoints_to_alarm = 1
@@ -169,7 +169,7 @@ resource "aws_cloudwatch_metric_alarm" "app_target_latency" {
   count = var.enable_app_symptom_cloudwatch_alarms ? 1 : 0
 
   alarm_name          = "${local.name}-app-target-latency"
-  alarm_description   = "App target p95 response time exceeded 2 seconds. Runbook: ops/runbooks/app-edge-errors-latency.md"
+  alarm_description   = "App target p95 response time exceeded 2 seconds. Runbook: docs/runbooks/app-edge-errors-latency.md"
   comparison_operator = "GreaterThanThreshold"
   evaluation_periods  = 3
   datapoints_to_alarm = 2

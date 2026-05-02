@@ -78,7 +78,7 @@ module "rds" {
 
 resource "aws_cloudwatch_metric_alarm" "rds_cpu_high" {
   alarm_name          = "${local.name}-rds-cpu-high"
-  alarm_description   = "RDS CPU utilization exceeded 80 percent. Runbook: ops/runbooks/rds-pressure.md"
+  alarm_description   = "RDS CPU utilization exceeded 80 percent. Runbook: docs/runbooks/rds-pressure.md"
   comparison_operator = "GreaterThanThreshold"
   evaluation_periods  = 3
   datapoints_to_alarm = 2
@@ -99,7 +99,7 @@ resource "aws_cloudwatch_metric_alarm" "rds_cpu_high" {
 
 resource "aws_cloudwatch_metric_alarm" "rds_free_storage_low" {
   alarm_name          = "${local.name}-rds-free-storage-low"
-  alarm_description   = "RDS free storage fell below 20 percent of initially allocated storage. Runbook: ops/runbooks/rds-pressure.md"
+  alarm_description   = "RDS free storage fell below 20 percent of initially allocated storage. Runbook: docs/runbooks/rds-pressure.md"
   comparison_operator = "LessThanThreshold"
   evaluation_periods  = 3
   datapoints_to_alarm = 2
@@ -120,7 +120,7 @@ resource "aws_cloudwatch_metric_alarm" "rds_free_storage_low" {
 
 resource "aws_cloudwatch_metric_alarm" "rds_connections_high" {
   alarm_name          = "${local.name}-rds-connections-high"
-  alarm_description   = "RDS database connections exceeded the lean stack pressure threshold. Runbook: ops/runbooks/rds-pressure.md"
+  alarm_description   = "RDS database connections exceeded the lean stack pressure threshold. Runbook: docs/runbooks/rds-pressure.md"
   comparison_operator = "GreaterThanThreshold"
   evaluation_periods  = 3
   datapoints_to_alarm = 2
