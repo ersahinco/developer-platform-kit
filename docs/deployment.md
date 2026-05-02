@@ -5,17 +5,17 @@ lifecycle.
 
 - `infra/platform`: VPC networking, VPC endpoints, account/domain lookups, and
   GitHub Actions OIDC/CI IAM.
-- `infra/app`: RDS, ECS compute, ECR repositories, ALB/API edge, S3 data hub,
-  workload jobs/queues, app IAM, CloudWatch app alarms, and optional
+- `infra/app`: RDS, ECS compute, ECR repositories, WAF-protected ALB/API edge,
+  S3 data hub, workload jobs/queues, app IAM, CloudWatch app alarms, and optional
   Grafana/Loki/Prometheus observability.
 
 Safe rollout does not come from duplicating infrastructure. It comes from additive schema changes, separate task definitions, runtime read/write switches, and one-off worker tasks running against the same database.
 
 ## Current platform contract
 
-- Base stack: one VPC, one public ALB/TLS/DNS entrypoint, one ECS cluster, one long-running app service with PgBouncer, one PostgreSQL database, and split platform/app Terraform state.
+- Base stack: one VPC, one public WAF-protected ALB/TLS/DNS entrypoint, one ECS cluster, one long-running app service with PgBouncer, one PostgreSQL database, and split platform/app Terraform state.
 - Reference workload: the app, Liquibase task, and backfill worker all operate inside that same stack. Rollout stays in place through additive schema changes, task definition updates, runtime switches, and one-off tasks.
-- Optional extensions: WAF, VPC endpoints, ECS Exec/SSM access, and similar add-ons are outside the base contract. They may remain enabled in this repo for parity, but the base stack does not depend on them conceptually.
+- Public-edge rule: any public-facing ALB must be associated with WAF. VPC endpoints, ECS Exec/SSM access, and similar operator conveniences can remain separate capabilities.
 - Future additions: observability, extra operator tooling, and workload-specific jobs should stay as extensions unless they become mandatory for every workload that uses this repo.
 
 ## Pipeline shape

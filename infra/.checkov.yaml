@@ -25,7 +25,7 @@ skip-check:
   # CKV2_AWS_76 checks for AWSManagedRulesKnownBadInputsRuleSet (Log4j) on the
   # ALB resource directly. Checkov cannot resolve the WAF association through
   # aws_wafv2_web_acl_association at static analysis time — false positive.
-  # KnownBadInputsRuleSet is present in aws_wafv2_web_acl.this (priority 3).
+  # KnownBadInputsRuleSet is present in aws_wafv2_web_acl.edge (priority 20).
   - CKV2_AWS_76
 
   # WAF full logging to Kinesis Firehose — CloudWatch metrics and sampled

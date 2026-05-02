@@ -18,6 +18,11 @@ output "acm_certificate_arn" {
   value       = aws_acm_certificate_validation.api.certificate_arn
 }
 
+output "edge_waf_web_acl_arn" {
+  description = "WAFv2 Web ACL ARN associated with the public API ALB."
+  value       = aws_wafv2_web_acl.edge.arn
+}
+
 output "app_unhealthy_targets_alarm_name" {
   description = "CloudWatch alarm for unhealthy ALB targets behind the app service."
   value       = aws_cloudwatch_metric_alarm.app_unhealthy_targets.alarm_name

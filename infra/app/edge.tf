@@ -1,5 +1,5 @@
 ################################################################################
-# Base edge — ALB, DNS, certificates, and routing
+# Edge — ALB, WAF, DNS, certificates, and routing
 ################################################################################
 
 resource "aws_security_group" "alb" {
@@ -92,6 +92,95 @@ resource "aws_lb" "this" {
   # Drop invalid HTTP headers — prevents header smuggling attacks at no cost.
   drop_invalid_header_fields = true
   tags                       = local.tags
+}
+
+resource "aws_wafv2_web_acl" "edge" {
+  name        = "${local.name}-edge"
+  description = "Managed-rule WAF protection for the public API ALB"
+  scope       = "REGIONAL"
+
+  default_action {
+    allow {}
+  }
+
+  rule {
+    name     = "AWSManagedRulesCommonRuleSet"
+    priority = 10
+
+    override_action {
+      none {}
+    }
+
+    statement {
+      managed_rule_group_statement {
+        name        = "AWSManagedRulesCommonRuleSet"
+        vendor_name = "AWS"
+      }
+    }
+
+    visibility_config {
+      cloudwatch_metrics_enabled = true
+      metric_name                = "${local.name}-waf-common"
+      sampled_requests_enabled   = true
+    }
+  }
+
+  rule {
+    name     = "AWSManagedRulesKnownBadInputsRuleSet"
+    priority = 20
+
+    override_action {
+      none {}
+    }
+
+    statement {
+      managed_rule_group_statement {
+        name        = "AWSManagedRulesKnownBadInputsRuleSet"
+        vendor_name = "AWS"
+      }
+    }
+
+    visibility_config {
+      cloudwatch_metrics_enabled = true
+      metric_name                = "${local.name}-waf-known-bad-inputs"
+      sampled_requests_enabled   = true
+    }
+  }
+
+  rule {
+    name     = "AWSManagedRulesAmazonIpReputationList"
+    priority = 30
+
+    override_action {
+      none {}
+    }
+
+    statement {
+      managed_rule_group_statement {
+        name        = "AWSManagedRulesAmazonIpReputationList"
+        vendor_name = "AWS"
+      }
+    }
+
+    visibility_config {
+      cloudwatch_metrics_enabled = true
+      metric_name                = "${local.name}-waf-ip-reputation"
+      sampled_requests_enabled   = true
+    }
+  }
+
+  visibility_config {
+    cloudwatch_metrics_enabled = true
+    metric_name                = "${local.name}-waf"
+    sampled_requests_enabled   = true
+  }
+
+  tags = local.tags
+}
+
+resource "aws_wafv2_web_acl_association" "edge_alb" {
+  resource_arn = aws_lb.this.arn
+  web_acl_arn  = aws_wafv2_web_acl.edge.arn
 }
 
 resource "aws_lb_target_group" "app" {

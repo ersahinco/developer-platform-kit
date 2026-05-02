@@ -6,16 +6,17 @@ workload that proves safe in-place rollout.
 
 ## Current platform contract
 
-- Base platform: split platform/app Terraform state, one VPC, one public API
-  hostname, one ECS cluster, one long-running app service, PgBouncer in the app
-  task, one PostgreSQL database, and one S3 data hub bucket.
+- Base platform: split platform/app Terraform state, one VPC, one public
+  WAF-protected API hostname, one ECS cluster, one long-running app service,
+  PgBouncer in the app task, one PostgreSQL database, and one S3 data hub
+  bucket.
 - Reference workload: additive Liquibase migrations, in-place ECS deploys, runtime `WRITE_MODE` and `READ_MODE` switches, and one-off worker tasks all operate against that same cluster and database.
 - Data workload: one scheduled ECS data export job writes the `order_contact_email` raw CSV and manifest objects to the S3 data hub bucket.
 - Async workload: the app publishes `order.created.v1` messages to one SQS FIFO
   queue through a durable outbox relay, and the order event consumer records
   idempotent receipts for processed deliveries.
-- Optional extensions: WAF, VPC endpoints, ECS Exec/SSM access, and similar operators-only features stay outside the base model even when they remain enabled in the deployed stack.
-- Extension rule: future observability stacks, extra public-edge controls, and workload-specific jobs should be added as extensions rather than folded into the core platform unless every workload would require them.
+- Public-edge rule: public-facing ALBs must be associated with WAF.
+- Extension rule: future observability stacks, extra operator controls, and workload-specific jobs should be added as extensions rather than folded into the core platform unless every workload would require them.
 
 ## Why hexagonal architecture?
 

@@ -1,8 +1,8 @@
 ################################################################################
-# Optional GitHub Actions policy extensions
+# GitHub Actions policy extensions
 #
 # These attach to the same single GitHub Actions role, but stay separate from
-# the base concern policies so optional infrastructure remains easy to review.
+# the base concern policies so app/platform capabilities remain easy to review.
 ################################################################################
 
 ################################################################################
@@ -33,7 +33,7 @@ resource "aws_iam_role_policy_attachment" "github_actions_networking_vpc_endpoin
 }
 
 ################################################################################
-# Edge extension — WAF
+# Edge capability — WAF for public ALBs
 ################################################################################
 
 data "aws_iam_policy_document" "github_actions_edge_waf" {
