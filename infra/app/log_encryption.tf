@@ -3,6 +3,7 @@
 ################################################################################
 
 data "aws_iam_policy_document" "cloudwatch_logs_kms" {
+  #checkov:skip=CKV_AWS_109:KMS key policy needs an account-root administration path to avoid lockout; CloudWatch Logs use is constrained by encryption context below.
   statement {
     sid = "AllowAccountKeyAdministration"
 
