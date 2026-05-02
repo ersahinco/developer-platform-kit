@@ -5,6 +5,28 @@ operator-engineer: inspect what exists, change the smallest useful slice,
 deploy deliberately, observe the real system, repair drift, and leave the repo
 clearer than you found it.
 
+## Principles
+
+- Lean: solve the real next problem and remove stale paths instead of adding
+  parallel explanations or speculative components.
+- Backward compatible: preserve working APIs, data paths, deploy flows, and
+  operator commands unless the roadmap explicitly calls for a breaking change.
+- Mindful: read the surrounding code and docs before changing them; consider
+  who will debug, deploy, or pay for the thing later.
+- Secure: keep secrets out of files and logs, prefer short-lived identity,
+  preserve least-privilege IAM, and run secret scanning before committing.
+- Reliable: favor reversible rollout steps, health checks, runbooks, and
+  observable failure modes over clever one-way changes.
+- Cost effective: keep default AWS resources small, optional, and owned by the
+  right Terraform root; add spend only when it buys a clear operating signal.
+- Not overengineered: use boring platform patterns and established tools before
+  custom abstractions, extra services, or new frameworks.
+- Organized by control boundary: keep GitHub workflows split by responsibility
+  (`app-build`, `app-deploy`, `infra-plan`, `infra-apply`, `security`,
+  `semgrep`) and Terraform split by lifecycle (`infra/platform` for bootstrap
+  resources, `infra/app` for workload-owned resources). This is how the repo
+  controls complexity without hiding it.
+
 ## Loop
 
 1. Inspect first.
