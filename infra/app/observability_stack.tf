@@ -102,7 +102,7 @@ resource "aws_s3_object" "loki_config" {
   bucket       = aws_s3_bucket.observability[0].id
   key          = "${local.observability_config_prefix}/loki/loki.yml"
   content_type = "text/yaml"
-  content = templatefile("${path.module}/observability/loki.yml.tftpl", {
+  content = templatefile("${path.module}/templates/observability/loki.yml.tftpl", {
     aws_region  = local.region
     bucket_name = aws_s3_bucket.observability[0].bucket
   })
@@ -113,7 +113,7 @@ resource "aws_s3_object" "prometheus_config" {
   bucket       = aws_s3_bucket.observability[0].id
   key          = "${local.observability_config_prefix}/prometheus/prometheus.yml"
   content_type = "text/yaml"
-  content = templatefile("${path.module}/observability/prometheus.yml.tftpl", {
+  content = templatefile("${path.module}/templates/observability/prometheus.yml.tftpl", {
     dns_namespace = local.observability_dns_namespace
   })
 }
@@ -132,9 +132,8 @@ resource "aws_s3_object" "grafana_datasources" {
   bucket       = aws_s3_bucket.observability[0].id
   key          = "${local.observability_config_prefix}/grafana/provisioning/datasources/datasources.yml"
   content_type = "text/yaml"
-  content = templatefile("${path.module}/observability/grafana-datasources.yml.tftpl", {
-    dns_namespace = local.observability_dns_namespace
-  })
+  source       = "${path.module}/../../observability/grafana/provisioning/datasources/datasources.yml"
+  source_hash  = filemd5("${path.module}/../../observability/grafana/provisioning/datasources/datasources.yml")
 }
 
 resource "aws_s3_object" "grafana_dashboards_provisioning" {
@@ -724,6 +723,8 @@ resource "aws_ecs_task_definition" "grafana" {
       environment = [
         { name = "GF_SECURITY_ADMIN_USER", value = "admin" },
         { name = "GF_USERS_ALLOW_SIGN_UP", value = "false" },
+        { name = "PROMETHEUS_URL", value = "http://prometheus.${local.observability_dns_namespace}:9090" },
+        { name = "LOKI_URL", value = "http://loki.${local.observability_dns_namespace}:3100" },
       ]
       portMappings = [
         { containerPort = 3000, protocol = "tcp" },

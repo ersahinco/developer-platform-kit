@@ -11,3 +11,8 @@ This root owns workload resources:
 
 It consumes platform outputs through S3 remote state. Do not define VPC,
 subnets, Route 53 zone lookups, or the GitHub OIDC role identity here.
+
+The optional Grafana stack should reuse portable app observability assets from
+the repository-level `observability/` folder. Keep AWS-only rendering templates
+under `infra/app/templates/observability/` when ECS storage or service discovery
+must differ from local Compose.
