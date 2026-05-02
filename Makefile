@@ -64,7 +64,7 @@ observability-stop: ## Stop local observability services
 
 .PHONY: migrate
 migrate: ## Run Liquibase migrations against local DB
-	docker compose --profile migration -f docker-compose.yml run --rm liquibase update
+	docker compose --profile migration run --rm liquibase update
 
 .PHONY: seed
 seed: ## Seed local DB with test data

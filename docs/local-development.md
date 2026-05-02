@@ -13,16 +13,40 @@ that does not already have a clearer owner.
 
 | File or folder | Owner |
 |---|---|
-| `docker-compose.yml` | Root local orchestration contract. Keep it at the repository root so `docker compose ...` works without extra flags. |
+| `compose.yaml` | Root local orchestration contract. This is the current Compose-preferred filename; keep it at the repository root so `docker compose ...` works without extra flags. |
 | `Makefile` | Root command facade for common local, quality, and migration tasks. |
-| `Brewfile` | Root native macOS workstation bootstrap, because `brew bundle install` expects that convention. |
-| `.python-version` | Root Python runtime pin for editors and Python version managers. Keep it aligned with `pyproject.toml` and the dev container. |
+| `Brewfile` | Optional native macOS workstation bootstrap. The dev container is the more reproducible default; `Brewfile` is kept only for people who prefer host tools. |
+| `.python-version` | Per-project Python runtime hint for editors and Python version managers. Keep it aligned with `pyproject.toml` and the dev container. |
 | `pyproject.toml` and `uv.lock` | Root Python workspace and locked dependency graph. |
 | `.devcontainer/` | Reproducible development shell and pinned non-app tooling. |
 | `docker/observability/` | Local Prometheus, Loki, Promtail, and Grafana config reused by the app-owned AWS observability stack where possible. |
 | `db/` | Database-owned local assets: Liquibase changelog, Postgres bootstrap SQL, and PgBouncer config/images. |
 | `apps/*/Dockerfile` | Workload-owned container build definitions. Keep app Dockerfiles next to the workload they package. |
 | `.dockerignore` | Root Docker build-context hygiene for all workload images. |
+
+## Local/Prod Parity
+
+Local development should reflect production where it buys confidence:
+
+- Build the same workload Dockerfiles used for ECS images.
+- Run Postgres, PgBouncer, Liquibase, the API, workers, and data export through
+  Compose so schema, connection, and job behavior are visible locally.
+- Reuse Grafana dashboards, Prometheus rules, and Loki/Prometheus/Grafana
+  provisioning between local Compose and the app-owned AWS observability stack.
+- Keep CloudWatch, ALB, RDS, IAM, ECS service discovery, and AWS networking in
+  Terraform/AWS where local emulation would hide the real failure modes.
+
+Known local differences:
+
+- Compose runs PgBouncer as a separate service; ECS runs it as a sidecar in the
+  same task network namespace. The behavior is intentionally close enough for
+  connection-pooling tests without making local Compose awkward.
+- Local observability currently covers logs and metrics. Distributed tracing is
+  not implemented yet. If added, prefer OpenTelemetry instrumentation plus a
+  standard local collector/Tempo path that can map to the AWS deployment.
+- Community Grafana dashboards are welcome when they fit the standard data
+  sources. Adopt them by provisioning stable dashboard JSON instead of relying
+  on manual imports.
 
 ## Prerequisites
 
@@ -142,7 +166,7 @@ Open `http://localhost:5050` with email `admin@local.dev` and password
 ### 2. Apply Liquibase migrations
 
 ```bash
-docker compose --profile migration -f docker-compose.yml run --rm liquibase update
+docker compose --profile migration run --rm liquibase update
 ```
 
 This creates the bootstrap schema, the runtime config table, and the expanded
@@ -244,7 +268,7 @@ phase.
 ### 9. Apply the contract migration
 
 ```bash
-docker compose --profile migration -f docker-compose.yml run --rm liquibase update
+docker compose --profile migration run --rm liquibase update
 ```
 
 The contract migration drops `orders.billing_email`. This is irreversible in a

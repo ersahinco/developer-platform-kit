@@ -38,7 +38,7 @@ operator workflow changes.
 | Safe schema rollout | Expand, dual-write, backfill, switch, contract | `db/changelog/`, `apps/backfill-worker/src/aws_sdlc_backfill_worker/main.py` |
 | Data export flow | Local and scheduled ECS export job with raw output, manifest, and S3 data hub writes | `apps/data-export-job/src/aws_sdlc_data_export_job/main.py`, `infra/app/base_data_hub_s3.tf`, `infra/app/support_jobs.tf` |
 | Runtime config | DB-backed `WRITE_MODE` and `READ_MODE` switches | `packages/adapters/src/aws_sdlc_adapters/db/repository.py` |
-| Connection pooling | PgBouncer in transaction mode | `docker-compose.yml`, `db/pgbouncer/pgbouncer.ini` |
+| Connection pooling | PgBouncer in transaction mode | `compose.yaml`, `db/pgbouncer/pgbouncer.ini` |
 | ECS deployment | Build/scan approval followed by rolling app deploy plus one-off Liquibase and worker tasks | `.github/workflows/app-build.yml`, `.github/workflows/app-deploy.yml`, `infra/app/support_jobs.tf` |
 | Infrastructure delivery | Terraform validate, reviewed plan, and separate manual apply | `.github/workflows/infra-plan.yml`, `.github/workflows/infra-apply.yml`, `infra/` |
 
@@ -80,7 +80,7 @@ aws-sdlc-containers/
 |-- docs/                # Roadmaps, guides, runbooks, and drills
 |-- docker/              # Local observability assets
 |-- .github/workflows/   # App and infra workflows
-|-- docker-compose.yml
+|-- compose.yaml
 `-- Makefile
 ```
 

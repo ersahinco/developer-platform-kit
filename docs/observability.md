@@ -67,8 +67,18 @@ The local stack contains:
 - Grafana data sources and dashboard provisioning, including a readiness-failure
   stat for `/ready` 5xx responses.
 
+Community Grafana dashboards are a good fit for standard components such as
+Prometheus, Loki, and Grafana itself. When a community dashboard becomes part of
+the project contract, commit the provisioned JSON under
+`docker/observability/grafana/dashboards/` and let the AWS stack reuse it.
+
 Promtail requires read-only access to `/var/run/docker.sock`, so the
 observability profile is opt-in and not started by default.
+
+Distributed tracing is not part of the current contract. Add it only as a
+complete slice: OpenTelemetry instrumentation, local collector/storage, Grafana
+data source and dashboard provisioning, and an AWS deployment path that does
+not make local behavior diverge from production.
 
 ## AWS Extension
 

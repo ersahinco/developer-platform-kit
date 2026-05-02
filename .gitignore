@@ -15,6 +15,11 @@ aws_credentials
 .aws/config
 
 # Docker / local compose overrides
+compose.override.yaml
+compose.override.yml
+compose.*.yaml
+compose.*.yml
+!compose.yaml
 docker-compose.override.yml
 docker-compose.*.yml
 *.log

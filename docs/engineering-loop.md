@@ -27,7 +27,7 @@ clearer than you found it.
   resources, `infra/app` for workload-owned resources). This is how the repo
   controls complexity without hiding it.
 - Conventional where useful: keep root files that standard tools discover
-  automatically at root, such as `docker-compose.yml`, `Brewfile`,
+  automatically at root, such as `compose.yaml`, `Brewfile`,
   `.python-version`, `pyproject.toml`, `uv.lock`, `Makefile`, and
   `.dockerignore`. Group only supporting assets under owned folders.
 

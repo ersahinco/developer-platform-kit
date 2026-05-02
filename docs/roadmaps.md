@@ -45,6 +45,7 @@ switch reads, new writes, and contract.
 | Next | Improve application/package shape. | Keep the workload simple, but make `apps/` and `packages/` clearer where it improves tests, ownership, or deploy confidence. |
 | Next | Revisit CloudWatch reduction toggles after dual-run. | Do not disable CloudWatch yet. Only app symptom and data-export success alarms have reduction toggles. |
 | Waiting | Decide the operator access pattern for private Grafana. | Options include ECS Exec port-forwarding, a short-lived internal access path, or another private operator workflow. Do not make Grafana public as the default. |
+| Waiting | Decide whether tracing belongs in scope. | If yes, add OpenTelemetry plus a local and AWS path in one complete slice. Do not sprinkle trace dependencies without a dashboard and operating workflow. |
 | Waiting | Decide later messaging direction before replacing SQS. | SQS remains the current transport and DLQ signal until the roadmap explicitly starts a replacement. |
 | Deferred | Data analytics stack work. | Do not add DuckDB, dbt, dlt, or analytics orchestration until the app/infra roadmap asks for it. |
 | Recovered | App observability deploy drift. | Recovered by reconciling `infra/app`, fixing Cloud Map replacement noise, using a Secrets Manager ARN for Grafana, and verifying all ECS services steady. |
