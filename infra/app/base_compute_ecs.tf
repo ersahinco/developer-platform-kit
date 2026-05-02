@@ -259,9 +259,7 @@ module "ecs" {
       security_group_ids    = [aws_security_group.app.id]
 
       service_registries = var.enable_observability_stack ? {
-        registry_arn   = aws_service_discovery_service.app[0].arn
-        container_name = "app"
-        container_port = 8000
+        registry_arn = aws_service_discovery_service.app[0].arn
       } : null
     }
   }

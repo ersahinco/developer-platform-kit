@@ -547,9 +547,7 @@ resource "aws_ecs_service" "loki" {
   }
 
   service_registries {
-    registry_arn   = aws_service_discovery_service.loki[0].arn
-    container_name = "loki"
-    container_port = 3100
+    registry_arn = aws_service_discovery_service.loki[0].arn
   }
 
   depends_on = [
@@ -642,9 +640,7 @@ resource "aws_ecs_service" "prometheus" {
   }
 
   service_registries {
-    registry_arn   = aws_service_discovery_service.prometheus[0].arn
-    container_name = "prometheus"
-    container_port = 9090
+    registry_arn = aws_service_discovery_service.prometheus[0].arn
   }
 
   depends_on = [
@@ -748,9 +744,7 @@ resource "aws_ecs_service" "grafana" {
   }
 
   service_registries {
-    registry_arn   = aws_service_discovery_service.grafana[0].arn
-    container_name = "grafana"
-    container_port = 3000
+    registry_arn = aws_service_discovery_service.grafana[0].arn
   }
 
   depends_on = [
