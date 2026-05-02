@@ -249,7 +249,7 @@ post-deploy-verify: ## Verify deployed app readiness, metrics, modes, and ECS im
 # $(shell ...) quoting limitations with JMESPath backtick filters.
 #
 # Prerequisites:
-#   brew install session-manager-plugin
+#   AWS CLI Session Manager plugin installed from AWS's official channel.
 # ─────────────────────────────────────────────────────────────────────────────
 
 LOCAL_PORT         ?= 15432

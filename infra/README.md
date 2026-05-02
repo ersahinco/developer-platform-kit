@@ -10,8 +10,8 @@ Terraform is organized by lifecycle boundary:
   alarms, and optional Grafana/Loki/Prometheus observability.
 
 There is no Terraform root directly in `infra/` anymore. The old single-root
-state key, `aws-sdlc-containers/stack.tfstate`, was destroyed during the
-Session 5 split completion. Use the split roots only.
+state key, `aws-sdlc-containers/stack.tfstate`, has been retired. Use the split
+roots only.
 
 ## State Keys
 

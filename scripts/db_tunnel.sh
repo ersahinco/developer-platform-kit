@@ -8,16 +8,16 @@ AWS_REGION=${2:-eu-central-1}
 
 cd "$(dirname "$0")/.."
 
-cd infra
+cd infra/app
 terraform init \
-  -backend-config="key=aws-sdlc-containers/stack.tfstate" \
+  -backend-config="key=aws-sdlc-containers/app.tfstate" \
   -reconfigure -input=false > /dev/null 2>&1
 
 CLUSTER=$(terraform output -raw ecs_cluster_name)
 SERVICE=$(terraform output -raw app_service_name)
 RDS_HOST=$(terraform output -raw rds_endpoint | cut -d: -f1)
 SECRET_ARN=$(terraform output -raw db_secret_arn)
-cd ..
+cd ../..
 
 TASK_ARN=$(aws ecs list-tasks \
   --cluster "$CLUSTER" \

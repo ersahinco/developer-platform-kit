@@ -51,7 +51,7 @@ switch reads, new writes, and contract.
 | Done | Local development workflow housekeeping. | The repo is devcontainer-first, keeps `compose.yaml` as the root Compose contract, removes host-specific dependency manifests, and shares observability assets from `observability/`. |
 | Recovered | App observability deploy drift. | Recovered by reconciling `infra/app`, fixing Cloud Map replacement noise, using a Secrets Manager ARN for Grafana, and verifying all ECS services steady. |
 | Done | Platform/app Terraform split. | Platform owns VPC, endpoints, Route 53 lookup, and GitHub OIDC/CI IAM. App owns RDS, ECS, ALB/API edge, workload resources, CloudWatch app alarms, and optional observability. |
-| Done | Session 2 local observability parity. | Local Prometheus/Loki/Grafana profile is the app observability contract for logs and metrics. |
+| Done | Local observability parity. | Local Prometheus/Loki/Grafana profile is the app observability contract for logs and metrics. |
 
 ## Continuation Rules
 

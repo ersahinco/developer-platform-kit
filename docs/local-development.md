@@ -72,10 +72,6 @@ install the pinned globals when you need them on the host:
 npm install --global npm@11.13.0 typescript@6.0.3
 ```
 
-This repo does not use Entire.io or similar newer workstation wrappers. Keep
-local tooling on mainstream project or vendor channels unless a real project
-need appears.
-
 In VS Code, run **Dev Containers: Reopen in Container**. On first create, the
 container runs:
 

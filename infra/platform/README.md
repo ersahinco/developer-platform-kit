@@ -1,7 +1,7 @@
 # Platform Terraform Root
 
-This root is the Session 5 platform/bootstrap side of the split. It owns
-AWS-bound resources with a lifecycle independent of the app workload:
+This root owns AWS-bound platform/bootstrap resources with a lifecycle
+independent of the app workload:
 
 - VPC, subnet tiers, NAT, and AWS service endpoints.
 - GitHub Actions OIDC role identity, Terraform state access, and CI IAM policies.
