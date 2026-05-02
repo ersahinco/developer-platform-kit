@@ -45,6 +45,9 @@ resource "aws_security_group" "app" {
 
   lifecycle {
     create_before_destroy = true
+    # Optional observability scrape ingress is managed as a standalone rule to
+    # avoid an app SG <-> observability SG dependency cycle.
+    ignore_changes = [ingress]
   }
 
   ingress {

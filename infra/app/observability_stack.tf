@@ -6,11 +6,15 @@
 ################################################################################
 
 locals {
-  observability_bucket_name          = "${local.name}-observability-${local.account_id}"
-  observability_config_prefix        = "config"
-  observability_dns_namespace        = "${local.name}.local"
-  grafana_admin_secret_resource_arn  = "arn:aws:secretsmanager:${local.region}:${local.account_id}:secret:${var.grafana_admin_secret_name}*"
-  grafana_admin_secret_container_ref = var.grafana_admin_secret_name
+  observability_bucket_name   = "${local.name}-observability-${local.account_id}"
+  observability_config_prefix = "config"
+  observability_dns_namespace = "${local.name}.local"
+  grafana_admin_secret_arn    = var.enable_observability_stack ? data.aws_secretsmanager_secret.grafana_admin[0].arn : null
+}
+
+data "aws_secretsmanager_secret" "grafana_admin" {
+  count = var.enable_observability_stack ? 1 : 0
+  name  = var.grafana_admin_secret_name
 }
 
 ################################################################################
@@ -179,7 +183,7 @@ resource "aws_iam_role_policy" "observability_task_exec_grafana_secret" {
         Sid      = "ReadGrafanaAdminSecret"
         Effect   = "Allow"
         Action   = ["secretsmanager:GetSecretValue"]
-        Resource = local.grafana_admin_secret_resource_arn
+        Resource = local.grafana_admin_secret_arn
       }
     ]
   })
@@ -304,6 +308,10 @@ resource "aws_service_discovery_service" "app" {
 
   health_check_custom_config {}
 
+  lifecycle {
+    ignore_changes = [health_check_custom_config]
+  }
+
   tags = local.tags
 }
 
@@ -323,6 +331,10 @@ resource "aws_service_discovery_service" "loki" {
   }
 
   health_check_custom_config {}
+
+  lifecycle {
+    ignore_changes = [health_check_custom_config]
+  }
 
   tags = local.tags
 }
@@ -344,6 +356,10 @@ resource "aws_service_discovery_service" "prometheus" {
 
   health_check_custom_config {}
 
+  lifecycle {
+    ignore_changes = [health_check_custom_config]
+  }
+
   tags = local.tags
 }
 
@@ -363,6 +379,10 @@ resource "aws_service_discovery_service" "grafana" {
   }
 
   health_check_custom_config {}
+
+  lifecycle {
+    ignore_changes = [health_check_custom_config]
+  }
 
   tags = local.tags
 }
@@ -699,7 +719,7 @@ resource "aws_ecs_task_definition" "grafana" {
       essential = true
       dependsOn = [{ containerName = "config-loader", condition = "SUCCESS" }]
       secrets = [
-        { name = "GF_SECURITY_ADMIN_PASSWORD", valueFrom = local.grafana_admin_secret_container_ref },
+        { name = "GF_SECURITY_ADMIN_PASSWORD", valueFrom = local.grafana_admin_secret_arn },
       ]
       environment = [
         { name = "GF_SECURITY_ADMIN_USER", value = "admin" },
