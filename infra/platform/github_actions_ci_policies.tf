@@ -36,7 +36,9 @@ locals {
 
   github_actions_iam_manage_resources = [
     "arn:aws:iam::${local.account_id}:role/${local.github_actions_stack_scope}",
+    "arn:aws:iam::${local.account_id}:role/app-tasks-*",
     "arn:aws:iam::${local.account_id}:policy/${local.github_actions_stack_scope}",
+    "arn:aws:iam::${local.account_id}:policy/app-tasks-*",
   ]
 
   github_actions_alb_manage_resources = [
@@ -417,6 +419,7 @@ data "aws_iam_policy_document" "github_actions_logs_secrets" {
     ]
     resources = [
       "arn:aws:secretsmanager:${local.region}:${local.account_id}:secret:rds!db-*",
+      "arn:aws:secretsmanager:${local.region}:${local.account_id}:secret:aws-sdlc-containers/grafana-admin*",
     ]
   }
 
@@ -451,15 +454,23 @@ data "aws_iam_policy_document" "github_actions_data_hub" {
     actions = [
       "s3:CreateBucket",
       "s3:DeleteBucket",
+      "s3:GetAccelerateConfiguration",
       "s3:GetBucketAcl",
+      "s3:GetBucketCORS",
       "s3:GetBucketLocation",
+      "s3:GetBucketLogging",
+      "s3:GetBucketObjectLockConfiguration",
       "s3:GetBucketOwnershipControls",
       "s3:GetBucketPolicy",
+      "s3:GetBucketPolicyStatus",
       "s3:GetBucketPublicAccessBlock",
+      "s3:GetBucketRequestPayment",
       "s3:GetBucketTagging",
       "s3:GetBucketVersioning",
+      "s3:GetBucketWebsite",
       "s3:GetEncryptionConfiguration",
       "s3:GetLifecycleConfiguration",
+      "s3:GetReplicationConfiguration",
       "s3:ListBucket",
       "s3:PutBucketOwnershipControls",
       "s3:PutBucketPublicAccessBlock",
@@ -476,15 +487,23 @@ data "aws_iam_policy_document" "github_actions_data_hub" {
     actions = [
       "s3:CreateBucket",
       "s3:DeleteBucket",
+      "s3:GetAccelerateConfiguration",
       "s3:GetBucketAcl",
+      "s3:GetBucketCORS",
       "s3:GetBucketLocation",
+      "s3:GetBucketLogging",
+      "s3:GetBucketObjectLockConfiguration",
       "s3:GetBucketOwnershipControls",
       "s3:GetBucketPolicy",
+      "s3:GetBucketPolicyStatus",
       "s3:GetBucketPublicAccessBlock",
+      "s3:GetBucketRequestPayment",
       "s3:GetBucketTagging",
       "s3:GetBucketVersioning",
+      "s3:GetBucketWebsite",
       "s3:GetEncryptionConfiguration",
       "s3:GetLifecycleConfiguration",
+      "s3:GetReplicationConfiguration",
       "s3:ListBucket",
       "s3:PutBucketOwnershipControls",
       "s3:PutBucketPublicAccessBlock",
@@ -521,6 +540,7 @@ data "aws_iam_policy_document" "github_actions_identity_kms" {
       "iam:GetRole", "iam:GetRolePolicy",
       "iam:GetPolicy", "iam:GetPolicyVersion",
       "iam:ListRolePolicies", "iam:ListAttachedRolePolicies",
+      "iam:ListPolicyVersions",
       "iam:ListInstanceProfilesForRole",
     ]
     resources = local.github_actions_iam_manage_resources
