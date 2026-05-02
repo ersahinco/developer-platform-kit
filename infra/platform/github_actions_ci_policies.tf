@@ -519,8 +519,14 @@ data "aws_iam_policy_document" "github_actions_data_hub" {
     sid = "ObservabilityConfigObjectsManage"
     actions = [
       "s3:DeleteObject",
+      "s3:DeleteObjectTagging",
       "s3:GetObject",
+      "s3:GetObjectAcl",
+      "s3:GetObjectTagging",
+      "s3:GetObjectVersion",
+      "s3:GetObjectVersionTagging",
       "s3:PutObject",
+      "s3:PutObjectTagging",
     ]
     resources = local.github_actions_observability_object_resources
   }
