@@ -7,9 +7,9 @@ workload operations.
 
 The project is intentionally small today: one ECS cluster, one FastAPI app, one
 backfill worker, one scheduled data export job, PgBouncer, Liquibase, one
-PostgreSQL database, one S3 data hub bucket, and split platform/app Terraform
-roots. It is being shaped gradually into a modular monolith monorepo for app,
-infra, data, and DevOps work.
+PostgreSQL database, one app-owned S3 object storage bucket, and split
+platform/app Terraform roots. It is being shaped gradually into a modular
+monolith monorepo for app, infra, data, and DevOps work.
 
 ## Start Here
 
@@ -36,7 +36,7 @@ operator workflow changes.
 |---|---|---|
 | SDLC baseline | GitHub Actions, immutable ECR tags, reproducible Terraform state | `.github/workflows/`, `infra/`, `Makefile` |
 | Safe schema rollout | Expand, dual-write, backfill, switch, contract | `db/changelog/`, `apps/backfill-worker/src/aws_sdlc_backfill_worker/main.py` |
-| Data export flow | Local and scheduled ECS export job with raw output, manifest, and S3 data hub writes | `apps/data-export-job/src/aws_sdlc_data_export_job/main.py`, `infra/app/data_export_storage.tf`, `infra/app/workload_jobs.tf` |
+| Data export flow | Local and scheduled ECS export job with raw output, manifest, and S3 object storage writes | `apps/data-export-job/src/aws_sdlc_data_export_job/main.py`, `infra/app/object_storage.tf`, `infra/app/workload_jobs.tf` |
 | Runtime config | DB-backed `WRITE_MODE` and `READ_MODE` switches | `packages/adapters/src/aws_sdlc_adapters/db/repository.py` |
 | Connection pooling | PgBouncer in transaction mode | `compose.yaml`, `db/pgbouncer/pgbouncer.ini` |
 | ECS deployment | Build/scan approval followed by rolling app deploy plus one-off Liquibase and worker tasks | `.github/workflows/app-build.yml`, `.github/workflows/app-deploy.yml`, `infra/app/workload_jobs.tf` |

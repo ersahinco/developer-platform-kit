@@ -1,5 +1,94 @@
 ################################################################################
-# GitHub Actions CI IAM policies
+# GitHub Actions CI identity and permissions
+#
+# Platform owns the account-level OIDC trust relationship, CI role identity,
+# Terraform state access, and concern-scoped managed policies used by GitHub
+# Actions. App roots may attach app-scoped deploy policies to this role after
+# platform exists.
+################################################################################
+
+locals {
+  github_actions_oidc_subjects = [
+    "repo:${var.github_repository}:environment:*",
+    "repo:${var.github_repository}:ref:refs/heads/main",
+    "repo:${var.github_repository}:ref:refs/pull/*/head",
+  ]
+
+  github_actions_state_bucket_name = "${local.name}-tfstate-${local.account_id}"
+}
+
+data "aws_iam_openid_connect_provider" "github" {
+  url = "https://token.actions.githubusercontent.com"
+}
+
+data "aws_iam_policy_document" "github_actions_assume" {
+  statement {
+    actions = ["sts:AssumeRoleWithWebIdentity"]
+
+    principals {
+      type        = "Federated"
+      identifiers = [data.aws_iam_openid_connect_provider.github.arn]
+    }
+
+    condition {
+      test     = "StringEquals"
+      variable = "token.actions.githubusercontent.com:aud"
+      values   = ["sts.amazonaws.com"]
+    }
+
+    condition {
+      test     = "StringLike"
+      variable = "token.actions.githubusercontent.com:sub"
+      values   = local.github_actions_oidc_subjects
+    }
+  }
+}
+
+resource "aws_iam_role" "github_actions" {
+  name               = "${local.name}-github-actions"
+  assume_role_policy = data.aws_iam_policy_document.github_actions_assume.json
+  tags               = local.tags
+}
+
+data "aws_iam_policy_document" "github_actions_state_access" {
+  statement {
+    sid = "TerraformState"
+    actions = [
+      "s3:DeleteObject",
+      "s3:GetObject",
+      "s3:ListBucket",
+      "s3:PutObject",
+    ]
+    resources = [
+      "arn:aws:s3:::${local.github_actions_state_bucket_name}",
+      "arn:aws:s3:::${local.github_actions_state_bucket_name}/*",
+    ]
+  }
+
+  statement {
+    sid = "TerraformStateLock"
+    actions = [
+      "dynamodb:DeleteItem",
+      "dynamodb:GetItem",
+      "dynamodb:PutItem",
+    ]
+    resources = ["arn:aws:dynamodb:${local.region}:${local.account_id}:table/terraform-locks"]
+  }
+}
+
+resource "aws_iam_policy" "github_actions_state_access" {
+  name   = "${local.name}-github-actions-state-access"
+  policy = data.aws_iam_policy_document.github_actions_state_access.json
+  tags   = local.tags
+}
+
+resource "aws_iam_role_policy_attachment" "github_actions_state_access" {
+  role       = aws_iam_role.github_actions.name
+  policy_arn = aws_iam_policy.github_actions_state_access.arn
+}
+
+################################################################################
+# GitHub Actions managed policy documents
 #
 # Platform owns the single GitHub Actions role and the CI policy attachments.
 # App-owned roots attach repository policies to that platform role where a
@@ -651,4 +740,89 @@ resource "aws_iam_role_policy_attachment" "github_actions_managed" {
 
   role       = aws_iam_role.github_actions.name
   policy_arn = each.value
+}
+
+################################################################################
+# Additional capability permissions
+#
+# These attach to the same single GitHub Actions role. They are kept in this
+# file because they are platform-owned CI permissions, while the headings below
+# keep each capability easy to review.
+################################################################################
+
+################################################################################
+# Networking extension — VPC endpoints
+################################################################################
+
+data "aws_iam_policy_document" "github_actions_networking_vpc_endpoints" {
+  statement {
+    sid = "VpcEndpointsManage"
+    actions = [
+      "ec2:CreateVpcEndpoint",
+      "ec2:DeleteVpcEndpoints",
+      "ec2:ModifyVpcEndpoint",
+    ]
+    resources = ["*"]
+  }
+}
+
+resource "aws_iam_policy" "github_actions_networking_vpc_endpoints" {
+  name   = "${local.name}-github-actions-networking-vpc-endpoints"
+  policy = data.aws_iam_policy_document.github_actions_networking_vpc_endpoints.json
+  tags   = local.tags
+}
+
+resource "aws_iam_role_policy_attachment" "github_actions_networking_vpc_endpoints" {
+  role       = aws_iam_role.github_actions.name
+  policy_arn = aws_iam_policy.github_actions_networking_vpc_endpoints.arn
+}
+
+################################################################################
+# Edge capability — WAF for public ALBs
+################################################################################
+
+data "aws_iam_policy_document" "github_actions_edge_waf" {
+  statement {
+    sid = "WAFManage"
+    actions = [
+      "wafv2:CreateWebACL", "wafv2:DeleteWebACL", "wafv2:UpdateWebACL",
+      "wafv2:GetWebACL", "wafv2:ListWebACLs",
+      "wafv2:AssociateWebACL", "wafv2:DisassociateWebACL", "wafv2:GetWebACLForResource",
+      "wafv2:ListResourcesForWebACL",
+      "wafv2:TagResource", "wafv2:UntagResource", "wafv2:ListTagsForResource",
+      "wafv2:CheckCapacity",
+      "wafv2:DescribeManagedRuleGroup",
+      "wafv2:ListAvailableManagedRuleGroups",
+      "wafv2:ListAvailableManagedRuleGroupVersions",
+    ]
+    resources = [
+      "arn:aws:wafv2:${local.region}:${local.account_id}:regional/webacl/aws-sdlc-containers*/*",
+      "arn:aws:wafv2:${local.region}:${local.account_id}:regional/managedruleset/*/*",
+    ]
+  }
+
+  statement {
+    sid = "WAFDescribe"
+    actions = [
+      "wafv2:ListWebACLs",
+      "wafv2:ListAvailableManagedRuleGroups",
+      "wafv2:ListAvailableManagedRuleGroupVersions",
+      "wafv2:DescribeManagedRuleGroup",
+      "wafv2:CheckCapacity",
+      "wafv2:GetWebACLForResource",
+      "wafv2:ListResourcesForWebACL",
+    ]
+    resources = ["*"]
+  }
+}
+
+resource "aws_iam_policy" "github_actions_edge_waf" {
+  name   = "${local.name}-github-actions-edge-waf"
+  policy = data.aws_iam_policy_document.github_actions_edge_waf.json
+  tags   = local.tags
+}
+
+resource "aws_iam_role_policy_attachment" "github_actions_edge_waf" {
+  role       = aws_iam_role.github_actions.name
+  policy_arn = aws_iam_policy.github_actions_edge_waf.arn
 }

@@ -1,9 +1,9 @@
 ################################################################################
-# Data export storage
+# Object storage
 #
-# S3 is the AWS implementation for exported raw files and manifests. Prefixes
-# are virtual, so Terraform owns the durable bucket guardrails while the data
-# export job writes objects at runtime.
+# S3 is the AWS implementation for app-owned object storage. Prefixes are
+# virtual, so Terraform owns durable bucket guardrails while workloads write
+# objects at runtime.
 ################################################################################
 
 locals {

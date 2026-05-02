@@ -5,7 +5,7 @@ This root owns workload resources:
 - App database persistence and database security groups.
 - ECS cluster, app service, support tasks, and ECR repositories.
 - ALB/API edge, ACM certificate, and app DNS record.
-- Data export storage, EventBridge schedules, order event queueing, and app IAM.
+- Object storage, EventBridge schedules, messaging, and app IAM.
 - CloudWatch app-level alarms while they remain in dual-run.
 - Optional Grafana/Loki/Prometheus observability.
 
@@ -17,8 +17,9 @@ the repository-level `observability/` folder. Keep AWS-only rendering templates
 under `infra/app/templates/observability/` when ECS storage or service discovery
 must differ from local Compose.
 
-Terraform files are named by app capability. AWS-specific implementation details
-stay inside the capability file unless they are shared across multiple
-capabilities. For example, the order event queue file owns its SQS queues,
-publisher IAM, and DLQ alarm together; ECS Exec permissions live with app
-compute because they support the app ECS service.
+Terraform files are named by app capability or durable infrastructure layer.
+AWS-specific implementation details stay inside the capability file unless they
+are shared across multiple capabilities. For example, `messaging.tf` owns SQS
+queues, publisher IAM, and DLQ alarms together; `object_storage.tf` owns S3
+bucket guardrails; ECS Exec permissions live with app compute because they
+support the app ECS service.

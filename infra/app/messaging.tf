@@ -1,9 +1,9 @@
 ################################################################################
-# Order event queue
+# Messaging
 #
-# SQS is the current AWS transport for order.created.v1. Keep the queue, app
-# publish IAM, and DLQ alarm together because they are one app messaging
-# capability.
+# SQS is the current AWS implementation for app-owned messaging. Keep queues,
+# workload IAM, and queue alarms together because they are one delivery
+# capability even when the transport changes later.
 ################################################################################
 
 resource "aws_sqs_queue" "order_events_dlq" {
