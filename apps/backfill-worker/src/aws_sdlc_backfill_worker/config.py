@@ -1,3 +1,5 @@
+from urllib.parse import quote
+
 from pydantic import model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
@@ -31,7 +33,9 @@ class Settings(BaseSettings):
                 raise ValueError(
                     "Either BACKFILL_DATABASE_URL or DB_PASSWORD+DB_HOST must be set"
                 )
-            self.backfill_database_url = f"postgresql://{self.db_user}:{self.db_password}@{self.db_host}:{self.db_port}/{self.db_name}"
+            db_user = quote(self.db_user, safe="")
+            db_password = quote(self.db_password, safe="")
+            self.backfill_database_url = f"postgresql://{db_user}:{db_password}@{self.db_host}:{self.db_port}/{self.db_name}"
         if self.backfill_max_batches is not None and self.backfill_max_batches < 1:
             raise ValueError("BACKFILL_MAX_BATCHES must be at least 1 when set")
         return self

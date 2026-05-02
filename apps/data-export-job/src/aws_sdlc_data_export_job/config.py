@@ -1,3 +1,5 @@
+from urllib.parse import quote
+
 from pydantic import model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
@@ -31,8 +33,10 @@ class Settings(BaseSettings):
                 raise ValueError(
                     "Either DATA_EXPORT_DATABASE_URL or DB_PASSWORD+DB_HOST must be set"
                 )
+            db_user = quote(self.db_user, safe="")
+            db_password = quote(self.db_password, safe="")
             self.data_export_database_url = (
-                f"postgresql://{self.db_user}:{self.db_password}"
+                f"postgresql://{db_user}:{db_password}"
                 f"@{self.db_host}:{self.db_port}/{self.db_name}"
             )
         return self

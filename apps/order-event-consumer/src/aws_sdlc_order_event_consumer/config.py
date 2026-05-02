@@ -1,4 +1,5 @@
 from typing import Literal
+from urllib.parse import quote
 
 from pydantic import PostgresDsn, model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
@@ -30,8 +31,10 @@ class Settings(BaseSettings):
         if self.database_url is None:
             if self.db_password is None:
                 raise ValueError("Either DATABASE_URL or DB_PASSWORD must be set")
+            db_user = quote(self.db_user, safe="")
+            db_password = quote(self.db_password, safe="")
             self.database_url = PostgresDsn(
-                f"postgresql://{self.db_user}:{self.db_password}@{self.db_host}:{self.db_port}/{self.db_name}"
+                f"postgresql://{db_user}:{db_password}@{self.db_host}:{self.db_port}/{self.db_name}"
             )
         return self
 
