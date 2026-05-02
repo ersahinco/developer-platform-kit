@@ -5,6 +5,25 @@ Deployable workloads live under `apps/`: the API in `apps/api/`, the backfill
 worker in `apps/backfill-worker/`, and the local data export job in
 `apps/data-export-job/`.
 
+## Local Tooling Ownership
+
+Keep local-development entrypoints conventional and easy for tools to discover.
+Do not add a top-level `local/` folder unless there is a concrete local asset
+that does not already have a clearer owner.
+
+| File or folder | Owner |
+|---|---|
+| `docker-compose.yml` | Root local orchestration contract. Keep it at the repository root so `docker compose ...` works without extra flags. |
+| `Makefile` | Root command facade for common local, quality, and migration tasks. |
+| `Brewfile` | Root native macOS workstation bootstrap, because `brew bundle install` expects that convention. |
+| `.python-version` | Root Python runtime pin for editors and Python version managers. Keep it aligned with `pyproject.toml` and the dev container. |
+| `pyproject.toml` and `uv.lock` | Root Python workspace and locked dependency graph. |
+| `.devcontainer/` | Reproducible development shell and pinned non-app tooling. |
+| `docker/observability/` | Local Prometheus, Loki, Promtail, and Grafana config reused by the app-owned AWS observability stack where possible. |
+| `db/` | Database-owned local assets: Liquibase changelog, Postgres bootstrap SQL, and PgBouncer config/images. |
+| `apps/*/Dockerfile` | Workload-owned container build definitions. Keep app Dockerfiles next to the workload they package. |
+| `.dockerignore` | Root Docker build-context hygiene for all workload images. |
+
 ## Prerequisites
 
 - Docker Desktop
