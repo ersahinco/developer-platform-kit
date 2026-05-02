@@ -168,6 +168,18 @@ variable "prometheus_image" {
   default     = "prom/prometheus:v3.11.2"
 }
 
+variable "tempo_image" {
+  description = "Upstream Tempo image for the optional self-hosted traces stack."
+  type        = string
+  default     = "grafana/tempo:2.9.0"
+}
+
+variable "firelens_image_tag" {
+  description = "FireLens image tag built from observability/firelens and pushed to ECR."
+  type        = string
+  default     = "sha-23f61d05d3a0e2f55def6fcdd2b64ce761817963"
+}
+
 variable "grafana_cpu" {
   description = "Fargate task CPU units for the optional Grafana service."
   type        = number
@@ -204,6 +216,18 @@ variable "prometheus_memory" {
   default     = 1024
 }
 
+variable "tempo_cpu" {
+  description = "Fargate task CPU units for the optional Tempo service."
+  type        = number
+  default     = 512
+}
+
+variable "tempo_memory" {
+  description = "Fargate task memory (MiB) for the optional Tempo service."
+  type        = number
+  default     = 1024
+}
+
 # ── RDS ───────────────────────────────────────────────────────────────────────
 
 variable "rds_instance_class" {
@@ -228,4 +252,15 @@ variable "initial_image_tag" {
   description = "Image tag used in task definitions on first apply. CI always registers a new task definition revision with the real SHA before deploying or running one-off tasks — this value is never used after the first apply."
   type        = string
   default     = "sha-7e0fa31a82d7d2a6e302e0904abb79d1dff3492d"
+}
+
+variable "app_image_tag" {
+  description = "Optional app image tag to keep Terraform aligned with the currently deployed app revision without changing support workload image tags."
+  type        = string
+  default     = null
+
+  validation {
+    condition     = var.app_image_tag == null || startswith(var.app_image_tag, "sha-")
+    error_message = "app_image_tag must be null or start with sha-."
+  }
 }

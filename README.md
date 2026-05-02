@@ -18,6 +18,7 @@ monolith monorepo for app, infra, data, and DevOps work.
 | How to continue work cleanly | [docs/engineering-loop.md](docs/engineering-loop.md) |
 | Roadmaps and continuation rules | [docs/roadmaps.md](docs/roadmaps.md) |
 | Architecture direction | [docs/architecture.md](docs/architecture.md) |
+| Repository/control-boundary layout | [docs/architecture-layout.md](docs/architecture-layout.md) |
 | Local development runbook | [docs/local-development.md](docs/local-development.md) |
 | AWS deployment/runbook | [docs/deployment.md](docs/deployment.md) |
 | Incident runbooks and drills | [docs/runbooks/README.md](docs/runbooks/README.md) and [docs/drills/README.md](docs/drills/README.md) |
@@ -78,7 +79,7 @@ aws-sdlc-containers/
 |-- scripts/             # Local and CI helper scripts
 |-- tests/               # Pytest integration tests
 |-- docs/                # Roadmaps, guides, runbooks, and drills
-|-- observability/       # Shared local/AWS Grafana, Loki, and Prometheus assets
+|-- observability/       # Shared local/AWS Grafana, Loki, Tempo, and Prometheus assets
 |-- .github/workflows/   # App and infra workflows
 |-- compose.yaml
 `-- Makefile
@@ -147,7 +148,7 @@ make observability
 ```
 
 See [docs/observability.md](docs/observability.md) for the Prometheus, Loki,
-and Grafana setup.
+Tempo, and Grafana setup.
 
 ## CI/CD Shape
 

@@ -11,7 +11,9 @@ Terraform is organized by lifecycle boundary:
 
 There is no Terraform root directly in `infra/` anymore. The old single-root
 state key, `aws-sdlc-containers/stack.tfstate`, has been retired. Use the split
-roots only.
+roots only. The empty retired object was archived under
+`aws-sdlc-containers/retired/stack.tfstate-2026-05-01.json` and removed from
+the active state prefix on May 2, 2026.
 
 ## State Keys
 

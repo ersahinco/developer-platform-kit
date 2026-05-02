@@ -66,11 +66,11 @@ When the optional Grafana stack is enabled and reachable, check the provisioned
 Loki to inspect app and PgBouncer logs from the same time window:
 
 ```logql
-{container="app"} |= "ERROR"
+{stack="aws-sdlc-containers", service="app"} |= "ERROR"
 ```
 
 ```logql
-{container="pgbouncer"}
+{stack="aws-sdlc-containers", container="pgbouncer"}
 ```
 
 The matching app-level Prometheus alert for dependency readiness symptoms is

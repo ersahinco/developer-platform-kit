@@ -21,6 +21,7 @@
 #   make app-deploy          — force new ECS deployment
 #
 #   make db-tunnel           — SSM port-forward localhost:LOCAL_PORT → RDS:5432
+#   make grafana-tunnel      — SSM port-forward localhost:GRAFANA_LOCAL_PORT → Grafana:3000
 #   make db-exec             — open psql inside a running app task
 #   make db-seed             — seed DB via SSM tunnel (idempotent)
 #   make api-get-order ORDER_ID=1 FIELD=billing_email
@@ -54,14 +55,13 @@ dev: ## Start local Postgres + PgBouncer
 
 .PHONY: observability
 observability: ## Start local Prometheus + Loki + Promtail + Grafana
-	docker compose --profile observability up -d prometheus loki promtail grafana
+	docker compose --profile observability up -d prometheus loki tempo promtail grafana
 	docker compose --profile observability ps
 
 .PHONY: local-up
 local-up: ## Build/start local app + Prometheus + Loki + Promtail + Grafana
 	docker compose build app
-	docker compose up -d db pgbouncer app
-	docker compose --profile observability up -d prometheus loki promtail grafana
+	OTEL_TRACES_ENABLED=true docker compose --profile observability up -d db pgbouncer app prometheus loki tempo promtail grafana
 	docker compose --profile observability ps
 
 .PHONY: local-down
@@ -74,7 +74,7 @@ local-reset: ## Stop all local services and delete Compose volumes
 
 .PHONY: observability-stop
 observability-stop: ## Stop local observability services
-	docker compose --profile observability stop prometheus loki promtail grafana
+	docker compose --profile observability stop prometheus loki tempo promtail grafana
 
 .PHONY: migrate
 migrate: ## Run Liquibase migrations against local DB
@@ -116,7 +116,7 @@ lint-workflows: ## Lint GitHub workflows
 
 .PHONY: lint-dockerfiles
 lint-dockerfiles: ## Lint Dockerfiles
-	hadolint db/Dockerfile db/pgbouncer/Dockerfile apps/*/Dockerfile
+	hadolint db/Dockerfile db/pgbouncer/Dockerfile observability/firelens/Dockerfile apps/*/Dockerfile
 
 .PHONY: secret-scan
 secret-scan: ## Scan repository for committed secrets
@@ -241,7 +241,7 @@ post-deploy-verify: ## Verify deployed app readiness, metrics, modes, and ECS im
 	ECS_CLUSTER="$${ECS_CLUSTER:-aws-sdlc-containers}" \
 	ECS_SERVICE="$${ECS_SERVICE:-app}" \
 	EXPECTED_TASK_FAMILY="$${EXPECTED_TASK_FAMILY:-aws-sdlc-containers}" \
-	python3 scripts/verify_post_deploy.py
+	uv run python scripts/verify_post_deploy.py
 
 # ── DB access — no bastion needed ─────────────────────────────────────────────
 #
@@ -253,12 +253,17 @@ post-deploy-verify: ## Verify deployed app readiness, metrics, modes, and ECS im
 # ─────────────────────────────────────────────────────────────────────────────
 
 LOCAL_PORT         ?= 15432
+GRAFANA_LOCAL_PORT ?= 3000
 SEED_NUM_CUSTOMERS ?= 1000
 SEED_NUM_ORDERS    ?= 10000
 
 .PHONY: db-tunnel
 db-tunnel: ## SSM port-forward localhost:$(LOCAL_PORT) → RDS:5432
 	@bash scripts/db_tunnel.sh $(LOCAL_PORT) $(AWS_REGION)
+
+.PHONY: grafana-tunnel
+grafana-tunnel: ## SSM port-forward localhost:$(GRAFANA_LOCAL_PORT) → private Grafana:3000
+	@bash scripts/grafana_tunnel.sh $(GRAFANA_LOCAL_PORT) $(AWS_REGION)
 
 .PHONY: db-exec
 db-exec: ## Open psql inside a running app task

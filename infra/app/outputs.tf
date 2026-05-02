@@ -68,6 +68,11 @@ output "ecr_order_event_consumer_repository_url" {
   value       = module.ecr_order_event_consumer.repository_url
 }
 
+output "ecr_firelens_repository_url" {
+  description = "ECR URL for the FireLens log router image."
+  value       = module.ecr_firelens.repository_url
+}
+
 output "worker_task_definition_arn" {
   description = "Worker task definition ARN. Pass to `aws ecs run-task` to trigger a backfill."
   value       = aws_ecs_task_definition.worker.arn
@@ -236,4 +241,9 @@ output "observability_loki_service_name" {
 output "observability_prometheus_service_name" {
   description = "ECS service name for optional Prometheus."
   value       = var.enable_observability_stack ? aws_ecs_service.prometheus[0].name : null
+}
+
+output "observability_tempo_service_name" {
+  description = "ECS service name for optional Tempo."
+  value       = var.enable_observability_stack ? aws_ecs_service.tempo[0].name : null
 }

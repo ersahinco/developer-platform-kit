@@ -5,6 +5,8 @@ deleteDatasources:
     orgId: 1
   - name: Loki
     orgId: 1
+  - name: Tempo
+    orgId: 1
 
 datasources:
   - name: Prometheus
@@ -20,3 +22,9 @@ datasources:
     type: loki
     access: proxy
     url: ${LOKI_URL}
+  - name: Tempo
+    orgId: 1
+    uid: Tempo
+    type: tempo
+    access: proxy
+    url: ${TEMPO_URL}

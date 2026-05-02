@@ -72,11 +72,11 @@ Prometheus alert is `OrderEventPublishFailures`.
 Use Loki for app and consumer log context during the same window:
 
 ```logql
-{container="app"} |= "order_event_publish_failed"
+{stack="aws-sdlc-containers", service="app"} |= "order_event_publish_failed"
 ```
 
 ```logql
-{container="order-event-consumer"}
+{stack="aws-sdlc-containers", service="order-event-consumer"}
 ```
 
 Keep the SQS DLQ CloudWatch alarm in the flow until the later messaging

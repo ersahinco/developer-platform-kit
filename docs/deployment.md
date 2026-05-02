@@ -218,7 +218,7 @@ Resources use the project prefix `aws-sdlc-containers`.
 - Worker task family: `aws-sdlc-containers-worker`
 - Liquibase task family: `aws-sdlc-containers-liquibase`
 - ECR repos:
-  `aws-sdlc-containers/{app,worker,data-export-job,order-event-consumer,liquibase,pgbouncer}`
+  `aws-sdlc-containers/{app,worker,data-export-job,order-event-consumer,liquibase,pgbouncer,firelens}`
 - API hostname: `api.<root_domain>`
 
 ## Rollout model
@@ -234,6 +234,11 @@ Rollout stays inside the same cluster and the same database:
 6. Advance `WRITE_MODE` and `READ_MODE` through the runbook.
 
 This keeps the project lean while still supporting safe schema evolution.
+
+The FireLens image is app-owned and built by the same app build workflow as the
+workload images. On a fresh account, create the ECR repositories with the app
+infra apply, run `app-build.yml` to push the selected `sha-...` tag, then deploy
+or restart ECS services so every task can pull the matching `firelens` image.
 
 ## No multi-AZ by default
 
@@ -251,6 +256,7 @@ make infra-apply
 make app-deploy
 make post-deploy-verify
 make db-tunnel
+make grafana-tunnel
 make db-exec
 make db-seed
 make api-get-order ORDER_ID=1
@@ -269,6 +275,17 @@ Then connect with:
 - Host: `localhost`
 - Port: `15432`
 - Database: `aws_sdlc_containers`
+
+## Grafana access
+
+The ECS Grafana stack remains private. Access it through SSM port forwarding:
+
+```bash
+make grafana-tunnel
+```
+
+Then open `http://localhost:3000` and use the Grafana admin secret configured
+for the stack.
 
 ## Failure recovery
 

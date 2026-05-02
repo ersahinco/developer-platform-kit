@@ -75,6 +75,10 @@ services:
       dockerfile: apps/api/Dockerfile
     environment:
       DATABASE_URL: ${DATABASE_URL:-postgresql://postgres:postgres@pgbouncer:5432/aws_sdlc_containers}
+      OTEL_TRACES_ENABLED: ${OTEL_TRACES_ENABLED:-false}
+      OTEL_EXPORTER_OTLP_TRACES_ENDPOINT: ${OTEL_EXPORTER_OTLP_TRACES_ENDPOINT:-http://tempo:4318/v1/traces}
+      OTEL_SERVICE_NAME: aws-sdlc-containers-api
+      OTEL_DEPLOYMENT_ENVIRONMENT: local
     ports:
       - "${APP_PORT:-8000}:8000"
     depends_on:
@@ -158,6 +162,19 @@ services:
     profiles:
       - observability
 
+  tempo:
+    image: grafana/tempo:${TEMPO_TAG:-2.9.0}
+    command: -config.file=/etc/tempo/tempo.yml
+    volumes:
+      - ./observability/tempo/tempo.yml:/etc/tempo/tempo.yml:ro
+      - tempo_data:/tmp/tempo
+    ports:
+      - "${TEMPO_PORT:-3200}:3200"
+      - "${TEMPO_OTLP_HTTP_PORT:-4318}:4318"
+      - "${TEMPO_OTLP_GRPC_PORT:-4317}:4317"
+    profiles:
+      - observability
+
   promtail:
     image: grafana/promtail:${PROMTAIL_TAG:-3.6.10}
     command: -config.file=/etc/promtail/promtail.yml
@@ -178,6 +195,7 @@ services:
       GF_USERS_ALLOW_SIGN_UP: "false"
       PROMETHEUS_URL: "http://prometheus:9090"
       LOKI_URL: "http://loki:3100"
+      TEMPO_URL: "http://tempo:3200"
     volumes:
       - grafana_data:/var/lib/grafana
       - ./observability/grafana/provisioning:/etc/grafana/provisioning:ro
@@ -189,6 +207,8 @@ services:
         condition: service_started
       loki:
         condition: service_started
+      tempo:
+        condition: service_started
     profiles:
       - observability
 
@@ -197,5 +217,6 @@ volumes:
   pgadmin_data:
   prometheus_data:
   loki_data:
+  tempo_data:
   grafana_data:
   data_exports:

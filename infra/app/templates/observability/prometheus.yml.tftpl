@@ -21,3 +21,8 @@ scrape_configs:
     static_configs:
       - targets:
           - loki.${dns_namespace}:3100
+
+  - job_name: tempo
+    static_configs:
+      - targets:
+          - tempo.${dns_namespace}:3200

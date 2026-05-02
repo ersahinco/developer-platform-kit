@@ -95,6 +95,46 @@ module "ecr_pgbouncer" {
   tags = local.tags
 }
 
+module "ecr_firelens" {
+  source  = "terraform-aws-modules/ecr/aws"
+  version = "~> 3.0"
+
+  repository_name                 = "${local.name}/firelens"
+  repository_image_tag_mutability = "IMMUTABLE"
+  repository_image_scan_on_push   = true
+
+  repository_read_write_access_arns = [local.github_actions_role_arn]
+
+  repository_lifecycle_policy = jsonencode({
+    rules = [
+      {
+        rulePriority = 1
+        description  = "Expire untagged images after 1 day"
+        selection = {
+          tagStatus   = "untagged"
+          countType   = "sinceImagePushed"
+          countUnit   = "days"
+          countNumber = 1
+        }
+        action = { type = "expire" }
+      },
+      {
+        rulePriority = 2
+        description  = "Keep last 10 sha- tagged images"
+        selection = {
+          tagStatus     = "tagged"
+          tagPrefixList = ["sha-"]
+          countType     = "imageCountMoreThan"
+          countNumber   = 10
+        }
+        action = { type = "expire" }
+      }
+    ]
+  })
+
+  tags = local.tags
+}
+
 ################################################################################
 # ECS — terraform-aws-modules/ecs/aws ~> 7.0
 # v7: cluster_capacity_providers must be explicit — no longer inferred.
@@ -147,7 +187,12 @@ module "ecs" {
       # the stack self-contained.
       family = local.name
 
-      container_definitions = {
+      container_definitions = merge(var.enable_observability_stack ? {
+        "log-router" = merge(local.firelens_router_container[0], {
+          enable_cloudwatch_logging   = false
+          create_cloudwatch_log_group = false
+        })
+        } : {}, {
         # PgBouncer sidecar — runs in the same task network namespace as the app.
         # The app's DATABASE_URL points to localhost:5432 (pgbouncer), not RDS directly.
         # transaction mode: server connections are returned to the pool after each
@@ -157,8 +202,10 @@ module "ecs" {
         pgbouncer = {
           # Built from edoburu/pgbouncer:v1.25.1-p0 with Alpine security updates,
           # then pushed to ECR by CI to avoid Docker Hub pull rate limits.
-          image     = "${module.ecr_pgbouncer.repository_url}:v1.25.1-p0"
-          essential = true
+          image          = "${module.ecr_pgbouncer.repository_url}:v1.25.1-p0"
+          essential      = true
+          systemControls = []
+          volumesFrom    = []
 
           # pgbouncer's entrypoint generates /etc/pgbouncer/userlist.txt and pgbouncer.ini
           # at startup. readonlyRootFilesystem must be false — the entrypoint writes to
@@ -187,6 +234,10 @@ module "ecs" {
             { name = "STATS_PERIOD", value = "3600" },
           ]
 
+          dependsOn = var.enable_observability_stack ? [{ containerName = "log-router", condition = "START" }] : null
+
+          logConfiguration = var.enable_observability_stack ? local.firelens_log_configuration : null
+
           enable_cloudwatch_logging              = true
           cloudwatch_log_group_retention_in_days = 14
           # Explicit name keeps the log group stack-scoped and readable instead of
@@ -196,13 +247,17 @@ module "ecs" {
 
         app = {
           # var.initial_image_tag is used only on the first apply (bootstrap).
+          # var.app_image_tag can pin Terraform to a later CI/manual app revision
+          # without forcing support workload images onto the same tag.
           # ignore_task_definition_changes = true on the service means Terraform
           # never registers a new revision after that — CI owns the image tag.
-          image     = "${module.ecr_app.repository_url}:${var.initial_image_tag}"
+          image     = "${module.ecr_app.repository_url}:${coalesce(var.app_image_tag, var.initial_image_tag)}"
           essential = true
 
           # ECS container definition keys are camelCase — they map directly to the ECS API
-          portMappings = [{ containerPort = 8000, protocol = "tcp" }]
+          portMappings   = [{ containerPort = 8000, hostPort = 8000, protocol = "tcp" }]
+          systemControls = []
+          volumesFrom    = []
 
           # ECS does not interpolate $(VAR) in environment values. DB_PASSWORD is
           # injected as a secret; the app's config.py composes DATABASE_URL at startup.
@@ -210,12 +265,20 @@ module "ecs" {
             { name = "DB_PASSWORD", valueFrom = "${module.rds.db_instance_master_user_secret_arn}:password::" },
           ]
 
-          environment = [
+          environment = concat([
             { name = "ORDER_EVENTS_QUEUE_URL", value = aws_sqs_queue.order_events.url },
-          ]
+            ], var.enable_observability_stack ? [
+            { name = "OTEL_TRACES_ENABLED", value = "true" },
+            { name = "OTEL_EXPORTER_OTLP_TRACES_ENDPOINT", value = "http://tempo.${local.observability_dns_namespace}:4318/v1/traces" },
+            { name = "OTEL_SERVICE_NAME", value = "aws-sdlc-containers-api" },
+            { name = "OTEL_DEPLOYMENT_ENVIRONMENT", value = "aws" },
+          ] : [])
 
           # pgbouncer must be accepting connections before the app starts.
-          dependsOn = [{ containerName = "pgbouncer", condition = "START" }]
+          dependsOn = concat(
+            [{ containerName = "pgbouncer", condition = "START" }],
+            var.enable_observability_stack ? [{ containerName = "log-router", condition = "START" }] : []
+          )
 
           healthCheck = {
             command = ["CMD-SHELL", "python -c \"import urllib.request; urllib.request.urlopen('http://localhost:8000/health')\""]
@@ -234,13 +297,15 @@ module "ecs" {
           # (private subnet, security groups), not filesystem immutability.
           readonlyRootFilesystem = false
 
+          logConfiguration = var.enable_observability_stack ? local.firelens_log_configuration : null
+
           enable_cloudwatch_logging              = true
           cloudwatch_log_group_retention_in_days = 30
           # Explicit name keeps the log group stack-scoped and readable instead of
           # relying on the module's generic service-key-derived default.
           cloudwatch_log_group_name = "/ecs/${local.name}/app"
         }
-      }
+      })
 
       load_balancer = {
         service = {

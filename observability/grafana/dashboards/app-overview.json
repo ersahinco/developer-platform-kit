@@ -214,7 +214,7 @@
             "type": "loki",
             "uid": "Loki"
           },
-          "expr": "{compose_service=\"app\"}",
+                    "expr": "{compose_service=\"app\"} or {stack=\"aws-sdlc-containers\", service=\"app\"}",
           "refId": "A"
         }
       ],

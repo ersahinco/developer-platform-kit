@@ -41,17 +41,15 @@ switch reads, new writes, and contract.
 
 | Status | Step | Notes |
 |---|---|---|
-| Current | Harden the app-owned Grafana/Loki/Prometheus contract. | The ECS stack is deployed and private. Next useful work is runtime inspection of Grafana/Prometheus/Loki through an operator path and tightening dashboards or alerts only where the deployed stack proves a gap. |
+| Current | Harden the app-owned Grafana/Loki/Tempo/Prometheus contract. | The ECS stack is deployed and private. Current work adds private Grafana access, dual CloudWatch/Loki log delivery, and self-hosted traces. |
 | Next | Improve application/package shape. | Keep the workload simple, but make `apps/` and `packages/` clearer where it improves tests, ownership, or deploy confidence. |
 | Next | Revisit CloudWatch reduction toggles after dual-run. | Do not disable CloudWatch yet. Only app symptom and data-export success alarms have reduction toggles. |
-| Waiting | Decide the operator access pattern for private Grafana. | Options include ECS Exec port-forwarding, a short-lived internal access path, or another private operator workflow. Do not make Grafana public as the default. |
-| Waiting | Decide whether tracing belongs in scope. | If yes, add OpenTelemetry plus a local and AWS path in one complete slice. Do not sprinkle trace dependencies without a dashboard and operating workflow. |
 | Waiting | Decide later messaging direction before replacing SQS. | SQS remains the current transport and DLQ signal until the roadmap explicitly starts a replacement. |
 | Deferred | Data analytics stack work. | Do not add DuckDB, dbt, dlt, or analytics orchestration until the app/infra roadmap asks for it. |
 | Done | Local development workflow housekeeping. | The repo is devcontainer-first, keeps `compose.yaml` as the root Compose contract, removes host-specific dependency manifests, and shares observability assets from `observability/`. |
 | Recovered | App observability deploy drift. | Recovered by reconciling `infra/app`, fixing Cloud Map replacement noise, using a Secrets Manager ARN for Grafana, and verifying all ECS services steady. |
 | Done | Platform/app Terraform split. | Platform owns VPC, endpoints, Route 53 lookup, and GitHub OIDC/CI IAM. App owns RDS, ECS, ALB/API edge, workload resources, CloudWatch app alarms, and optional observability. |
-| Done | Local observability parity. | Local Prometheus/Loki/Grafana profile is the app observability contract for logs and metrics. |
+| Done | Local observability parity. | Local Prometheus/Loki/Tempo/Grafana profile is the app observability contract for logs, metrics, and traces. |
 
 ## Continuation Rules
 
@@ -71,6 +69,8 @@ switch reads, new writes, and contract.
 - `README.md` is the short project index.
 - `docs/engineering-loop.md` explains how to continue work cleanly.
 - `docs/architecture.md` keeps long-form design rationale.
+- `docs/architecture-layout.md` explains the current repo/control-boundary
+  layout from GitHub automation through app, infra, scripts, tests, and docs.
 - `docs/deployment.md` is the detailed AWS operator runbook.
 - `docs/local-development.md` is the local migration walkthrough.
 - `docs/devops-toolchain.md` explains quality gates and CI/CD conventions.

@@ -1,8 +1,8 @@
 # Observability Plan
 
-Prometheus, Loki, and Grafana are the preferred observability target for this
-project. CloudWatch remains a useful AWS-native tradeoff, but it is not the
-primary demo path.
+Prometheus, Loki, Tempo, and Grafana are the preferred observability target for
+this project. CloudWatch remains active for AWS-native logs and alarms while
+the Grafana stack dual-runs.
 
 ## Current State
 
@@ -14,6 +14,9 @@ primary demo path.
   value when present or generating one when absent.
 - App and task logs are emitted through ECS and Docker.
 - Terraform creates CloudWatch log groups for ECS workloads.
+- ECS workloads can dual-ship logs through FireLens to CloudWatch Logs and the
+  private Loki service when the optional observability stack is enabled.
+- The API can emit OpenTelemetry traces over OTLP/HTTP to self-hosted Tempo.
 - Terraform creates a CloudWatch alarm for EventBridge Scheduler target
   delivery failures on the scheduled data export job.
 - Terraform creates a CloudWatch Logs metric filter that counts successful data
@@ -28,7 +31,7 @@ primary demo path.
   connection pressure.
 - Terraform creates a CloudWatch alarm when the order events DLQ has visible
   messages.
-- Local Prometheus, Loki, Promtail, and Grafana run through the optional
+- Local Prometheus, Loki, Tempo, Promtail, and Grafana run through the optional
   `observability` Docker Compose profile.
 
 ## Local Stack
@@ -50,6 +53,7 @@ Open:
 | App metrics | `http://localhost:8000/metrics` |
 | Prometheus | `http://localhost:9090` |
 | Loki | `http://localhost:3100/ready` |
+| Tempo | `http://localhost:3200` |
 | Grafana | `http://localhost:3000` |
 
 Grafana credentials default to `admin` / `admin` and can be overridden through
@@ -64,6 +68,7 @@ The local stack contains:
   `observability/prometheus/rules/`.
 - Loki storing local container logs.
 - Promtail reading Docker container logs through the Docker socket.
+- Tempo storing local OTLP traces from the API when `OTEL_TRACES_ENABLED=true`.
 - Grafana data sources and dashboard provisioning, including a readiness-failure
   stat for `/ready` 5xx responses.
 
@@ -75,10 +80,9 @@ the project contract, commit the provisioned JSON under
 Promtail requires read-only access to `/var/run/docker.sock`, so the
 observability profile is opt-in and not started by default.
 
-Distributed tracing is not part of the current contract. Add it only as a
-complete slice: OpenTelemetry instrumentation, local collector/storage, Grafana
-data source and dashboard provisioning, and an AWS deployment path that does
-not make local behavior diverge from production.
+Distributed tracing uses OpenTelemetry in the API and self-hosted Tempo in both
+local Compose and the optional ECS observability stack. X-Ray is intentionally
+not part of this path.
 
 ## AWS Extension
 
@@ -120,13 +124,13 @@ of the local app observability contract.
 
 ## Optional ECS Grafana Stack
 
-`infra/app` contains an opt-in ECS/Fargate Grafana, Loki, and Prometheus stack.
+`infra/app` contains an opt-in ECS/Fargate Grafana, Loki, Tempo, and Prometheus stack.
 It is app-owned, disabled by the variable default, and enabled for this sandbox
 through `infra/app/stack.tfvars`. It reuses the local dashboard, datasource,
 and Prometheus rule files from `observability/`.
 AWS-specific templates under `infra/app/templates/observability/` adapt only
-the parts that differ in ECS, such as Cloud Map service names and Loki S3
-storage.
+the parts that differ in ECS, such as Cloud Map service names and S3-backed
+Loki/Tempo storage.
 
 Enable it only after the app images have been pushed and the base app services
 are healthy:
@@ -141,9 +145,27 @@ terraform -chdir=infra/app apply \
   -var-file=stack.tfvars
 ```
 
-The stack is private inside the VPC. Use ECS Exec or a temporary operator path
-to inspect Grafana, Prometheus, or Loki; do not make Grafana public as part of
-the first enablement slice.
+The stack is private inside the VPC. Use the SSM/ECS Exec Grafana tunnel:
+
+```bash
+make grafana-tunnel
+```
+
+Then open `http://localhost:3000`. Do not make Grafana public as the default.
+
+AWS LogQL examples:
+
+```logql
+{stack="aws-sdlc-containers", service="app"}
+```
+
+```logql
+{stack="aws-sdlc-containers", container="pgbouncer"}
+```
+
+```logql
+{stack="aws-sdlc-containers", service="data-export-job"}
+```
 
 ## CloudWatch Reduction Rules
 
@@ -154,7 +176,7 @@ ECS. Keep these AWS/platform signals in CloudWatch:
 - RDS CPU, storage, and connection pressure.
 - EventBridge Scheduler delivery failures.
 - SQS DLQ visibility while SQS remains the transport.
-- CloudWatch logs for observability service bootstrap diagnostics.
+- CloudWatch logs for workload and observability diagnostics.
 
 Only these app-level CloudWatch surfaces have reduction toggles, and both
 default to `true`:
@@ -170,6 +192,7 @@ default to `true`:
 - Grafana dashboard loads from provisioning and includes the readiness-failure
   stat.
 - Loki shows app logs.
+- Tempo shows API traces.
 - Prometheus loads local app alert rules.
 - `/metrics` does not change `/health`, `/ready`, request ID propagation, or API
   behavior.

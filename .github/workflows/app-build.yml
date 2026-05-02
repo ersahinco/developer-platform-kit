@@ -14,6 +14,7 @@ on:
       - "apps/backfill-worker/**"
       - "apps/data-export-job/**"
       - "apps/order-event-consumer/**"
+      - "observability/firelens/**"
       - "packages/**"
       - "pyproject.toml"
       - "db/**"
@@ -28,6 +29,7 @@ on:
       - "apps/backfill-worker/**"
       - "apps/data-export-job/**"
       - "apps/order-event-consumer/**"
+      - "observability/firelens/**"
       - "packages/**"
       - "pyproject.toml"
       - "db/**"
@@ -186,6 +188,7 @@ jobs:
           docker build -f apps/data-export-job/Dockerfile -t "${{ env.ECR_REGISTRY }}/${{ env.STACK_NAME }}/data-export-job:${TAG}" . &
           docker build -f apps/order-event-consumer/Dockerfile -t "${{ env.ECR_REGISTRY }}/${{ env.STACK_NAME }}/order-event-consumer:${TAG}" . &
           docker build -t "${{ env.ECR_REGISTRY }}/${{ env.STACK_NAME }}/liquibase:${TAG}" db/ &
+          docker build -f observability/firelens/Dockerfile -t "${{ env.ECR_REGISTRY }}/${{ env.STACK_NAME }}/firelens:${TAG}" observability/firelens &
           docker build -f db/pgbouncer/Dockerfile --build-arg "PGBOUNCER_TAG=${PGBOUNCER_TAG}" -t "${{ env.ECR_REGISTRY }}/${{ env.STACK_NAME }}/pgbouncer:${PGBOUNCER_TAG}" db/pgbouncer &
           wait
 
@@ -203,6 +206,7 @@ jobs:
           scan "${{ env.ECR_REGISTRY }}/${{ env.STACK_NAME }}/data-export-job:sha-${{ github.sha }}" &
           scan "${{ env.ECR_REGISTRY }}/${{ env.STACK_NAME }}/order-event-consumer:sha-${{ github.sha }}" &
           scan "${{ env.ECR_REGISTRY }}/${{ env.STACK_NAME }}/liquibase:sha-${{ github.sha }}" &
+          scan "${{ env.ECR_REGISTRY }}/${{ env.STACK_NAME }}/firelens:sha-${{ github.sha }}" &
           scan "${{ env.ECR_REGISTRY }}/${{ env.STACK_NAME }}/pgbouncer:${PGBOUNCER_TAG}" &
           wait
 
@@ -210,7 +214,7 @@ jobs:
         env:
           TAG: sha-${{ github.sha }}
         run: |
-          for repo in app worker data-export-job order-event-consumer liquibase; do
+          for repo in app worker data-export-job order-event-consumer liquibase firelens; do
             docker push "${{ env.ECR_REGISTRY }}/${{ env.STACK_NAME }}/${repo}:${TAG}" &
           done
           docker push "${{ env.ECR_REGISTRY }}/${{ env.STACK_NAME }}/pgbouncer:${PGBOUNCER_TAG}" &

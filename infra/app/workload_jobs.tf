@@ -186,8 +186,8 @@ resource "aws_ecs_task_definition" "worker" {
   execution_role_arn       = aws_iam_role.task_exec.arn
   task_role_arn            = module.ecs.services["app"].tasks_iam_role_arn
 
-  container_definitions = jsonencode([
-    {
+  container_definitions = jsonencode(concat(local.firelens_router_container, [
+    merge(local.ecs_container_defaults, {
       name = "worker"
       # var.initial_image_tag is used only on the first apply (bootstrap).
       # CI always calls render-task-definition + register-task-definition
@@ -206,7 +206,8 @@ resource "aws_ecs_task_definition" "worker" {
         { name = "BACKFILL_BATCH_SIZE", value = tostring(var.backfill_batch_size) },
         { name = "BACKFILL_SLEEP_MS", value = "100" },
       ]
-      logConfiguration = {
+      dependsOn = var.enable_observability_stack ? [{ containerName = "log-router", condition = "START" }] : []
+      logConfiguration = var.enable_observability_stack ? local.firelens_log_configuration : {
         logDriver = "awslogs"
         options = {
           "awslogs-group"         = "/ecs/${local.name}/worker"
@@ -214,8 +215,8 @@ resource "aws_ecs_task_definition" "worker" {
           "awslogs-stream-prefix" = "worker"
         }
       }
-    }
-  ])
+    })
+  ]))
 
   tags = local.tags
 }
@@ -255,6 +256,11 @@ resource "aws_iam_role_policy" "data_export_job_s3" {
   policy = data.aws_iam_policy_document.data_export_job_s3.json
 }
 
+resource "aws_iam_role_policy_attachment" "data_export_job_firelens_cloudwatch_logs" {
+  role       = aws_iam_role.data_export_job.name
+  policy_arn = aws_iam_policy.firelens_cloudwatch_logs.arn
+}
+
 resource "aws_ecs_task_definition" "data_export_job" {
   family                   = "${local.name}-data-export-job"
   requires_compatibilities = ["FARGATE"]
@@ -264,8 +270,8 @@ resource "aws_ecs_task_definition" "data_export_job" {
   execution_role_arn       = aws_iam_role.task_exec.arn
   task_role_arn            = aws_iam_role.data_export_job.arn
 
-  container_definitions = jsonencode([
-    {
+  container_definitions = jsonencode(concat(local.firelens_router_container, [
+    merge(local.ecs_container_defaults, {
       name = "data-export-job"
       # var.initial_image_tag is used only on the first apply (bootstrap).
       # CI registers a SHA-tagged revision before the scheduler uses the task
@@ -283,7 +289,8 @@ resource "aws_ecs_task_definition" "data_export_job" {
         { name = "DATA_EXPORT_OUTPUT_DIR", value = "/tmp/aws-sdlc-containers-data-hub" },
         { name = "DATA_EXPORT_S3_BUCKET", value = aws_s3_bucket.data_hub.bucket },
       ]
-      logConfiguration = {
+      dependsOn = var.enable_observability_stack ? [{ containerName = "log-router", condition = "START" }] : []
+      logConfiguration = var.enable_observability_stack ? local.firelens_log_configuration : {
         logDriver = "awslogs"
         options = {
           "awslogs-group"         = "/ecs/${local.name}/data-export-job"
@@ -291,8 +298,8 @@ resource "aws_ecs_task_definition" "data_export_job" {
           "awslogs-stream-prefix" = "data-export-job"
         }
       }
-    }
-  ])
+    })
+  ]))
 
   tags = local.tags
 }
@@ -474,6 +481,11 @@ resource "aws_iam_role_policy" "order_event_consumer_sqs" {
   policy = data.aws_iam_policy_document.order_event_consumer_sqs.json
 }
 
+resource "aws_iam_role_policy_attachment" "order_event_consumer_firelens_cloudwatch_logs" {
+  role       = aws_iam_role.order_event_consumer.name
+  policy_arn = aws_iam_policy.firelens_cloudwatch_logs.arn
+}
+
 resource "aws_ecs_task_definition" "order_event_consumer" {
   family                   = "${local.name}-order-event-consumer"
   requires_compatibilities = ["FARGATE"]
@@ -483,8 +495,8 @@ resource "aws_ecs_task_definition" "order_event_consumer" {
   execution_role_arn       = aws_iam_role.task_exec.arn
   task_role_arn            = aws_iam_role.order_event_consumer.arn
 
-  container_definitions = jsonencode([
-    {
+  container_definitions = jsonencode(concat(local.firelens_router_container, [
+    merge(local.ecs_container_defaults, {
       name      = "order-event-consumer"
       image     = "${module.ecr_order_event_consumer.repository_url}:${var.initial_image_tag}"
       essential = true
@@ -498,7 +510,8 @@ resource "aws_ecs_task_definition" "order_event_consumer" {
         { name = "ORDER_EVENTS_QUEUE_URL", value = aws_sqs_queue.order_events.url },
         { name = "ORDER_EVENTS_WORKER_MODE", value = "both" },
       ]
-      logConfiguration = {
+      dependsOn = var.enable_observability_stack ? [{ containerName = "log-router", condition = "START" }] : []
+      logConfiguration = var.enable_observability_stack ? local.firelens_log_configuration : {
         logDriver = "awslogs"
         options = {
           "awslogs-group"         = "/ecs/${local.name}/order-event-consumer"
@@ -506,8 +519,8 @@ resource "aws_ecs_task_definition" "order_event_consumer" {
           "awslogs-stream-prefix" = "order-event-consumer"
         }
       }
-    }
-  ])
+    })
+  ]))
 
   tags = local.tags
 }
@@ -549,6 +562,17 @@ resource "aws_ecs_service" "order_event_consumer" {
 # Connects directly to RDS (not pgbouncer) — DDL requires a session connection.
 ################################################################################
 
+resource "aws_iam_role" "liquibase" {
+  name               = "${local.name}-liquibase"
+  assume_role_policy = data.aws_iam_policy_document.task_exec_assume.json
+  tags               = local.tags
+}
+
+resource "aws_iam_role_policy_attachment" "liquibase_firelens_cloudwatch_logs" {
+  role       = aws_iam_role.liquibase.name
+  policy_arn = aws_iam_policy.firelens_cloudwatch_logs.arn
+}
+
 resource "aws_ecs_task_definition" "liquibase" {
   family                   = "${local.name}-liquibase"
   requires_compatibilities = ["FARGATE"]
@@ -559,10 +583,10 @@ resource "aws_ecs_task_definition" "liquibase" {
   memory = 1024
 
   execution_role_arn = aws_iam_role.task_exec.arn
-  # No task role needed — Liquibase only talks to RDS, not AWS APIs.
+  task_role_arn      = aws_iam_role.liquibase.arn
 
-  container_definitions = jsonencode([
-    {
+  container_definitions = jsonencode(concat(local.firelens_router_container, [
+    merge(local.ecs_container_defaults, {
       name = "liquibase"
       # Changelogs are baked into this image at build time (see db/Dockerfile).
       # var.initial_image_tag is used only on the first apply (bootstrap).
@@ -590,7 +614,8 @@ resource "aws_ecs_task_definition" "liquibase" {
         { name = "LIQUIBASE_COMMAND_URL", value = "jdbc:postgresql://${module.rds.db_instance_address}:${module.rds.db_instance_port}/aws_sdlc_containers" },
       ]
 
-      logConfiguration = {
+      dependsOn = var.enable_observability_stack ? [{ containerName = "log-router", condition = "START" }] : []
+      logConfiguration = var.enable_observability_stack ? local.firelens_log_configuration : {
         logDriver = "awslogs"
         options = {
           "awslogs-group"         = "/ecs/${local.name}/liquibase"
@@ -598,8 +623,8 @@ resource "aws_ecs_task_definition" "liquibase" {
           "awslogs-stream-prefix" = "liquibase"
         }
       }
-    }
-  ])
+    })
+  ]))
 
   tags = local.tags
 }

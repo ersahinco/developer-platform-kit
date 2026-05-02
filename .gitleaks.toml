@@ -6,5 +6,5 @@ useDefault = true
 [[allowlists]]
 description = "Ignore generated Terraform module cache"
 paths = [
-  '''^infra/\.terraform/''',
+  '''^infra/.*/\.terraform/''',
 ]

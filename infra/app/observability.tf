@@ -10,6 +10,55 @@ locals {
   observability_config_prefix = "config"
   observability_dns_namespace = "${local.name}.local"
   grafana_admin_secret_arn    = var.enable_observability_stack ? data.aws_secretsmanager_secret.grafana_admin[0].arn : null
+  firelens_image              = "${module.ecr_firelens.repository_url}:${var.firelens_image_tag}"
+  firelens_loki_host          = "loki.${local.observability_dns_namespace}"
+  ecs_container_defaults = {
+    environment    = []
+    mountPoints    = []
+    portMappings   = []
+    systemControls = []
+    volumesFrom    = []
+  }
+  firelens_log_configuration = {
+    logDriver = "awsfirelens"
+    options = {
+      "log-driver-buffer-limit" = "2097152"
+    }
+  }
+  firelens_environment = [
+    { name = "AWS_REGION", value = local.region },
+    { name = "STACK_NAME", value = local.name },
+    { name = "ENVIRONMENT", value = "aws" },
+    { name = "LOKI_HOST", value = local.firelens_loki_host },
+    { name = "LOKI_PORT", value = "3100" },
+  ]
+  firelens_router_container = var.enable_observability_stack ? [{
+    name           = "log-router"
+    image          = local.firelens_image
+    essential      = true
+    user           = "0"
+    mountPoints    = []
+    portMappings   = []
+    systemControls = []
+    volumesFrom    = []
+    firelensConfiguration = {
+      type = "fluentbit"
+      options = {
+        "config-file-type"        = "file"
+        "config-file-value"       = "/fluent-bit/configs/aws-sdlc-dual-output.conf"
+        "enable-ecs-log-metadata" = "true"
+      }
+    }
+    environment = local.firelens_environment
+    logConfiguration = {
+      logDriver = "awslogs"
+      options = {
+        "awslogs-group"         = aws_cloudwatch_log_group.firelens[0].name
+        "awslogs-region"        = local.region
+        "awslogs-stream-prefix" = "firelens"
+      }
+    }
+  }] : []
 }
 
 data "aws_secretsmanager_secret" "grafana_admin" {
@@ -118,6 +167,17 @@ resource "aws_s3_object" "prometheus_config" {
   })
 }
 
+resource "aws_s3_object" "tempo_config" {
+  count        = var.enable_observability_stack ? 1 : 0
+  bucket       = aws_s3_bucket.observability[0].id
+  key          = "${local.observability_config_prefix}/tempo/tempo.yml"
+  content_type = "text/yaml"
+  content = templatefile("${path.module}/templates/observability/tempo.yml.tftpl", {
+    aws_region  = local.region
+    bucket_name = aws_s3_bucket.observability[0].bucket
+  })
+}
+
 resource "aws_s3_object" "prometheus_app_alerts" {
   count        = var.enable_observability_stack ? 1 : 0
   bucket       = aws_s3_bucket.observability[0].id
@@ -209,6 +269,13 @@ resource "aws_iam_role" "grafana" {
   tags               = local.tags
 }
 
+resource "aws_iam_role" "tempo" {
+  count              = var.enable_observability_stack ? 1 : 0
+  name               = "${local.name}-tempo"
+  assume_role_policy = data.aws_iam_policy_document.task_exec_assume.json
+  tags               = local.tags
+}
+
 resource "aws_iam_role_policy" "loki_s3" {
   count = var.enable_observability_stack ? 1 : 0
   name  = "loki-s3-storage-and-config"
@@ -244,6 +311,41 @@ resource "aws_iam_role_policy" "loki_s3" {
   })
 }
 
+resource "aws_iam_role_policy" "tempo_s3" {
+  count = var.enable_observability_stack ? 1 : 0
+  name  = "tempo-s3-storage-and-config"
+  role  = aws_iam_role.tempo[0].id
+  policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [
+      {
+        Sid      = "ListObservabilityBucket"
+        Effect   = "Allow"
+        Action   = ["s3:ListBucket"]
+        Resource = aws_s3_bucket.observability[0].arn
+      },
+      {
+        Sid    = "ReadConfig"
+        Effect = "Allow"
+        Action = ["s3:GetObject"]
+        Resource = [
+          "${aws_s3_bucket.observability[0].arn}/${local.observability_config_prefix}/*",
+        ]
+      },
+      {
+        Sid    = "ReadWriteTempoObjects"
+        Effect = "Allow"
+        Action = [
+          "s3:DeleteObject",
+          "s3:GetObject",
+          "s3:PutObject",
+        ]
+        Resource = "${aws_s3_bucket.observability[0].arn}/tempo/*"
+      }
+    ]
+  })
+}
+
 resource "aws_iam_role_policy" "prometheus_config_read" {
   count = var.enable_observability_stack ? 1 : 0
   name  = "observability-config-read"
@@ -261,6 +363,30 @@ resource "aws_iam_role_policy" "prometheus_config_read" {
   })
 }
 
+resource "aws_iam_role_policy_attachment" "loki_firelens_cloudwatch_logs" {
+  count      = var.enable_observability_stack ? 1 : 0
+  role       = aws_iam_role.loki[0].name
+  policy_arn = aws_iam_policy.firelens_cloudwatch_logs.arn
+}
+
+resource "aws_iam_role_policy_attachment" "prometheus_firelens_cloudwatch_logs" {
+  count      = var.enable_observability_stack ? 1 : 0
+  role       = aws_iam_role.prometheus[0].name
+  policy_arn = aws_iam_policy.firelens_cloudwatch_logs.arn
+}
+
+resource "aws_iam_role_policy_attachment" "grafana_firelens_cloudwatch_logs" {
+  count      = var.enable_observability_stack ? 1 : 0
+  role       = aws_iam_role.grafana[0].name
+  policy_arn = aws_iam_policy.firelens_cloudwatch_logs.arn
+}
+
+resource "aws_iam_role_policy_attachment" "tempo_firelens_cloudwatch_logs" {
+  count      = var.enable_observability_stack ? 1 : 0
+  role       = aws_iam_role.tempo[0].name
+  policy_arn = aws_iam_policy.firelens_cloudwatch_logs.arn
+}
+
 resource "aws_iam_role_policy" "grafana_config_read" {
   count = var.enable_observability_stack ? 1 : 0
   name  = "observability-config-read"
@@ -275,6 +401,25 @@ resource "aws_iam_role_policy" "grafana_config_read" {
         Resource = "${aws_s3_bucket.observability[0].arn}/${local.observability_config_prefix}/*"
       }
     ]
+  })
+}
+
+resource "aws_iam_role_policy" "grafana_ssm_exec" {
+  count = var.enable_observability_stack ? 1 : 0
+  name  = "ssm-exec"
+  role  = aws_iam_role.grafana[0].id
+  policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [{
+      Effect = "Allow"
+      Action = [
+        "ssmmessages:CreateControlChannel",
+        "ssmmessages:CreateDataChannel",
+        "ssmmessages:OpenControlChannel",
+        "ssmmessages:OpenDataChannel",
+      ]
+      Resource = "*"
+    }]
   })
 }
 
@@ -386,6 +531,30 @@ resource "aws_service_discovery_service" "grafana" {
   tags = local.tags
 }
 
+resource "aws_service_discovery_service" "tempo" {
+  count = var.enable_observability_stack ? 1 : 0
+  name  = "tempo"
+
+  dns_config {
+    namespace_id = aws_service_discovery_private_dns_namespace.observability[0].id
+
+    dns_records {
+      ttl  = 10
+      type = "A"
+    }
+
+    routing_policy = "MULTIVALUE"
+  }
+
+  health_check_custom_config {}
+
+  lifecycle {
+    ignore_changes = [health_check_custom_config]
+  }
+
+  tags = local.tags
+}
+
 resource "aws_security_group" "observability" {
   count       = var.enable_observability_stack ? 1 : 0
   name_prefix = "${local.name}-observability-"
@@ -418,6 +587,30 @@ resource "aws_security_group" "observability" {
     to_port     = 3100
     protocol    = "tcp"
     self        = true
+  }
+
+  ingress {
+    description = "Tempo query API from observability tasks"
+    from_port   = 3200
+    to_port     = 3200
+    protocol    = "tcp"
+    self        = true
+  }
+
+  ingress {
+    description = "Tempo OTLP HTTP from observability tasks"
+    from_port   = 4318
+    to_port     = 4318
+    protocol    = "tcp"
+    self        = true
+  }
+
+  ingress {
+    description     = "Tempo OTLP HTTP from app tasks"
+    from_port       = 4318
+    to_port         = 4318
+    protocol        = "tcp"
+    security_groups = [aws_security_group.app.id]
   }
 
   ingress {
@@ -483,6 +676,20 @@ resource "aws_cloudwatch_log_group" "grafana" {
   tags              = local.tags
 }
 
+resource "aws_cloudwatch_log_group" "tempo" {
+  count             = var.enable_observability_stack ? 1 : 0
+  name              = "/ecs/${local.name}/tempo"
+  retention_in_days = 14
+  tags              = local.tags
+}
+
+resource "aws_cloudwatch_log_group" "firelens" {
+  count             = var.enable_observability_stack ? 1 : 0
+  name              = "/ecs/${local.name}/firelens"
+  retention_in_days = 14
+  tags              = local.tags
+}
+
 ################################################################################
 # ECS task definitions and services
 ################################################################################
@@ -498,11 +705,12 @@ resource "aws_ecs_task_definition" "loki" {
   task_role_arn            = aws_iam_role.loki[0].arn
 
   volume {
-    name = "loki-config"
+    name                = "loki-config"
+    configure_at_launch = false
   }
 
-  container_definitions = jsonencode([
-    {
+  container_definitions = jsonencode(concat(local.firelens_router_container, [
+    merge(local.ecs_container_defaults, {
       name       = "config-loader"
       image      = var.observability_config_loader_image
       essential  = false
@@ -521,29 +729,25 @@ resource "aws_ecs_task_definition" "loki" {
           "awslogs-stream-prefix" = "config-loader"
         }
       }
-    },
-    {
+    }),
+    merge(local.ecs_container_defaults, {
       name      = "loki"
       image     = var.loki_image
       essential = true
       command   = ["-config.file=/etc/loki/loki.yml"]
-      dependsOn = [{ containerName = "config-loader", condition = "SUCCESS" }]
+      dependsOn = [
+        { containerName = "config-loader", condition = "SUCCESS" },
+        { containerName = "log-router", condition = "START" },
+      ]
       portMappings = [
-        { containerPort = 3100, protocol = "tcp" },
+        { containerPort = 3100, hostPort = 3100, protocol = "tcp" },
       ]
       mountPoints = [
         { sourceVolume = "loki-config", containerPath = "/etc/loki", readOnly = true },
       ]
-      logConfiguration = {
-        logDriver = "awslogs"
-        options = {
-          "awslogs-group"         = aws_cloudwatch_log_group.loki[0].name
-          "awslogs-region"        = local.region
-          "awslogs-stream-prefix" = "loki"
-        }
-      }
-    }
-  ])
+      logConfiguration = local.firelens_log_configuration
+    })
+  ]))
 
   tags = local.tags
 }
@@ -588,11 +792,12 @@ resource "aws_ecs_task_definition" "prometheus" {
   task_role_arn            = aws_iam_role.prometheus[0].arn
 
   volume {
-    name = "prometheus-config"
+    name                = "prometheus-config"
+    configure_at_launch = false
   }
 
-  container_definitions = jsonencode([
-    {
+  container_definitions = jsonencode(concat(local.firelens_router_container, [
+    merge(local.ecs_container_defaults, {
       name       = "config-loader"
       image      = var.observability_config_loader_image
       essential  = false
@@ -611,8 +816,8 @@ resource "aws_ecs_task_definition" "prometheus" {
           "awslogs-stream-prefix" = "config-loader"
         }
       }
-    },
-    {
+    }),
+    merge(local.ecs_container_defaults, {
       name      = "prometheus"
       image     = var.prometheus_image
       essential = true
@@ -620,23 +825,19 @@ resource "aws_ecs_task_definition" "prometheus" {
         "--config.file=/etc/prometheus/prometheus.yml",
         "--storage.tsdb.path=/prometheus",
       ]
-      dependsOn = [{ containerName = "config-loader", condition = "SUCCESS" }]
+      dependsOn = [
+        { containerName = "config-loader", condition = "SUCCESS" },
+        { containerName = "log-router", condition = "START" },
+      ]
       portMappings = [
-        { containerPort = 9090, protocol = "tcp" },
+        { containerPort = 9090, hostPort = 9090, protocol = "tcp" },
       ]
       mountPoints = [
         { sourceVolume = "prometheus-config", containerPath = "/etc/prometheus", readOnly = true },
       ]
-      logConfiguration = {
-        logDriver = "awslogs"
-        options = {
-          "awslogs-group"         = aws_cloudwatch_log_group.prometheus[0].name
-          "awslogs-region"        = local.region
-          "awslogs-stream-prefix" = "prometheus"
-        }
-      }
-    }
-  ])
+      logConfiguration = local.firelens_log_configuration
+    })
+  ]))
 
   tags = local.tags
 }
@@ -672,6 +873,96 @@ resource "aws_ecs_service" "prometheus" {
   tags = local.tags
 }
 
+resource "aws_ecs_task_definition" "tempo" {
+  count                    = var.enable_observability_stack ? 1 : 0
+  family                   = "${local.name}-tempo"
+  requires_compatibilities = ["FARGATE"]
+  network_mode             = "awsvpc"
+  cpu                      = var.tempo_cpu
+  memory                   = var.tempo_memory
+  execution_role_arn       = aws_iam_role.observability_task_exec[0].arn
+  task_role_arn            = aws_iam_role.tempo[0].arn
+
+  volume {
+    name                = "tempo-config"
+    configure_at_launch = false
+  }
+
+  container_definitions = jsonencode(concat(local.firelens_router_container, [
+    merge(local.ecs_container_defaults, {
+      name       = "config-loader"
+      image      = var.observability_config_loader_image
+      essential  = false
+      entryPoint = ["sh", "-c"]
+      command = [
+        "mkdir -p /config && aws s3 cp s3://${aws_s3_bucket.observability[0].bucket}/${aws_s3_object.tempo_config[0].key} /config/tempo.yml",
+      ]
+      mountPoints = [
+        { sourceVolume = "tempo-config", containerPath = "/config", readOnly = false },
+      ]
+      logConfiguration = {
+        logDriver = "awslogs"
+        options = {
+          "awslogs-group"         = aws_cloudwatch_log_group.tempo[0].name
+          "awslogs-region"        = local.region
+          "awslogs-stream-prefix" = "config-loader"
+        }
+      }
+    }),
+    merge(local.ecs_container_defaults, {
+      name      = "tempo"
+      image     = var.tempo_image
+      essential = true
+      command   = ["-config.file=/etc/tempo/tempo.yml"]
+      dependsOn = [
+        { containerName = "config-loader", condition = "SUCCESS" },
+        { containerName = "log-router", condition = "START" },
+      ]
+      portMappings = [
+        { containerPort = 3200, hostPort = 3200, protocol = "tcp" },
+        { containerPort = 4317, hostPort = 4317, protocol = "tcp" },
+        { containerPort = 4318, hostPort = 4318, protocol = "tcp" },
+      ]
+      mountPoints = [
+        { sourceVolume = "tempo-config", containerPath = "/etc/tempo", readOnly = true },
+      ]
+      logConfiguration = local.firelens_log_configuration
+    })
+  ]))
+
+  tags = local.tags
+}
+
+resource "aws_ecs_service" "tempo" {
+  count           = var.enable_observability_stack ? 1 : 0
+  name            = "tempo"
+  cluster         = module.ecs.cluster_arn
+  task_definition = aws_ecs_task_definition.tempo[0].arn
+  desired_count   = 1
+  launch_type     = "FARGATE"
+
+  deployment_minimum_healthy_percent = 100
+  deployment_maximum_percent         = 200
+
+  network_configuration {
+    assign_public_ip = false
+    security_groups  = [aws_security_group.observability[0].id]
+    subnets          = local.platform.private_subnet_ids
+  }
+
+  service_registries {
+    registry_arn = aws_service_discovery_service.tempo[0].arn
+  }
+
+  depends_on = [
+    aws_ecs_service.loki,
+    aws_iam_role_policy.tempo_s3,
+    aws_s3_object.tempo_config,
+  ]
+
+  tags = local.tags
+}
+
 resource "aws_ecs_task_definition" "grafana" {
   count                    = var.enable_observability_stack ? 1 : 0
   family                   = "${local.name}-grafana"
@@ -683,15 +974,17 @@ resource "aws_ecs_task_definition" "grafana" {
   task_role_arn            = aws_iam_role.grafana[0].arn
 
   volume {
-    name = "grafana-provisioning"
+    name                = "grafana-provisioning"
+    configure_at_launch = false
   }
 
   volume {
-    name = "grafana-dashboards"
+    name                = "grafana-dashboards"
+    configure_at_launch = false
   }
 
-  container_definitions = jsonencode([
-    {
+  container_definitions = jsonencode(concat(local.firelens_router_container, [
+    merge(local.ecs_container_defaults, {
       name       = "config-loader"
       image      = var.observability_config_loader_image
       essential  = false
@@ -711,12 +1004,15 @@ resource "aws_ecs_task_definition" "grafana" {
           "awslogs-stream-prefix" = "config-loader"
         }
       }
-    },
-    {
+    }),
+    merge(local.ecs_container_defaults, {
       name      = "grafana"
       image     = var.grafana_image
       essential = true
-      dependsOn = [{ containerName = "config-loader", condition = "SUCCESS" }]
+      dependsOn = [
+        { containerName = "config-loader", condition = "SUCCESS" },
+        { containerName = "log-router", condition = "START" },
+      ]
       secrets = [
         { name = "GF_SECURITY_ADMIN_PASSWORD", valueFrom = local.grafana_admin_secret_arn },
       ]
@@ -725,35 +1021,30 @@ resource "aws_ecs_task_definition" "grafana" {
         { name = "GF_USERS_ALLOW_SIGN_UP", value = "false" },
         { name = "PROMETHEUS_URL", value = "http://prometheus.${local.observability_dns_namespace}:9090" },
         { name = "LOKI_URL", value = "http://loki.${local.observability_dns_namespace}:3100" },
+        { name = "TEMPO_URL", value = "http://tempo.${local.observability_dns_namespace}:3200" },
       ]
       portMappings = [
-        { containerPort = 3000, protocol = "tcp" },
+        { containerPort = 3000, hostPort = 3000, protocol = "tcp" },
       ]
       mountPoints = [
         { sourceVolume = "grafana-provisioning", containerPath = "/etc/grafana/provisioning", readOnly = true },
         { sourceVolume = "grafana-dashboards", containerPath = "/var/lib/grafana/dashboards", readOnly = true },
       ]
-      logConfiguration = {
-        logDriver = "awslogs"
-        options = {
-          "awslogs-group"         = aws_cloudwatch_log_group.grafana[0].name
-          "awslogs-region"        = local.region
-          "awslogs-stream-prefix" = "grafana"
-        }
-      }
-    }
-  ])
+      logConfiguration = local.firelens_log_configuration
+    })
+  ]))
 
   tags = local.tags
 }
 
 resource "aws_ecs_service" "grafana" {
-  count           = var.enable_observability_stack ? 1 : 0
-  name            = "grafana"
-  cluster         = module.ecs.cluster_arn
-  task_definition = aws_ecs_task_definition.grafana[0].arn
-  desired_count   = 1
-  launch_type     = "FARGATE"
+  count                  = var.enable_observability_stack ? 1 : 0
+  name                   = "grafana"
+  cluster                = module.ecs.cluster_arn
+  task_definition        = aws_ecs_task_definition.grafana[0].arn
+  desired_count          = 1
+  launch_type            = "FARGATE"
+  enable_execute_command = true
 
   deployment_minimum_healthy_percent = 100
   deployment_maximum_percent         = 200
@@ -771,8 +1062,10 @@ resource "aws_ecs_service" "grafana" {
   depends_on = [
     aws_ecs_service.loki,
     aws_ecs_service.prometheus,
+    aws_ecs_service.tempo,
     aws_iam_role_policy.grafana_config_read,
     aws_iam_role_policy.observability_task_exec_grafana_secret,
+    aws_iam_role_policy.grafana_ssm_exec,
     aws_s3_object.grafana_datasources,
     aws_s3_object.grafana_dashboards_provisioning,
     aws_s3_object.grafana_app_dashboard,

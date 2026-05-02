@@ -80,6 +80,22 @@ resource "aws_security_group" "app" {
     cidr_blocks = [local.vpc_cidr]
   }
 
+  egress {
+    description = "Loki log delivery in private observability stack"
+    from_port   = 3100
+    to_port     = 3100
+    protocol    = "tcp"
+    cidr_blocks = [local.vpc_cidr]
+  }
+
+  egress {
+    description = "Tempo OTLP trace delivery in private observability stack"
+    from_port   = 4318
+    to_port     = 4318
+    protocol    = "tcp"
+    cidr_blocks = [local.vpc_cidr]
+  }
+
   tags = local.tags
 }
 

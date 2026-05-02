@@ -75,7 +75,7 @@ to Loki, inspect successful and failed manifest log records there before
 changing CloudWatch alarms:
 
 ```logql
-{container="data-export-job"} | json | dataset="order_contact_email"
+{stack="aws-sdlc-containers", service="data-export-job"} | json | dataset="order_contact_email"
 ```
 
 A future Grafana-stack freshness alert should be based on either that successful

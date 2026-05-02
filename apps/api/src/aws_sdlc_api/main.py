@@ -13,7 +13,7 @@ from starlette.responses import JSONResponse
 from starlette.responses import Response
 
 from aws_sdlc_api.config import settings
-from aws_sdlc_api.db import get_db
+from aws_sdlc_api.db import engine, get_db
 from aws_sdlc_api.events import (
     NoopOrderEventPublisher,
     OrderEventPublisher,
@@ -30,8 +30,9 @@ from aws_sdlc_api.schemas import (
     WriteModeRequest,
     WriteModeResponse,
 )
-from aws_sdlc_core.order import ReadModeValue, WriteModeValue
+from aws_sdlc_api.telemetry import configure_tracing
 from aws_sdlc_core.idempotency import IdempotencyRepository, order_request_hash
+from aws_sdlc_core.order import ReadModeValue, WriteModeValue
 from aws_sdlc_core.order_submission import (
     CustomerNotFoundError,
     InvalidOrderAmountError,
@@ -58,6 +59,7 @@ class _SuppressHealthChecks(logging.Filter):
 logging.getLogger("uvicorn.access").addFilter(_SuppressHealthChecks())
 
 app = FastAPI(title="aws-sdlc-containers")
+configure_tracing(app=app, engine=engine)
 
 DbDep = Annotated[Session, Depends(get_db)]
 

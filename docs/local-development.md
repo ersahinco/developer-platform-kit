@@ -39,9 +39,8 @@ Known local differences:
 - Compose runs PgBouncer as a separate service; ECS runs it as a sidecar in the
   same task network namespace. The behavior is intentionally close enough for
   connection-pooling tests without making local Compose awkward.
-- Local observability currently covers logs and metrics. Distributed tracing is
-  not implemented yet. If added, prefer OpenTelemetry instrumentation plus a
-  standard local collector/Tempo path that can map to the AWS deployment.
+- Local observability covers logs, metrics, and OpenTelemetry traces through
+  Loki, Prometheus, Tempo, and Grafana.
 - Community Grafana dashboards are welcome when they fit the standard data
   sources. Adopt them by provisioning stable dashboard JSON instead of relying
   on manual imports.
@@ -295,11 +294,14 @@ make observability
 Then open:
 
 - Prometheus: `http://localhost:9090`
+- Loki: `http://localhost:3100/ready`
+- Tempo: `http://localhost:3200`
 - Grafana: `http://localhost:3000`
 - App metrics: `http://localhost:8000/metrics`
 
-Grafana defaults to `admin` / `admin`. See `observability.md` for the local
-stack design and acceptance criteria.
+Grafana defaults to `admin` / `admin`. `make local-up` starts the app with
+`OTEL_TRACES_ENABLED=true` so Tempo receives local API traces. See
+`observability.md` for the local stack design and acceptance criteria.
 
 ## Optional Data Export
 

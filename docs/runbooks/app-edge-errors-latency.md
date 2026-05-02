@@ -55,7 +55,7 @@ matching Prometheus alerts are:
 Use Loki for app log context during the same window:
 
 ```logql
-{container="app"} |= "ERROR"
+{stack="aws-sdlc-containers", service="app"} |= "ERROR"
 ```
 
 Keep the CloudWatch alarm check above in the flow because the ALB metric remains
