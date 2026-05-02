@@ -61,7 +61,7 @@ The local stack contains:
 - Prometheus scraping its own runtime metrics and Loki runtime metrics, enabling
   upstream/community component dashboards when imported.
 - Prometheus loading local app alert rules from
-  `docker/observability/prometheus/rules/`.
+  `observability/prometheus/rules/`.
 - Loki storing local container logs.
 - Promtail reading Docker container logs through the Docker socket.
 - Grafana data sources and dashboard provisioning, including a readiness-failure
@@ -70,7 +70,7 @@ The local stack contains:
 Community Grafana dashboards are a good fit for standard components such as
 Prometheus, Loki, and Grafana itself. When a community dashboard becomes part of
 the project contract, commit the provisioned JSON under
-`docker/observability/grafana/dashboards/` and let the AWS stack reuse it.
+`observability/grafana/dashboards/` and let the AWS stack reuse it.
 
 Promtail requires read-only access to `/var/run/docker.sock`, so the
 observability profile is opt-in and not started by default.
@@ -122,7 +122,7 @@ of the local app observability contract.
 
 `infra/app` contains an opt-in ECS/Fargate Grafana, Loki, and Prometheus stack.
 It is app-owned, disabled by default, and reuses the local dashboard,
-datasource, and Prometheus rule files from `docker/observability/`.
+datasource, and Prometheus rule files from `observability/`.
 
 Enable it only after the app images have been pushed and the base app services
 are healthy:

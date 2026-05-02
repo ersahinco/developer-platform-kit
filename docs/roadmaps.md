@@ -48,6 +48,7 @@ switch reads, new writes, and contract.
 | Waiting | Decide whether tracing belongs in scope. | If yes, add OpenTelemetry plus a local and AWS path in one complete slice. Do not sprinkle trace dependencies without a dashboard and operating workflow. |
 | Waiting | Decide later messaging direction before replacing SQS. | SQS remains the current transport and DLQ signal until the roadmap explicitly starts a replacement. |
 | Deferred | Data analytics stack work. | Do not add DuckDB, dbt, dlt, or analytics orchestration until the app/infra roadmap asks for it. |
+| Done | Local development workflow housekeeping. | The repo is devcontainer-first, keeps `compose.yaml` as the root Compose contract, removes host-specific dependency manifests, and shares observability assets from `observability/`. |
 | Recovered | App observability deploy drift. | Recovered by reconciling `infra/app`, fixing Cloud Map replacement noise, using a Secrets Manager ARN for Grafana, and verifying all ECS services steady. |
 | Done | Platform/app Terraform split. | Platform owns VPC, endpoints, Route 53 lookup, and GitHub OIDC/CI IAM. App owns RDS, ECS, ALB/API edge, workload resources, CloudWatch app alarms, and optional observability. |
 | Done | Session 2 local observability parity. | Local Prometheus/Loki/Grafana profile is the app observability contract for logs and metrics. |
@@ -84,6 +85,7 @@ switch reads, new writes, and contract.
 
 | Date | Decision | Rationale |
 |---|---|---|
+| 2026-05-02 | Make the local workflow devcontainer-first and keep Compose at the root. | The dev container is the reproducible dependency environment, while `compose.yaml` is the standard local runtime contract that Docker tooling discovers automatically. |
 | 2026-05-02 | Complete the Terraform split and remove the legacy root. | Platform and app now deploy from separate state keys; keeping the old root would invite accidental duplicate ownership. |
 | 2026-05-02 | Keep docs canonical instead of session-shaped. | Roadmap sessions are useful while working, but permanent docs should be short, current, and operator-owned. |
 | 2026-05-01 | Split Terraform into platform/bootstrap and app roots before ECS Grafana-stack deployment. | VPC and GitHub OIDC have a different lifecycle from RDS, ECS compute, ALB/API edge, workload resources, and observability; the app-owned stack needs a clean deployment root before observability can be runtime-validated. |

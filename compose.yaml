@@ -136,8 +136,8 @@ services:
       - --config.file=/etc/prometheus/prometheus.yml
       - --storage.tsdb.path=/prometheus
     volumes:
-      - ./docker/observability/prometheus/prometheus.yml:/etc/prometheus/prometheus.yml:ro
-      - ./docker/observability/prometheus/rules:/etc/prometheus/rules:ro
+      - ./observability/prometheus/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - ./observability/prometheus/rules:/etc/prometheus/rules:ro
       - prometheus_data:/prometheus
     ports:
       - "${PROMETHEUS_PORT:-9090}:9090"
@@ -151,7 +151,7 @@ services:
     image: grafana/loki:${LOKI_TAG:-3.6.10}
     command: -config.file=/etc/loki/loki.yml
     volumes:
-      - ./docker/observability/loki/loki.yml:/etc/loki/loki.yml:ro
+      - ./observability/loki/loki.yml:/etc/loki/loki.yml:ro
       - loki_data:/loki
     ports:
       - "${LOKI_PORT:-3100}:3100"
@@ -162,7 +162,7 @@ services:
     image: grafana/promtail:${PROMTAIL_TAG:-3.6.10}
     command: -config.file=/etc/promtail/promtail.yml
     volumes:
-      - ./docker/observability/promtail/promtail.yml:/etc/promtail/promtail.yml:ro
+      - ./observability/promtail/promtail.yml:/etc/promtail/promtail.yml:ro
       - /var/run/docker.sock:/var/run/docker.sock:ro
     depends_on:
       loki:
@@ -178,8 +178,8 @@ services:
       GF_USERS_ALLOW_SIGN_UP: "false"
     volumes:
       - grafana_data:/var/lib/grafana
-      - ./docker/observability/grafana/provisioning:/etc/grafana/provisioning:ro
-      - ./docker/observability/grafana/dashboards:/var/lib/grafana/dashboards:ro
+      - ./observability/grafana/provisioning:/etc/grafana/provisioning:ro
+      - ./observability/grafana/dashboards:/var/lib/grafana/dashboards:ro
     ports:
       - "${GRAFANA_PORT:-3000}:3000"
     depends_on:

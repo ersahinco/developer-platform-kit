@@ -9,7 +9,7 @@ This project should demonstrate a complete but lean DevOps toolchain around ECS.
 | Source control | Git monorepo |
 | Local orchestration | Docker Compose |
 | Standard workstation | Dev Container with pinned project quality tools installed |
-| Native macOS workstation | `Brewfile` plus explicit HashiCorp Terraform install |
+| Native workstation | Best-effort manual setup from mainstream project or vendor channels |
 | Python dependency management | `uv` workspace |
 | Python dependency updates | Dependabot weekly `uv` updates |
 | Local commit checks | pre-commit hooks |
@@ -41,11 +41,11 @@ Node.js 24 LTS, npm 11.13.0, TypeScript 6.0.3, AWS CLI v2, TFLint, Checkov,
 pre-commit, actionlint, lychee, hadolint, gitleaks, and Docker CLI/Compose
 access.
 
-For native macOS work, `Brewfile` installs the same mainstream tool families
-where Homebrew is the right channel. Terraform is intentionally documented
-outside `Brewfile` because HashiCorp's signed release channel is the source of
-truth for the exact stable version. Stay on stable releases and avoid preview
-or release-candidate builds for project tooling.
+Native host setup is optional. Install only the tools you need from mainstream
+project or vendor channels and keep them aligned with this document,
+`pyproject.toml`, the dev container, and CI images. Terraform should come from
+HashiCorp's signed release channel for the exact stable version. Stay on stable
+releases and avoid preview or release-candidate builds for project tooling.
 
 ## Hardening Goals
 
@@ -124,8 +124,8 @@ Keep names boring and ownership-oriented:
 | Terraform files | `base_*` for required stack concerns, `optional_*` for explicit extensions, `oidc_*` for GitHub role/policy concerns, and `support_*` for one-off operational tasks. |
 | CI scripts | `scripts/ci_*` for GitHub Actions/AWS deployment helpers. |
 | Local/operator scripts | Verb-first or domain-first names such as `db_tunnel.sh`, `db_seed_tunnel.sh`, and `seed_data.py`. |
-| Local tool entrypoints | Keep conventional root files at root: `compose.yaml`, `Brewfile`, `.python-version`, `pyproject.toml`, `uv.lock`, `Makefile`, and `.dockerignore`. |
-| Local support assets | Put owned support config under the domain folder, for example `docker/observability/`, `db/`, or `.devcontainer/`. |
+| Local tool entrypoints | Keep conventional root files at root: `compose.yaml`, `pyproject.toml`, `uv.lock`, `Makefile`, and `.dockerignore`. |
+| Local support assets | Put owned support config under the domain folder, for example `observability/`, `db/`, or `.devcontainer/`. |
 
 Do not add empty top-level folders from the inspired architecture. Create
 `docs/runbooks/`, `docs/drills/`, `security/`, or extra `packages/*` only when

@@ -15,11 +15,9 @@ that does not already have a clearer owner.
 |---|---|
 | `compose.yaml` | Root local orchestration contract. This is the current Compose-preferred filename; keep it at the repository root so `docker compose ...` works without extra flags. |
 | `Makefile` | Root command facade for common local, quality, and migration tasks. |
-| `Brewfile` | Optional native macOS workstation bootstrap. The dev container is the more reproducible default; `Brewfile` is kept only for people who prefer host tools. |
-| `.python-version` | Per-project Python runtime hint for editors and Python version managers. Keep it aligned with `pyproject.toml` and the dev container. |
 | `pyproject.toml` and `uv.lock` | Root Python workspace and locked dependency graph. |
-| `.devcontainer/` | Reproducible development shell and pinned non-app tooling. |
-| `docker/observability/` | Local Prometheus, Loki, Promtail, and Grafana config reused by the app-owned AWS observability stack where possible. |
+| `.devcontainer/` | Primary reproducible development shell and pinned non-app tooling. |
+| `observability/` | Local Prometheus, Loki, Promtail, and Grafana config reused by the app-owned AWS observability stack where possible. |
 | `db/` | Database-owned local assets: Liquibase changelog, Postgres bootstrap SQL, and PgBouncer config/images. |
 | `apps/*/Dockerfile` | Workload-owned container build definitions. Keep app Dockerfiles next to the workload they package. |
 | `.dockerignore` | Root Docker build-context hygiene for all workload images. |
@@ -51,8 +49,8 @@ Known local differences:
 ## Prerequisites
 
 - Docker Desktop
-- Python 3.14+
-- `uv`
+- Dev Containers support in your editor, recommended
+- For native host usage only: Python 3.14+ and `uv`
 - Optional native infra and quality tools: Terraform, Go, Node.js LTS, npm,
   TypeScript, tflint, checkov, pre-commit, AWS CLI, Session Manager plugin,
   actionlint, lychee, hadolint, gitleaks, Trivy, and Semgrep CE
@@ -63,20 +61,12 @@ toolchain is to open the repository in its dev container. It installs Python
 Node.js 24 LTS, npm 11.13.0, TypeScript 6.0.3, TFLint, Checkov, pre-commit,
 AWS CLI, actionlint, lychee, hadolint, and gitleaks.
 
-For native macOS development outside the dev container, use the checked-in
-`Brewfile` for the tools Homebrew owns well:
-
-```bash
-brew update
-brew bundle install
-brew upgrade
-brew cleanup
-```
-
-Install or update Terraform separately from HashiCorp's signed release channel
-at version 1.15.0. Avoid prerelease Terraform builds. For JavaScript tooling,
-keep Node on the current LTS line and install the pinned globals when you need
-them on the host:
+For native development outside the dev container, install only the tools you
+need from mainstream project or vendor channels. Keep Python compatibility in
+line with `pyproject.toml` and the dev container. Install or update Terraform
+from HashiCorp's signed release channel at version 1.15.0, and avoid prerelease
+Terraform builds. For JavaScript tooling, keep Node on the current LTS line and
+install the pinned globals when you need them on the host:
 
 ```bash
 npm install --global npm@11.13.0 typescript@6.0.3
@@ -279,6 +269,9 @@ live environment, so take a database snapshot before this step on AWS.
 ```bash
 make help
 make dev
+make local-up
+make local-down
+make local-reset
 make observability
 make data-export
 make migrate
@@ -290,7 +283,14 @@ make fmt
 
 ## Optional Observability
 
-After the app is running, start the local observability stack:
+To build and start the app plus local observability stack in one step:
+
+```bash
+make local-up
+```
+
+Migrations stay explicit; run `make migrate` when schema setup or changes are
+needed. If the app is already running, start only the observability stack:
 
 ```bash
 make observability

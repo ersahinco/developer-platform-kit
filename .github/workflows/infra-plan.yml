@@ -6,13 +6,13 @@ on:
     paths:
       - ".github/workflows/infra-plan.yml"
       - "infra/**"
-      - "docker/observability/**"
+      - "observability/**"
   push:
     branches: [main]
     paths:
       - ".github/workflows/infra-plan.yml"
       - "infra/**"
-      - "docker/observability/**"
+      - "observability/**"
 
 env:
   AWS_REGION: eu-central-1

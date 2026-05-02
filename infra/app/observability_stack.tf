@@ -123,8 +123,8 @@ resource "aws_s3_object" "prometheus_app_alerts" {
   bucket       = aws_s3_bucket.observability[0].id
   key          = "${local.observability_config_prefix}/prometheus/rules/app-alerts.yml"
   content_type = "text/yaml"
-  source       = "${path.module}/../../docker/observability/prometheus/rules/app-alerts.yml"
-  source_hash  = filemd5("${path.module}/../../docker/observability/prometheus/rules/app-alerts.yml")
+  source       = "${path.module}/../../observability/prometheus/rules/app-alerts.yml"
+  source_hash  = filemd5("${path.module}/../../observability/prometheus/rules/app-alerts.yml")
 }
 
 resource "aws_s3_object" "grafana_datasources" {
@@ -142,8 +142,8 @@ resource "aws_s3_object" "grafana_dashboards_provisioning" {
   bucket       = aws_s3_bucket.observability[0].id
   key          = "${local.observability_config_prefix}/grafana/provisioning/dashboards/dashboards.yml"
   content_type = "text/yaml"
-  source       = "${path.module}/../../docker/observability/grafana/provisioning/dashboards/dashboards.yml"
-  source_hash  = filemd5("${path.module}/../../docker/observability/grafana/provisioning/dashboards/dashboards.yml")
+  source       = "${path.module}/../../observability/grafana/provisioning/dashboards/dashboards.yml"
+  source_hash  = filemd5("${path.module}/../../observability/grafana/provisioning/dashboards/dashboards.yml")
 }
 
 resource "aws_s3_object" "grafana_app_dashboard" {
@@ -151,8 +151,8 @@ resource "aws_s3_object" "grafana_app_dashboard" {
   bucket       = aws_s3_bucket.observability[0].id
   key          = "${local.observability_config_prefix}/grafana/dashboards/app-overview.json"
   content_type = "application/json"
-  source       = "${path.module}/../../docker/observability/grafana/dashboards/app-overview.json"
-  source_hash  = filemd5("${path.module}/../../docker/observability/grafana/dashboards/app-overview.json")
+  source       = "${path.module}/../../observability/grafana/dashboards/app-overview.json"
+  source_hash  = filemd5("${path.module}/../../observability/grafana/dashboards/app-overview.json")
 }
 
 ################################################################################

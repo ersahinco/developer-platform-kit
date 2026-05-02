@@ -3,13 +3,12 @@
 #
 # Prerequisites (install once):
 #   Recommended: open the repo in its dev container.
-#   Or install locally:
-#   brew bundle install
-#   install Terraform 1.15.0 from HashiCorp's signed release channel
+#   Native host tooling is optional; keep it aligned with docs/local-development.md.
 #
 # Usage:
 #   make help                — list all targets
 #   make dev                 — start local Postgres + PgBouncer
+#   make local-up            — build/start app + local observability
 #   make test                — run test suite
 #   make lint                — run all linters (app + infra)
 #   make fmt                 — auto-format everything
@@ -57,6 +56,21 @@ dev: ## Start local Postgres + PgBouncer
 observability: ## Start local Prometheus + Loki + Promtail + Grafana
 	docker compose --profile observability up -d prometheus loki promtail grafana
 	docker compose --profile observability ps
+
+.PHONY: local-up
+local-up: ## Build/start local app + Prometheus + Loki + Promtail + Grafana
+	docker compose build app
+	docker compose up -d db pgbouncer app
+	docker compose --profile observability up -d prometheus loki promtail grafana
+	docker compose --profile observability ps
+
+.PHONY: local-down
+local-down: ## Stop local app and observability services without deleting volumes
+	docker compose --profile observability stop app prometheus loki promtail grafana
+
+.PHONY: local-reset
+local-reset: ## Stop all local services and delete Compose volumes
+	docker compose --profile observability --profile tools --profile migration --profile data down -v --remove-orphans
 
 .PHONY: observability-stop
 observability-stop: ## Stop local observability services

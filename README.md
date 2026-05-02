@@ -78,31 +78,27 @@ aws-sdlc-containers/
 |-- scripts/             # Local and CI helper scripts
 |-- tests/               # Pytest integration tests
 |-- docs/                # Roadmaps, guides, runbooks, and drills
-|-- docker/              # Local observability assets
+|-- observability/       # Shared local/AWS Grafana, Loki, and Prometheus assets
 |-- .github/workflows/   # App and infra workflows
 |-- compose.yaml
 `-- Makefile
 ```
 
 Target direction is an evolutionary monorepo with `apps/`, `packages/`,
-`infra/`, `db/`, `docker/`, and `docs/` content that has a concrete owner. See
-[docs/roadmaps.md](docs/roadmaps.md) for continuation rules.
+`infra/`, `db/`, `observability/`, and `docs/` content that has a concrete
+owner. See [docs/roadmaps.md](docs/roadmaps.md) for continuation rules.
 
 ## Quick Local Path
 
 Prerequisites:
 
 - Docker Desktop
-- Python 3.14+
-- `uv`
 - Optional: VS Code or another editor with Dev Containers support. The
   repository dev container installs the Python, Terraform, Go, Node.js,
   Docker, AWS, and quality-tooling baseline used by the project.
-- If you do not use the dev container, install optional quality tools for
-  `make lint`: actionlint, lychee, hadolint, and gitleaks. On macOS,
-  `brew bundle install` uses the checked-in `Brewfile` for mainstream local
-  tools; install Terraform 1.15.0 separately from HashiCorp's signed release
-  channel.
+- If you do not use the dev container, install Python 3.14+, `uv`, and optional
+  quality tools from their vendor channels as needed for the Make targets you
+  run.
 
 Start local Postgres and PgBouncer:
 
@@ -145,6 +141,8 @@ For the full migration walkthrough, read
 Optional local observability is available through Docker Compose:
 
 ```bash
+make local-up
+# or, after starting the app yourself:
 make observability
 ```
 
