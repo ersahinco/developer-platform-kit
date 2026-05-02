@@ -102,6 +102,31 @@ resource "aws_s3_bucket_ownership_controls" "observability" {
   }
 }
 
+data "aws_iam_policy_document" "observability_alb_access_logs" {
+  count = var.enable_observability_stack ? 1 : 0
+
+  statement {
+    sid = "AllowAlbAccessLogs"
+
+    principals {
+      type        = "Service"
+      identifiers = ["logdelivery.elasticloadbalancing.amazonaws.com"]
+    }
+
+    actions = ["s3:PutObject"]
+
+    resources = [
+      "${aws_s3_bucket.observability[0].arn}/alb-access-logs/AWSLogs/${local.account_id}/*",
+    ]
+  }
+}
+
+resource "aws_s3_bucket_policy" "observability_alb_access_logs" {
+  count  = var.enable_observability_stack ? 1 : 0
+  bucket = aws_s3_bucket.observability[0].id
+  policy = data.aws_iam_policy_document.observability_alb_access_logs[0].json
+}
+
 resource "aws_s3_bucket_server_side_encryption_configuration" "observability" {
   count  = var.enable_observability_stack ? 1 : 0
   bucket = aws_s3_bucket.observability[0].id
@@ -658,6 +683,7 @@ resource "aws_security_group_rule" "app_from_observability_prometheus" {
 resource "aws_cloudwatch_log_group" "loki" {
   count             = var.enable_observability_stack ? 1 : 0
   name              = "/ecs/${local.name}/loki"
+  kms_key_id        = aws_kms_key.cloudwatch_logs.arn
   retention_in_days = 14
   tags              = local.tags
 }
@@ -665,6 +691,7 @@ resource "aws_cloudwatch_log_group" "loki" {
 resource "aws_cloudwatch_log_group" "prometheus" {
   count             = var.enable_observability_stack ? 1 : 0
   name              = "/ecs/${local.name}/prometheus"
+  kms_key_id        = aws_kms_key.cloudwatch_logs.arn
   retention_in_days = 14
   tags              = local.tags
 }
@@ -672,6 +699,7 @@ resource "aws_cloudwatch_log_group" "prometheus" {
 resource "aws_cloudwatch_log_group" "grafana" {
   count             = var.enable_observability_stack ? 1 : 0
   name              = "/ecs/${local.name}/grafana"
+  kms_key_id        = aws_kms_key.cloudwatch_logs.arn
   retention_in_days = 14
   tags              = local.tags
 }
@@ -679,6 +707,7 @@ resource "aws_cloudwatch_log_group" "grafana" {
 resource "aws_cloudwatch_log_group" "tempo" {
   count             = var.enable_observability_stack ? 1 : 0
   name              = "/ecs/${local.name}/tempo"
+  kms_key_id        = aws_kms_key.cloudwatch_logs.arn
   retention_in_days = 14
   tags              = local.tags
 }
@@ -686,6 +715,7 @@ resource "aws_cloudwatch_log_group" "tempo" {
 resource "aws_cloudwatch_log_group" "firelens" {
   count             = var.enable_observability_stack ? 1 : 0
   name              = "/ecs/${local.name}/firelens"
+  kms_key_id        = aws_kms_key.cloudwatch_logs.arn
   retention_in_days = 14
   tags              = local.tags
 }

@@ -240,6 +240,7 @@ module "ecs" {
 
           enable_cloudwatch_logging              = true
           cloudwatch_log_group_retention_in_days = 14
+          cloudwatch_log_group_kms_key_id        = aws_kms_key.cloudwatch_logs.arn
           # Explicit name keeps the log group stack-scoped and readable instead of
           # relying on the module's generic service-key-derived default.
           cloudwatch_log_group_name = "/ecs/${local.name}/pgbouncer"
@@ -301,6 +302,7 @@ module "ecs" {
 
           enable_cloudwatch_logging              = true
           cloudwatch_log_group_retention_in_days = 30
+          cloudwatch_log_group_kms_key_id        = aws_kms_key.cloudwatch_logs.arn
           # Explicit name keeps the log group stack-scoped and readable instead of
           # relying on the module's generic service-key-derived default.
           cloudwatch_log_group_name = "/ecs/${local.name}/app"

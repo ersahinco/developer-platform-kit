@@ -223,6 +223,7 @@ resource "aws_ecs_task_definition" "worker" {
 
 resource "aws_cloudwatch_log_group" "worker" {
   name              = "/ecs/${local.name}/worker"
+  kms_key_id        = aws_kms_key.cloudwatch_logs.arn
   retention_in_days = 14
   tags              = local.tags
 }
@@ -306,6 +307,7 @@ resource "aws_ecs_task_definition" "data_export_job" {
 
 resource "aws_cloudwatch_log_group" "data_export_job" {
   name              = "/ecs/${local.name}/data-export-job"
+  kms_key_id        = aws_kms_key.cloudwatch_logs.arn
   retention_in_days = 14
   tags              = local.tags
 }
@@ -527,6 +529,7 @@ resource "aws_ecs_task_definition" "order_event_consumer" {
 
 resource "aws_cloudwatch_log_group" "order_event_consumer" {
   name              = "/ecs/${local.name}/order-event-consumer"
+  kms_key_id        = aws_kms_key.cloudwatch_logs.arn
   retention_in_days = 14
   tags              = local.tags
 }
@@ -631,6 +634,7 @@ resource "aws_ecs_task_definition" "liquibase" {
 
 resource "aws_cloudwatch_log_group" "liquibase" {
   name              = "/ecs/${local.name}/liquibase"
+  kms_key_id        = aws_kms_key.cloudwatch_logs.arn
   retention_in_days = 14
   tags              = local.tags
 }

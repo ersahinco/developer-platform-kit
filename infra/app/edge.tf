@@ -105,9 +105,18 @@ resource "aws_lb" "this" {
   load_balancer_type = "application"
   security_groups    = [aws_security_group.alb.id]
   subnets            = local.platform.public_subnet_ids
+
+  access_logs {
+    bucket  = local.observability_bucket_name
+    prefix  = "alb-access-logs"
+    enabled = true
+  }
+
   # Drop invalid HTTP headers — prevents header smuggling attacks at no cost.
   drop_invalid_header_fields = true
   tags                       = local.tags
+
+  depends_on = [aws_s3_bucket_policy.observability_alb_access_logs]
 }
 
 resource "aws_wafv2_web_acl" "edge" {
