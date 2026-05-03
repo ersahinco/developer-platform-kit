@@ -652,7 +652,7 @@ data "aws_iam_policy_document" "github_actions_identity_kms" {
 
   statement {
     sid       = "KMSDescribe"
-    actions   = ["kms:DescribeKey", "kms:GetKeyPolicy", "kms:ListKeys", "kms:ListAliases"]
+    actions   = ["kms:DescribeKey", "kms:GetKeyPolicy", "kms:GetKeyRotationStatus", "kms:ListKeys", "kms:ListAliases"]
     resources = ["*"]
   }
 
