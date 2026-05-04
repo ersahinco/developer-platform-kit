@@ -77,7 +77,7 @@ jobs:
           name: terraform-plan-${{ inputs.plan_run_id }}
           run-id: ${{ inputs.plan_run_id }}
           github-token: ${{ secrets.GITHUB_TOKEN }}
-          path: .
+          path: infra
 
       - uses: hashicorp/setup-terraform@v4
         with:

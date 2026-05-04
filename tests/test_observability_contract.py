@@ -201,6 +201,17 @@ def test_observability_cloud_traffic_runs_quiet_cloud_log_probes() -> None:
     assert "force-new-deployment" in probe_script
 
 
+def test_infra_apply_downloads_plan_artifact_into_infra_tree() -> None:
+    workflow = _read(".github/workflows/infra-apply.yml")
+
+    assert "actions/download-artifact@v8" in workflow
+    assert "path: infra" in workflow
+    assert "terraform apply -auto-approve platform.tfplan" in workflow
+    assert "working-directory: infra/platform" in workflow
+    assert "terraform apply -auto-approve app.tfplan" in workflow
+    assert "working-directory: infra/app" in workflow
+
+
 def test_app_overview_uses_loki_for_order_event_worker_outcomes() -> None:
     dashboard = json.loads(_read("observability/grafana/dashboards/app-overview.json"))
     order_panel = next(
