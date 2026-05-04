@@ -29,6 +29,7 @@ import json
 import os
 import subprocess
 import sys
+import time
 from dataclasses import dataclass
 from typing import Any
 from urllib.parse import urlparse
@@ -148,6 +149,54 @@ def _aws_json(args: list[str], region: str) -> dict[str, Any]:
     return json.loads(result.stdout)
 
 
+def _describe_ecs_service(
+    cluster: str, service_name: str, region: str
+) -> dict[str, Any]:
+    service_response = _aws_json(
+        [
+            "ecs",
+            "describe-services",
+            "--cluster",
+            cluster,
+            "--services",
+            service_name,
+        ],
+        region,
+    )
+    services = service_response.get("services", [])
+    if not services:
+        raise KeyError(f"ECS service {service_name!r} was not found")
+    return services[0]
+
+
+def _primary_deployment(service: dict[str, Any]) -> dict[str, Any]:
+    return next(
+        deployment
+        for deployment in service.get("deployments", [])
+        if deployment.get("status") == "PRIMARY"
+    )
+
+
+def _wait_for_ecs_primary_rollout(
+    cluster: str, service_name: str, region: str
+) -> dict[str, Any]:
+    timeout_seconds = int(os.environ.get("ECS_ROLLOUT_WAIT_SECONDS", "120"))
+    poll_seconds = int(os.environ.get("ECS_ROLLOUT_POLL_SECONDS", "5"))
+    deadline = time.monotonic() + timeout_seconds
+
+    while True:
+        service = _describe_ecs_service(cluster, service_name, region)
+        primary = _primary_deployment(service)
+        if (
+            service.get("runningCount") == service.get("desiredCount")
+            and primary.get("rolloutState") == "COMPLETED"
+        ):
+            return service
+        if time.monotonic() >= deadline:
+            return service
+        time.sleep(poll_seconds)
+
+
 def _check_ecs() -> list[CheckResult]:
     cluster = os.environ.get("ECS_CLUSTER")
     service_name = os.environ.get("ECS_SERVICE")
@@ -167,27 +216,9 @@ def _check_ecs() -> list[CheckResult]:
     expected_tag = os.environ.get("EXPECTED_IMAGE_TAG")
 
     try:
-        service_response = _aws_json(
-            [
-                "ecs",
-                "describe-services",
-                "--cluster",
-                cluster,
-                "--services",
-                service_name,
-            ],
-            region,
-        )
-        services = service_response.get("services", [])
-        if not services:
-            return [CheckResult(False, f"ECS service {service_name!r} was not found")]
-        service = services[0]
+        service = _wait_for_ecs_primary_rollout(cluster, service_name, region)
         task_definition_arn = service["taskDefinition"]
-        primary = next(
-            deployment
-            for deployment in service.get("deployments", [])
-            if deployment.get("status") == "PRIMARY"
-        )
+        primary = _primary_deployment(service)
 
         task_response = _aws_json(
             [
