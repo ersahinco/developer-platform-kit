@@ -13,6 +13,8 @@ from sqlalchemy.engine import Engine
 
 logger = logging.getLogger(__name__)
 
+DEFAULT_EXCLUDED_TRACE_URLS = "/health,/metrics"
+
 
 def _enabled(value: str | None) -> bool:
     return value is not None and value.strip().lower() in {"1", "true", "yes", "on"}
@@ -42,5 +44,13 @@ def configure_tracing(*, app: FastAPI, engine: Engine) -> None:
     provider.add_span_processor(BatchSpanProcessor(OTLPSpanExporter(endpoint=endpoint)))
     trace.set_tracer_provider(provider)
 
-    FastAPIInstrumentor.instrument_app(app, tracer_provider=provider)
+    excluded_urls = os.getenv("OTEL_PYTHON_FASTAPI_EXCLUDED_URLS")
+    if excluded_urls is None:
+        excluded_urls = DEFAULT_EXCLUDED_TRACE_URLS
+
+    FastAPIInstrumentor.instrument_app(
+        app,
+        tracer_provider=provider,
+        excluded_urls=excluded_urls,
+    )
     SQLAlchemyInstrumentor().instrument(engine=engine, tracer_provider=provider)

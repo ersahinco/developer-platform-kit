@@ -26,6 +26,8 @@ practical; Grafana should not depend on CloudWatch queries to be useful.
 - ECS workloads can dual-ship logs through FireLens to CloudWatch Logs and the
   private Loki service when the optional observability stack is enabled.
 - The API can emit OpenTelemetry traces over OTLP/HTTP to self-hosted Tempo.
+  Successful `/health` and `/metrics` requests are excluded from tracing by
+  default so Tempo is not dominated by probe/scrape traffic.
 - App and observability service metrics are scraped by Prometheus for Grafana.
   AWS-native ALB, RDS, SQS, Scheduler, and alarm-state metrics remain in
   CloudWatch unless an explicit metric fan-out is added.
@@ -83,6 +85,8 @@ The local stack contains:
   the same `stack`, `environment`, `service`, and `container` labels used in
   AWS.
 - Tempo storing local OTLP traces from the API when `OTEL_TRACES_ENABLED=true`.
+  The app defaults `OTEL_PYTHON_FASTAPI_EXCLUDED_URLS` to `/health,/metrics`;
+  set it explicitly if a drill needs probe/scrape traces.
 - Grafana data sources and dashboard provisioning, including a readiness-failure
   stat for `/ready` 5xx responses.
 
@@ -96,7 +100,9 @@ observability profile is opt-in and not started by default.
 
 Distributed tracing uses OpenTelemetry in the API and self-hosted Tempo in both
 local Compose and the optional ECS observability stack. X-Ray is intentionally
-not part of this path.
+not part of this path. `/ready`, admin endpoints, order requests, and database
+spans remain traced; `/health` and `/metrics` are excluded by default because
+they create high-volume low-diagnostic spans during normal operation.
 
 ## AWS Extension
 
