@@ -43,3 +43,4 @@ terraform.tfvars
 .idea/
 *.swp
 *~
+.logs.txt

@@ -16,12 +16,17 @@ datasources:
     access: proxy
     url: ${PROMETHEUS_URL}
     isDefault: true
+    jsonData:
+      manageAlerts: false
   - name: Loki
     orgId: 1
     uid: Loki
     type: loki
     access: proxy
     url: ${LOKI_URL}
+    jsonData:
+      manageAlerts: false
+      maxLines: 1000
   - name: Tempo
     orgId: 1
     uid: Tempo

@@ -133,7 +133,8 @@ detection key.
 
 ## Success Criteria
 
-- Consumer logs contain `outbox_relay` and `order_event_consumed` entries.
+- Consumer logs contain `outbox_relay` entries only when messages are published
+  or fail, and `order_event_consumed` entries when messages are consumed.
 - `outbox_messages` rows move from `pending` or `processing` to `published`.
 - `order_event_receipts` records the consumed `event_id`.
 - The DLQ has zero visible messages.

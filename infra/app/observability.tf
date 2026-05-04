@@ -764,7 +764,7 @@ resource "aws_ecs_task_definition" "loki" {
       name      = "loki"
       image     = var.loki_image
       essential = true
-      command   = ["-config.file=/etc/loki/loki.yml"]
+      command   = ["-config.file=/etc/loki/loki.yml", "-log.level=warn"]
       dependsOn = [
         { containerName = "config-loader", condition = "SUCCESS" },
         { containerName = "log-router", condition = "START" },
@@ -854,6 +854,7 @@ resource "aws_ecs_task_definition" "prometheus" {
       command = [
         "--config.file=/etc/prometheus/prometheus.yml",
         "--storage.tsdb.path=/prometheus",
+        "--log.level=warn",
       ]
       dependsOn = [
         { containerName = "config-loader", condition = "SUCCESS" },
@@ -943,7 +944,7 @@ resource "aws_ecs_task_definition" "tempo" {
       name      = "tempo"
       image     = var.tempo_image
       essential = true
-      command   = ["-config.file=/etc/tempo/tempo.yml"]
+      command   = ["-config.file=/etc/tempo/tempo.yml", "-log.level=warn"]
       dependsOn = [
         { containerName = "config-loader", condition = "SUCCESS" },
         { containerName = "log-router", condition = "START" },
@@ -1020,7 +1021,7 @@ resource "aws_ecs_task_definition" "grafana" {
       essential  = false
       entryPoint = ["sh", "-c"]
       command = [
-        "mkdir -p /provisioning/datasources /provisioning/dashboards /dashboards && aws s3 cp s3://${aws_s3_bucket.observability[0].bucket}/${aws_s3_object.grafana_datasources[0].key} /provisioning/datasources/datasources.yml && aws s3 cp s3://${aws_s3_bucket.observability[0].bucket}/${aws_s3_object.grafana_dashboards_provisioning[0].key} /provisioning/dashboards/dashboards.yml && aws s3 cp s3://${aws_s3_bucket.observability[0].bucket}/${aws_s3_object.grafana_app_dashboard[0].key} /dashboards/app-overview.json",
+        "mkdir -p /provisioning/datasources /provisioning/dashboards /provisioning/alerting /provisioning/plugins /dashboards && printf 'apiVersion: 1\\n' > /provisioning/alerting/empty.yml && printf 'apiVersion: 1\\n' > /provisioning/plugins/empty.yml && aws s3 cp s3://${aws_s3_bucket.observability[0].bucket}/${aws_s3_object.grafana_datasources[0].key} /provisioning/datasources/datasources.yml && aws s3 cp s3://${aws_s3_bucket.observability[0].bucket}/${aws_s3_object.grafana_dashboards_provisioning[0].key} /provisioning/dashboards/dashboards.yml && aws s3 cp s3://${aws_s3_bucket.observability[0].bucket}/${aws_s3_object.grafana_app_dashboard[0].key} /dashboards/app-overview.json",
       ]
       mountPoints = [
         { sourceVolume = "grafana-provisioning", containerPath = "/provisioning", readOnly = false },
@@ -1049,6 +1050,8 @@ resource "aws_ecs_task_definition" "grafana" {
       environment = [
         { name = "GF_SECURITY_ADMIN_USER", value = "admin" },
         { name = "GF_USERS_ALLOW_SIGN_UP", value = "false" },
+        { name = "GF_LOG_LEVEL", value = "warn" },
+        { name = "GF_PLUGINS_PREINSTALL_DISABLED", value = "true" },
         { name = "PROMETHEUS_URL", value = "http://prometheus.${local.observability_dns_namespace}:9090" },
         { name = "LOKI_URL", value = "http://loki.${local.observability_dns_namespace}:3100" },
         { name = "TEMPO_URL", value = "http://tempo.${local.observability_dns_namespace}:3200" },

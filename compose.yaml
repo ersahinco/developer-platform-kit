@@ -139,6 +139,7 @@ services:
     command:
       - --config.file=/etc/prometheus/prometheus.yml
       - --storage.tsdb.path=/prometheus
+      - --log.level=warn
     volumes:
       - ./observability/prometheus/prometheus.yml:/etc/prometheus/prometheus.yml:ro
       - ./observability/prometheus/rules:/etc/prometheus/rules:ro
@@ -153,7 +154,9 @@ services:
 
   loki:
     image: grafana/loki:${LOKI_TAG:-3.6.10}
-    command: -config.file=/etc/loki/loki.yml
+    command:
+      - -config.file=/etc/loki/loki.yml
+      - -log.level=warn
     volumes:
       - ./observability/loki/loki.yml:/etc/loki/loki.yml:ro
       - loki_data:/loki
@@ -164,7 +167,12 @@ services:
 
   tempo:
     image: grafana/tempo:${TEMPO_TAG:-2.9.0}
-    command: -config.file=/etc/tempo/tempo.yml
+    # The upstream image runs as a non-root user that cannot initialize a fresh
+    # Docker named volume on macOS/Linux without a one-time chown.
+    user: "0:0"
+    command:
+      - -config.file=/etc/tempo/tempo.yml
+      - -log.level=warn
     volumes:
       - ./observability/tempo/tempo.yml:/etc/tempo/tempo.yml:ro
       - tempo_data:/tmp/tempo
@@ -193,6 +201,8 @@ services:
       GF_SECURITY_ADMIN_USER: ${GRAFANA_ADMIN_USER:-admin}
       GF_SECURITY_ADMIN_PASSWORD: ${GRAFANA_ADMIN_PASSWORD:-admin}
       GF_USERS_ALLOW_SIGN_UP: "false"
+      GF_LOG_LEVEL: warn
+      GF_PLUGINS_PREINSTALL_DISABLED: "true"
       PROMETHEUS_URL: "http://prometheus:9090"
       LOKI_URL: "http://loki:3100"
       TEMPO_URL: "http://tempo:3200"

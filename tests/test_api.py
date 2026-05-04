@@ -1,12 +1,14 @@
 """test_api.py — HTTP layer integration tests."""
 
 from concurrent.futures import ThreadPoolExecutor
+import logging
 import uuid
 
 import httpx
 import pytest
 from sqlalchemy import text
 
+from aws_sdlc_api.main import _SuppressLowValueAccessLogs
 from conftest import contact_row, post_order
 
 
@@ -143,6 +145,37 @@ def test_metrics_endpoint_exposes_prometheus_text(http_client):
     assert resp.status_code == 200
     assert "text/plain" in resp.headers["content-type"]
     assert "http_requests_total" in resp.text
+
+
+def test_access_log_filter_suppresses_successful_probe_and_scrape_logs():
+    log_filter = _SuppressLowValueAccessLogs()
+
+    def record(message: str) -> logging.LogRecord:
+        return logging.LogRecord(
+            name="uvicorn.access",
+            level=logging.INFO,
+            pathname=__file__,
+            lineno=1,
+            msg=message,
+            args=(),
+            exc_info=None,
+        )
+
+    assert not log_filter.filter(record('INFO: "GET /health HTTP/1.1" 200 OK'))
+    assert not log_filter.filter(record('INFO: "GET /metrics HTTP/1.1" 200 OK'))
+    assert log_filter.filter(record('INFO: "GET /metrics HTTP/1.1" 503 ERROR'))
+    assert log_filter.filter(record('INFO: "GET /orders/1 HTTP/1.1" 200 OK'))
+
+    uvicorn_record = logging.LogRecord(
+        name="uvicorn.access",
+        level=logging.INFO,
+        pathname=__file__,
+        lineno=1,
+        msg='%s - "%s %s HTTP/%s" %d',
+        args=("127.0.0.1:55494", "GET", "/metrics", "1.1", 200),
+        exc_info=None,
+    )
+    assert not log_filter.filter(uvicorn_record)
 
 
 @pytest.mark.require_phase("dual", "switch", "new_pre_contract")

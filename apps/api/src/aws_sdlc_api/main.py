@@ -1,4 +1,5 @@
 import logging
+import re
 import time
 import uuid
 from typing import Annotated
@@ -42,21 +43,37 @@ from aws_sdlc_core.outbox import OutboxRepository, dispatch_pending_outbox_messa
 from aws_sdlc_core.ports import ConfigStore, CustomerRepository, OrderRepository
 
 
-class _SuppressHealthChecks(logging.Filter):
-    """Drop GET /health 200 from access logs.
+class _SuppressLowValueAccessLogs(logging.Filter):
+    """Drop successful probe/scrape access logs.
 
     ALB probes every 15 s from each AZ, and the ECS container health check adds
     a third hit from 127.0.0.1 — together they produce ~4 log lines/min with no
-    signal. Real errors on /health (non-200) still pass through.
+    signal. Prometheus scrapes `/metrics` every 15 s and adds a similar stream
+    of successful access logs. Real non-200 responses still pass through.
     """
 
     def filter(self, record: logging.LogRecord) -> bool:
+        if isinstance(record.args, tuple) and len(record.args) >= 5:
+            method = record.args[1]
+            path = record.args[2]
+            status_code = record.args[4]
+            if method == "GET" and path in {"/health", "/metrics"}:
+                if isinstance(status_code, int):
+                    return not (200 <= status_code < 300)
+                if isinstance(status_code, str):
+                    try:
+                        return not (200 <= int(status_code) < 300)
+                    except ValueError:
+                        pass
+
         msg = record.getMessage()
-        return not ("GET /health" in msg and "200" in msg)
+        is_success = re.search(r'"\s+2\d\d\b', msg) is not None
+        is_low_value_path = '"GET /health ' in msg or '"GET /metrics ' in msg
+        return not (is_success and is_low_value_path)
 
 
 # Installed at module load time — runs once for the lifetime of the process.
-logging.getLogger("uvicorn.access").addFilter(_SuppressHealthChecks())
+logging.getLogger("uvicorn.access").addFilter(_SuppressLowValueAccessLogs())
 
 app = FastAPI(title="aws-sdlc-containers")
 configure_tracing(app=app, engine=engine)

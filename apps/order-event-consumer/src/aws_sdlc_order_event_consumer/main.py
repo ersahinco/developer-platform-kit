@@ -70,17 +70,18 @@ def relay_outbox_once(
         publisher=SqsOutboxPublisher(queue_url, client),
         limit=limit,
     )
-    print(
-        json.dumps(
-            {
-                "event": "outbox_relay",
-                "published": result.published,
-                "failed": result.failed,
-            },
-            sort_keys=True,
-        ),
-        flush=True,
-    )
+    if result.published > 0 or result.failed > 0:
+        print(
+            json.dumps(
+                {
+                    "event": "outbox_relay",
+                    "published": result.published,
+                    "failed": result.failed,
+                },
+                sort_keys=True,
+            ),
+            flush=True,
+        )
     return result.published + result.failed
 
 

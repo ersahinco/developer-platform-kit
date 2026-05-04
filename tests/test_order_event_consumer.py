@@ -5,7 +5,10 @@ from typing import Any
 
 from sqlalchemy import text
 
+from aws_sdlc_core.outbox import OutboxDispatchResult  # noqa: E402
+from aws_sdlc_order_event_consumer import main as consumer_main  # noqa: E402
 from aws_sdlc_order_event_consumer.main import consume_order_events_once  # noqa: E402
+from aws_sdlc_order_event_consumer.main import relay_outbox_once  # noqa: E402
 
 
 class _SqsClient:
@@ -74,6 +77,50 @@ def test_consumer_records_first_delivery_and_deletes_message(committed_db_sessio
     assert row.status == "processed"
     assert row.duplicate_count == 0
     assert client.deleted == ["receipt-1"]
+
+
+def test_relay_outbox_suppresses_empty_result_log(
+    committed_db_session, monkeypatch, capsys
+):
+    def dispatch_empty(**kwargs: object) -> OutboxDispatchResult:
+        return OutboxDispatchResult(published=0, failed=0)
+
+    monkeypatch.setattr(
+        consumer_main, "dispatch_pending_outbox_messages", dispatch_empty
+    )
+
+    result = relay_outbox_once(
+        committed_db_session,
+        queue_url="queue",
+        client=_SqsClient([]),
+        limit=10,
+    )
+
+    assert result == 0
+    assert capsys.readouterr().out == ""
+
+
+def test_relay_outbox_logs_non_empty_result(committed_db_session, monkeypatch, capsys):
+    def dispatch_published(**kwargs: object) -> OutboxDispatchResult:
+        return OutboxDispatchResult(published=1, failed=0)
+
+    monkeypatch.setattr(
+        consumer_main, "dispatch_pending_outbox_messages", dispatch_published
+    )
+
+    result = relay_outbox_once(
+        committed_db_session,
+        queue_url="queue",
+        client=_SqsClient([]),
+        limit=10,
+    )
+
+    assert result == 1
+    assert json.loads(capsys.readouterr().out) == {
+        "event": "outbox_relay",
+        "published": 1,
+        "failed": 0,
+    }
 
 
 def test_consumer_deduplicates_repeated_delivery(committed_db_session):

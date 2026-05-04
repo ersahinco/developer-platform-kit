@@ -4,6 +4,12 @@ Prometheus, Loki, Tempo, and Grafana are the preferred observability target for
 this project. CloudWatch remains active for AWS-native logs and alarms while
 the Grafana stack dual-runs.
 
+Grafana intentionally uses Loki for workload logs, Prometheus for application
+and observability-stack metrics, and Tempo for API traces. It does not provision
+the CloudWatch datasource by default. Parity means app-owned signals are emitted
+or shipped to both AWS-native and portable Grafana-stack backends where
+practical; Grafana should not depend on CloudWatch queries to be useful.
+
 ## Current State
 
 - Application liveness endpoint exists at `/health`.
@@ -13,10 +19,16 @@ the Grafana stack dual-runs.
 - HTTP responses include an `X-Request-ID` header, preserving a caller-supplied
   value when present or generating one when absent.
 - App and task logs are emitted through ECS and Docker.
+- Successful `/health` and `/metrics` access logs are suppressed at the API
+  logger because they are high-volume probe/scrape noise. Non-2xx responses
+  still pass through.
 - Terraform creates CloudWatch log groups for ECS workloads.
 - ECS workloads can dual-ship logs through FireLens to CloudWatch Logs and the
   private Loki service when the optional observability stack is enabled.
 - The API can emit OpenTelemetry traces over OTLP/HTTP to self-hosted Tempo.
+- App and observability service metrics are scraped by Prometheus for Grafana.
+  AWS-native ALB, RDS, SQS, Scheduler, and alarm-state metrics remain in
+  CloudWatch unless an explicit metric fan-out is added.
 - Terraform creates a CloudWatch alarm for EventBridge Scheduler target
   delivery failures on the scheduled data export job.
 - Terraform creates a CloudWatch Logs metric filter that counts successful data
@@ -67,7 +79,9 @@ The local stack contains:
 - Prometheus loading local app alert rules from
   `observability/prometheus/rules/`.
 - Loki storing local container logs.
-- Promtail reading Docker container logs through the Docker socket.
+- Promtail reading Docker container logs through the Docker socket and applying
+  the same `stack`, `environment`, `service`, and `container` labels used in
+  AWS.
 - Tempo storing local OTLP traces from the API when `OTEL_TRACES_ENABLED=true`.
 - Grafana data sources and dashboard provisioning, including a readiness-failure
   stat for `/ready` 5xx responses.
@@ -132,6 +146,12 @@ AWS-specific templates under `infra/app/templates/observability/` adapt only
 the parts that differ in ECS, such as Cloud Map service names and S3-backed
 Loki/Tempo storage.
 
+In ECS, Loki log chunks/index data and Tempo trace blocks use the existing
+observability S3 bucket. Grafana provisioning assets are also loaded from that
+bucket at task startup. Prometheus uses task-local TSDB storage in this sandbox;
+durable S3-backed metrics would require adding a metrics store such as Thanos
+or Mimir, not a Grafana CloudWatch datasource.
+
 Enable it only after the app images have been pushed and the base app services
 are healthy:
 
@@ -153,19 +173,34 @@ make grafana-tunnel
 
 Then open `http://localhost:3000`. Do not make Grafana public as the default.
 
-AWS LogQL examples:
+The same Loki label contract is used locally and in AWS:
+
+- `stack`: `aws-sdlc-containers`.
+- `environment`: `local` or `aws`.
+- `service`: app or workload name.
+- `container`: container name.
+
+AWS and local LogQL examples:
 
 ```logql
-{stack="aws-sdlc-containers", service="app"}
+{stack="aws-sdlc-containers", service="app", container="app"}
 ```
 
 ```logql
-{stack="aws-sdlc-containers", container="pgbouncer"}
+{stack="aws-sdlc-containers", service="pgbouncer", container="pgbouncer"}
 ```
 
 ```logql
 {stack="aws-sdlc-containers", service="data-export-job"}
 ```
+
+```logql
+{stack="aws-sdlc-containers"} |~ "(?i)error|exception|traceback|failed"
+```
+
+The Loki and Prometheus datasources are provisioned with Grafana-managed alert
+editing disabled. Alert and ruler endpoints are not part of this sandbox
+contract; use provisioned Prometheus rules and CloudWatch alarms instead.
 
 ## CloudWatch Reduction Rules
 
@@ -177,6 +212,14 @@ ECS. Keep these AWS/platform signals in CloudWatch:
 - EventBridge Scheduler delivery failures.
 - SQS DLQ visibility while SQS remains the transport.
 - CloudWatch logs for workload and observability diagnostics.
+
+CloudWatch is the AWS-native break-glass path and remains the source of truth
+for ALB, RDS, SQS, Scheduler, and CloudWatch alarm state. Grafana matches
+workload log content through Loki and app metrics through Prometheus. When the
+project needs the same app metric series in CloudWatch and Grafana, prefer an
+OpenTelemetry Collector/ADOT fan-out that exports app metrics to CloudWatch
+while Prometheus continues to serve Grafana; do not make Grafana portable
+dashboards depend on the CloudWatch datasource.
 
 Only these app-level CloudWatch surfaces have reduction toggles, and both
 default to `true`:

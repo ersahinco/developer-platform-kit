@@ -18,7 +18,15 @@ scrape_configs:
         target_label: compose_project
       - source_labels: ["__meta_docker_container_label_com_docker_compose_service"]
         target_label: compose_service
-      - source_labels: ["__meta_docker_container_name"]
+      - target_label: stack
+        replacement: aws-sdlc-containers
+      - target_label: environment
+        replacement: local
+      - source_labels: ["__meta_docker_container_label_com_docker_compose_service"]
+        target_label: service
+      - source_labels: ["__meta_docker_container_label_com_docker_compose_service"]
         target_label: container
+      - source_labels: ["__meta_docker_container_name"]
+        target_label: docker_container
     pipeline_stages:
       - docker: {}

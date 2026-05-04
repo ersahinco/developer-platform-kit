@@ -66,7 +66,7 @@ local-up: ## Build/start local app + Prometheus + Loki + Promtail + Grafana
 
 .PHONY: local-down
 local-down: ## Stop local app and observability services without deleting volumes
-	docker compose --profile observability stop app prometheus loki promtail grafana
+	docker compose --profile observability stop app prometheus loki tempo promtail grafana
 
 .PHONY: local-reset
 local-reset: ## Stop all local services and delete Compose volumes
