@@ -48,6 +48,55 @@ practical; Grafana should not depend on CloudWatch queries to be useful.
 - Local Prometheus, Loki, Tempo, Promtail, and Grafana run through the optional
   `observability` Docker Compose profile.
 
+## CloudWatch Inventory
+
+CloudWatch Logs are intentionally limited to the stack-scoped
+`/ecs/aws-sdlc-containers/*` groups below. These names are part of the Terraform
+contract and are tested by `tests/test_observability_contract.py`; a log group
+with the same prefix that is not listed here should be treated as stale until
+proven otherwise.
+
+Grafana does not read CloudWatch log groups directly. The equivalent Grafana
+experience is backed by Loki labels: FireLens adds a `log_group` label whose
+value mirrors the CloudWatch log group name. The provisioned
+`AWS SDLC Containers / Log Groups` dashboard uses that label to provide a
+CloudWatch-like group list and raw log view without adding a Grafana CloudWatch
+datasource.
+
+| Log group | Writer | Grafana-stack twin | Freshness expectation |
+|---|---|---|---|
+| `/ecs/aws-sdlc-containers/app` | API container through FireLens | Loki labels `service="app",container="app"` | Always-on; recent events expected. |
+| `/ecs/aws-sdlc-containers/pgbouncer` | PgBouncer sidecar through FireLens | Loki labels `service="pgbouncer",container="pgbouncer"` | Always-on; recent events expected when the app is running. |
+| `/ecs/aws-sdlc-containers/order-event-consumer` | Order event relay/consumer through FireLens | Loki labels `service="order-event-consumer"` | Always-on; recent events expected. |
+| `/ecs/aws-sdlc-containers/firelens` | Log-router container through `awslogs` | CloudWatch-only router diagnostics | Always-on when FireLens is deployed. |
+| `/ecs/aws-sdlc-containers/grafana` | Grafana process and config-loader logs | Loki labels `service="grafana"` for the Grafana container | Always-on when the optional stack is enabled. |
+| `/ecs/aws-sdlc-containers/loki` | Loki process and config-loader logs | Loki labels `service="loki"` for the Loki container | Always-on when the optional stack is enabled. |
+| `/ecs/aws-sdlc-containers/prometheus` | Prometheus process and config-loader logs | Loki labels `service="prometheus"` for the Prometheus container | Always-on when the optional stack is enabled. |
+| `/ecs/aws-sdlc-containers/tempo` | Tempo process and config-loader logs | Loki labels `service="tempo"` for the Tempo container | Always-on when the optional stack is enabled. |
+| `/ecs/aws-sdlc-containers/data-export-job` | Scheduled data export task through FireLens, or `awslogs` before the optional stack starts | Loki labels `service="data-export-job"` | Batch; recent events follow the schedule, not a continuous freshness check. |
+| `/ecs/aws-sdlc-containers/liquibase` | One-off migration task through FireLens, or `awslogs` before the optional stack starts | Loki labels `service="liquibase"` | One-off; old events are expected between migrations. |
+| `/ecs/aws-sdlc-containers/worker` | One-off backfill worker through FireLens, or `awslogs` before the optional stack starts | Loki labels `service="worker"` | One-off; old events are expected between backfills. |
+
+The FireLens router's own diagnostics group, `/ecs/aws-sdlc-containers/firelens`,
+is CloudWatch-only. The router can report its own startup and delivery problems
+there, while every routed workload and observability-service container receives
+the matching Loki `log_group` label.
+
+CloudWatch metrics remain AWS-native for platform and managed-service signals.
+Prometheus is the Grafana-stack metrics backend for app-owned `/metrics` and
+observability component metrics; CloudWatch is not provisioned as a Grafana
+datasource.
+
+| CloudWatch namespace | Metric names used by this stack | Terraform consumer | Grafana-stack twin |
+|---|---|---|---|
+| `AWS/ApplicationELB` | `UnHealthyHostCount`, `HTTPCode_Target_5XX_Count`, `TargetResponseTime` | App health, 5xx, and latency alarms | Prometheus app `/metrics` counters/histograms and dashboard panels. |
+| `AWS/RDS` | `CPUUtilization`, `FreeStorageSpace`, `DatabaseConnections` | RDS pressure alarms | Readiness failures and request latency in Prometheus; RDS metrics stay CloudWatch-native until a metrics exporter is added. |
+| `AWS/SQS` | `ApproximateNumberOfMessagesVisible` on the order events DLQ | Order event DLQ alarm | App metric `order_events_publish_total` and local Prometheus alert rules. |
+| `AWS/Scheduler` | `TargetErrorCount` for the default schedule group | Data export scheduler delivery alarm | Data export job logs in Loki; add job metrics before removing the CloudWatch alarm. |
+| `aws-sdlc-containers/DataExport` | `SuccessCount` from the data export success log metric filter | Data export freshness alarm | Data export success logs in Loki; durable Grafana freshness needs a job metric or Loki ruler path. |
+| `ECS/ContainerInsights` | Cluster, service, and task utilization/count metrics for app and observability services | Inspection and AWS-native troubleshooting | Prometheus scrapes app, Prometheus, Loki, and Tempo runtime metrics for Grafana. |
+| `AWS/WAFV2` | Allowed/blocked/sampled request metrics for the public Web ACL | AWS-native edge security inspection | No Grafana twin by default. |
+
 ## Local Stack
 
 Start the app first, then start the observability profile:
@@ -66,9 +115,9 @@ Open:
 | App readiness | `http://localhost:8000/ready` |
 | App metrics | `http://localhost:8000/metrics` |
 | Prometheus | `http://localhost:9090` |
-| Loki | `http://localhost:3100/ready` |
+| Loki | `http://127.0.0.1:3100/ready` |
 | Tempo | `http://localhost:3200` |
-| Grafana | `http://localhost:3000` |
+| Grafana | `http://127.0.0.1:3000` |
 
 Grafana credentials default to `admin` / `admin` and can be overridden through
 `.env`. The provisioned dashboard is `AWS SDLC Containers / App Overview`.
@@ -88,7 +137,8 @@ The local stack contains:
   The app defaults `OTEL_PYTHON_FASTAPI_EXCLUDED_URLS` to `/health,/metrics`;
   set it explicitly if a drill needs probe/scrape traces.
 - Grafana data sources and dashboard provisioning, including a readiness-failure
-  stat for `/ready` 5xx responses.
+  stat for `/ready` 5xx responses and a `Log Groups` dashboard for
+  Loki-backed CloudWatch-like log browsing.
 
 Community Grafana dashboards are a good fit for standard components such as
 Prometheus, Loki, and Grafana itself. When a community dashboard becomes part of
@@ -140,7 +190,131 @@ The async order event signal watches visible messages in the SQS DLQ for
 `order_events_publish_total` from `/metrics` so local operators can distinguish
 successful, failed, and skipped publish attempts. Prometheus loads a local rule
 for `order_events_publish_total{status="failed"}` to make publish failures part
-of the local app observability contract.
+of the local app observability contract. In AWS, the default relay path runs in
+the `order-event-consumer` service, so `App Overview` uses Loki JSON log events
+from that service for the order event worker outcomes panel.
+
+## Delivery Tests
+
+Static CI coverage lives in `tests/test_observability_contract.py` and checks:
+
+- Every expected workload and observability service has both a CloudWatch Logs
+  and Loki FireLens output with a CloudWatch-mirroring `log_group` label.
+- Terraform declares only the expected stack log groups under
+  `/ecs/aws-sdlc-containers/*`.
+- Grafana provisions Prometheus, Loki, and Tempo only; it does not depend on a
+  CloudWatch datasource.
+- Grafana provisions the `Log Groups` dashboard from the same S3-backed
+  dashboard path as `App Overview`.
+- API traces point at Tempo and no X-Ray path is configured.
+- Prometheus scrapes the app plus Prometheus, Loki, and Tempo runtime metrics.
+
+Live delivery verification is available after deployment:
+
+```bash
+make observability-delivery-verify
+```
+
+By default this verifies the CloudWatch log-group inventory, rejects unexpected
+stack-prefixed log groups, checks retention on every expected group, and checks
+recent CloudWatch events for the always-on groups. Batch groups
+`data-export-job`, `liquibase`, and `worker` are inventoried but excluded from
+the default freshness check because old streams are normal between scheduled or
+manual runs.
+
+To verify Loki as well, open a private path to Loki or Grafana's network and set
+`LOKI_URL`:
+
+```bash
+make loki-tunnel
+LOKI_URL=http://127.0.0.1:3100 make observability-delivery-verify
+```
+
+Useful overrides:
+
+| Environment variable | Purpose |
+|---|---|
+| `CLOUDWATCH_LOG_FRESHNESS_SECONDS` | Recent-event window for always-on CloudWatch log groups. Defaults to `86400`. |
+| `CLOUDWATCH_FRESH_LOG_GROUPS` | Comma-separated suffixes to freshness-check, for example `app,pgbouncer,order-event-consumer`. |
+| `LOKI_URL` | Enables Loki `log_group` inventory and delivery checks through `/loki/api/v1/series` and `/loki/api/v1/query_range`. |
+| `LOKI_LABEL_LOOKBACK_SECONDS` | Lookback window for expected Loki `log_group` labels. Defaults to `2592000`. |
+| `LOKI_FRESH_LOG_GROUPS` | Comma-separated log-group suffixes to freshness-check in Loki. Defaults to `app,grafana,loki`; add quiet or batch groups after generating representative traffic for them. |
+
+Loki label values are observed from existing streams, not declared like
+CloudWatch log groups. A quiet service may be selectable in the Grafana Log
+Groups dashboard but absent from Loki's `label/log_group/values` response until
+it emits at least one post-rollout line. The live verifier therefore hard-fails
+only when no `log_group` labels are observed at all, or when a freshness-checked
+group has no recent lines.
+
+To generate a small amount of representative cloud traffic from a developer
+machine:
+
+```bash
+make observability-cloud-traffic
+```
+
+This target has two phases. First, it reads the API bearer token from Secrets
+Manager unless `TOKEN` or `AUTH_TOKEN` is already set. It performs readiness and
+mode reads, discovers an existing customer, and if the deployed dataset is empty
+it calls the idempotent `POST /admin/observability-fixture` endpoint to create a
+single `Observability Smoke Customer`. It then creates a few orders, reads those
+orders back, triggers one controlled order 404, and fetches `/metrics`.
+
+Second, it runs bounded cloud probes for quiet log groups:
+
+- `worker`: starts the latest worker task with `BACKFILL_MAX_BATCHES=1`.
+- `data-export-job`: starts one export task with an `observability-smoke-*`
+  run id.
+- `liquibase`: starts the latest Liquibase task with the read-only `status`
+  command, not `update`.
+- `prometheus` and `tempo`: force-roll the services so startup logs are emitted
+  with the current FireLens labels.
+
+The combined run is intentionally small but should make these surfaces visible
+shortly after Prometheus and Loki refresh:
+
+- App access logs in the `Log Groups` dashboard under
+  `/ecs/aws-sdlc-containers/app`.
+- Request rate, latency, and readiness panels in `App Overview`.
+- Order event relay/consumer logs under
+  `/ecs/aws-sdlc-containers/order-event-consumer` after the async worker relays
+  and consumes the created orders.
+
+Useful overrides:
+
+| Environment variable | Purpose |
+|---|---|
+| `BASE_URL` | API base URL. Defaults to `https://api.ersahinco-sandbox.eu` through the Make target. |
+| `CUSTOMER_ID` | Exact existing customer used for order creation. When unset, the script probes candidates instead. |
+| `CUSTOMER_ID_CANDIDATES` | Comma-separated customer ids to probe when `CUSTOMER_ID` is unset. Defaults to `1..200`. |
+| `ORDER_COUNT` | Number of orders to create. Defaults to `3`; max `20`. |
+| `OBSERVABILITY_CLOUD_JOB_TARGETS` | Comma-separated cloud probe targets. Defaults to `worker,data-export-job,liquibase,prometheus,tempo`. |
+| `OBSERVABILITY_RESTART_QUIET_DAEMONS` | Whether the cloud probe phase force-rolls Prometheus and Tempo. Defaults to `true`. |
+| `BACKFILL_MAX_BATCHES` | Worker probe batch limit. Defaults to `1`. |
+
+To run only the quiet cloud log-group probes:
+
+```bash
+make observability-cloud-jobs
+```
+
+After this target finishes, include the exercised groups in the Loki freshness
+check:
+
+```bash
+LOKI_FRESH_LOG_GROUPS=app,grafana,loki,order-event-consumer,pgbouncer,worker,data-export-job,liquibase,prometheus,tempo \
+LOKI_URL=http://127.0.0.1:3100 \
+make observability-delivery-verify
+```
+
+The traffic job depends on the current API image containing
+`POST /admin/observability-fixture`. For a local workspace build and rollout:
+
+```bash
+make app-build-push
+APP_IMAGE_TAG=<tag printed by app-build-push> make app-roll
+```
 
 ## Optional ECS Grafana Stack
 
@@ -177,19 +351,32 @@ The stack is private inside the VPC. Use the SSM/ECS Exec Grafana tunnel:
 make grafana-tunnel
 ```
 
-Then open `http://localhost:3000`. Do not make Grafana public as the default.
+Then open `http://127.0.0.1:3000`. Do not make Grafana public as the default.
+Use `make loki-tunnel` in a second terminal when running live Loki delivery
+checks from a developer machine. Loki tunneling depends on ECS Exec being
+enabled on the Loki service and `ssmmessages` permissions on the Loki task role;
+run the app Terraform apply after changing this configuration before expecting
+the tunnel to connect.
 
-The same Loki label contract is used locally and in AWS:
+The same Loki label contract is used locally and in AWS. In AWS, `log_group`
+matches the CloudWatch log group name; locally, Promtail maps the Docker Compose
+service to the same `/ecs/aws-sdlc-containers/<service>` shape:
 
 - `stack`: `aws-sdlc-containers`.
 - `environment`: `local` or `aws`.
 - `service`: app or workload name.
 - `container`: container name.
+- `log_group`: CloudWatch-like group name, for example
+  `/ecs/aws-sdlc-containers/app`.
 
 AWS and local LogQL examples:
 
 ```logql
 {stack="aws-sdlc-containers", service="app", container="app"}
+```
+
+```logql
+{stack="aws-sdlc-containers", log_group="/ecs/aws-sdlc-containers/app"}
 ```
 
 ```logql
@@ -207,6 +394,46 @@ AWS and local LogQL examples:
 The Loki and Prometheus datasources are provisioned with Grafana-managed alert
 editing disabled. Alert and ruler endpoints are not part of this sandbox
 contract; use provisioned Prometheus rules and CloudWatch alarms instead.
+
+Use `AWS SDLC Containers / Log Groups` when you want a CloudWatch-like list of
+log groups in Grafana. Select or click a group to view raw logs for that group,
+then use the dashboard's Explore link for deeper Loki search and scroll/load-more
+browsing. This intentionally follows Grafana's native logs UX instead of
+numbered CloudWatch-style pages.
+
+The `log_group` and `container` dashboard variables are explicit expected-value
+lists, not only Loki-discovered labels. This keeps quiet or newly deployed groups
+selectable even before Loki has recent lines for them. The top table still shows
+line counts only for groups that actually produced Loki logs in the selected time
+range; a selectable group with an empty logs panel means delivery or freshness
+needs investigation, not that the group is outside the contract.
+
+After changing FireLens labels or Grafana dashboard JSON, rebuild and push the
+FireLens image with the App Build workflow, deploy with the matching immutable
+`sha-*` image tag, and apply the app Terraform root so the Grafana dashboard S3
+objects are refreshed. Restart or roll the Grafana task after the S3 object
+changes so the config-loader copies the new dashboard JSON into the container.
+Use `make observability-stack-deploy` after Terraform apply to force-roll the
+Grafana, Loki, Prometheus, and Tempo tasks.
+
+For a FireLens-only label/config correction from a developer machine:
+
+```bash
+make firelens-build-push
+FIRELENS_IMAGE_TAG=<tag printed by firelens-build-push> make firelens-roll
+```
+
+`firelens-roll` registers new ECS task definition revisions for app,
+order-event-consumer, Grafana, Loki, Prometheus, Tempo, worker, data-export-job,
+and Liquibase. It updates and waits for the long-running ECS services. Scheduled
+or one-off task families use their new latest active revisions on their next run.
+
+Historical old-schema Loki streams can remain visible until the Loki retention or
+delete path removes the old chunks. CloudWatch stale log streams can be deleted
+with `aws logs delete-log-stream` when they are confirmed dead. Loki label-based
+deletion should use Loki's delete API only after the stack is explicitly
+configured for deletes; do not delete Loki S3 objects by hand because chunk and
+index cleanup must stay consistent.
 
 ## CloudWatch Reduction Rules
 
@@ -240,7 +467,10 @@ default to `true`:
 - Prometheus target is healthy.
 - Grafana dashboard loads from provisioning and includes the readiness-failure
   stat.
-- Loki shows app logs.
+- Grafana `Log Groups` dashboard loads from provisioning, lists Loki
+  `log_group` values, and shows raw logs for the selected group.
+- Loki shows app, PgBouncer, support workload, and observability service logs
+  under CloudWatch-like `log_group` labels.
 - Tempo shows API traces.
 - Prometheus loads local app alert rules.
 - `/metrics` does not change `/health`, `/ready`, request ID propagation, or API

@@ -76,13 +76,6 @@ def _detect_phase(engine: Engine) -> str:
         if col_exists is None:
             return "post_contract"
 
-        contact_table_exists = conn.execute(
-            text(
-                "SELECT 1 FROM information_schema.tables "
-                "WHERE table_name='order_contact_email'"
-            )
-        ).fetchone()
-
         def cfg(key: str) -> str | None:
             row = conn.execute(
                 text("SELECT value FROM app_runtime_config WHERE key=:k"), {"k": key}
@@ -91,12 +84,6 @@ def _detect_phase(engine: Engine) -> str:
 
         write_mode = cfg("WRITE_MODE") or "legacy"
         read_mode = cfg("READ_MODE") or "legacy"
-
-    # If order_contact_email exists but WRITE_MODE is still legacy (row missing or
-    # not yet advanced), the DB is structurally in the dual phase — the expand step
-    # has run. Treat it as dual so phase-gated tests run correctly.
-    if contact_table_exists and write_mode == "legacy":
-        write_mode = "dual"
 
     if write_mode == "legacy":
         return "legacy"

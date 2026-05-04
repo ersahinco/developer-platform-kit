@@ -40,6 +40,46 @@ class _FailingSession:
         raise RuntimeError("database unavailable")
 
 
+class _MappingResult:
+    def __init__(self, row: dict[str, object] | None) -> None:
+        self._row = row
+
+    def mappings(self) -> "_MappingResult":
+        return self
+
+    def first(self) -> dict[str, object] | None:
+        return self._row
+
+    def one(self) -> dict[str, object]:
+        if self._row is None:
+            raise AssertionError("expected one row")
+        return self._row
+
+
+class _ObservabilityFixtureSession:
+    def __init__(self) -> None:
+        self.inserted = False
+        self.commits = 0
+        self.row = {
+            "id": 123,
+            "name": "Observability Smoke Customer",
+            "created_at": datetime.datetime(2026, 4, 29, 12, 0, tzinfo=datetime.UTC),
+        }
+
+    def execute(self, statement: Any, params: dict[str, object]) -> _MappingResult:
+        statement_text = str(statement)
+        assert params["name"] == "Observability Smoke Customer"
+        if statement_text.startswith("SELECT"):
+            return _MappingResult(self.row if self.inserted else None)
+        if statement_text.startswith("INSERT"):
+            self.inserted = True
+            return _MappingResult(self.row)
+        raise AssertionError(f"unexpected statement: {statement_text}")
+
+    def commit(self) -> None:
+        self.commits += 1
+
+
 class _ConfigStore:
     def __init__(self, values: dict[str, str | None]) -> None:
         self._values = values
@@ -257,6 +297,24 @@ def test_ready_reports_unavailable_when_ping_fails() -> None:
         "status": "unready",
         "checks": {"database": "unavailable"},
     }
+
+
+def test_observability_fixture_endpoint_creates_customer_once() -> None:
+    session = _ObservabilityFixtureSession()
+    _override_db(session)
+    try:
+        with TestClient(app) as client:
+            first = client.post("/admin/observability-fixture")
+            second = client.post("/admin/observability-fixture")
+    finally:
+        app.dependency_overrides.clear()
+
+    assert first.status_code == 200
+    assert first.json()["id"] == 123
+    assert first.json()["name"] == "Observability Smoke Customer"
+    assert second.status_code == 200
+    assert second.json()["id"] == 123
+    assert session.commits == 1
 
 
 def test_request_id_header_is_generated_when_absent() -> None:

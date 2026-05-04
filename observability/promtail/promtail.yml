@@ -26,6 +26,10 @@ scrape_configs:
         target_label: service
       - source_labels: ["__meta_docker_container_label_com_docker_compose_service"]
         target_label: container
+      - source_labels: ["__meta_docker_container_label_com_docker_compose_service"]
+        regex: "(.+)"
+        target_label: log_group
+        replacement: "/ecs/aws-sdlc-containers/$1"
       - source_labels: ["__meta_docker_container_name"]
         target_label: docker_container
     pipeline_stages:

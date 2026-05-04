@@ -239,6 +239,15 @@ resource "aws_s3_object" "grafana_app_dashboard" {
   source_hash  = filemd5("${path.module}/../../observability/grafana/dashboards/app-overview.json")
 }
 
+resource "aws_s3_object" "grafana_log_groups_dashboard" {
+  count        = var.enable_observability_stack ? 1 : 0
+  bucket       = aws_s3_bucket.observability[0].id
+  key          = "${local.observability_config_prefix}/grafana/dashboards/log-groups.json"
+  content_type = "application/json"
+  source       = "${path.module}/../../observability/grafana/dashboards/log-groups.json"
+  source_hash  = filemd5("${path.module}/../../observability/grafana/dashboards/log-groups.json")
+}
+
 ################################################################################
 # IAM
 ################################################################################
@@ -433,6 +442,25 @@ resource "aws_iam_role_policy" "grafana_ssm_exec" {
   count = var.enable_observability_stack ? 1 : 0
   name  = "ssm-exec"
   role  = aws_iam_role.grafana[0].id
+  policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [{
+      Effect = "Allow"
+      Action = [
+        "ssmmessages:CreateControlChannel",
+        "ssmmessages:CreateDataChannel",
+        "ssmmessages:OpenControlChannel",
+        "ssmmessages:OpenDataChannel",
+      ]
+      Resource = "*"
+    }]
+  })
+}
+
+resource "aws_iam_role_policy" "loki_ssm_exec" {
+  count = var.enable_observability_stack ? 1 : 0
+  name  = "ssm-exec"
+  role  = aws_iam_role.loki[0].id
   policy = jsonencode({
     Version = "2012-10-17"
     Statement = [{
@@ -783,12 +811,13 @@ resource "aws_ecs_task_definition" "loki" {
 }
 
 resource "aws_ecs_service" "loki" {
-  count           = var.enable_observability_stack ? 1 : 0
-  name            = "loki"
-  cluster         = module.ecs.cluster_arn
-  task_definition = aws_ecs_task_definition.loki[0].arn
-  desired_count   = 1
-  launch_type     = "FARGATE"
+  count                  = var.enable_observability_stack ? 1 : 0
+  name                   = "loki"
+  cluster                = module.ecs.cluster_arn
+  task_definition        = aws_ecs_task_definition.loki[0].arn
+  desired_count          = 1
+  launch_type            = "FARGATE"
+  enable_execute_command = true
 
   deployment_minimum_healthy_percent = 100
   deployment_maximum_percent         = 200
@@ -805,6 +834,7 @@ resource "aws_ecs_service" "loki" {
 
   depends_on = [
     aws_iam_role_policy.loki_s3,
+    aws_iam_role_policy.loki_ssm_exec,
     aws_s3_object.loki_config,
   ]
 
@@ -1021,7 +1051,7 @@ resource "aws_ecs_task_definition" "grafana" {
       essential  = false
       entryPoint = ["sh", "-c"]
       command = [
-        "mkdir -p /provisioning/datasources /provisioning/dashboards /provisioning/alerting /provisioning/plugins /dashboards && printf 'apiVersion: 1\\n' > /provisioning/alerting/empty.yml && printf 'apiVersion: 1\\n' > /provisioning/plugins/empty.yml && aws s3 cp s3://${aws_s3_bucket.observability[0].bucket}/${aws_s3_object.grafana_datasources[0].key} /provisioning/datasources/datasources.yml && aws s3 cp s3://${aws_s3_bucket.observability[0].bucket}/${aws_s3_object.grafana_dashboards_provisioning[0].key} /provisioning/dashboards/dashboards.yml && aws s3 cp s3://${aws_s3_bucket.observability[0].bucket}/${aws_s3_object.grafana_app_dashboard[0].key} /dashboards/app-overview.json",
+        "mkdir -p /provisioning/datasources /provisioning/dashboards /provisioning/alerting /provisioning/plugins /dashboards && printf 'apiVersion: 1\\n' > /provisioning/alerting/empty.yml && printf 'apiVersion: 1\\n' > /provisioning/plugins/empty.yml && aws s3 cp s3://${aws_s3_bucket.observability[0].bucket}/${aws_s3_object.grafana_datasources[0].key} /provisioning/datasources/datasources.yml && aws s3 cp s3://${aws_s3_bucket.observability[0].bucket}/${aws_s3_object.grafana_dashboards_provisioning[0].key} /provisioning/dashboards/dashboards.yml && aws s3 cp s3://${aws_s3_bucket.observability[0].bucket}/${aws_s3_object.grafana_app_dashboard[0].key} /dashboards/app-overview.json && aws s3 cp s3://${aws_s3_bucket.observability[0].bucket}/${aws_s3_object.grafana_log_groups_dashboard[0].key} /dashboards/log-groups.json",
       ]
       mountPoints = [
         { sourceVolume = "grafana-provisioning", containerPath = "/provisioning", readOnly = false },
@@ -1102,6 +1132,7 @@ resource "aws_ecs_service" "grafana" {
     aws_s3_object.grafana_datasources,
     aws_s3_object.grafana_dashboards_provisioning,
     aws_s3_object.grafana_app_dashboard,
+    aws_s3_object.grafana_log_groups_dashboard,
   ]
 
   tags = local.tags

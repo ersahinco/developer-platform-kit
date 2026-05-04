@@ -78,6 +78,8 @@ logging.getLogger("uvicorn.access").addFilter(_SuppressLowValueAccessLogs())
 app = FastAPI(title="aws-sdlc-containers")
 configure_tracing(app=app, engine=engine)
 
+_OBSERVABILITY_FIXTURE_CUSTOMER_NAME = "Observability Smoke Customer"
+
 DbDep = Annotated[Session, Depends(get_db)]
 
 REQUEST_COUNT = Counter(
@@ -227,6 +229,40 @@ def get_customer(customer_id: int, repo: CustomerRepoDep) -> CustomerResponse:
         id=customer.id,
         name=customer.name,
         created_at=customer.created_at,
+    )
+
+
+@app.post("/admin/observability-fixture", response_model=CustomerResponse)
+def ensure_observability_fixture_customer(db: DbDep) -> CustomerResponse:
+    row = (
+        db.execute(
+            text(
+                "SELECT id, name, created_at FROM customers "
+                "WHERE name=:name ORDER BY id LIMIT 1"
+            ),
+            {"name": _OBSERVABILITY_FIXTURE_CUSTOMER_NAME},
+        )
+        .mappings()
+        .first()
+    )
+    if row is None:
+        row = (
+            db.execute(
+                text(
+                    "INSERT INTO customers (name) VALUES (:name) "
+                    "RETURNING id, name, created_at"
+                ),
+                {"name": _OBSERVABILITY_FIXTURE_CUSTOMER_NAME},
+            )
+            .mappings()
+            .one()
+        )
+        db.commit()
+
+    return CustomerResponse(
+        id=row["id"],
+        name=row["name"],
+        created_at=row["created_at"],
     )
 
 
