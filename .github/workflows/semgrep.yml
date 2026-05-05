@@ -34,6 +34,8 @@ jobs:
 
     steps:
       - uses: actions/checkout@v6
+        with:
+          persist-credentials: false
 
       - name: Run Semgrep Community Edition
         run: semgrep scan --config auto apps/ packages/ scripts/
