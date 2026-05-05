@@ -10,7 +10,7 @@ The Dapr-enabled order event consumer service relays `order.created.v1`
 messages from the database outbox to the Dapr `order-events-pubsub` component.
 In AWS, that component publishes to the SNS FIFO topic
 `aws-sdlc-containers-order-created-v1.fifo` and consumes from the SQS FIFO
-subscriber queue `aws-sdlc-containers-order-event-consumer.fifo`, then records
+subscriber queue `aws-sdlc-containers-order-events.fifo`, then records
 deliveries into `order_event_receipts`.
 Each message uses:
 

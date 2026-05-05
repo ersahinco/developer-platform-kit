@@ -6,8 +6,10 @@
 ################################################################################
 
 locals {
-  order_events_topic_name          = "${local.name}-order-created-v1.fifo"
-  order_event_consumer_queue_name  = "${local.name}-order-event-consumer.fifo"
+  order_events_topic_name = "${local.name}-order-created-v1.fifo"
+  # Preserve the pre-Dapr queue name so the Dapr subscriber can adopt the
+  # existing SQS FIFO queue without a destructive replacement.
+  order_event_consumer_queue_name  = "${local.name}-order-events.fifo"
   order_events_runtime_bucket_name = "${local.name}-runtime-config-${local.account_id}"
   order_events_dapr_config_prefix  = "config/dapr/order-events"
 }

@@ -15,7 +15,7 @@ spec:
     - name: region
       value: "eu-central-1"
     - name: consumerID
-      value: "aws-sdlc-containers-order-event-consumer.fifo"
+      value: "aws-sdlc-containers-order-events.fifo"
     - name: fifo
       value: "true"
     - name: fifoMessageGroupID
@@ -25,4 +25,4 @@ spec:
     - name: messageReceiveLimit
       value: "5"
     - name: sqsDeadLettersQueueName
-      value: "aws-sdlc-containers-order-event-consumer-dlq.fifo"
+      value: "aws-sdlc-containers-order-events-dlq.fifo"

@@ -49,6 +49,20 @@ def test_order_events_sns_topic_is_encrypted() -> None:
     assert "kms:ViaService" in workload_jobs
 
 
+def test_order_events_queue_name_is_preserved_for_dapr_adoption() -> None:
+    messaging = _read("infra/app/messaging.tf")
+    local_pubsub = _read("dapr/local/components/order-events-pubsub.yaml")
+    runbook = _read("docs/runbooks/order-event-queue-failure.md")
+    queue_docs = "\n".join([messaging, local_pubsub, runbook])
+
+    assert "${local.name}-order-events.fifo" in messaging
+    assert "aws-sdlc-containers-order-events.fifo" in local_pubsub
+    assert "aws-sdlc-containers-order-events-dlq.fifo" in local_pubsub
+    assert "aws-sdlc-containers-order-events.fifo" in runbook
+    assert "order-event-consumer.fifo" not in queue_docs
+    assert "order-event-consumer-dlq.fifo" not in queue_docs
+
+
 def test_app_build_validates_dapr_and_local_runtime_changes() -> None:
     app_build = _read(".github/workflows/app-build.yml")
 
