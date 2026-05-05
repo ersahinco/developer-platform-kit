@@ -98,10 +98,10 @@ private subnet using the existing helper scripts:
 
 ```bash
 GITHUB_OUTPUT=/tmp/data-export-network.env \
-  scripts/ci_resolve_ecs_network.sh aws-sdlc-containers
+  scripts/ci/ci_resolve_ecs_network.sh aws-sdlc-containers
 source /tmp/data-export-network.env
 
-TASK_ARN=$(scripts/ci_run_ecs_task.sh \
+TASK_ARN=$(scripts/ci/ci_run_ecs_task.sh \
   "$(terraform -chdir=infra/app output -raw ecs_cluster_name)" \
   "aws-sdlc-containers-data-export-job" \
   "$subnet_id" \
@@ -112,7 +112,7 @@ aws ecs wait tasks-stopped \
   --tasks "$TASK_ARN" \
   --region eu-central-1
 
-scripts/ci_assert_ecs_task_succeeded.sh \
+scripts/ci/ci_assert_ecs_task_succeeded.sh \
   "$(terraform -chdir=infra/app output -raw ecs_cluster_name)" \
   "$TASK_ARN" \
   "Data export job"

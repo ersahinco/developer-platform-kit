@@ -111,7 +111,7 @@ jobs:
           uv run pyright
 
       - name: Check shell script syntax
-        run: bash -n scripts/*.sh
+        run: find scripts -name '*.sh' -print0 | xargs -0 bash -n
 
       - name: Init DB schema
         run: |
@@ -132,7 +132,7 @@ jobs:
               update
 
       - name: Seed data
-        run: uv run python scripts/seed_data.py
+        run: uv run python scripts/data/seed_data.py
 
       - name: Start app
         run: |

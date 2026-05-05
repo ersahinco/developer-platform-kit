@@ -76,7 +76,7 @@ jobs:
 
       - name: Resolve network config
         id: net
-        run: scripts/ci_resolve_ecs_network.sh "${{ env.STACK_NAME }}"
+        run: scripts/ci/ci_resolve_ecs_network.sh "${{ env.STACK_NAME }}"
 
       - name: Render liquibase task definition
         id: render-liquibase
@@ -122,17 +122,17 @@ jobs:
 
       - name: Register liquibase task definition
         id: register-liquibase
-        run: scripts/ci_register_ecs_task_definition.sh "${{ steps.render-liquibase.outputs.task-definition }}"
+        run: scripts/ci/ci_register_ecs_task_definition.sh "${{ steps.render-liquibase.outputs.task-definition }}"
 
       - name: Run Liquibase
         run: |
-          TASK_ARN=$(scripts/ci_run_ecs_task.sh \
+          TASK_ARN=$(scripts/ci/ci_run_ecs_task.sh \
             aws-sdlc-containers \
             "${{ steps.register-liquibase.outputs.task_def_arn }}" \
             "${{ steps.net.outputs.subnet_id }}" \
             "${{ steps.net.outputs.sg_id }}")
           aws ecs wait tasks-stopped --cluster aws-sdlc-containers --tasks "$TASK_ARN"
-          scripts/ci_assert_ecs_task_succeeded.sh aws-sdlc-containers "$TASK_ARN" Liquibase
+          scripts/ci/ci_assert_ecs_task_succeeded.sh aws-sdlc-containers "$TASK_ARN" Liquibase
 
   deploy:
     name: Deploy
@@ -180,7 +180,7 @@ jobs:
 
       - name: Resolve network config
         id: net
-        run: scripts/ci_resolve_ecs_network.sh "${{ env.STACK_NAME }}"
+        run: scripts/ci/ci_resolve_ecs_network.sh "${{ env.STACK_NAME }}"
 
       - name: Render app task definition
         id: render-app
@@ -192,13 +192,13 @@ jobs:
 
       - name: Render app FireLens image
         run: |
-          python3 scripts/ci_set_task_container_image.py \
+          python3 scripts/ci/ci_set_task_container_image.py \
             "${{ steps.render-app.outputs.task-definition }}" \
             log-router \
             "${{ env.ECR_REGISTRY }}/${{ env.STACK_NAME }}/firelens:${IMAGE_TAG}"
 
       - name: Deploy app service
-        run: scripts/ci_deploy_ecs_service.sh aws-sdlc-containers app "${{ steps.render-app.outputs.task-definition }}"
+        run: scripts/ci/ci_deploy_ecs_service.sh aws-sdlc-containers app "${{ steps.render-app.outputs.task-definition }}"
 
       - name: Verify deployed app
         env:
@@ -213,7 +213,7 @@ jobs:
             --region ${{ env.AWS_REGION }} \
             --query SecretString \
             --output text)
-          TOKEN="$TOKEN" uv run python scripts/verify_post_deploy.py
+          TOKEN="$TOKEN" uv run python scripts/release/verify_post_deploy.py
 
       - name: Render worker task definition
         id: render-worker
@@ -226,11 +226,11 @@ jobs:
       - name: Register worker task definition
         id: register-worker
         run: |
-          python3 scripts/ci_set_task_container_image.py \
+          python3 scripts/ci/ci_set_task_container_image.py \
             "${{ steps.render-worker.outputs.task-definition }}" \
             log-router \
             "${{ env.ECR_REGISTRY }}/${{ env.STACK_NAME }}/firelens:${IMAGE_TAG}"
-          scripts/ci_register_ecs_task_definition.sh "${{ steps.render-worker.outputs.task-definition }}"
+          scripts/ci/ci_register_ecs_task_definition.sh "${{ steps.render-worker.outputs.task-definition }}"
 
       - name: Render data export task definition
         id: render-data-export
@@ -242,11 +242,11 @@ jobs:
 
       - name: Register data export task definition
         run: |
-          python3 scripts/ci_set_task_container_image.py \
+          python3 scripts/ci/ci_set_task_container_image.py \
             "${{ steps.render-data-export.outputs.task-definition }}" \
             log-router \
             "${{ env.ECR_REGISTRY }}/${{ env.STACK_NAME }}/firelens:${IMAGE_TAG}"
-          scripts/ci_register_ecs_task_definition.sh "${{ steps.render-data-export.outputs.task-definition }}"
+          scripts/ci/ci_register_ecs_task_definition.sh "${{ steps.render-data-export.outputs.task-definition }}"
 
       - name: Render order event consumer task definition
         id: render-order-event-consumer
@@ -258,20 +258,20 @@ jobs:
 
       - name: Deploy order event consumer service
         run: |
-          python3 scripts/ci_set_task_container_image.py \
+          python3 scripts/ci/ci_set_task_container_image.py \
             "${{ steps.render-order-event-consumer.outputs.task-definition }}" \
             log-router \
             "${{ env.ECR_REGISTRY }}/${{ env.STACK_NAME }}/firelens:${IMAGE_TAG}"
-          scripts/ci_deploy_ecs_service.sh aws-sdlc-containers order-event-consumer "${{ steps.render-order-event-consumer.outputs.task-definition }}"
+          scripts/ci/ci_deploy_ecs_service.sh aws-sdlc-containers order-event-consumer "${{ steps.render-order-event-consumer.outputs.task-definition }}"
 
       - name: Run backfill worker
         run: |
-          TASK_ARN=$(scripts/ci_run_ecs_task.sh \
+          TASK_ARN=$(scripts/ci/ci_run_ecs_task.sh \
             aws-sdlc-containers \
             "${{ steps.register-worker.outputs.task_def_arn }}" \
             "${{ steps.net.outputs.subnet_id }}" \
             "${{ steps.net.outputs.sg_id }}")
           echo "Backfill task: $TASK_ARN"
           echo "Monitor: CloudWatch Logs /ecs/aws-sdlc-containers/worker"
-          scripts/ci_poll_ecs_task_until_stopped.sh aws-sdlc-containers "$TASK_ARN" Worker
-          scripts/ci_assert_ecs_task_succeeded.sh aws-sdlc-containers "$TASK_ARN" "Backfill worker"
+          scripts/ci/ci_poll_ecs_task_until_stopped.sh aws-sdlc-containers "$TASK_ARN" Worker
+          scripts/ci/ci_assert_ecs_task_succeeded.sh aws-sdlc-containers "$TASK_ARN" "Backfill worker"

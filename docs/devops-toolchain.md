@@ -16,7 +16,7 @@ This project should demonstrate a complete but lean DevOps toolchain around ECS.
 | Tests | pytest |
 | Python lint/format | ruff |
 | Python type checking | pyright, aligned with Pylance diagnostics |
-| Shell script syntax | `bash -n scripts/*.sh` |
+| Shell script syntax | `find scripts -name '*.sh' -print0 \| xargs -0 bash -n` |
 | Documentation links | lychee |
 | GitHub workflow linting | actionlint |
 | Dockerfile linting | hadolint |
@@ -122,8 +122,8 @@ Keep names boring and ownership-oriented:
 | Apps | `apps/<runtime-entrypoint>/`, for example `api`, `backfill-worker`, `data-export-job`. |
 | Packages | `packages/<library>/` with import names under `aws_sdlc_*`. |
 | Terraform files | Name files by app-owned domain, platform concern, or durable capability layer, such as `edge.tf`, `database.tf`, `compute_ecs.tf`, `messaging.tf`, `object_storage.tf`, `workload_jobs.tf`, `observability.tf`, `network.tf`, and `github_actions.tf`. Keep necessary auxiliary resources next to the capability they support, including IAM policies and monitoring alarms. |
-| CI scripts | `scripts/ci_*` for GitHub Actions/AWS deployment helpers. |
-| Local/operator scripts | Verb-first or domain-first names such as `db_tunnel.sh`, `db_seed_tunnel.sh`, and `seed_data.py`. |
+| CI scripts | `scripts/ci/` for GitHub Actions/AWS deployment helpers. |
+| Local/operator scripts | Verb-first or domain-first helpers under `scripts/operator/`, `scripts/release/`, `scripts/observability/`, and `scripts/data/`. |
 | Local tool entrypoints | Keep conventional root files at root: `compose.yaml`, `pyproject.toml`, `uv.lock`, `Makefile`, and `.dockerignore`. |
 | Local support assets | Put owned support config under the domain folder, for example `observability/`, `db/`, or `.devcontainer/`. |
 

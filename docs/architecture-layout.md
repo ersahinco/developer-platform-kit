@@ -38,8 +38,8 @@ aws-sdlc-containers/
 |   |-- platform/
 |   `-- app/
 |-- observability/           # Portable Prometheus, Loki, Promtail, Grafana assets
-|-- scripts/                 # CI and operator helpers
-|-- tests/                   # Pytest integration and contract checks
+|-- scripts/                 # Grouped CI, release, operator, data, and observability helpers
+|-- tests/                   # Pytest behavior, contract, and script checks
 |-- docs/                    # Canonical docs, runbooks, and drills
 |-- compose.yaml
 |-- Makefile
@@ -201,12 +201,16 @@ Avoid decorative dashboards and metrics that do not drive an action.
 
 ## Scripts
 
-`scripts/` contains two kinds of helpers:
+`scripts/` is grouped by caller and operating context:
 
-- `ci_*`: GitHub Actions helpers for ECS task registration, service deploys,
-  polling, and assertions.
-- Operator/local helpers: `db_tunnel.sh`, `db_exec.sh`, `db_seed_tunnel.sh`,
-  `seed_data.py`, and `verify_post_deploy.py`.
+- `scripts/ci/`: GitHub Actions helpers for ECS task registration, service
+  deploys, polling, image mutation, and assertions.
+- `scripts/operator/`: local/operator tunnels and database access helpers.
+- `scripts/release/`: image build/push, image rollout, and post-deploy
+  verification helpers.
+- `scripts/observability/`: cloud traffic, quiet log-group probes, and delivery
+  verification.
+- `scripts/data/`: local and remote data setup helpers.
 
 Critical rule: scripts should hide awkward shell quoting or AWS CLI plumbing,
 not business policy. If a behavior is important enough to test, put the policy
@@ -215,18 +219,18 @@ in Python or Terraform where it can be checked directly.
 ## Tests
 
 `tests/` is integration-heavy by design because the project demonstrates
-delivery and rollout behavior.
+delivery and rollout behavior. It is grouped by durable behavior area rather
+than mirrored source-file names:
 
-Test ownership:
-
-- API behavior and operational endpoints.
-- Migration phase invariants.
-- Backfill worker idempotency and checkpointing.
-- Data export output and manifest behavior.
-- Database URL/config safety.
-- Order outbox, order events, and consumer behavior.
-- Post-deploy verification script behavior.
-- Schema contract checks.
+- `tests/api/`: API behavior, operational endpoints, telemetry, and runtime
+  mode behavior.
+- `tests/data/`: backfill, export, schema, and database configuration behavior.
+- `tests/domain/`: order submission, outbox, event publishing, and consumer
+  behavior.
+- `tests/contracts/`: static contracts for workflows, infrastructure,
+  dashboards, schemas, and docs.
+- `tests/scripts/`: pragmatic script behavior tests for release and
+  observability helpers.
 
 Critical rule: tests should preserve rollout confidence, not mirror
 implementation files one-to-one. Add tests around contracts, failure modes, and

@@ -83,7 +83,7 @@ migrate: ## Run Liquibase migrations against local DB
 
 .PHONY: seed
 seed: ## Seed local DB with test data
-	uv run python scripts/seed_data.py
+	uv run python scripts/data/seed_data.py
 
 .PHONY: data-export
 data-export: ## Run local data export job into the data_exports Docker volume
@@ -105,7 +105,7 @@ lint-app: ## Lint and type-check Python
 
 .PHONY: lint-scripts
 lint-scripts: ## Syntax-check shell scripts
-	bash -n scripts/*.sh
+	find scripts -name '*.sh' -print0 | xargs -0 bash -n
 
 .PHONY: lint-docs
 lint-docs: ## Check Markdown links
@@ -242,28 +242,28 @@ post-deploy-verify: ## Verify deployed app readiness, metrics, modes, and ECS im
 	ECS_CLUSTER="$${ECS_CLUSTER:-aws-sdlc-containers}" \
 	ECS_SERVICE="$${ECS_SERVICE:-app}" \
 	EXPECTED_TASK_FAMILY="$${EXPECTED_TASK_FAMILY:-aws-sdlc-containers}" \
-	uv run python scripts/verify_post_deploy.py
+	uv run python scripts/release/verify_post_deploy.py
 
 .PHONY: observability-delivery-verify
 observability-delivery-verify: ## Verify CloudWatch/Loki log delivery inventory and freshness
 	@AWS_REGION="$(AWS_REGION)" \
 	STACK_NAME="aws-sdlc-containers" \
-	uv run python scripts/verify_observability_delivery.py
+	uv run python scripts/observability/verify_observability_delivery.py
 
 .PHONY: observability-cloud-traffic
 observability-cloud-traffic: ## Generate live API traffic and small cloud probes for Grafana/CloudWatch observation
 	@AWS_REGION="$(AWS_REGION)" \
 	BASE_URL="$${BASE_URL:-https://api.$(ROOT_DOMAIN)}" \
-	uv run python scripts/generate_cloud_traffic.py
+	uv run python scripts/observability/generate_cloud_traffic.py
 	@AWS_REGION="$(AWS_REGION)" \
 	STACK_NAME="aws-sdlc-containers" \
-	uv run python scripts/run_observability_cloud_jobs.py
+	uv run python scripts/observability/run_observability_cloud_jobs.py
 
 .PHONY: observability-cloud-jobs
 observability-cloud-jobs: ## Run only the small cloud probes for quiet observability log groups
 	@AWS_REGION="$(AWS_REGION)" \
 	STACK_NAME="aws-sdlc-containers" \
-	uv run python scripts/run_observability_cloud_jobs.py
+	uv run python scripts/observability/run_observability_cloud_jobs.py
 
 .PHONY: observability-stack-deploy
 observability-stack-deploy: ## Force new deployment of Grafana, Loki, Prometheus, and Tempo services
@@ -283,28 +283,28 @@ firelens-build-push: ## Build and push FireLens image with current Fluent Bit co
 	@AWS_REGION="$(AWS_REGION)" \
 	ACCOUNT_ID="$(ACCOUNT_ID)" \
 	STACK_NAME="aws-sdlc-containers" \
-	uv run python scripts/build_push_firelens.py
+	uv run python scripts/release/build_push_firelens.py
 
 .PHONY: firelens-roll
 firelens-roll: ## Register and roll ECS task definitions to FIRELENS_IMAGE_TAG or FIRELENS_IMAGE
 	@AWS_REGION="$(AWS_REGION)" \
 	ACCOUNT_ID="$(ACCOUNT_ID)" \
 	STACK_NAME="aws-sdlc-containers" \
-	uv run python scripts/roll_firelens_image.py
+	uv run python scripts/release/roll_firelens_image.py
 
 .PHONY: app-build-push
 app-build-push: ## Build and push API image from the current workspace
 	@AWS_REGION="$(AWS_REGION)" \
 	ACCOUNT_ID="$(ACCOUNT_ID)" \
 	STACK_NAME="aws-sdlc-containers" \
-	uv run python scripts/build_push_app.py
+	uv run python scripts/release/build_push_app.py
 
 .PHONY: app-roll
 app-roll: ## Register and roll ECS app service to APP_IMAGE_TAG or APP_IMAGE
 	@AWS_REGION="$(AWS_REGION)" \
 	ACCOUNT_ID="$(ACCOUNT_ID)" \
 	STACK_NAME="aws-sdlc-containers" \
-	uv run python scripts/roll_app_image.py
+	uv run python scripts/release/roll_app_image.py
 
 # ── DB access — no bastion needed ─────────────────────────────────────────────
 #
@@ -323,23 +323,23 @@ SEED_NUM_ORDERS    ?= 10000
 
 .PHONY: db-tunnel
 db-tunnel: ## SSM port-forward localhost:$(LOCAL_PORT) → RDS:5432
-	@bash scripts/db_tunnel.sh $(LOCAL_PORT) $(AWS_REGION)
+	@bash scripts/operator/db_tunnel.sh $(LOCAL_PORT) $(AWS_REGION)
 
 .PHONY: grafana-tunnel
 grafana-tunnel: ## SSM port-forward localhost:$(GRAFANA_LOCAL_PORT) → private Grafana:3000
-	@bash scripts/grafana_tunnel.sh $(GRAFANA_LOCAL_PORT) $(AWS_REGION)
+	@bash scripts/operator/grafana_tunnel.sh $(GRAFANA_LOCAL_PORT) $(AWS_REGION)
 
 .PHONY: loki-tunnel
 loki-tunnel: ## SSM port-forward localhost:$(LOKI_LOCAL_PORT) → private Loki:3100
-	@bash scripts/loki_tunnel.sh $(LOKI_LOCAL_PORT) $(AWS_REGION)
+	@bash scripts/operator/loki_tunnel.sh $(LOKI_LOCAL_PORT) $(AWS_REGION)
 
 .PHONY: db-exec
 db-exec: ## Open psql inside a running app task
-	@bash scripts/db_exec.sh $(AWS_REGION)
+	@bash scripts/operator/db_exec.sh $(AWS_REGION)
 
 .PHONY: db-seed
 db-seed: ## Seed DB via SSM tunnel  (SEED_NUM_CUSTOMERS=1000, SEED_NUM_ORDERS=10000)
-	@bash scripts/db_seed_tunnel.sh $(SEED_NUM_CUSTOMERS) $(SEED_NUM_ORDERS) $(AWS_REGION)
+	@bash scripts/operator/db_seed_tunnel.sh $(SEED_NUM_CUSTOMERS) $(SEED_NUM_ORDERS) $(AWS_REGION)
 
 # ── API smoke query ───────────────────────────────────────────────────────────
 #

@@ -1,0 +1,1 @@
+"""Domain behavior tests."""

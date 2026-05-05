@@ -52,9 +52,9 @@ practical; Grafana should not depend on CloudWatch queries to be useful.
 
 CloudWatch Logs are intentionally limited to the stack-scoped
 `/ecs/aws-sdlc-containers/*` groups below. These names are part of the Terraform
-contract and are tested by `tests/test_observability_contract.py`; a log group
-with the same prefix that is not listed here should be treated as stale until
-proven otherwise.
+contract and are tested by `tests/contracts/test_observability_contract.py`; a
+log group with the same prefix that is not listed here should be treated as
+stale until proven otherwise.
 
 Grafana does not read CloudWatch log groups directly. The equivalent Grafana
 experience is backed by Loki labels: FireLens adds a `log_group` label whose
@@ -196,7 +196,8 @@ from that service for the order event worker outcomes panel.
 
 ## Delivery Tests
 
-Static CI coverage lives in `tests/test_observability_contract.py` and checks:
+Static CI coverage lives in `tests/contracts/test_observability_contract.py`
+and checks:
 
 - Every expected workload and observability service has both a CloudWatch Logs
   and Loki FireLens output with a CloudWatch-mirroring `log_group` label.
@@ -208,6 +209,11 @@ Static CI coverage lives in `tests/test_observability_contract.py` and checks:
   dashboard path as `App Overview`.
 - API traces point at Tempo and no X-Ray path is configured.
 - Prometheus scrapes the app plus Prometheus, Loki, and Tempo runtime metrics.
+
+Helper-script behavior is covered in
+`tests/scripts/test_observability_scripts.py`, keeping AWS/Loki client fakes and
+bounded cloud-probe behavior separate from static Terraform/dashboard
+contracts.
 
 Live delivery verification is available after deployment:
 

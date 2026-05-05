@@ -162,7 +162,7 @@ This creates the bootstrap schema, the runtime config table, and the expanded
 ```bash
 uv sync --all-packages
 export DATABASE_URL=postgresql://postgres:postgres@localhost:5432/aws_sdlc_containers
-uv run python scripts/seed_data.py
+uv run python scripts/data/seed_data.py
 ```
 
 The seed command is idempotent. By default it inserts 1000 customers and 10000

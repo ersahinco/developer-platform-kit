@@ -76,8 +76,8 @@ aws-sdlc-containers/
 |-- infra/
 |   |-- platform/        # VPC, endpoints, Route 53 lookup, GitHub OIDC/CI IAM
 |   `-- app/             # ECS, RDS, ALB, ECR, S3, SQS, jobs, observability
-|-- scripts/             # Local and CI helper scripts
-|-- tests/               # Pytest integration tests
+|-- scripts/             # CI, release, operator, observability, and data helpers
+|-- tests/               # API, data, domain, contract, and script tests
 |-- docs/                # Roadmaps, guides, runbooks, and drills
 |-- observability/       # Shared local/AWS Grafana, Loki, Tempo, and Prometheus assets
 |-- .github/workflows/   # App and infra workflows
