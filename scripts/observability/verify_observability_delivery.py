@@ -64,7 +64,6 @@ DEFAULT_FRESH_LOG_GROUP_SUFFIXES = [
 
 DEFAULT_FRESH_LOKI_LOG_GROUP_SUFFIXES = [
     "app",
-    "grafana",
     "loki",
 ]
 

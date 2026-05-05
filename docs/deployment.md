@@ -302,6 +302,7 @@ make app-deploy
 make post-deploy-verify
 make db-tunnel
 make grafana-tunnel
+make loki-tunnel
 make db-exec
 make db-seed
 make api-get-order ORDER_ID=1
@@ -331,6 +332,24 @@ make grafana-tunnel
 
 Then open `http://localhost:3000` and use the Grafana admin secret configured
 for the stack.
+
+To smoke-test app-layer observability, keep the Grafana tunnel running, then in
+another terminal run:
+
+```bash
+make observability-cloud-traffic
+```
+
+Use the `AWS SDLC Containers / App Overview` dashboard for Prometheus metrics,
+`AWS SDLC Containers / Log Groups` for Loki logs, and the `Tempo` datasource in
+Explore for traces from service `aws-sdlc-containers-api`.
+
+For live Loki delivery verification from a developer machine:
+
+```bash
+make loki-tunnel
+LOKI_URL=http://127.0.0.1:3100 make observability-delivery-verify
+```
 
 ## Failure recovery
 

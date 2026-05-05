@@ -106,6 +106,48 @@ def test_delivery_verifier_checks_loki_log_group_labels_and_fresh_logs(
     assert all(result.ok for result in results)
 
 
+def test_delivery_verifier_default_loki_freshness_skips_quiet_grafana(
+    monkeypatch,
+) -> None:
+    expected_groups = delivery._expected_loki_log_group_names("aws-sdlc-containers")
+    queried_log_groups: list[str] = []
+
+    class FakeResponse:
+        status_code = 200
+
+        def __init__(self, payload: dict[str, Any]) -> None:
+            self._payload = payload
+
+        def json(self) -> dict[str, Any]:
+            return self._payload
+
+    def fake_get(url: str, **kwargs: object) -> FakeResponse:
+        if url.endswith("/loki/api/v1/series"):
+            return FakeResponse(
+                {"data": [{"log_group": log_group} for log_group in expected_groups]}
+            )
+        if url.endswith("/loki/api/v1/query_range"):
+            params = kwargs["params"]
+            assert isinstance(params, dict)
+            query = str(params["query"])
+            queried_log_groups.append(query)
+            return FakeResponse({"data": {"result": [{"stream": {}, "values": []}]}})
+        raise AssertionError(f"unexpected Loki URL: {url}")
+
+    monkeypatch.setattr(delivery.httpx, "get", fake_get)
+    monkeypatch.delenv("LOKI_FRESH_LOG_GROUPS", raising=False)
+    monkeypatch.setenv("LOKI_URL", "http://127.0.0.1:3100")
+
+    results = delivery._check_loki_delivery("aws-sdlc-containers")
+
+    assert all(result.ok for result in results)
+    assert any("/ecs/aws-sdlc-containers/app" in item for item in queried_log_groups)
+    assert any("/ecs/aws-sdlc-containers/loki" in item for item in queried_log_groups)
+    assert not any(
+        "/ecs/aws-sdlc-containers/grafana" in item for item in queried_log_groups
+    )
+
+
 def test_delivery_verifier_flags_old_loki_schema_without_log_group(
     monkeypatch,
 ) -> None:
@@ -364,3 +406,48 @@ def test_cloud_job_probe_runs_selected_targets(monkeypatch) -> None:
 
     assert all(result.ok for result in results)
     assert calls == [("batch", "worker"), ("service", "prometheus")]
+
+
+def test_cloud_job_waiter_finishes_when_container_exit_code_is_available(
+    monkeypatch,
+) -> None:
+    calls = 0
+
+    def fake_aws_json(args: list[str], region: str) -> dict[str, Any]:
+        nonlocal calls
+        calls += 1
+        assert args[:2] == ["ecs", "describe-tasks"]
+        return {
+            "tasks": [
+                {
+                    "lastStatus": "DEPROVISIONING",
+                    "desiredStatus": "STOPPED",
+                    "containers": [
+                        {
+                            "name": "liquibase",
+                            "lastStatus": "STOPPED",
+                            "exitCode": 0,
+                        }
+                    ],
+                }
+            ]
+        }
+
+    monkeypatch.setattr(cloud_jobs, "_aws_json", fake_aws_json)
+    monkeypatch.setattr(
+        cloud_jobs.time,
+        "sleep",
+        lambda seconds: (_ for _ in ()).throw(
+            AssertionError("waiter slept after exit code was available")
+        ),
+    )
+
+    cloud_jobs._wait_task_finished(
+        "cluster",
+        "arn:aws:ecs:region:acct:task/cluster/123",
+        "liquibase",
+        "eu-central-1",
+        "liquibase",
+    )
+
+    assert calls == 1

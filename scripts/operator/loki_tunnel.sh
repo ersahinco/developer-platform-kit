@@ -6,7 +6,9 @@ set -euo pipefail
 LOCAL_PORT=${1:-3100}
 AWS_REGION=${2:-eu-central-1}
 
-cd "20 20 12 61 80 33 98 100 204 250 395 398 399 400 701dirname "-e")/../.."
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+ROOT_DIR="$(cd "${SCRIPT_DIR}/../.." && pwd)"
+cd "$ROOT_DIR"
 
 cd infra/app
 terraform init \

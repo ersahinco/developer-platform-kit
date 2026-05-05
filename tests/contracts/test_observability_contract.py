@@ -134,6 +134,23 @@ def test_loki_tunnel_has_ecs_exec_support() -> None:
     assert "aws_iam_role_policy.loki_ssm_exec" in loki_service
 
 
+def test_operator_scripts_resolve_repo_root_from_script_path() -> None:
+    for path in [
+        "scripts/operator/db_exec.sh",
+        "scripts/operator/db_seed_tunnel.sh",
+        "scripts/operator/db_tunnel.sh",
+        "scripts/operator/grafana_tunnel.sh",
+        "scripts/operator/loki_tunnel.sh",
+    ]:
+        script = _read(path)
+
+        assert 'SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"' in script
+        assert 'ROOT_DIR="$(cd "${SCRIPT_DIR}/../.." && pwd)"' in script
+        assert 'cd "$ROOT_DIR"' in script
+        assert "20 20 12" not in script
+        assert 'dirname "-e"' not in script
+
+
 def test_cloud_changing_release_paths_stay_in_reviewed_workflows() -> None:
     makefile = _read("Makefile")
     docs = _read("docs/observability.md")

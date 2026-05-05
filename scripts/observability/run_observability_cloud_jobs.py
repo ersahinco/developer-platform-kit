@@ -11,6 +11,8 @@ Environment:
     OBSERVABILITY_CLOUD_JOB_TARGETS    Default: worker,data-export-job,liquibase,prometheus,tempo
     OBSERVABILITY_RESTART_QUIET_DAEMONS
                                        Default: true
+    OBSERVABILITY_TASK_WAIT_TIMEOUT_SECONDS
+                                       Default: 300
     BACKFILL_MAX_BATCHES               Default: 1 for the worker probe
 """
 
@@ -165,17 +167,56 @@ def _run_task(
     return task_arn
 
 
-def _wait_task_stopped(cluster: str, task_arn: str, region: str, label: str) -> None:
+def _wait_task_finished(
+    cluster: str,
+    task_arn: str,
+    container_name: str,
+    region: str,
+    label: str,
+) -> None:
+    deadline = time.monotonic() + int(
+        os.environ.get("OBSERVABILITY_TASK_WAIT_TIMEOUT_SECONDS", "300")
+    )
+
     while True:
         response = _aws_json(
             ["ecs", "describe-tasks", "--cluster", cluster, "--tasks", task_arn],
             region,
         )
         tasks = response.get("tasks", [])
-        status = tasks[0].get("lastStatus") if tasks else None
-        if status == "STOPPED":
+        task = tasks[0] if tasks else {}
+        status = task.get("lastStatus")
+        desired_status = task.get("desiredStatus")
+        container = next(
+            (
+                item
+                for item in task.get("containers", [])
+                if isinstance(item, dict) and item.get("name") == container_name
+            ),
+            {},
+        )
+        container_status = container.get("lastStatus")
+        exit_code = container.get("exitCode")
+
+        if (
+            status == "STOPPED"
+            or exit_code is not None
+            or container_status == "STOPPED"
+        ):
             return
-        print(f"{label} status={status}; waiting", flush=True)
+
+        if time.monotonic() >= deadline:
+            raise TimeoutError(
+                f"{label} did not finish before timeout; "
+                f"task_status={status!r} desired_status={desired_status!r} "
+                f"container_status={container_status!r} task={task_arn}"
+            )
+
+        print(
+            f"{label} status={status} desired={desired_status} "
+            f"container={container_status}; waiting",
+            flush=True,
+        )
         time.sleep(10)
 
 
@@ -278,7 +319,7 @@ def _run_batch_target(
         region=region,
         overrides=overrides_by_target[target](),
     )
-    _wait_task_stopped(cluster, task_arn, region, target)
+    _wait_task_finished(cluster, task_arn, target, region, target)
     return _container_exit_result(cluster, task_arn, target, region)
 
 

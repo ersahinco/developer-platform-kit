@@ -241,7 +241,7 @@ Useful overrides:
 | `CLOUDWATCH_FRESH_LOG_GROUPS` | Comma-separated suffixes to freshness-check, for example `app,pgbouncer,order-event-consumer`. |
 | `LOKI_URL` | Enables Loki `log_group` inventory and delivery checks through `/loki/api/v1/series` and `/loki/api/v1/query_range`. |
 | `LOKI_LABEL_LOOKBACK_SECONDS` | Lookback window for expected Loki `log_group` labels. Defaults to `2592000`. |
-| `LOKI_FRESH_LOG_GROUPS` | Comma-separated log-group suffixes to freshness-check in Loki. Defaults to `app,grafana,loki`; add quiet or batch groups after generating representative traffic for them. |
+| `LOKI_FRESH_LOG_GROUPS` | Comma-separated log-group suffixes to freshness-check in Loki. Defaults to `app,loki`; add quiet or batch groups after generating representative traffic for them. |
 
 Loki label values are observed from existing streams, not declared like
 CloudWatch log groups. A quiet service may be selectable in the Grafana Log
@@ -294,6 +294,7 @@ Useful overrides:
 | `ORDER_COUNT` | Number of orders to create. Defaults to `3`; max `20`. |
 | `OBSERVABILITY_CLOUD_JOB_TARGETS` | Comma-separated cloud probe targets. Defaults to `worker,data-export-job,liquibase,prometheus,tempo`. |
 | `OBSERVABILITY_RESTART_QUIET_DAEMONS` | Whether the cloud probe phase force-rolls Prometheus and Tempo. Defaults to `true`. |
+| `OBSERVABILITY_TASK_WAIT_TIMEOUT_SECONDS` | Max wait for each one-off ECS probe task. Defaults to `300`. |
 | `BACKFILL_MAX_BATCHES` | Worker probe batch limit. Defaults to `1`. |
 
 To run only the quiet cloud log-group probes:
@@ -303,10 +304,11 @@ make observability-cloud-jobs
 ```
 
 After this target finishes, include the exercised groups in the Loki freshness
-check:
+check. Keep `grafana` out unless you have just rolled or otherwise exercised the
+Grafana service; it can be legitimately quiet in Loki.
 
 ```bash
-LOKI_FRESH_LOG_GROUPS=app,grafana,loki,order-event-consumer,pgbouncer,worker,data-export-job,liquibase,prometheus,tempo \
+LOKI_FRESH_LOG_GROUPS=app,loki,order-event-consumer,pgbouncer,worker,data-export-job,liquibase,prometheus,tempo \
 LOKI_URL=http://127.0.0.1:3100 \
 make observability-delivery-verify
 ```
@@ -357,6 +359,79 @@ checks from a developer machine. Loki tunneling depends on ECS Exec being
 enabled on the Loki service and `ssmmessages` permissions on the Loki task role;
 run the app Terraform apply after changing this configuration before expecting
 the tunnel to connect.
+
+### ECS App-Layer Smoke
+
+Use this flow after a deploy when you want to prove the application layer is
+emitting useful logs, metrics, and traces into the private ECS Grafana stack.
+
+1. Verify the deployed app surface first:
+
+   ```bash
+   make post-deploy-verify
+   ```
+
+2. Open Grafana through the private ECS Exec tunnel:
+
+   ```bash
+   make grafana-tunnel
+   ```
+
+   Keep that command running and open `http://127.0.0.1:3000`.
+
+3. Generate representative app-layer traffic:
+
+   ```bash
+   make observability-cloud-traffic
+   ```
+
+   This exercises `/ready`, admin mode reads, customer lookup, order creation,
+   order readback, a controlled order 404, `/metrics`, the order event consumer,
+   and bounded one-off workload probes.
+
+4. In Grafana, use `AWS SDLC Containers / App Overview` for Prometheus-backed
+   app metrics. The request rate, latency, readiness, and order-event panels
+   should move within the dashboard refresh window.
+
+5. Use `AWS SDLC Containers / Log Groups` for Loki-backed logs. Start with
+   `/ecs/aws-sdlc-containers/app`, then check
+   `/ecs/aws-sdlc-containers/order-event-consumer` after order traffic has had
+   time to relay and consume. Use Explore for ad hoc LogQL:
+
+   ```logql
+   {stack="aws-sdlc-containers", log_group="/ecs/aws-sdlc-containers/app"}
+   ```
+
+   ```logql
+   {stack="aws-sdlc-containers", service="app"} |~ "(?i)error|exception|failed"
+   ```
+
+6. Use the `Tempo` datasource in Grafana Explore to search for service
+   `aws-sdlc-containers-api`. `/ready`, admin endpoints, order requests, and
+   SQLAlchemy spans should appear when `OTEL_TRACES_ENABLED=true` is deployed.
+   `/health` and `/metrics` are intentionally excluded from tracing by default.
+
+7. For a machine-readable delivery check, open the Loki tunnel in a second
+   terminal and run the verifier:
+
+   ```bash
+   make loki-tunnel
+   ```
+
+   ```bash
+   LOKI_URL=http://127.0.0.1:3100 make observability-delivery-verify
+   ```
+
+For deeper freshness checks after `make observability-cloud-traffic`, include
+the quiet groups that the traffic helper exercised. Keep `grafana` out unless
+you have just rolled or otherwise exercised the Grafana service; it can be
+legitimately quiet in Loki.
+
+```bash
+LOKI_FRESH_LOG_GROUPS=app,loki,order-event-consumer,pgbouncer,worker,data-export-job,liquibase,prometheus,tempo \
+LOKI_URL=http://127.0.0.1:3100 \
+make observability-delivery-verify
+```
 
 The same Loki label contract is used locally and in AWS. In AWS, `log_group`
 matches the CloudWatch log group name; locally, Promtail maps the Docker Compose

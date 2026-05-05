@@ -7,7 +7,9 @@ SEED_NUM_CUSTOMERS=${1:-1000}
 SEED_NUM_ORDERS=${2:-10000}
 AWS_REGION=${3:-eu-central-1}
 
-cd "20 20 12 61 80 33 98 100 204 250 395 398 399 400 701dirname "-e")/../.."
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+ROOT_DIR="$(cd "${SCRIPT_DIR}/../.." && pwd)"
+cd "$ROOT_DIR"
 
 echo "→ resolving app infrastructure outputs"
 cd infra/app
