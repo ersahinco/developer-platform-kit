@@ -116,6 +116,68 @@ services:
     profiles:
       - data
 
+  localstack:
+    image: localstack/localstack:4.10.0
+    environment:
+      SERVICES: "sts,sns,sqs"
+      AWS_DEFAULT_REGION: ${AWS_REGION:-eu-central-1}
+    ports:
+      - "${LOCALSTACK_PORT:-4566}:4566"
+    profiles:
+      - dapr
+
+  order-event-consumer:
+    build:
+      context: .
+      dockerfile: apps/order-event-consumer/Dockerfile
+    environment:
+      DB_HOST: db
+      DB_PORT: 5432
+      DB_USER: ${POSTGRES_USER:-postgres}
+      DB_PASSWORD: ${POSTGRES_PASSWORD:-postgres}
+      DB_NAME: ${POSTGRES_DB:-aws_sdlc_containers}
+      DAPR_HTTP_ENDPOINT: http://order-event-consumer-dapr:3500
+      ORDER_EVENTS_APP_PORT: 8081
+      ORDER_EVENTS_WORKER_MODE: both
+      ORDER_EVENTS_PUBSUB_NAME: order-events-pubsub
+      ORDER_EVENTS_TOPIC: order-created-v1.fifo
+    depends_on:
+      db:
+        condition: service_healthy
+      localstack:
+        condition: service_started
+    profiles:
+      - dapr
+
+  order-event-consumer-dapr:
+    image: daprio/daprd:1.17.0
+    command:
+      - ./daprd
+      - --app-id
+      - order-event-consumer
+      - --app-port
+      - "8081"
+      - --app-channel-address
+      - order-event-consumer
+      - --dapr-http-port
+      - "3500"
+      - --components-path
+      - /components
+      - --config
+      - /config/config.yaml
+    volumes:
+      - ./dapr/local/components:/components:ro
+      - ./dapr/local/config.yaml:/config/config.yaml:ro
+    ports:
+      - "${DAPR_HTTP_PORT:-3500}:3500"
+    depends_on:
+      order-event-consumer:
+        condition: service_started
+      localstack:
+        condition: service_started
+    profiles:
+      - dapr
+
   pgadmin:
     image: dpage/pgadmin4:9.14.0
     environment:

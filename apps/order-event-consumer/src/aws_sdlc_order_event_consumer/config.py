@@ -17,14 +17,15 @@ class Settings(BaseSettings):
     db_port: int = 5432
     db_name: str = "aws_sdlc_containers"
 
-    order_events_queue_url: str | None = None
     order_events_worker_mode: Literal["relay", "consumer", "both"] = "both"
     order_events_worker_run_once: bool = False
     order_events_relay_batch_size: int = 10
-    order_events_receive_max_messages: int = 10
-    order_events_receive_wait_seconds: int = 10
-    order_events_visibility_timeout_seconds: int = 60
     order_events_idle_sleep_seconds: float = 1.0
+    order_events_pubsub_name: str = "order-events-pubsub"
+    order_events_topic: str = "order-created-v1.fifo"
+    order_events_app_port: int = 8081
+    dapr_http_port: int = 3500
+    dapr_http_endpoint: str | None = None
 
     @model_validator(mode="after")
     def compose_database_url(self) -> "Settings":
@@ -39,10 +40,11 @@ class Settings(BaseSettings):
         return self
 
     @property
-    def required_queue_url(self) -> str:
-        if self.order_events_queue_url is None:
-            raise ValueError("ORDER_EVENTS_QUEUE_URL must be set")
-        return self.order_events_queue_url
+    def dapr_publish_endpoint(self) -> str:
+        endpoint = self.dapr_http_endpoint
+        if endpoint is None:
+            endpoint = f"http://localhost:{self.dapr_http_port}"
+        return endpoint.rstrip("/")
 
 
 settings = Settings()

@@ -6,7 +6,7 @@ Terraform is organized by lifecycle boundary:
   lifecycle: VPC networking, VPC endpoints, Route 53/account lookups, and the
   GitHub Actions OIDC role plus CI IAM policies.
 - `app/` owns workload resources: RDS, ECS compute, ECR repositories, ALB/API
-  edge, S3 data hub, scheduled jobs, SQS queues, app IAM, CloudWatch app
+  edge, S3 data hub, scheduled jobs, Dapr-backed SNS/SQS queues, app IAM, CloudWatch app
   alarms, and optional Grafana/Loki/Prometheus observability.
 
 There is no Terraform root directly in `infra/` anymore. The old single-root

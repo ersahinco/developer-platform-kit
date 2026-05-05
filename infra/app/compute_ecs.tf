@@ -1,5 +1,5 @@
 ################################################################################
-# App compute — core repositories and ECS service
+# App compute — ECR repositories and ECS service
 ################################################################################
 
 ################################################################################
@@ -266,9 +266,7 @@ module "ecs" {
             { name = "DB_PASSWORD", valueFrom = "${module.rds.db_instance_master_user_secret_arn}:password::" },
           ]
 
-          environment = concat([
-            { name = "ORDER_EVENTS_QUEUE_URL", value = aws_sqs_queue.order_events.url },
-            ], var.enable_observability_stack ? [
+          environment = concat([], var.enable_observability_stack ? [
             { name = "OTEL_TRACES_ENABLED", value = "true" },
             { name = "OTEL_EXPORTER_OTLP_TRACES_ENDPOINT", value = "http://tempo.${local.observability_dns_namespace}:4318/v1/traces" },
             { name = "OTEL_SERVICE_NAME", value = "aws-sdlc-containers-api" },

@@ -3,9 +3,9 @@ name = "aws-sdlc-containers-api"
 version = "0.1.0"
 requires-python = ">=3.14"
 dependencies = [
-    "aws-sdlc-containers-adapters",
-    "aws-sdlc-containers-core",
-    "boto3>=1.34.0",
+    "aws-sdlc-containers-application",
+    "aws-sdlc-containers-infrastructure",
+    "aws-sdlc-containers-domain",
     "email-validator>=2.2.0",
     "fastapi>=0.111.0",
     "uvicorn[standard]>=0.29.0",

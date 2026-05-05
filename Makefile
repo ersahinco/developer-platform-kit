@@ -9,6 +9,7 @@
 #   make help                — list all targets
 #   make dev                 — start local Postgres + PgBouncer
 #   make local-up            — build/start app + local observability
+#   make dapr-up             — build/start local Dapr order event runtime
 #   make test                — run test suite
 #   make lint                — run all linters (app + infra)
 #   make fmt                 — auto-format everything
@@ -65,13 +66,19 @@ local-up: ## Build/start local app + Prometheus + Loki + Promtail + Grafana
 	OTEL_TRACES_ENABLED=true docker compose --profile observability up -d db pgbouncer app prometheus loki tempo promtail grafana
 	docker compose --profile observability ps
 
+.PHONY: dapr-up
+dapr-up: ## Build/start local Dapr order event runtime with LocalStack SNS/SQS
+	docker compose build order-event-consumer
+	docker compose --profile dapr up -d db localstack order-event-consumer order-event-consumer-dapr
+	docker compose --profile dapr ps
+
 .PHONY: local-down
 local-down: ## Stop local app and observability services without deleting volumes
-	docker compose --profile observability stop app prometheus loki tempo promtail grafana
+	docker compose --profile observability --profile dapr stop app prometheus loki tempo promtail grafana order-event-consumer order-event-consumer-dapr localstack
 
 .PHONY: local-reset
 local-reset: ## Stop all local services and delete Compose volumes
-	docker compose --profile observability --profile tools --profile migration --profile data down -v --remove-orphans
+	docker compose --profile observability --profile tools --profile migration --profile data --profile dapr down -v --remove-orphans
 
 .PHONY: observability-stop
 observability-stop: ## Stop local observability services
@@ -277,34 +284,6 @@ observability-stack-deploy: ## Force new deployment of Grafana, Loki, Prometheus
 			--query 'service.taskDefinition' \
 			--output text; \
 	done
-
-.PHONY: firelens-build-push
-firelens-build-push: ## Build and push FireLens image with current Fluent Bit config
-	@AWS_REGION="$(AWS_REGION)" \
-	ACCOUNT_ID="$(ACCOUNT_ID)" \
-	STACK_NAME="aws-sdlc-containers" \
-	uv run python scripts/release/build_push_firelens.py
-
-.PHONY: firelens-roll
-firelens-roll: ## Register and roll ECS task definitions to FIRELENS_IMAGE_TAG or FIRELENS_IMAGE
-	@AWS_REGION="$(AWS_REGION)" \
-	ACCOUNT_ID="$(ACCOUNT_ID)" \
-	STACK_NAME="aws-sdlc-containers" \
-	uv run python scripts/release/roll_firelens_image.py
-
-.PHONY: app-build-push
-app-build-push: ## Build and push API image from the current workspace
-	@AWS_REGION="$(AWS_REGION)" \
-	ACCOUNT_ID="$(ACCOUNT_ID)" \
-	STACK_NAME="aws-sdlc-containers" \
-	uv run python scripts/release/build_push_app.py
-
-.PHONY: app-roll
-app-roll: ## Register and roll ECS app service to APP_IMAGE_TAG or APP_IMAGE
-	@AWS_REGION="$(AWS_REGION)" \
-	ACCOUNT_ID="$(ACCOUNT_ID)" \
-	STACK_NAME="aws-sdlc-containers" \
-	uv run python scripts/release/roll_app_image.py
 
 # ── DB access — no bastion needed ─────────────────────────────────────────────
 #

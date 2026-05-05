@@ -14,6 +14,8 @@ on:
       - "apps/backfill-worker/**"
       - "apps/data-export-job/**"
       - "apps/order-event-consumer/**"
+      - "compose.yaml"
+      - "dapr/**"
       - "observability/firelens/**"
       - "packages/**"
       - "pyproject.toml"
@@ -29,6 +31,8 @@ on:
       - "apps/backfill-worker/**"
       - "apps/data-export-job/**"
       - "apps/order-event-consumer/**"
+      - "compose.yaml"
+      - "dapr/**"
       - "observability/firelens/**"
       - "packages/**"
       - "pyproject.toml"
@@ -136,7 +140,7 @@ jobs:
 
       - name: Start app
         run: |
-          PYTHONPATH="${{ github.workspace }}/apps/api/src:${{ github.workspace }}/packages/core/src:${{ github.workspace }}/packages/adapters/src" uv run --directory apps/api uvicorn aws_sdlc_api.main:app \
+          PYTHONPATH="${{ github.workspace }}/apps/api/src:${{ github.workspace }}/packages/application/src:${{ github.workspace }}/packages/domain/src:${{ github.workspace }}/packages/infrastructure/src" uv run --directory apps/api uvicorn aws_sdlc_api.main:app \
             --host 0.0.0.0 --port 8000 &
           curl --retry 30 --retry-delay 1 --retry-connrefused -sf \
             http://localhost:8000/health

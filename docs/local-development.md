@@ -2,8 +2,9 @@
 
 This page is the local development runbook for the current repository shape.
 Deployable workloads live under `apps/`: the API in `apps/api/`, the backfill
-worker in `apps/backfill-worker/`, and the local data export job in
-`apps/data-export-job/`.
+worker in `apps/backfill-worker/`, the local data export job in
+`apps/data-export-job/`, and the Dapr-enabled order event runtime in
+`apps/order-event-consumer/`.
 
 ## Local Tooling Ownership
 
@@ -268,6 +269,7 @@ make local-up
 make local-down
 make local-reset
 make observability
+make dapr-up
 make data-export
 make migrate
 make seed
@@ -317,3 +319,17 @@ success manifest into the `data_exports` Docker volume. In AWS, the scheduled
 ECS data export job uploads those same relative keys to the data hub S3 bucket.
 
 AWS operator targets are documented in `deployment.md`.
+
+## Optional Dapr Order Events
+
+The local Dapr profile runs the order event runtime with a Dapr sidecar and
+LocalStack-backed SNS/SQS:
+
+```bash
+make dapr-up
+```
+
+The sidecar reads component and resiliency config from `dapr/local/`. The API
+still writes the durable outbox row during `POST /orders`; the Dapr-enabled
+`order-event-consumer` service relays that row as a CloudEvent and receives the
+subscription callback into `order_event_receipts`.

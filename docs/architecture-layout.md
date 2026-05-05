@@ -31,8 +31,9 @@ aws-sdlc-containers/
 |   |-- data-export-job/
 |   `-- order-event-consumer/
 |-- packages/                # Shared modular-monolith code
-|   |-- core/
-|   `-- adapters/
+|   |-- domain/
+|   |-- application/
+|   `-- infrastructure/
 |-- db/                      # Liquibase, bootstrap SQL, PgBouncer image/config
 |-- infra/                   # Terraform roots split by lifecycle
 |   |-- platform/
@@ -104,32 +105,38 @@ Each folder under `apps/` is a runtime entrypoint with its own Dockerfile and
 | `apps/api` | FastAPI app, health/readiness/metrics, order APIs, runtime mode switches, outbox writes. | `aws_sdlc_api` |
 | `apps/backfill-worker` | One-off safe-rollout worker for historical `billing_email` migration. | `aws_sdlc_backfill_worker` |
 | `apps/data-export-job` | Scheduled export job for operational data and manifests. | `aws_sdlc_data_export_job` |
-| `apps/order-event-consumer` | Outbox relay and SQS consumer for `order.created.v1`. | `aws_sdlc_order_event_consumer` |
+| `apps/order-event-consumer` | Dapr-enabled outbox relay and subscriber for `order.created.v1`. | `aws_sdlc_order_event_consumer` |
 
 Keep app folders thin. Runtime wiring, settings, command entrypoints, and HTTP
-schemas belong here. Reusable domain concepts belong in `packages/core`;
-database, queue, and storage implementations belong in `packages/adapters`.
+schemas belong here. Reusable domain concepts belong in `packages/domain`,
+use cases and ports belong in `packages/application`, and database, Dapr, queue,
+and storage implementations belong in `packages/infrastructure`.
 
 ## Shared Packages
 
-`packages/core` is pure Python domain code:
+`packages/domain` is pure Python domain code:
 
 - entities and value objects
-- ports
-- idempotency contracts
-- order submission behavior
-- outbox and receipt models
+- domain events and pure rules
 
-`packages/adapters` implements the outside world:
+`packages/application` is the application layer:
+
+- use cases and orchestration
+- stable ports such as repositories and config stores
+- command/result objects
+- outbox dispatch and receipt contracts
+
+`packages/infrastructure` implements the outside world:
 
 - SQLAlchemy/Postgres repositories
 - runtime config storage
-- SQS publishing/consuming support
+- Dapr pub/sub publishing support
 - S3/data hub access where needed
 
-Critical rule: `packages/core` should not import FastAPI, SQLAlchemy, boto3, or
-environment-specific settings. If that line blurs, the modular-monolith shape
-becomes harder to test and explain.
+Critical rule: `packages/domain` and `packages/application` should not import
+FastAPI, SQLAlchemy, boto3, Dapr adapters, or environment-specific app settings.
+If that line blurs, the modular-monolith shape becomes harder to test and
+explain.
 
 ## Database
 
@@ -154,7 +161,7 @@ when behavior depends on runtime rollout sequencing.
 | Root | Owns | Does not own |
 |---|---|---|
 | `infra/platform` | VPC, subnet tiers, endpoints, Route 53/account lookups, GitHub OIDC and CI IAM. | RDS, ECS workloads, ALB, app queues, data buckets, observability services. |
-| `infra/app` | RDS, ECS, ECR, ALB/API edge, WAF association, S3 data hub, SQS, jobs, app IAM, CloudWatch alarms, optional observability. | VPC creation, GitHub OIDC identity, app-independent bootstrap. |
+| `infra/app` | RDS, ECS, ECR, ALB/API edge, WAF association, S3 data hub, Dapr-backed SNS/SQS, jobs, app IAM, CloudWatch alarms, optional observability. | VPC creation, GitHub OIDC identity, app-independent bootstrap. |
 
 The split is not environment promotion. It is lifecycle separation inside one
 lean AWS stack. Keep it that way until separate environments or stacks have a
@@ -206,8 +213,8 @@ Avoid decorative dashboards and metrics that do not drive an action.
 - `scripts/ci/`: GitHub Actions helpers for ECS task registration, service
   deploys, polling, image mutation, and assertions.
 - `scripts/operator/`: local/operator tunnels and database access helpers.
-- `scripts/release/`: image build/push, image rollout, and post-deploy
-  verification helpers.
+- `scripts/release/`: post-deploy verification used by the reviewed App Deploy
+  workflow and local smoke checks.
 - `scripts/observability/`: cloud traffic, quiet log-group probes, and delivery
   verification.
 - `scripts/data/`: local and remote data setup helpers.
@@ -224,9 +231,13 @@ than mirrored source-file names:
 
 - `tests/api/`: API behavior, operational endpoints, telemetry, and runtime
   mode behavior.
+- `tests/application/`: pure application/domain behavior such as order
+  submission, domain events, and outbox dispatch.
+- `tests/apps/`: workload-host behavior that crosses app wiring boundaries,
+  such as the Dapr order event runtime.
 - `tests/data/`: backfill, export, schema, and database configuration behavior.
-- `tests/domain/`: order submission, outbox, event publishing, and consumer
-  behavior.
+- `tests/infrastructure/`: concrete adapter behavior such as SQLAlchemy
+  repository contracts.
 - `tests/contracts/`: static contracts for workflows, infrastructure,
   dashboards, schemas, and docs.
 - `tests/scripts/`: pragmatic script behavior tests for release and

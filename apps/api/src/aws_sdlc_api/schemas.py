@@ -3,7 +3,7 @@ from decimal import Decimal
 
 from pydantic import BaseModel, ConfigDict, EmailStr, Field
 
-from aws_sdlc_core.order import OrderStatus, ReadModeValue, WriteModeValue
+from aws_sdlc_domain.order import OrderStatus, ReadModeValue, WriteModeValue
 
 
 class CreateOrderRequest(BaseModel):

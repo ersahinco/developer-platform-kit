@@ -134,51 +134,34 @@ def test_loki_tunnel_has_ecs_exec_support() -> None:
     assert "aws_iam_role_policy.loki_ssm_exec" in loki_service
 
 
-def test_firelens_rollout_helpers_cover_firelens_using_task_families() -> None:
+def test_cloud_changing_release_paths_stay_in_reviewed_workflows() -> None:
     makefile = _read("Makefile")
-    build_script = _read("scripts/release/build_push_firelens.py")
-    roll_script = _read("scripts/release/roll_firelens_image.py")
+    docs = _read("docs/observability.md")
+    app_build = _read(".github/workflows/app-build.yml")
+    app_deploy = _read(".github/workflows/app-deploy.yml")
 
-    assert "firelens-build-push" in makefile
-    assert "firelens-roll" in makefile
-    assert "observability/firelens/Dockerfile" in build_script
-    assert "--platform" in build_script
-    assert "linux/amd64" in build_script
+    removed_targets = [
+        "-".join(("app", "build", "push")),
+        "-".join(("app", "roll")),
+        "-".join(("firelens", "build", "push")),
+        "-".join(("firelens", "roll")),
+    ]
+    removed_scripts = [
+        "_".join(("build", "push", "app")) + ".py",
+        "_".join(("roll", "app", "image")) + ".py",
+        "_".join(("build", "push", "firelens")) + ".py",
+        "_".join(("roll", "firelens", "image")) + ".py",
+    ]
 
-    for family in [
-        "aws-sdlc-containers",
-        "aws-sdlc-containers-order-event-consumer",
-        "aws-sdlc-containers-grafana",
-        "aws-sdlc-containers-loki",
-        "aws-sdlc-containers-prometheus",
-        "aws-sdlc-containers-tempo",
-        "aws-sdlc-containers-worker",
-        "aws-sdlc-containers-data-export-job",
-        "aws-sdlc-containers-liquibase",
-    ]:
-        assert family in roll_script
+    for removed in [*removed_targets, *removed_scripts]:
+        assert removed not in makefile
+        assert removed not in docs
 
-    assert "log-router" in roll_script
-    assert "register-task-definition" in roll_script
-    assert "update-service" in roll_script
-    assert "services-stable" in roll_script
-
-
-def test_app_rollout_helpers_support_observability_cloud_traffic_fixture() -> None:
-    makefile = _read("Makefile")
-    build_script = _read("scripts/release/build_push_app.py")
-    roll_script = _read("scripts/release/roll_app_image.py")
-
-    assert "app-build-push" in makefile
-    assert "app-roll" in makefile
-    assert "apps/api/Dockerfile" in build_script
-    assert "--platform" in build_script
-    assert "linux/amd64" in build_script
-    assert "APP_IMAGE_TAG" in roll_script
-    assert "aws-sdlc-containers" in roll_script
-    assert "register-task-definition" in roll_script
-    assert "update-service" in roll_script
-    assert "services-stable" in roll_script
+    assert "observability/firelens/Dockerfile" in app_build
+    assert "apps/api/Dockerfile" in app_build
+    assert "firelens:${TAG}" in app_build
+    assert "firelens:${IMAGE_TAG}" in app_deploy
+    assert "verify_post_deploy.py" in app_deploy
 
 
 def test_observability_cloud_traffic_runs_quiet_cloud_log_probes() -> None:

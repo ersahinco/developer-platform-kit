@@ -21,8 +21,6 @@ class Settings(BaseSettings):
     db_host: str = "localhost"
     db_port: int = 5432
     db_name: str = "aws_sdlc_containers"
-    order_events_queue_url: str | None = None
-    dispatch_outbox_inline: bool = False
 
     @model_validator(mode="after")
     def compose_database_url(self) -> "Settings":

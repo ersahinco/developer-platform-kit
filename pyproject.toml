@@ -3,7 +3,6 @@ name = "aws-sdlc-containers"
 version = "0.1.0"
 requires-python = ">=3.14"
 dependencies = [
-    "email-validator>=2.2.0",
     "sqlalchemy>=2.0.30",
     "psycopg2-binary>=2.9.9",
     "python-dotenv>=1.0.0",
@@ -26,13 +25,15 @@ members = [
     "apps/backfill-worker",
     "apps/data-export-job",
     "apps/order-event-consumer",
-    "packages/core",
-    "packages/adapters",
+    "packages/domain",
+    "packages/application",
+    "packages/infrastructure",
 ]
 
 [tool.uv.sources]
-aws-sdlc-containers-adapters = { workspace = true }
-aws-sdlc-containers-core = { workspace = true }
+aws-sdlc-containers-domain = { workspace = true }
+aws-sdlc-containers-application = { workspace = true }
+aws-sdlc-containers-infrastructure = { workspace = true }
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
@@ -47,8 +48,9 @@ extraPaths = [
     "apps/backfill-worker/src",
     "apps/data-export-job/src",
     "apps/order-event-consumer/src",
-    "packages/adapters/src",
-    "packages/core/src",
+    "packages/application/src",
+    "packages/domain/src",
+    "packages/infrastructure/src",
 ]
 pythonVersion = "3.14"
 typeCheckingMode = "standard"

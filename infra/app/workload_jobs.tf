@@ -466,14 +466,27 @@ resource "aws_iam_role" "order_event_consumer" {
 
 data "aws_iam_policy_document" "order_event_consumer_sqs" {
   statement {
-    sid = "RelayAndConsumeOrderEvents"
+    sid = "PublishAndConsumeDaprOrderEvents"
     actions = [
+      "sqs:ChangeMessageVisibility",
       "sqs:DeleteMessage",
       "sqs:GetQueueAttributes",
+      "sqs:GetQueueUrl",
       "sqs:ReceiveMessage",
-      "sqs:SendMessage",
+      "sns:GetTopicAttributes",
+      "sns:ListSubscriptionsByTopic",
+      "sns:Publish",
     ]
-    resources = [aws_sqs_queue.order_events.arn]
+    resources = [
+      aws_sns_topic.order_events.arn,
+      aws_sqs_queue.order_events.arn,
+    ]
+  }
+
+  statement {
+    sid       = "ReadDaprRuntimeConfig"
+    actions   = ["s3:GetObject"]
+    resources = ["${aws_s3_bucket.runtime_config.arn}/${local.order_events_dapr_config_prefix}/*"]
   }
 }
 
@@ -497,11 +510,70 @@ resource "aws_ecs_task_definition" "order_event_consumer" {
   execution_role_arn       = aws_iam_role.task_exec.arn
   task_role_arn            = aws_iam_role.order_event_consumer.arn
 
+  volume {
+    name = "dapr-config"
+  }
+
   container_definitions = jsonencode(concat(local.firelens_router_container, [
     merge(local.ecs_container_defaults, {
-      name      = "order-event-consumer"
-      image     = "${module.ecr_order_event_consumer.repository_url}:${var.initial_image_tag}"
+      name      = "dapr-config-loader"
+      image     = var.observability_config_loader_image
+      essential = false
+      command = [
+        "sh",
+        "-c",
+        "mkdir -p /dapr/components /dapr/config && aws s3 cp s3://${aws_s3_bucket.runtime_config.bucket}/${aws_s3_object.order_events_dapr_component.key} /dapr/components/order-events-pubsub.yaml && aws s3 cp s3://${aws_s3_bucket.runtime_config.bucket}/${aws_s3_object.order_events_dapr_resiliency.key} /dapr/components/resiliency.yaml && aws s3 cp s3://${aws_s3_bucket.runtime_config.bucket}/${aws_s3_object.order_events_dapr_config.key} /dapr/config/config.yaml",
+      ]
+      mountPoints = [
+        { sourceVolume = "dapr-config", containerPath = "/dapr", readOnly = false },
+      ]
+      logConfiguration = var.enable_observability_stack ? local.firelens_log_configuration : {
+        logDriver = "awslogs"
+        options = {
+          "awslogs-group"         = "/ecs/${local.name}/order-event-consumer"
+          "awslogs-region"        = local.region
+          "awslogs-stream-prefix" = "dapr-config-loader"
+        }
+      }
+    }),
+    merge(local.ecs_container_defaults, {
+      name      = "daprd"
+      image     = var.dapr_image
       essential = true
+      command = [
+        "./daprd",
+        "--app-id",
+        "order-event-consumer",
+        "--app-port",
+        "8081",
+        "--dapr-http-port",
+        "3500",
+        "--components-path",
+        "/dapr/components",
+        "--config",
+        "/dapr/config/config.yaml",
+      ]
+      mountPoints = [
+        { sourceVolume = "dapr-config", containerPath = "/dapr", readOnly = true },
+      ]
+      dependsOn = concat(
+        [{ containerName = "dapr-config-loader", condition = "SUCCESS" }],
+        var.enable_observability_stack ? [{ containerName = "log-router", condition = "START" }] : []
+      )
+      logConfiguration = var.enable_observability_stack ? local.firelens_log_configuration : {
+        logDriver = "awslogs"
+        options = {
+          "awslogs-group"         = "/ecs/${local.name}/order-event-consumer"
+          "awslogs-region"        = local.region
+          "awslogs-stream-prefix" = "daprd"
+        }
+      }
+    }),
+    merge(local.ecs_container_defaults, {
+      name         = "order-event-consumer"
+      image        = "${module.ecr_order_event_consumer.repository_url}:${var.initial_image_tag}"
+      essential    = true
+      portMappings = [{ containerPort = 8081, hostPort = 8081, protocol = "tcp" }]
       secrets = [
         { name = "DB_PASSWORD", valueFrom = "${module.rds.db_instance_master_user_secret_arn}:password::" },
       ]
@@ -509,10 +581,23 @@ resource "aws_ecs_task_definition" "order_event_consumer" {
         { name = "DB_HOST", value = module.rds.db_instance_address },
         { name = "DB_PORT", value = tostring(module.rds.db_instance_port) },
         { name = "DB_NAME", value = "aws_sdlc_containers" },
-        { name = "ORDER_EVENTS_QUEUE_URL", value = aws_sqs_queue.order_events.url },
+        { name = "DAPR_HTTP_ENDPOINT", value = "http://localhost:3500" },
+        { name = "ORDER_EVENTS_APP_PORT", value = "8081" },
         { name = "ORDER_EVENTS_WORKER_MODE", value = "both" },
+        { name = "ORDER_EVENTS_PUBSUB_NAME", value = "order-events-pubsub" },
+        { name = "ORDER_EVENTS_TOPIC", value = local.order_events_topic_name },
       ]
-      dependsOn = var.enable_observability_stack ? [{ containerName = "log-router", condition = "START" }] : []
+      dependsOn = concat(
+        [{ containerName = "dapr-config-loader", condition = "SUCCESS" }],
+        var.enable_observability_stack ? [{ containerName = "log-router", condition = "START" }] : []
+      )
+      healthCheck = {
+        command     = ["CMD-SHELL", "python -c \"import urllib.request; urllib.request.urlopen('http://localhost:8081/health')\""]
+        interval    = 10
+        timeout     = 3
+        retries     = 3
+        startPeriod = 20
+      }
       logConfiguration = var.enable_observability_stack ? local.firelens_log_configuration : {
         logDriver = "awslogs"
         options = {

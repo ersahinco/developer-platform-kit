@@ -47,8 +47,9 @@ for path in (
     ROOT / "apps" / "backfill-worker" / "src",
     ROOT / "apps" / "data-export-job" / "src",
     ROOT / "apps" / "order-event-consumer" / "src",
-    ROOT / "packages" / "adapters" / "src",
-    ROOT / "packages" / "core" / "src",
+    ROOT / "packages" / "application" / "src",
+    ROOT / "packages" / "domain" / "src",
+    ROOT / "packages" / "infrastructure" / "src",
 ):
     sys.path.insert(0, str(path))
 

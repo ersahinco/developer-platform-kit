@@ -8,11 +8,13 @@ COPY apps/api/pyproject.toml apps/api/pyproject.toml
 COPY apps/backfill-worker/pyproject.toml apps/backfill-worker/pyproject.toml
 COPY apps/data-export-job/pyproject.toml apps/data-export-job/pyproject.toml
 COPY apps/order-event-consumer/pyproject.toml apps/order-event-consumer/pyproject.toml
-COPY packages/core/pyproject.toml packages/core/pyproject.toml
-COPY packages/adapters/pyproject.toml packages/adapters/pyproject.toml
+COPY packages/domain/pyproject.toml packages/domain/pyproject.toml
+COPY packages/application/pyproject.toml packages/application/pyproject.toml
+COPY packages/infrastructure/pyproject.toml packages/infrastructure/pyproject.toml
 COPY apps/api/src apps/api/src
-COPY packages/core/src packages/core/src
-COPY packages/adapters/src packages/adapters/src
+COPY packages/domain/src packages/domain/src
+COPY packages/application/src packages/application/src
+COPY packages/infrastructure/src packages/infrastructure/src
 RUN uv sync --frozen --no-dev --package aws-sdlc-containers-api
 
 # ── Runtime ───────────────────────────────────────────────────────────────────
@@ -28,11 +30,12 @@ USER app
 WORKDIR /app
 COPY --from=builder /app/.venv /app/.venv
 COPY --from=builder /app/apps/api/src /app/apps/api/src
-COPY --from=builder /app/packages/core/src /app/packages/core/src
-COPY --from=builder /app/packages/adapters/src /app/packages/adapters/src
+COPY --from=builder /app/packages/domain/src /app/packages/domain/src
+COPY --from=builder /app/packages/application/src /app/packages/application/src
+COPY --from=builder /app/packages/infrastructure/src /app/packages/infrastructure/src
 
 ENV PATH="/app/.venv/bin:$PATH"
-ENV PYTHONPATH="/app/apps/api/src:/app/packages/core/src:/app/packages/adapters/src"
+ENV PYTHONPATH="/app/apps/api/src:/app/packages/application/src:/app/packages/domain/src:/app/packages/infrastructure/src"
 
 HEALTHCHECK --interval=5s --timeout=3s --start-period=15s --retries=3 \
     CMD python -c "import urllib.request; urllib.request.urlopen('http://localhost:8000/health')"

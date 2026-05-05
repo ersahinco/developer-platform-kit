@@ -1,73 +1,48 @@
+from __future__ import annotations
+
 import datetime
+from contextlib import asynccontextmanager
 import json
-import time
-from typing import Any, Protocol, cast
+import threading
+from typing import Any, Protocol
 
-from sqlalchemy import create_engine
-from sqlalchemy.orm import Session, sessionmaker
+from fastapi import FastAPI, Request
+import uvicorn
 
-from aws_sdlc_adapters.db.repository import (
+from aws_sdlc_application.order_event_processing import (
+    record_order_event_receipt,
+    relay_order_outbox_once,
+)
+from aws_sdlc_application.order_event_receipts import OrderEventReceiptResult
+from aws_sdlc_application.outbox import OutboxMessage
+from aws_sdlc_infrastructure.db.repository import (
     SQLAlchemyOrderEventReceiptRepository,
     SQLAlchemyOutboxRepository,
 )
-from aws_sdlc_core.outbox import OutboxMessage, dispatch_pending_outbox_messages
+from aws_sdlc_infrastructure.db.session import engine_and_session_factory
+from aws_sdlc_infrastructure.dapr.pubsub import (
+    DaprOrderEventPublisher,
+    payload_from_cloud_event,
+)
 from aws_sdlc_order_event_consumer.config import settings
 
 
-class SqsClient(Protocol):
-    def send_message(
-        self,
-        *,
-        QueueUrl: str,
-        MessageBody: str,
-        MessageGroupId: str,
-        MessageDeduplicationId: str,
-    ) -> object: ...
-
-    def receive_message(
-        self,
-        *,
-        QueueUrl: str,
-        MaxNumberOfMessages: int,
-        WaitTimeSeconds: int,
-        VisibilityTimeout: int,
-    ) -> dict[str, Any]: ...
-
-    def delete_message(self, *, QueueUrl: str, ReceiptHandle: str) -> object: ...
+ORDER_EVENTS_CALLBACK_ROUTE = "/internal/events/order-created"
 
 
-class SqsOutboxPublisher:
-    def __init__(self, queue_url: str, client: SqsClient) -> None:
-        self._queue_url = queue_url
-        self._client = client
-
-    def publish(self, message: OutboxMessage) -> None:
-        self._client.send_message(
-            QueueUrl=self._queue_url,
-            MessageBody=json.dumps(
-                message.payload, sort_keys=True, separators=(",", ":")
-            ),
-            MessageGroupId=message.message_group_id,
-            MessageDeduplicationId=message.message_deduplication_id,
-        )
-
-
-def _sqs_client() -> SqsClient:
-    import boto3
-
-    return cast(SqsClient, boto3.client("sqs"))
+class OrderEventPublisher(Protocol):
+    def publish(self, message: OutboxMessage) -> None: ...
 
 
 def relay_outbox_once(
-    session: Session,
+    session: Any,
     *,
-    queue_url: str,
-    client: SqsClient,
+    publisher: OrderEventPublisher,
     limit: int,
 ) -> int:
-    result = dispatch_pending_outbox_messages(
+    result = relay_order_outbox_once(
         outbox=SQLAlchemyOutboxRepository(session),
-        publisher=SqsOutboxPublisher(queue_url, client),
+        publisher=publisher,
         limit=limit,
     )
     if result.published > 0 or result.failed > 0:
@@ -85,109 +60,151 @@ def relay_outbox_once(
     return result.published + result.failed
 
 
-def consume_order_events_once(
-    session: Session,
+def consume_order_event_payload(
+    session: Any,
+    payload: dict[str, object],
     *,
-    queue_url: str,
-    client: SqsClient,
-    max_messages: int,
-    wait_seconds: int,
-    visibility_timeout_seconds: int,
-) -> int:
-    response = client.receive_message(
-        QueueUrl=queue_url,
-        MaxNumberOfMessages=max_messages,
-        WaitTimeSeconds=wait_seconds,
-        VisibilityTimeout=visibility_timeout_seconds,
+    now: datetime.datetime | None = None,
+) -> OrderEventReceiptResult:
+    return record_order_event_receipt(
+        receipts=SQLAlchemyOrderEventReceiptRepository(session),
+        payload=payload,
+        now=now,
     )
-    messages = response.get("Messages", [])
-    if not isinstance(messages, list):
-        return 0
 
-    processed = 0
-    for message in messages:
-        if not isinstance(message, dict):
-            continue
-        receipt_handle = message.get("ReceiptHandle")
-        body = message.get("Body")
-        should_delete = False
-        try:
-            if not isinstance(body, str):
-                raise ValueError("SQS message body must be a JSON string")
-            payload = json.loads(body)
-            if not isinstance(payload, dict):
-                raise ValueError("SQS message body must decode to an object")
-            result = SQLAlchemyOrderEventReceiptRepository(session).record(
-                payload,
-                now=datetime.datetime.now(tz=datetime.UTC),
+
+def _engine_and_session_factory() -> tuple[Any, Any]:
+    return engine_and_session_factory(str(settings.database_url))
+
+
+def _publisher() -> DaprOrderEventPublisher:
+    return DaprOrderEventPublisher(
+        endpoint=settings.dapr_publish_endpoint,
+        pubsub_name=settings.order_events_pubsub_name,
+        topic=settings.order_events_topic,
+    )
+
+
+def relay_forever(
+    SessionLocal: Any,
+    *,
+    publisher: OrderEventPublisher,
+    stop: threading.Event,
+) -> None:
+    while not stop.is_set():
+        work_done = 0
+        with SessionLocal() as session:
+            work_done = relay_outbox_once(
+                session,
+                publisher=publisher,
+                limit=settings.order_events_relay_batch_size,
             )
-            should_delete = True
-            processed += 1
-            print(
-                json.dumps(
-                    {
-                        "event": "order_event_consumed",
-                        "event_id": result.event_id,
-                        "status": result.status,
-                    },
-                    sort_keys=True,
-                ),
-                flush=True,
-            )
-        except Exception as exc:
-            session.rollback()
-            print(
-                json.dumps(
-                    {
-                        "event": "order_event_consume_failed",
-                        "error": str(exc),
-                        "delete": False,
-                    },
-                    sort_keys=True,
-                ),
-                flush=True,
-            )
-
-        if should_delete and isinstance(receipt_handle, str):
-            client.delete_message(QueueUrl=queue_url, ReceiptHandle=receipt_handle)
-
-    return processed
+        if settings.order_events_worker_run_once:
+            return
+        if work_done == 0:
+            stop.wait(settings.order_events_idle_sleep_seconds)
 
 
-def run_worker(client: SqsClient | None = None) -> None:
-    sqs = client or _sqs_client()
-    queue_url = settings.required_queue_url
-    engine = create_engine(str(settings.database_url), pool_pre_ping=True)
-    SessionLocal = sessionmaker(engine)
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    engine, SessionLocal = _engine_and_session_factory()
+    app.state.SessionLocal = SessionLocal
+    app.state.relay_stop = threading.Event()
+    app.state.relay_thread = None
+    if settings.order_events_worker_mode in ("relay", "both"):
+        thread = threading.Thread(
+            target=relay_forever,
+            kwargs={
+                "SessionLocal": SessionLocal,
+                "publisher": _publisher(),
+                "stop": app.state.relay_stop,
+            },
+            name="order-events-outbox-relay",
+            daemon=True,
+        )
+        app.state.relay_thread = thread
+        thread.start()
     try:
-        while True:
-            work_done = 0
-            with SessionLocal() as session:
-                if settings.order_events_worker_mode in ("relay", "both"):
-                    work_done += relay_outbox_once(
-                        session,
-                        queue_url=queue_url,
-                        client=sqs,
-                        limit=settings.order_events_relay_batch_size,
-                    )
-                if settings.order_events_worker_mode in ("consumer", "both"):
-                    work_done += consume_order_events_once(
-                        session,
-                        queue_url=queue_url,
-                        client=sqs,
-                        max_messages=settings.order_events_receive_max_messages,
-                        wait_seconds=settings.order_events_receive_wait_seconds,
-                        visibility_timeout_seconds=(
-                            settings.order_events_visibility_timeout_seconds
-                        ),
-                    )
-            if settings.order_events_worker_run_once:
-                break
-            if work_done == 0:
-                time.sleep(settings.order_events_idle_sleep_seconds)
+        yield
+    finally:
+        app.state.relay_stop.set()
+        relay_thread = app.state.relay_thread
+        if relay_thread is not None:
+            relay_thread.join(timeout=5)
+        engine.dispose()
+
+
+app = FastAPI(title="aws-sdlc-containers-order-event-consumer", lifespan=lifespan)
+
+
+@app.get("/health")
+def health() -> dict[str, str]:
+    return {"status": "ok"}
+
+
+@app.get("/dapr/subscribe")
+def dapr_subscribe() -> list[dict[str, object]]:
+    if settings.order_events_worker_mode not in ("consumer", "both"):
+        return []
+    return [
+        {
+            "pubsubname": settings.order_events_pubsub_name,
+            "topic": settings.order_events_topic,
+            "route": ORDER_EVENTS_CALLBACK_ROUTE,
+        }
+    ]
+
+
+@app.post(ORDER_EVENTS_CALLBACK_ROUTE)
+async def handle_order_created(request: Request) -> dict[str, str]:
+    try:
+        body = await request.json()
+        payload = payload_from_cloud_event(body)
+        with request.app.state.SessionLocal() as session:
+            result = consume_order_event_payload(session, payload)
+        print(
+            json.dumps(
+                {
+                    "event": "order_event_consumed",
+                    "event_id": result.event_id,
+                    "status": result.status,
+                },
+                sort_keys=True,
+            ),
+            flush=True,
+        )
+    except Exception as exc:
+        print(
+            json.dumps(
+                {
+                    "event": "order_event_consume_failed",
+                    "error": str(exc),
+                    "retry": True,
+                },
+                sort_keys=True,
+            ),
+            flush=True,
+        )
+        raise
+    return {"status": "SUCCESS"}
+
+
+def run_worker(publisher: OrderEventPublisher | None = None) -> None:
+    engine, SessionLocal = _engine_and_session_factory()
+    stop = threading.Event()
+    try:
+        relay_forever(SessionLocal, publisher=publisher or _publisher(), stop=stop)
     finally:
         engine.dispose()
 
 
+def main() -> None:
+    uvicorn.run(
+        "aws_sdlc_order_event_consumer.main:app",
+        host="0.0.0.0",
+        port=settings.order_events_app_port,
+    )
+
+
 if __name__ == "__main__":
-    run_worker()
+    main()

@@ -91,7 +91,7 @@ datasource.
 |---|---|---|---|
 | `AWS/ApplicationELB` | `UnHealthyHostCount`, `HTTPCode_Target_5XX_Count`, `TargetResponseTime` | App health, 5xx, and latency alarms | Prometheus app `/metrics` counters/histograms and dashboard panels. |
 | `AWS/RDS` | `CPUUtilization`, `FreeStorageSpace`, `DatabaseConnections` | RDS pressure alarms | Readiness failures and request latency in Prometheus; RDS metrics stay CloudWatch-native until a metrics exporter is added. |
-| `AWS/SQS` | `ApproximateNumberOfMessagesVisible` on the order events DLQ | Order event DLQ alarm | App metric `order_events_publish_total` and local Prometheus alert rules. |
+| `AWS/SQS` | `ApproximateNumberOfMessagesVisible` on the order events DLQ | Order event DLQ alarm | Dapr relay/consume JSON logs in Loki and the `App Overview` worker outcomes panel. |
 | `AWS/Scheduler` | `TargetErrorCount` for the default schedule group | Data export scheduler delivery alarm | Data export job logs in Loki; add job metrics before removing the CloudWatch alarm. |
 | `aws-sdlc-containers/DataExport` | `SuccessCount` from the data export success log metric filter | Data export freshness alarm | Data export success logs in Loki; durable Grafana freshness needs a job metric or Loki ruler path. |
 | `ECS/ContainerInsights` | Cluster, service, and task utilization/count metrics for app and observability services | Inspection and AWS-native troubleshooting | Prometheus scrapes app, Prometheus, Loki, and Tempo runtime metrics for Grafana. |
@@ -186,13 +186,10 @@ The RDS pressure signals watch `CPUUtilization`, `FreeStorageSpace`, and
 
 The async order event signal watches visible messages in the SQS DLQ for
 `order.created.v1`. Its runbook is
-[Order Event Queue Failure](runbooks/order-event-queue-failure.md). The app also exposes
-`order_events_publish_total` from `/metrics` so local operators can distinguish
-successful, failed, and skipped publish attempts. Prometheus loads a local rule
-for `order_events_publish_total{status="failed"}` to make publish failures part
-of the local app observability contract. In AWS, the default relay path runs in
-the `order-event-consumer` service, so `App Overview` uses Loki JSON log events
-from that service for the order event worker outcomes panel.
+[Order Event Queue Failure](runbooks/order-event-queue-failure.md). The default
+relay path runs in the Dapr-enabled `order-event-consumer` service, so `App
+Overview` uses Loki JSON log events from that service for the order event worker
+outcomes panel.
 
 ## Delivery Tests
 
@@ -315,12 +312,9 @@ make observability-delivery-verify
 ```
 
 The traffic job depends on the current API image containing
-`POST /admin/observability-fixture`. For a local workspace build and rollout:
-
-```bash
-make app-build-push
-APP_IMAGE_TAG=<tag printed by app-build-push> make app-roll
-```
+`POST /admin/observability-fixture`. Build, scan, and push the app image through
+the App Build workflow, then deploy the reviewed immutable `sha-*` tag through
+the App Deploy workflow.
 
 ## Optional ECS Grafana Stack
 
@@ -422,17 +416,10 @@ changes so the config-loader copies the new dashboard JSON into the container.
 Use `make observability-stack-deploy` after Terraform apply to force-roll the
 Grafana, Loki, Prometheus, and Tempo tasks.
 
-For a FireLens-only label/config correction from a developer machine:
-
-```bash
-make firelens-build-push
-FIRELENS_IMAGE_TAG=<tag printed by firelens-build-push> make firelens-roll
-```
-
-`firelens-roll` registers new ECS task definition revisions for app,
-order-event-consumer, Grafana, Loki, Prometheus, Tempo, worker, data-export-job,
-and Liquibase. It updates and waits for the long-running ECS services. Scheduled
-or one-off task families use their new latest active revisions on their next run.
+For FireLens label/config corrections, use the App Build workflow to build and
+scan the FireLens image alongside the app images, then deploy the reviewed
+immutable `sha-*` tag through App Deploy. This keeps log-router changes on the
+same build/scan/review path as workload images.
 
 Historical old-schema Loki streams can remain visible until the Loki retention or
 delete path removes the old chunks. CloudWatch stale log streams can be deleted
@@ -449,7 +436,7 @@ ECS. Keep these AWS/platform signals in CloudWatch:
 - ALB target health.
 - RDS CPU, storage, and connection pressure.
 - EventBridge Scheduler delivery failures.
-- SQS DLQ visibility while SQS remains the transport.
+- SQS DLQ visibility for the Dapr-backed SNS/SQS order event transport.
 - CloudWatch logs for workload and observability diagnostics.
 
 CloudWatch is the AWS-native break-glass path and remains the source of truth

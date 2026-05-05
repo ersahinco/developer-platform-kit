@@ -1,0 +1,32 @@
+apiVersion: dapr.io/v1alpha1
+kind: Resiliency
+metadata:
+  name: order-events-resiliency
+scopes:
+  - order-event-consumer
+spec:
+  policies:
+    timeouts:
+      orderEventsPubsub: 10s
+    retries:
+      orderEventsPubsub:
+        policy: constant
+        duration: 1s
+        maxRetries: 2
+    circuitBreakers:
+      orderEventsPubsub:
+        maxRequests: 1
+        interval: 30s
+        timeout: 30s
+        trip: consecutiveFailures > 5
+  targets:
+    components:
+      order-events-pubsub:
+        outbound:
+          timeout: orderEventsPubsub
+          retry: orderEventsPubsub
+          circuitBreaker: orderEventsPubsub
+        inbound:
+          timeout: orderEventsPubsub
+          retry: orderEventsPubsub
+          circuitBreaker: orderEventsPubsub

@@ -114,7 +114,7 @@ def test_orders_have_domain_check_constraints(db_engine):
 
 
 def test_outbox_messages_table_exists_with_expected_contract(db_engine):
-    """outbox_messages keeps the durable handoff from DB commit to SQS publish."""
+    """outbox_messages keeps the durable handoff from DB commit to Dapr relay."""
     inspector = inspect(db_engine)
     cols = {c["name"] for c in inspector.get_columns("outbox_messages")}
     missing = _OUTBOX_TABLE_COLUMNS - cols

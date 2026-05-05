@@ -155,7 +155,7 @@ def _load_export_module(monkeypatch):
         "postgresql://postgres:postgres@localhost:5432/aws_sdlc_containers",
     )
     monkeypatch.syspath_prepend(_EXPORT_SRC)
-    import aws_sdlc_data_export_job.main as export_main
+    import aws_sdlc_infrastructure.data_export as export_main
 
     return importlib.reload(export_main)
 
@@ -182,7 +182,7 @@ def test_s3_publish_uploads_raw_before_manifest(monkeypatch, tmp_path):
     manifest_path.write_text('{"status":"succeeded"}\n', encoding="utf-8")
     s3_client = RecordingS3Client()
 
-    export_main._publish_s3_outputs(
+    export_main.publish_s3_outputs(
         raw_path=raw_path,
         manifest_path=manifest_path,
         bucket="data-hub",
@@ -212,7 +212,7 @@ def test_s3_publish_skips_manifest_when_raw_upload_fails(monkeypatch, tmp_path):
     s3_client = RecordingS3Client(fail_on_key=raw_key)
 
     with pytest.raises(RuntimeError, match="failed upload"):
-        export_main._publish_s3_outputs(
+        export_main.publish_s3_outputs(
             raw_path=raw_path,
             manifest_path=manifest_path,
             bucket="data-hub",
@@ -225,10 +225,23 @@ def test_s3_publish_skips_manifest_when_raw_upload_fails(monkeypatch, tmp_path):
 
 
 def test_manifest_validation_rejects_raw_checksum_mismatch(monkeypatch, tmp_path):
-    export_main = _load_export_module(monkeypatch)
+    monkeypatch.setenv(
+        "DATA_EXPORT_DATABASE_URL",
+        "postgresql://postgres:postgres@localhost:5432/aws_sdlc_containers",
+    )
+    from aws_sdlc_application.data_export import (
+        ExportedObject,
+        validate_success_manifest,
+    )
+
     raw_path = tmp_path / "raw.csv"
     raw_path.write_text(
         "order_id,billing_email\n1,export@example.com\n", encoding="utf-8"
+    )
+    raw = ExportedObject(
+        key="raw/order_contact_email/dt=2026-04-29/test-run.csv",
+        byte_count=raw_path.stat().st_size,
+        sha256=hashlib.sha256(raw_path.read_bytes()).hexdigest(),
     )
     manifest = {
         "status": "succeeded",
@@ -242,4 +255,4 @@ def test_manifest_validation_rejects_raw_checksum_mismatch(monkeypatch, tmp_path
     }
 
     with pytest.raises(ValueError, match="raw_sha256 mismatch"):
-        export_main._validate_manifest_outputs(raw_path, manifest)
+        validate_success_manifest(raw=raw, manifest=manifest)

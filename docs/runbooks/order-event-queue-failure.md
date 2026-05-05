@@ -6,16 +6,18 @@ CloudWatch alarm is in `ALARM`, or when consumer logs show failed
 
 ## What The Alarm Means
 
-The order event consumer service relays `order.created.v1` messages from the
-database outbox to the SQS FIFO queue named
-`aws-sdlc-containers-order-events.fifo`, then consumes deliveries into
-`order_event_receipts`.
+The Dapr-enabled order event consumer service relays `order.created.v1`
+messages from the database outbox to the Dapr `order-events-pubsub` component.
+In AWS, that component publishes to the SNS FIFO topic
+`aws-sdlc-containers-order-created-v1.fifo` and consumes from the SQS FIFO
+subscriber queue `aws-sdlc-containers-order-event-consumer.fifo`, then records
+deliveries into `order_event_receipts`.
 Each message uses:
 
 - `event_id`: `order.created.v1:<order_id>`
 - `idempotency_key`: `order.created.v1:<order_id>`
-- FIFO `MessageDeduplicationId`: same as `event_id`
-- FIFO `MessageGroupId`: `customer-<customer_id>`
+- Dapr CloudEvent `id`: same as `event_id`
+- Dapr CloudEvent `data`: the existing order event payload
 
 The DLQ alarm watches `AWS/SQS` `ApproximateNumberOfMessagesVisible` for
 `aws-sdlc-containers-order-events-dlq.fifo`. It fires when any message is
@@ -66,8 +68,8 @@ aws logs tail /ecs/aws-sdlc-containers/order-event-consumer \
 ## Grafana-Stack Checks
 
 When the optional Grafana stack is enabled and reachable, check the provisioned
-`App Overview` dashboard for `order_events_publish_total` outcomes. The matching
-Prometheus alert is `OrderEventPublishFailures`.
+`App Overview` dashboard for order event worker outcomes from
+`order-event-consumer` logs.
 
 Use Loki for app and consumer log context during the same window:
 
@@ -79,17 +81,17 @@ Use Loki for app and consumer log context during the same window:
 {stack="aws-sdlc-containers", service="order-event-consumer"}
 ```
 
-Keep the SQS DLQ CloudWatch alarm in the flow until the later messaging
-roadmap sessions replace SQS or provide an equivalent parking-stream signal.
+Keep the SQS DLQ CloudWatch alarm in the flow because Dapr delegates the AWS
+subscriber queue and parking-stream behavior to SNS/SQS in this stack.
 
 ## Common Causes
 
-- A downstream queue consumer failed the same message five times.
+- The Dapr subscriber callback failed the same message five times.
 - A deploy changed event payload handling without preserving idempotency.
-- The order event consumer task role lost SQS permissions on the source queue.
-- `ORDER_EVENTS_QUEUE_URL` points at the wrong queue.
-- AWS SQS API calls from the private task cannot reach SQS through NAT or VPC
-  endpoints.
+- The order event consumer task role lost SNS/SQS permissions required by Dapr.
+- The Dapr component config points at the wrong topic, queue, or DLQ name.
+- AWS SNS/SQS API calls from the private task cannot reach AWS through NAT or
+  VPC endpoints.
 
 ## Recovery
 

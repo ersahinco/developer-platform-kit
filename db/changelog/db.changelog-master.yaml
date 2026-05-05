@@ -22,7 +22,7 @@ databaseChangeLog:
   - include:
       file: changelog/004-order-invariants.yaml
 
-  # 005 — Order event outbox: durable handoff between order commits and SQS publishing.
+  # 005 — Order event outbox: durable handoff between order commits and Dapr pub/sub relay.
   - include:
       file: changelog/005-order-event-outbox.yaml
 

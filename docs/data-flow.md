@@ -13,7 +13,8 @@ DevOps platform is stable.
 ```text
 API request
   -> FastAPI route
-  -> domain port
+  -> application use case
+  -> repository port
   -> SQLAlchemy repository
   -> PgBouncer
   -> Postgres

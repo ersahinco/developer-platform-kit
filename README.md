@@ -6,10 +6,11 @@ container images, reproducible Terraform, database migration safety, and
 workload operations.
 
 The project is intentionally small today: one ECS cluster, one FastAPI app, one
-backfill worker, one scheduled data export job, PgBouncer, Liquibase, one
-PostgreSQL database, one app-owned S3 object storage bucket, and split
-platform/app Terraform roots. It is being shaped gradually into a modular
-monolith monorepo for app, infra, data, and DevOps work.
+backfill worker, one scheduled data export job, one Dapr-enabled order event
+runtime, PgBouncer, Liquibase, one PostgreSQL database, one app-owned S3 object
+storage bucket, and split platform/app Terraform roots. It is being shaped
+gradually into a modular monolith monorepo for app, infra, data, and DevOps
+work.
 
 ## Start Here
 
@@ -38,8 +39,9 @@ operator workflow changes.
 | SDLC baseline | GitHub Actions, immutable ECR tags, reproducible Terraform state | `.github/workflows/`, `infra/`, `Makefile` |
 | Safe schema rollout | Expand, dual-write, backfill, switch, contract | `db/changelog/`, `apps/backfill-worker/src/aws_sdlc_backfill_worker/main.py` |
 | Data export flow | Local and scheduled ECS export job with raw output, manifest, and S3 object storage writes | `apps/data-export-job/src/aws_sdlc_data_export_job/main.py`, `infra/app/object_storage.tf`, `infra/app/workload_jobs.tf` |
-| Runtime config | DB-backed `WRITE_MODE` and `READ_MODE` switches | `packages/adapters/src/aws_sdlc_adapters/db/repository.py` |
+| Runtime config | DB-backed `WRITE_MODE` and `READ_MODE` switches | `packages/infrastructure/src/aws_sdlc_infrastructure/db/repository.py` |
 | Connection pooling | PgBouncer in transaction mode | `compose.yaml`, `db/pgbouncer/pgbouncer.ini` |
+| Dapr event transport | Durable order outbox relayed through Dapr pub/sub on ECS with AWS SNS/SQS underneath | `apps/order-event-consumer/src/aws_sdlc_order_event_consumer/main.py`, `dapr/`, `infra/app/messaging.tf` |
 | ECS deployment | Build/scan approval followed by rolling app deploy plus one-off Liquibase and worker tasks | `.github/workflows/app-build.yml`, `.github/workflows/app-deploy.yml`, `infra/app/workload_jobs.tf` |
 | Infrastructure delivery | Terraform validate, reviewed plan, and separate manual apply | `.github/workflows/infra-plan.yml`, `.github/workflows/infra-apply.yml`, `infra/` |
 
@@ -70,14 +72,15 @@ aws-sdlc-containers/
 |   |-- data-export-job/ # Data export job
 |   `-- order-event-consumer/
 |-- packages/
-|   |-- core/            # Pure domain entities and ports
-|   `-- adapters/        # SQLAlchemy/Postgres adapter implementations
+|   |-- domain/          # Pure entities, value objects, and domain events
+|   |-- application/     # Use cases, ports, commands/results, outbox contracts
+|   `-- infrastructure/  # SQLAlchemy/Postgres and Dapr/S3 adapter implementations
 |-- db/                  # Liquibase changelog and Postgres assets
 |-- infra/
 |   |-- platform/        # VPC, endpoints, Route 53 lookup, GitHub OIDC/CI IAM
-|   `-- app/             # ECS, RDS, ALB, ECR, S3, SQS, jobs, observability
+|   `-- app/             # ECS, RDS, ALB, ECR, S3, Dapr/SNS/SQS, jobs, observability
 |-- scripts/             # CI, release, operator, observability, and data helpers
-|-- tests/               # API, data, domain, contract, and script tests
+|-- tests/               # API, application, app-host, data, infrastructure, contract, and script tests
 |-- docs/                # Roadmaps, guides, runbooks, and drills
 |-- observability/       # Shared local/AWS Grafana, Loki, Tempo, and Prometheus assets
 |-- .github/workflows/   # App and infra workflows
@@ -149,6 +152,15 @@ make observability
 
 See [docs/observability.md](docs/observability.md) for the Prometheus, Loki,
 Tempo, and Grafana setup.
+
+Optional local Dapr order event transport is available through Docker Compose:
+
+```bash
+make dapr-up
+```
+
+This starts LocalStack SNS/SQS, the `order-event-consumer` app, and a Dapr
+sidecar using the local component manifests under `dapr/local/`.
 
 ## CI/CD Shape
 

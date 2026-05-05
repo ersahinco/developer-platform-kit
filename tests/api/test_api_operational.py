@@ -14,20 +14,17 @@ os.environ.setdefault(
 
 from fastapi.testclient import TestClient  # noqa: E402
 
-from aws_sdlc_api.events import OrderEventPublishError  # noqa: E402
 from aws_sdlc_api.main import (  # noqa: E402
     app,
     get_customer_repo,
     get_db,
     get_idempotency_repo,
-    get_order_event_publisher,
-    get_outbox_repo,
+    get_observability_fixture_repo,
     get_order_repo,
 )
 from aws_sdlc_api.main import get_config_store  # noqa: E402
-from aws_sdlc_core.customer import Customer  # noqa: E402
-from aws_sdlc_core.order import Order  # noqa: E402
-from aws_sdlc_core.outbox import OutboxMessage  # noqa: E402
+from aws_sdlc_domain.customer import Customer  # noqa: E402
+from aws_sdlc_domain.order import Order  # noqa: E402
 
 
 class _ReadySession:
@@ -40,44 +37,18 @@ class _FailingSession:
         raise RuntimeError("database unavailable")
 
 
-class _MappingResult:
-    def __init__(self, row: dict[str, object] | None) -> None:
-        self._row = row
-
-    def mappings(self) -> "_MappingResult":
-        return self
-
-    def first(self) -> dict[str, object] | None:
-        return self._row
-
-    def one(self) -> dict[str, object]:
-        if self._row is None:
-            raise AssertionError("expected one row")
-        return self._row
-
-
-class _ObservabilityFixtureSession:
+class _ObservabilityFixtureRepo:
     def __init__(self) -> None:
-        self.inserted = False
-        self.commits = 0
-        self.row = {
-            "id": 123,
-            "name": "Observability Smoke Customer",
-            "created_at": datetime.datetime(2026, 4, 29, 12, 0, tzinfo=datetime.UTC),
-        }
+        self.calls = 0
 
-    def execute(self, statement: Any, params: dict[str, object]) -> _MappingResult:
-        statement_text = str(statement)
-        assert params["name"] == "Observability Smoke Customer"
-        if statement_text.startswith("SELECT"):
-            return _MappingResult(self.row if self.inserted else None)
-        if statement_text.startswith("INSERT"):
-            self.inserted = True
-            return _MappingResult(self.row)
-        raise AssertionError(f"unexpected statement: {statement_text}")
-
-    def commit(self) -> None:
-        self.commits += 1
+    def ensure_customer(self, *, name: str) -> Customer:
+        self.calls += 1
+        assert name == "Observability Smoke Customer"
+        return Customer(
+            id=123,
+            name=name,
+            created_at=datetime.datetime(2026, 4, 29, 12, 0, tzinfo=datetime.UTC),
+        )
 
 
 class _ConfigStore:
@@ -140,72 +111,6 @@ class _CustomerRepo:
         return None
 
 
-class _OrderEventPublisher:
-    def __init__(self, *, should_fail: bool = False) -> None:
-        self.should_fail = should_fail
-        self.published: list[OutboxMessage] = []
-
-    def publish_order_created(self, order: Order) -> None:
-        raise AssertionError("API should dispatch durable outbox messages")
-
-    def publish(self, message: OutboxMessage) -> None:
-        if self.should_fail:
-            raise OrderEventPublishError("sqs unavailable")
-        self.published.append(message)
-
-
-class _OutboxRepo:
-    def __init__(self) -> None:
-        self.message = OutboxMessage(
-            id=1,
-            event_type="order.created.v1",
-            event_id="order.created.v1:42",
-            aggregate_type="order",
-            aggregate_id=42,
-            message_group_id="customer-7",
-            message_deduplication_id="order.created.v1:42",
-            payload={"event_id": "order.created.v1:42"},
-            attempt_count=0,
-        )
-        self.published: list[int] = []
-        self.failed: list[dict[str, object]] = []
-
-    def enqueue(self, message: object) -> None:
-        raise AssertionError("API order repo owns atomic outbox enqueue")
-
-    def claim_pending(
-        self,
-        *,
-        limit: int,
-        now: datetime.datetime,
-    ) -> list[OutboxMessage]:
-        return [self.message]
-
-    def mark_published(
-        self,
-        *,
-        message_id: int,
-        now: datetime.datetime,
-    ) -> None:
-        self.published.append(message_id)
-
-    def mark_failed(
-        self,
-        *,
-        message_id: int,
-        error: str,
-        next_attempt_at: datetime.datetime,
-        now: datetime.datetime,
-    ) -> None:
-        self.failed.append(
-            {
-                "message_id": message_id,
-                "error": error,
-                "next_attempt_at": next_attempt_at,
-            }
-        )
-
-
 class _IdempotencyRepo:
     def begin(self, *, key: str, request_hash: str) -> object:
         raise AssertionError("not used without an Idempotency-Key header")
@@ -251,25 +156,20 @@ def _override_customer_repo(repo: object) -> None:
     app.dependency_overrides[get_customer_repo] = get_test_customer_repo
 
 
-def _override_order_event_publisher(publisher: object) -> None:
-    def get_test_order_event_publisher() -> object:
-        return publisher
-
-    app.dependency_overrides[get_order_event_publisher] = get_test_order_event_publisher
-
-
-def _override_outbox_repo(repo: object) -> None:
-    def get_test_outbox_repo() -> object:
-        return repo
-
-    app.dependency_overrides[get_outbox_repo] = get_test_outbox_repo
-
-
 def _override_idempotency_repo(repo: object) -> None:
     def get_test_idempotency_repo() -> object:
         return repo
 
     app.dependency_overrides[get_idempotency_repo] = get_test_idempotency_repo
+
+
+def _override_observability_fixture_repo(repo: object) -> None:
+    def get_test_observability_fixture_repo() -> object:
+        return repo
+
+    app.dependency_overrides[get_observability_fixture_repo] = (
+        get_test_observability_fixture_repo
+    )
 
 
 def test_ready_reports_database_ok_when_ping_succeeds() -> None:
@@ -299,9 +199,9 @@ def test_ready_reports_unavailable_when_ping_fails() -> None:
     }
 
 
-def test_observability_fixture_endpoint_creates_customer_once() -> None:
-    session = _ObservabilityFixtureSession()
-    _override_db(session)
+def test_observability_fixture_endpoint_uses_application_fixture_port() -> None:
+    repo = _ObservabilityFixtureRepo()
+    _override_observability_fixture_repo(repo)
     try:
         with TestClient(app) as client:
             first = client.post("/admin/observability-fixture")
@@ -314,7 +214,7 @@ def test_observability_fixture_endpoint_creates_customer_once() -> None:
     assert first.json()["name"] == "Observability Smoke Customer"
     assert second.status_code == 200
     assert second.json()["id"] == 123
-    assert session.commits == 1
+    assert repo.calls == 2
 
 
 def test_request_id_header_is_generated_when_absent() -> None:
@@ -361,14 +261,10 @@ def test_runtime_mode_getters_fail_when_config_is_missing() -> None:
     assert write_response.status_code == 503
 
 
-def test_create_order_records_outbox_without_inline_dispatch() -> None:
+def test_create_order_uses_application_port_without_inline_dispatch() -> None:
     repo = _OrderRepo()
-    outbox = _OutboxRepo()
-    publisher = _OrderEventPublisher()
     _override_order_repo(repo)
     _override_customer_repo(_CustomerRepo())
-    _override_outbox_repo(outbox)
-    _override_order_event_publisher(publisher)
     _override_idempotency_repo(_IdempotencyRepo())
     try:
         with TestClient(app) as client:
@@ -385,40 +281,18 @@ def test_create_order_records_outbox_without_inline_dispatch() -> None:
 
     assert response.status_code == 201
     assert response.json()["id"] == 42
-    assert publisher.published == []
-    assert outbox.published == []
-
-
-def test_create_order_inline_dispatch_can_be_disabled() -> None:
-    outbox = _OutboxRepo()
-    _override_order_repo(_OrderRepo())
-    _override_customer_repo(_CustomerRepo())
-    _override_outbox_repo(outbox)
-    _override_order_event_publisher(_OrderEventPublisher(should_fail=True))
-    _override_idempotency_repo(_IdempotencyRepo())
-    try:
-        with TestClient(app) as client:
-            response = client.post(
-                "/orders",
-                json={
-                    "customer_id": 7,
-                    "total_amount": "19.99",
-                    "billing_email": "customer@example.com",
-                },
-            )
-    finally:
-        app.dependency_overrides.clear()
-
-    assert response.status_code == 201
-    assert response.json()["id"] == 42
-    assert outbox.published == []
-    assert outbox.failed == []
+    assert repo.created == [
+        {
+            "customer_id": 7,
+            "total_amount": Decimal("19.99"),
+            "billing_email": "customer@example.com",
+        }
+    ]
 
 
 def test_create_order_returns_404_when_customer_is_missing() -> None:
     _override_order_repo(_OrderRepo())
     _override_customer_repo(_CustomerRepo(customer=None))
-    _override_order_event_publisher(_OrderEventPublisher())
     try:
         with TestClient(app) as client:
             response = client.post(

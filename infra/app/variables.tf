@@ -101,19 +101,25 @@ variable "data_export_schedule_expression" {
 variable "order_event_consumer_cpu" {
   description = "Fargate task CPU units for the order event relay/consumer service."
   type        = number
-  default     = 256
+  default     = 512
 }
 
 variable "order_event_consumer_memory" {
   description = "Fargate task memory (MiB) for the order event relay/consumer service."
   type        = number
-  default     = 512
+  default     = 1024
 }
 
 variable "order_event_consumer_desired_count" {
   description = "Desired number of order event relay/consumer tasks."
   type        = number
   default     = 1
+}
+
+variable "dapr_image" {
+  description = "Dapr runtime sidecar image used by Dapr-enabled ECS tasks."
+  type        = string
+  default     = "daprio/daprd:1.17.0"
 }
 
 # ── CloudWatch app-level reduction toggles ───────────────────────────────────

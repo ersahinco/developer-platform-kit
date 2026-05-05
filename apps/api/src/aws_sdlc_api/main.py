@@ -13,13 +13,7 @@ from starlette import status
 from starlette.responses import JSONResponse
 from starlette.responses import Response
 
-from aws_sdlc_api.config import settings
 from aws_sdlc_api.db import engine, get_db
-from aws_sdlc_api.events import (
-    NoopOrderEventPublisher,
-    OrderEventPublisher,
-    SqsOrderEventPublisher,
-)
 from aws_sdlc_api.schemas import (
     CreateOrderRequest,
     CustomerResponse,
@@ -32,15 +26,18 @@ from aws_sdlc_api.schemas import (
     WriteModeResponse,
 )
 from aws_sdlc_api.telemetry import configure_tracing
-from aws_sdlc_core.idempotency import IdempotencyRepository, order_request_hash
-from aws_sdlc_core.order import ReadModeValue, WriteModeValue
-from aws_sdlc_core.order_submission import (
+from aws_sdlc_application.idempotency import IdempotencyRepository, order_request_hash
+from aws_sdlc_application.observability import (
+    ObservabilityFixtureRepository,
+    ensure_observability_fixture_customer as ensure_fixture_customer,
+)
+from aws_sdlc_domain.order import ReadModeValue, WriteModeValue
+from aws_sdlc_application.order_submission import (
     CustomerNotFoundError,
     InvalidOrderAmountError,
     submit_order,
 )
-from aws_sdlc_core.outbox import OutboxRepository, dispatch_pending_outbox_messages
-from aws_sdlc_core.ports import ConfigStore, CustomerRepository, OrderRepository
+from aws_sdlc_application.ports import ConfigStore, CustomerRepository, OrderRepository
 
 
 class _SuppressLowValueAccessLogs(logging.Filter):
@@ -77,8 +74,6 @@ logging.getLogger("uvicorn.access").addFilter(_SuppressLowValueAccessLogs())
 
 app = FastAPI(title="aws-sdlc-containers")
 configure_tracing(app=app, engine=engine)
-
-_OBSERVABILITY_FIXTURE_CUSTOMER_NAME = "Observability Smoke Customer"
 
 DbDep = Annotated[Session, Depends(get_db)]
 
@@ -138,39 +133,35 @@ def get_order_repo(db: DbDep) -> OrderRepository:
     # Import here, not at module level — keeps the API adapter decoupled from
     # the DB adapter at import time. The port is the compile-time contract;
     # the concrete implementation is wired only at request time.
-    from aws_sdlc_adapters.db.repository import SQLAlchemyOrderRepository
+    from aws_sdlc_infrastructure.db.repository import SQLAlchemyOrderRepository
 
     return SQLAlchemyOrderRepository(session=db)
 
 
 def get_customer_repo(db: DbDep) -> CustomerRepository:
-    from aws_sdlc_adapters.db.repository import SQLAlchemyCustomerRepository
+    from aws_sdlc_infrastructure.db.repository import SQLAlchemyCustomerRepository
 
     return SQLAlchemyCustomerRepository(session=db)
 
 
-def get_outbox_repo(db: DbDep) -> OutboxRepository:
-    from aws_sdlc_adapters.db.repository import SQLAlchemyOutboxRepository
-
-    return SQLAlchemyOutboxRepository(session=db)
-
-
 def get_idempotency_repo(db: DbDep) -> IdempotencyRepository:
-    from aws_sdlc_adapters.db.repository import SQLAlchemyIdempotencyRepository
+    from aws_sdlc_infrastructure.db.repository import SQLAlchemyIdempotencyRepository
 
     return SQLAlchemyIdempotencyRepository(session=db)
 
 
 def get_config_store(db: DbDep) -> ConfigStore:
-    from aws_sdlc_adapters.db.repository import SQLAlchemyConfigStore
+    from aws_sdlc_infrastructure.db.repository import SQLAlchemyConfigStore
 
     return SQLAlchemyConfigStore(session=db)
 
 
-def get_order_event_publisher() -> OrderEventPublisher:
-    if settings.order_events_queue_url is None:
-        return NoopOrderEventPublisher()
-    return SqsOrderEventPublisher(settings.order_events_queue_url)
+def get_observability_fixture_repo(db: DbDep) -> ObservabilityFixtureRepository:
+    from aws_sdlc_infrastructure.db.repository import (
+        SQLAlchemyObservabilityFixtureRepository,
+    )
+
+    return SQLAlchemyObservabilityFixtureRepository(session=db)
 
 
 def _begin_idempotent_request(
@@ -189,11 +180,11 @@ def _begin_idempotent_request(
 
 OrderRepoDep = Annotated[OrderRepository, Depends(get_order_repo)]
 CustomerRepoDep = Annotated[CustomerRepository, Depends(get_customer_repo)]
-OutboxRepoDep = Annotated[OutboxRepository, Depends(get_outbox_repo)]
 IdempotencyRepoDep = Annotated[IdempotencyRepository, Depends(get_idempotency_repo)]
 ConfigStoreDep = Annotated[ConfigStore, Depends(get_config_store)]
-OrderEventPublisherDep = Annotated[
-    OrderEventPublisher, Depends(get_order_event_publisher)
+ObservabilityFixtureDep = Annotated[
+    ObservabilityFixtureRepository,
+    Depends(get_observability_fixture_repo),
 ]
 
 
@@ -233,36 +224,14 @@ def get_customer(customer_id: int, repo: CustomerRepoDep) -> CustomerResponse:
 
 
 @app.post("/admin/observability-fixture", response_model=CustomerResponse)
-def ensure_observability_fixture_customer(db: DbDep) -> CustomerResponse:
-    row = (
-        db.execute(
-            text(
-                "SELECT id, name, created_at FROM customers "
-                "WHERE name=:name ORDER BY id LIMIT 1"
-            ),
-            {"name": _OBSERVABILITY_FIXTURE_CUSTOMER_NAME},
-        )
-        .mappings()
-        .first()
-    )
-    if row is None:
-        row = (
-            db.execute(
-                text(
-                    "INSERT INTO customers (name) VALUES (:name) "
-                    "RETURNING id, name, created_at"
-                ),
-                {"name": _OBSERVABILITY_FIXTURE_CUSTOMER_NAME},
-            )
-            .mappings()
-            .one()
-        )
-        db.commit()
-
+def ensure_observability_fixture_customer(
+    fixtures: ObservabilityFixtureDep,
+) -> CustomerResponse:
+    customer = ensure_fixture_customer(fixtures=fixtures)
     return CustomerResponse(
-        id=row["id"],
-        name=row["name"],
-        created_at=row["created_at"],
+        id=customer.id,
+        name=customer.name,
+        created_at=customer.created_at,
     )
 
 
@@ -271,8 +240,6 @@ def create_order(
     body: CreateOrderRequest,
     repo: OrderRepoDep,
     customers: CustomerRepoDep,
-    outbox: OutboxRepoDep,
-    event_publisher: OrderEventPublisherDep,
     idempotency: IdempotencyRepoDep,
     idempotency_key: Annotated[str | None, Header(alias="Idempotency-Key")] = None,
 ) -> OrderResponse | JSONResponse:
@@ -340,13 +307,6 @@ def create_order(
                 content=payload,
             )
         raise HTTPException(status_code=422, detail=str(exc)) from exc
-
-    if settings.dispatch_outbox_inline:
-        dispatch_pending_outbox_messages(
-            outbox=outbox,
-            publisher=event_publisher,
-            limit=10,
-        )
 
     response = OrderResponse(
         id=order.id,

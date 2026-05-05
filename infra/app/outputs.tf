@@ -184,8 +184,13 @@ output "app_task_role_arn" {
 }
 
 output "order_events_queue_url" {
-  description = "SQS FIFO queue URL for order.created.v1 events."
+  description = "Dapr subscriber SQS FIFO queue URL for order.created.v1 events."
   value       = aws_sqs_queue.order_events.url
+}
+
+output "order_events_topic_arn" {
+  description = "SNS FIFO topic ARN used by Dapr order event pub/sub."
+  value       = aws_sns_topic.order_events.arn
 }
 
 output "order_events_dlq_name" {

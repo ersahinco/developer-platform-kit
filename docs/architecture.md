@@ -4,30 +4,51 @@
 account/region, one ECS cluster, one PostgreSQL database, and one reference
 workload that proves safe in-place rollout.
 
-## Current platform contract
+## Current architecture contract
 
 - Base platform: split platform/app Terraform state, one VPC, one public
   WAF-protected API hostname, one ECS cluster, one long-running app service,
   PgBouncer in the app task, one PostgreSQL database, and one S3 data hub
   bucket.
+- Application shape: one application system, one repository, and one shared
+  database, deployed as multiple workload hosts. Those hosts may use different
+  ECS services or task definitions without becoming accidental microservices.
 - Reference workload: additive Liquibase migrations, in-place ECS deploys, runtime `WRITE_MODE` and `READ_MODE` switches, and one-off worker tasks all operate against that same cluster and database.
 - Data workload: one scheduled ECS data export job writes the `order_contact_email` raw CSV and manifest objects to the S3 data hub bucket.
-- Async workload: the app publishes `order.created.v1` messages to one SQS FIFO
-  queue through a durable outbox relay, and the order event consumer records
-  idempotent receipts for processed deliveries.
+- Async workload: the app writes `order.created.v1` messages to a durable
+  outbox. The order event runtime relays those rows through Dapr pub/sub, backed
+  by AWS SNS/SQS on ECS, and records idempotent receipts for processed
+  deliveries.
 - Public-edge rule: public-facing ALBs must be associated with WAF.
 - Extension rule: future observability stacks, extra operator controls, and workload-specific jobs should be added as extensions rather than folded into the core platform unless every workload would require them.
 
-## Why hexagonal architecture?
+## Clean architecture package map
 
-The HTTP layer (`apps/api/src/aws_sdlc_api/main.py`) never touches SQL
-directly. It calls abstract ports from `packages/core`, and the concrete
-implementation in `packages/adapters` handles storage concerns. This boundary
-is what makes the migration transparent to the HTTP layer: the route handler
-for `GET /orders/{id}` is unchanged whether `billing_email` lives in `orders`
-or `order_contact_email`.
+The repo is organized around dependency direction, not deployment shape:
 
-`packages/core/src/aws_sdlc_core/ports.py` defines what the domain needs:
+- `packages/domain`: pure entities, value objects, and domain events.
+- `packages/application`: use cases, ports, command/result objects, and outbox
+  dispatch contracts.
+- `packages/infrastructure`: SQLAlchemy repositories, Dapr pub/sub adapters,
+  and storage/runtime integration.
+- `apps/*`: workload hosts. They own settings, process lifecycle, HTTP routes,
+  scheduler entrypoints, and concrete wiring.
+
+Dependencies point inward:
+
+```text
+apps/*  -> packages/application -> packages/domain
+apps/*  -> packages/infrastructure
+packages/infrastructure -> packages/application + packages/domain
+```
+
+`packages/domain` and `packages/application` must not import FastAPI,
+SQLAlchemy, boto3, Dapr adapter code, or app settings. The API can run as part
+of a modular monolith today while preserving a clean extraction path for future
+hosts because use cases speak ports and simple Python objects.
+
+`packages/application/src/aws_sdlc_application/ports.py` defines the stable
+application-facing contracts for synchronous order behavior:
 
 ```python
 class OrderRepository(abc.ABC):
@@ -35,22 +56,28 @@ class OrderRepository(abc.ABC):
     def get_order(self, order_id: int) -> Order | None: ...
 ```
 
-`packages/adapters/src/aws_sdlc_adapters/db/repository.py` reads `WRITE_MODE`
-and `READ_MODE` from `app_runtime_config` (TTL-cached, 5 s) to decide which
-table or tables to write to and read from.
+`packages/application/src/aws_sdlc_application/outbox.py` defines the outbox
+relay contracts. `packages/infrastructure/src/aws_sdlc_infrastructure/db/`
+implements the Postgres repositories and
+`packages/infrastructure/src/aws_sdlc_infrastructure/dapr/pubsub.py` implements
+the Dapr publisher adapter.
 
----
+## Database capability ownership
 
-## Layer map
+The project keeps one Postgres database. Ownership is documented by capability
+and table, not by pretending each workload owns a separate database:
 
-```
-apps/api/src/aws_sdlc_api/             — HTTP boundary, settings, session wiring
-                                           ↓ calls ports only, no SQLAlchemy in routes
-packages/core/src/aws_sdlc_core/       — entities and ports (pure Python)
-                                           ↓ implemented by
-packages/adapters/src/aws_sdlc_adapters/db/
-                                       — SQLAlchemy models and repositories
-```
+| Capability | Tables | Current primary writers |
+|---|---|---|
+| Order write model | `customers`, `orders`, `order_contact_email` | API through `SQLAlchemyOrderRepository`; backfill writes historical contact rows |
+| Runtime configuration | `app_runtime_config` | API admin endpoints through `SQLAlchemyConfigStore`; Liquibase seeds defaults |
+| Outbox and event receipts | `outbox_messages`, `order_event_receipts`, `idempotency_keys` | API writes order/idempotency/outbox rows; order event host relays and records receipts |
+| Migration/backfill control | `backfill_progress`, `DATABASECHANGELOG`, `DATABASECHANGELOGLOCK` | Liquibase and backfill worker |
+| Export/data-hub outputs | S3 data hub objects under export prefixes | data export job |
+
+This keeps operational reasoning simple: one schema migration history and one
+transactional database, with separate compute hosts only where workload
+lifecycle, scaling, or scheduling differs.
 
 ---
 
@@ -105,14 +132,17 @@ Tests connect to the live DB via PgBouncer (same `DATABASE_URL` as the app) and 
 
 The first async workflow is deliberately narrow: after an order is created, the
 app writes an `order.created.v1` message to `outbox_messages` in the same
-database transaction as the order. The `order-event-consumer` runtime relays
-pending outbox rows to SQS and consumes SQS deliveries into
+database transaction as the order. The `order-event-consumer` runtime runs as a
+small Dapr-enabled FastAPI service. Its background relay claims pending outbox
+rows and publishes CloudEvents to the local Dapr sidecar; Dapr uses the
+`order-events-pubsub` component to deliver through AWS SNS/SQS on ECS. Dapr then
+calls the runtime's subscription endpoint, which records deliveries into
 `order_event_receipts`.
 
 The event contract uses `order.created.v1:<order_id>` for both `event_id` and
-`idempotency_key`. The SQS `MessageDeduplicationId` uses the same value, and
-`MessageGroupId` is scoped to `customer-<customer_id>` so events for the same
-customer stay ordered.
+`idempotency_key`. Dapr receives CloudEvents with the existing order payload in
+the `data` field, and the AWS SNS/SQS component runs in FIFO mode with
+single-concurrency delivery for this topic.
 
 The outbox relay claims rows with `FOR UPDATE SKIP LOCKED`, marks successful
 publishes as `published`, and leaves failed publishes retryable with backoff.
@@ -120,8 +150,50 @@ The consumer deduplicates by `event_id`, increments duplicate counts for repeat
 deliveries, and records late/stale events as `ignored_stale` when a newer event
 for the same aggregate has already been processed.
 
-The queue has a DLQ and a CloudWatch alarm for visible DLQ messages. The
-runbook is `docs/runbooks/order-event-queue-failure.md`.
+The subscriber queue has a DLQ and a CloudWatch alarm for visible DLQ messages.
+The runbook is `docs/runbooks/order-event-queue-failure.md`.
+
+### Dapr resiliency policy
+
+The order event sidecar loads a scoped Dapr resiliency spec from the same
+resources path as the `order-events-pubsub` component. The policy is intentionally
+small and bounded:
+
+- 10 s timeout for pub/sub component operations.
+- 2 constant retries with a 1 s interval.
+- circuit breaker after more than 5 consecutive failures, reopening after 30 s.
+- both outbound publish calls and inbound subscription callbacks use the same
+  policy.
+
+This gives the application layer a portable failure-handling foundation without
+turning a single event flow into a platform framework. The durable database
+outbox and SQS DLQ remain the long-lived recovery mechanisms; Dapr handles the
+short transient edge around broker calls and callback delivery.
+
+### Broader Dapr direction
+
+Dapr is the chosen application-layer foundation because it makes future
+complexity manageable: transport, resiliency, service invocation, workflows, and
+runtime integration can grow behind consistent building blocks. That does not
+mean every building block is added up front. Inside the current modular
+monolith, direct Python calls, explicit ports, and the existing Postgres
+repository remain simpler than routing everything through Dapr.
+
+Postgres can still participate in Dapr when the boundary is Dapr-owned runtime
+state, not core OLTP repository behavior. Dapr supports PostgreSQL as a state
+store component and as a PostgreSQL output binding; either can be useful later
+for workflow checkpoints, operational job state, or narrow integration tasks.
+Those components should use separate tables or schemas from the order write
+model and outbox tables so the application database remains easy to reason
+about.
+
+Analytics workloads should follow the same host/package rule. A DuckDB, dbt, or
+data-load job can live as a separate workload host when it has its own schedule,
+resources, or deploy lifecycle, while reusable orchestration belongs in
+`packages/application` and concrete adapters belong in `packages/infrastructure`.
+Postgres remains the transactional source of truth; analytics outputs should be
+owned as data products in S3 prefixes, dedicated analytics tables/schemas, or a
+separate store when query shape and retention justify it.
 
 ## Request idempotency
 
