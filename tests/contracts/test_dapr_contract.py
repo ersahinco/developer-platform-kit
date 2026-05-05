@@ -36,6 +36,19 @@ def test_order_events_ecs_sidecar_loads_resiliency_spec() -> None:
     assert "./dapr/local/components:/components:ro" in compose
 
 
+def test_order_events_sns_topic_is_encrypted() -> None:
+    encryption = _read("infra/app/encryption.tf")
+    messaging = _read("infra/app/messaging.tf")
+    workload_jobs = _read("infra/app/workload_jobs.tf")
+
+    assert 'resource "aws_kms_key" "order_events_sns"' in encryption
+    assert "kms:EncryptionContext:aws:sns:topicArn" in encryption
+    assert "kms_master_key_id" in messaging
+    assert "aws_kms_key.order_events_sns.arn" in messaging
+    assert "UseOrderEventsSnsKms" in workload_jobs
+    assert "kms:ViaService" in workload_jobs
+
+
 def test_app_build_validates_dapr_and_local_runtime_changes() -> None:
     app_build = _read(".github/workflows/app-build.yml")
 

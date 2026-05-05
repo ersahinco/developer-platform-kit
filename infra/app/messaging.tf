@@ -16,6 +16,7 @@ resource "aws_sns_topic" "order_events" {
   name                        = local.order_events_topic_name
   fifo_topic                  = true
   content_based_deduplication = true
+  kms_master_key_id           = aws_kms_key.order_events_sns.arn
 
   tags = local.tags
 }

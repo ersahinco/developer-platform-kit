@@ -454,8 +454,8 @@ resource "aws_cloudwatch_metric_alarm" "data_export_scheduler_target_errors" {
 
 ################################################################################
 # Order event consumer — one small async runtime that relays durable outbox
-# messages to SQS and consumes order.created.v1 deliveries into an idempotent
-# receipt table.
+# messages through Dapr pub/sub and records order.created.v1 deliveries into an
+# idempotent receipt table.
 ################################################################################
 
 resource "aws_iam_role" "order_event_consumer" {
@@ -487,6 +487,28 @@ data "aws_iam_policy_document" "order_event_consumer_sqs" {
     sid       = "ReadDaprRuntimeConfig"
     actions   = ["s3:GetObject"]
     resources = ["${aws_s3_bucket.runtime_config.arn}/${local.order_events_dapr_config_prefix}/*"]
+  }
+
+  statement {
+    sid = "UseOrderEventsSnsKms"
+    actions = [
+      "kms:Decrypt",
+      "kms:DescribeKey",
+      "kms:GenerateDataKey",
+    ]
+    resources = [aws_kms_key.order_events_sns.arn]
+
+    condition {
+      test     = "StringEquals"
+      variable = "kms:CallerAccount"
+      values   = [local.account_id]
+    }
+
+    condition {
+      test     = "StringEquals"
+      variable = "kms:ViaService"
+      values   = ["sns.${local.region}.amazonaws.com"]
+    }
   }
 }
 
