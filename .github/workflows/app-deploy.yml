@@ -41,7 +41,7 @@ jobs:
       id-token: write
 
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
         with:
           fetch-depth: 0
           persist-credentials: false
@@ -58,7 +58,7 @@ jobs:
             exit 1
           fi
 
-      - uses: aws-actions/configure-aws-credentials@v6
+      - uses: aws-actions/configure-aws-credentials@a89a83ec143615402a01f672b6e172b7b1875000 # v6
         with:
           role-to-assume: ${{ secrets.AWS_ROLE_ARN }}
           aws-region: ${{ env.AWS_REGION }}
@@ -80,7 +80,7 @@ jobs:
 
       - name: Render liquibase task definition
         id: render-liquibase
-        uses: aws-actions/amazon-ecs-render-task-definition@v1.8.4
+        uses: aws-actions/amazon-ecs-render-task-definition@d0353f77ffbbacab14cafa4c1a9fc3ea530a822e # v1.8.4
         with:
           task-definition-family: aws-sdlc-containers-liquibase
           container-name: liquibase
@@ -148,12 +148,12 @@ jobs:
       id-token: write
 
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
         with:
           fetch-depth: 0
           persist-credentials: false
 
-      - uses: astral-sh/setup-uv@v8.1.0
+      - uses: astral-sh/setup-uv@08807647e7069bb48b6ef5acd8ec9567f424441b # v8.1.0
         with:
           version: "0.11.8"
           enable-cache: true
@@ -173,7 +173,7 @@ jobs:
             exit 1
           fi
 
-      - uses: aws-actions/configure-aws-credentials@v6
+      - uses: aws-actions/configure-aws-credentials@a89a83ec143615402a01f672b6e172b7b1875000 # v6
         with:
           role-to-assume: ${{ secrets.AWS_ROLE_ARN }}
           aws-region: ${{ env.AWS_REGION }}
@@ -184,7 +184,7 @@ jobs:
 
       - name: Render app task definition
         id: render-app
-        uses: aws-actions/amazon-ecs-render-task-definition@v1.8.4
+        uses: aws-actions/amazon-ecs-render-task-definition@d0353f77ffbbacab14cafa4c1a9fc3ea530a822e # v1.8.4
         with:
           task-definition-family: aws-sdlc-containers
           container-name: app
@@ -217,7 +217,7 @@ jobs:
 
       - name: Render worker task definition
         id: render-worker
-        uses: aws-actions/amazon-ecs-render-task-definition@v1.8.4
+        uses: aws-actions/amazon-ecs-render-task-definition@d0353f77ffbbacab14cafa4c1a9fc3ea530a822e # v1.8.4
         with:
           task-definition-family: aws-sdlc-containers-worker
           container-name: worker
@@ -234,7 +234,7 @@ jobs:
 
       - name: Render data export task definition
         id: render-data-export
-        uses: aws-actions/amazon-ecs-render-task-definition@v1.8.4
+        uses: aws-actions/amazon-ecs-render-task-definition@d0353f77ffbbacab14cafa4c1a9fc3ea530a822e # v1.8.4
         with:
           task-definition-family: aws-sdlc-containers-data-export-job
           container-name: data-export-job
@@ -250,7 +250,7 @@ jobs:
 
       - name: Render order event consumer task definition
         id: render-order-event-consumer
-        uses: aws-actions/amazon-ecs-render-task-definition@v1.8.4
+        uses: aws-actions/amazon-ecs-render-task-definition@d0353f77ffbbacab14cafa4c1a9fc3ea530a822e # v1.8.4
         with:
           task-definition-family: aws-sdlc-containers-order-event-consumer
           container-name: order-event-consumer

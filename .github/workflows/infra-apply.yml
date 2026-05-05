@@ -43,7 +43,7 @@ jobs:
     steps:
       - name: Resolve plan run
         id: plan
-        uses: actions/github-script@v9
+        uses: actions/github-script@373c709c69115d41ff229c7e5df9f8788daa9553 # v9
         with:
           script: |
             const run_id = Number(process.env.PLAN_RUN_ID);
@@ -92,23 +92,23 @@ jobs:
             core.setOutput('run_id', String(run_id));
             core.setOutput('head_sha', run.head_sha);
 
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
         with:
           ref: ${{ steps.plan.outputs.head_sha }}
           persist-credentials: false
 
-      - uses: actions/download-artifact@v8
+      - uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8
         with:
           name: terraform-plan-${{ steps.plan.outputs.run_id }}
           run-id: ${{ steps.plan.outputs.run_id }}
           github-token: ${{ github.token }}
           path: infra
 
-      - uses: hashicorp/setup-terraform@v4
+      - uses: hashicorp/setup-terraform@5e8dbf3c6d9deaf4193ca7a8fb23f2ac83bb6c85 # v4
         with:
           terraform_version: ${{ env.TF_VERSION }}
 
-      - uses: aws-actions/configure-aws-credentials@v6
+      - uses: aws-actions/configure-aws-credentials@a89a83ec143615402a01f672b6e172b7b1875000 # v6
         with:
           role-to-assume: ${{ secrets.AWS_ROLE_ARN }}
           aws-region: ${{ env.AWS_REGION }}

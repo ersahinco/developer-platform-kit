@@ -56,7 +56,7 @@ jobs:
 
     services:
       postgres:
-        image: postgres:18.3
+        image: postgres:18.3@sha256:78481659c47e862334611ccdaf7c369c986b3046da9857112f3b309114a65fb4
         env:
           POSTGRES_DB: aws_sdlc_containers
           POSTGRES_USER: postgres
@@ -71,7 +71,7 @@ jobs:
           --health-start-period 10s
 
       pgbouncer:
-        image: edoburu/pgbouncer:v1.25.1-p0
+        image: edoburu/pgbouncer:v1.25.1-p0@sha256:c7bfcaa24de830e29588bb9ad1eb39cebaf07c27149e1974445899b695634bb4
         env:
           DB_HOST: postgres
           DB_PORT: 5432
@@ -92,11 +92,11 @@ jobs:
       SEED_NUM_ORDERS: 1000
 
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
         with:
           persist-credentials: false
 
-      - uses: astral-sh/setup-uv@v8.1.0
+      - uses: astral-sh/setup-uv@08807647e7069bb48b6ef5acd8ec9567f424441b # v8.1.0
         with:
           version: "0.11.8"
           enable-cache: true
@@ -169,22 +169,23 @@ jobs:
     permissions:
       id-token: write
       contents: read
+      attestations: write
     outputs:
       image_tag: sha-${{ github.sha }}
 
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
         with:
           persist-credentials: false
 
       - name: Configure AWS credentials
-        uses: aws-actions/configure-aws-credentials@v6
+        uses: aws-actions/configure-aws-credentials@a89a83ec143615402a01f672b6e172b7b1875000 # v6
         with:
           role-to-assume: ${{ secrets.AWS_ROLE_ARN }}
           aws-region: ${{ env.AWS_REGION }}
 
       - name: Log in to ECR
-        uses: aws-actions/amazon-ecr-login@v2
+        uses: aws-actions/amazon-ecr-login@19d944daaa35f0fa1d3f7f8af1d3f2e5de25c5b7 # v2
 
       - name: Build images
         env:
@@ -205,7 +206,7 @@ jobs:
             docker run --rm \
               -v /var/run/docker.sock:/var/run/docker.sock \
               -v "$HOME/.cache/trivy:/root/.cache/trivy" \
-              ghcr.io/aquasecurity/trivy:0.70.0 image \
+              ghcr.io/aquasecurity/trivy:0.70.0@sha256:be1190afcb28352bfddc4ddeb71470835d16462af68d310f9f4bca710961a41e image \
               --exit-code 1 --severity CRITICAL --no-progress "$1"
           }
           scan "${{ env.ECR_REGISTRY }}/${{ env.STACK_NAME }}/app:sha-${{ github.sha }}" &
@@ -226,6 +227,78 @@ jobs:
           done
           docker push "${{ env.ECR_REGISTRY }}/${{ env.STACK_NAME }}/pgbouncer:${PGBOUNCER_TAG}" &
           wait
+
+      - name: Resolve pushed image digests
+        id: image-digests
+        env:
+          TAG: sha-${{ github.sha }}
+        run: |
+          resolve_digest() {
+            local output_name="$1"
+            local image="$2"
+            local digest
+            digest=$(docker buildx imagetools inspect "$image" --format '{{json .Manifest.Digest}}')
+            digest=${digest#\"}
+            digest=${digest%\"}
+            echo "${output_name}=${digest}" >> "$GITHUB_OUTPUT"
+          }
+
+          resolve_digest app "${{ env.ECR_REGISTRY }}/${{ env.STACK_NAME }}/app:${TAG}"
+          resolve_digest worker "${{ env.ECR_REGISTRY }}/${{ env.STACK_NAME }}/worker:${TAG}"
+          resolve_digest data_export_job "${{ env.ECR_REGISTRY }}/${{ env.STACK_NAME }}/data-export-job:${TAG}"
+          resolve_digest order_event_consumer "${{ env.ECR_REGISTRY }}/${{ env.STACK_NAME }}/order-event-consumer:${TAG}"
+          resolve_digest liquibase "${{ env.ECR_REGISTRY }}/${{ env.STACK_NAME }}/liquibase:${TAG}"
+          resolve_digest firelens "${{ env.ECR_REGISTRY }}/${{ env.STACK_NAME }}/firelens:${TAG}"
+          resolve_digest pgbouncer "${{ env.ECR_REGISTRY }}/${{ env.STACK_NAME }}/pgbouncer:${PGBOUNCER_TAG}"
+
+      - name: Attest app image provenance
+        uses: actions/attest-build-provenance@43d14bc2b83dec42d39ecae14e916627a18bb661 # v3
+        with:
+          subject-name: ${{ env.ECR_REGISTRY }}/${{ env.STACK_NAME }}/app
+          subject-digest: ${{ steps.image-digests.outputs.app }}
+          push-to-registry: true
+
+      - name: Attest worker image provenance
+        uses: actions/attest-build-provenance@43d14bc2b83dec42d39ecae14e916627a18bb661 # v3
+        with:
+          subject-name: ${{ env.ECR_REGISTRY }}/${{ env.STACK_NAME }}/worker
+          subject-digest: ${{ steps.image-digests.outputs.worker }}
+          push-to-registry: true
+
+      - name: Attest data export image provenance
+        uses: actions/attest-build-provenance@43d14bc2b83dec42d39ecae14e916627a18bb661 # v3
+        with:
+          subject-name: ${{ env.ECR_REGISTRY }}/${{ env.STACK_NAME }}/data-export-job
+          subject-digest: ${{ steps.image-digests.outputs.data_export_job }}
+          push-to-registry: true
+
+      - name: Attest order event consumer image provenance
+        uses: actions/attest-build-provenance@43d14bc2b83dec42d39ecae14e916627a18bb661 # v3
+        with:
+          subject-name: ${{ env.ECR_REGISTRY }}/${{ env.STACK_NAME }}/order-event-consumer
+          subject-digest: ${{ steps.image-digests.outputs.order_event_consumer }}
+          push-to-registry: true
+
+      - name: Attest liquibase image provenance
+        uses: actions/attest-build-provenance@43d14bc2b83dec42d39ecae14e916627a18bb661 # v3
+        with:
+          subject-name: ${{ env.ECR_REGISTRY }}/${{ env.STACK_NAME }}/liquibase
+          subject-digest: ${{ steps.image-digests.outputs.liquibase }}
+          push-to-registry: true
+
+      - name: Attest FireLens image provenance
+        uses: actions/attest-build-provenance@43d14bc2b83dec42d39ecae14e916627a18bb661 # v3
+        with:
+          subject-name: ${{ env.ECR_REGISTRY }}/${{ env.STACK_NAME }}/firelens
+          subject-digest: ${{ steps.image-digests.outputs.firelens }}
+          push-to-registry: true
+
+      - name: Attest PgBouncer image provenance
+        uses: actions/attest-build-provenance@43d14bc2b83dec42d39ecae14e916627a18bb661 # v3
+        with:
+          subject-name: ${{ env.ECR_REGISTRY }}/${{ env.STACK_NAME }}/pgbouncer
+          subject-digest: ${{ steps.image-digests.outputs.pgbouncer }}
+          push-to-registry: true
 
       - name: Publish build summary
         env:
