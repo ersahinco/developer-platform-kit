@@ -235,6 +235,51 @@ Rollout stays inside the same cluster and the same database:
 
 This keeps the project lean while still supporting safe schema evolution.
 
+## Planning Mixed Releases
+
+A release can include infrastructure, app, schema, and data changes, but the
+execution should stay split by blast radius. Treat the release as one reviewed
+change set with one immutable image SHA, then advance it through separate
+operator gates.
+
+Recommended sequence:
+
+1. Review and apply infrastructure first when the release needs new platform
+   capability: IAM, ECS task definitions, queues, buckets, alarms, secrets, or
+   database capacity/settings.
+2. Build and scan the app, worker, data job, Liquibase, and sidecar images from
+   the same commit SHA.
+3. Run additive Liquibase migrations before the app version that may depend on
+   them. Expand changes should be idempotent and safe to rerun.
+4. Deploy an app version that is compatible with both the old and new schema.
+   It should be safe before, during, and after the backfill window.
+5. Run data migration/backfill as a separate one-off workflow or operator task
+   unless it is tiny. It must be checkpointed, idempotent, observable, and safe
+   to rerun.
+6. Verify reconciliation, app health, logs, metrics, and phase-specific tests.
+7. Advance runtime switches such as `WRITE_MODE` and `READ_MODE` only after the
+   prerequisite data state is proven.
+8. Apply destructive contract migrations in a later explicit release, after a
+   snapshot exists and no deployed app version needs the old schema.
+
+Do not make a normal app deployment wait on a long-running backfill. Long data
+movement should not be hidden inside the app deploy job because it changes the
+failure mode from "deploy failed" to "production data may be half-moved." The
+safer design is to deploy a compatibility version first, run the backfill under
+its own controls, then switch reads/writes after verification.
+
+If an app version cannot run until a data migration is complete, split the
+release into two compatible app versions instead:
+
+1. Version A understands both schemas and enables migration.
+2. Backfill completes and reconciliation passes.
+3. Version B uses only the new path.
+4. A later contract release removes the old path.
+
+Terraform should provision the ability to run migrations and data jobs, but it
+should not perform application data migration itself. Liquibase should own DDL
+history; resumable workers or jobs should own large data movement.
+
 The FireLens image is app-owned and built by the same app build workflow as the
 workload images. On a fresh account, create the ECR repositories with the app
 infra apply, run `app-build.yml` to push the selected `sha-...` tag, then deploy
