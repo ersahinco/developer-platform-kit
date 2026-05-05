@@ -1,0 +1,17 @@
+[project]
+name = "aws-sdlc-containers-data-export-job"
+version = "0.1.0"
+requires-python = ">=3.14"
+dependencies = [
+    "aws-sdlc-containers-application",
+    "aws-sdlc-containers-infrastructure",
+    "pydantic-settings>=2.3.0",
+]
+
+[build-system]
+requires = ["setuptools>=69"]
+build-backend = "setuptools.build_meta"
+
+[tool.setuptools]
+packages = ["data_export_job"]
+package-dir = { data_export_job = "." }

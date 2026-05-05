@@ -119,8 +119,8 @@ Keep names boring and ownership-oriented:
 
 | Area | Convention |
 |---|---|
-| Apps | `apps/<runtime-entrypoint>/`, for example `api`, `backfill-worker`, `data-export-job`. |
-| Packages | `packages/<library>/` with import names under `aws_sdlc_*`. |
+| Apps | `apps/<runtime_entrypoint>/`, for example `api`, `backfill_worker`, `data_export_job`. |
+| Packages | `packages/<library>/` with import names matching the folder, for example `domain`, `application`, `infrastructure`. |
 | Terraform files | Name files by app-owned domain, platform concern, or durable capability layer, such as `edge.tf`, `database.tf`, `compute_ecs.tf`, `messaging.tf`, `object_storage.tf`, `workload_jobs.tf`, `observability.tf`, `network.tf`, and `github_actions.tf`. Keep necessary auxiliary resources next to the capability they support, including IAM policies and monitoring alarms. |
 | CI scripts | `scripts/ci/` for GitHub Actions/AWS deployment helpers. |
 | Local/operator scripts | Verb-first or domain-first helpers under `scripts/operator/`, `scripts/release/`, `scripts/observability/`, and `scripts/data/`. |

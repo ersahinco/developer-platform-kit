@@ -11,9 +11,9 @@ on:
     paths:
       - ".github/workflows/app-build.yml"
       - "apps/api/**"
-      - "apps/backfill-worker/**"
-      - "apps/data-export-job/**"
-      - "apps/order-event-consumer/**"
+      - "apps/backfill_worker/**"
+      - "apps/data_export_job/**"
+      - "apps/order_event_consumer/**"
       - "compose.yaml"
       - "dapr/**"
       - "observability/firelens/**"
@@ -28,9 +28,9 @@ on:
     paths:
       - ".github/workflows/app-build.yml"
       - "apps/api/**"
-      - "apps/backfill-worker/**"
-      - "apps/data-export-job/**"
-      - "apps/order-event-consumer/**"
+      - "apps/backfill_worker/**"
+      - "apps/data_export_job/**"
+      - "apps/order_event_consumer/**"
       - "compose.yaml"
       - "dapr/**"
       - "observability/firelens/**"
@@ -140,7 +140,7 @@ jobs:
 
       - name: Start app
         run: |
-          PYTHONPATH="${{ github.workspace }}/apps/api/src:${{ github.workspace }}/packages/application/src:${{ github.workspace }}/packages/domain/src:${{ github.workspace }}/packages/infrastructure/src" uv run --directory apps/api uvicorn aws_sdlc_api.main:app \
+          PYTHONPATH="${{ github.workspace }}/apps:${{ github.workspace }}/packages" uv run --directory apps/api uvicorn api.main:app \
             --host 0.0.0.0 --port 8000 &
           curl --retry 30 --retry-delay 1 --retry-connrefused -sf \
             http://localhost:8000/health
@@ -196,9 +196,9 @@ jobs:
           TAG: sha-${{ github.sha }}
         run: |
           docker build -f apps/api/Dockerfile -t "${{ env.ECR_REGISTRY }}/${{ env.STACK_NAME }}/app:${TAG}" . &
-          docker build -f apps/backfill-worker/Dockerfile -t "${{ env.ECR_REGISTRY }}/${{ env.STACK_NAME }}/worker:${TAG}" . &
-          docker build -f apps/data-export-job/Dockerfile -t "${{ env.ECR_REGISTRY }}/${{ env.STACK_NAME }}/data-export-job:${TAG}" . &
-          docker build -f apps/order-event-consumer/Dockerfile -t "${{ env.ECR_REGISTRY }}/${{ env.STACK_NAME }}/order-event-consumer:${TAG}" . &
+          docker build -f apps/backfill_worker/Dockerfile -t "${{ env.ECR_REGISTRY }}/${{ env.STACK_NAME }}/worker:${TAG}" . &
+          docker build -f apps/data_export_job/Dockerfile -t "${{ env.ECR_REGISTRY }}/${{ env.STACK_NAME }}/data-export-job:${TAG}" . &
+          docker build -f apps/order_event_consumer/Dockerfile -t "${{ env.ECR_REGISTRY }}/${{ env.STACK_NAME }}/order-event-consumer:${TAG}" . &
           docker build -t "${{ env.ECR_REGISTRY }}/${{ env.STACK_NAME }}/liquibase:${TAG}" db/ &
           docker build -f observability/firelens/Dockerfile -t "${{ env.ECR_REGISTRY }}/${{ env.STACK_NAME }}/firelens:${TAG}" observability/firelens &
           docker build -f db/pgbouncer/Dockerfile --build-arg "PGBOUNCER_TAG=${PGBOUNCER_TAG}" -t "${{ env.ECR_REGISTRY }}/${{ env.STACK_NAME }}/pgbouncer:${PGBOUNCER_TAG}" db/pgbouncer &

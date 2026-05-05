@@ -5,14 +5,14 @@ from decimal import Decimal
 
 import pytest
 
-from aws_sdlc_domain.customer import Customer
-from aws_sdlc_domain.order import Order
-from aws_sdlc_application.order_submission import (
+from domain.customer import Customer
+from domain.order import Order
+from application.order_submission import (
     CustomerNotFoundError,
     InvalidOrderAmountError,
     submit_order,
 )
-from aws_sdlc_application.ports import CustomerRepository, OrderRepository
+from application.ports import CustomerRepository, OrderRepository
 
 
 _NOW = datetime.datetime(2026, 4, 29, 12, 0, tzinfo=datetime.UTC)

@@ -6,15 +6,15 @@ from typing import Any
 from fastapi.testclient import TestClient
 from sqlalchemy import text
 
-from aws_sdlc_application.outbox import OutboxDispatchResult  # noqa: E402
-from aws_sdlc_application.outbox import OutboxMessage  # noqa: E402
-from aws_sdlc_infrastructure.dapr import pubsub as dapr_pubsub  # noqa: E402
-from aws_sdlc_infrastructure.dapr.pubsub import DaprOrderEventPublisher  # noqa: E402
-from aws_sdlc_order_event_consumer.config import settings  # noqa: E402
-from aws_sdlc_order_event_consumer import main as consumer_main  # noqa: E402
-from aws_sdlc_order_event_consumer.main import app  # noqa: E402
-from aws_sdlc_order_event_consumer.main import consume_order_event_payload  # noqa: E402
-from aws_sdlc_order_event_consumer.main import relay_outbox_once  # noqa: E402
+from application.outbox import OutboxDispatchResult  # noqa: E402
+from application.outbox import OutboxMessage  # noqa: E402
+from infrastructure.dapr import pubsub as dapr_pubsub  # noqa: E402
+from infrastructure.dapr.pubsub import DaprOrderEventPublisher  # noqa: E402
+from order_event_consumer.config import settings  # noqa: E402
+from order_event_consumer import main as consumer_main  # noqa: E402
+from order_event_consumer.main import app  # noqa: E402
+from order_event_consumer.main import consume_order_event_payload  # noqa: E402
+from order_event_consumer.main import relay_outbox_once  # noqa: E402
 
 
 class _Publisher:

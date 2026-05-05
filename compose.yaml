@@ -90,7 +90,7 @@ services:
   worker:
     build:
       context: .
-      dockerfile: apps/backfill-worker/Dockerfile
+      dockerfile: apps/backfill_worker/Dockerfile
     environment:
       # Worker bypasses pgbouncer — connects directly to Postgres.
       BACKFILL_DATABASE_URL: postgresql://${POSTGRES_USER:-postgres}:${POSTGRES_PASSWORD:-postgres}@db:5432/${POSTGRES_DB:-aws_sdlc_containers}
@@ -103,7 +103,7 @@ services:
   data-export-job:
     build:
       context: .
-      dockerfile: apps/data-export-job/Dockerfile
+      dockerfile: apps/data_export_job/Dockerfile
     environment:
       # Export job bypasses pgbouncer, matching worker/DDL behavior.
       DATA_EXPORT_DATABASE_URL: postgresql://${POSTGRES_USER:-postgres}:${POSTGRES_PASSWORD:-postgres}@db:5432/${POSTGRES_DB:-aws_sdlc_containers}
@@ -129,7 +129,7 @@ services:
   order-event-consumer:
     build:
       context: .
-      dockerfile: apps/order-event-consumer/Dockerfile
+      dockerfile: apps/order_event_consumer/Dockerfile
     environment:
       DB_HOST: db
       DB_PORT: 5432

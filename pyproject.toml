@@ -22,9 +22,9 @@ test = [
 [tool.uv.workspace]
 members = [
     "apps/api",
-    "apps/backfill-worker",
-    "apps/data-export-job",
-    "apps/order-event-consumer",
+    "apps/backfill_worker",
+    "apps/data_export_job",
+    "apps/order_event_consumer",
     "packages/domain",
     "packages/application",
     "packages/infrastructure",
@@ -44,13 +44,8 @@ markers = [
 [tool.pyright]
 include = ["apps", "packages", "tests", "scripts"]
 extraPaths = [
-    "apps/api/src",
-    "apps/backfill-worker/src",
-    "apps/data-export-job/src",
-    "apps/order-event-consumer/src",
-    "packages/application/src",
-    "packages/domain/src",
-    "packages/infrastructure/src",
+    "apps",
+    "packages",
 ]
 pythonVersion = "3.14"
 typeCheckingMode = "standard"

@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from fastapi import FastAPI
 
-from aws_sdlc_api import telemetry
+from api import telemetry
 
 
 def test_configure_tracing_excludes_low_value_probe_urls_by_default(

@@ -57,7 +57,7 @@ jobs:
             -w /repo \
             hadolint/hadolint:v2.14.0-debian@sha256:158cd0184dcaa18bd8ec20b61f4c1cabdf8b32a592d062f57bdcb8e4c1d312e2 \
             hadolint \
-            db/Dockerfile db/pgbouncer/Dockerfile observability/firelens/Dockerfile apps/api/Dockerfile apps/backfill-worker/Dockerfile apps/data-export-job/Dockerfile apps/order-event-consumer/Dockerfile
+            db/Dockerfile db/pgbouncer/Dockerfile observability/firelens/Dockerfile apps/api/Dockerfile apps/backfill_worker/Dockerfile apps/data_export_job/Dockerfile apps/order_event_consumer/Dockerfile
 
       - name: Run Python dependency audit
         run: |

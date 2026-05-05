@@ -6,8 +6,8 @@ import uuid
 from sqlalchemy import text
 from sqlalchemy.orm import Session
 
-from aws_sdlc_infrastructure.db.repository import SQLAlchemyOutboxRepository
-from aws_sdlc_domain.order_events import OrderEventMessage
+from infrastructure.db.repository import SQLAlchemyOutboxRepository
+from domain.order_events import OrderEventMessage
 
 
 def _message(event_id: str) -> OrderEventMessage:

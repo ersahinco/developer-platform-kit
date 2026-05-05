@@ -44,7 +44,7 @@ pooling.
 
 ## Local Export Job
 
-`apps/data-export-job` is the first deliberately small data-hub-shaped job. It
+`apps/data_export_job` is the first deliberately small data-hub-shaped job. It
 exports `order_contact_email` to local filesystem paths that mirror the S3
 convention, then writes a manifest only after the CSV succeeds and the manifest
 has been validated against the raw file.

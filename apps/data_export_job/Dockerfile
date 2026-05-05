@@ -11,25 +11,21 @@ COPY apps/order_event_consumer/pyproject.toml apps/order_event_consumer/pyprojec
 COPY packages/domain/pyproject.toml packages/domain/pyproject.toml
 COPY packages/application/pyproject.toml packages/application/pyproject.toml
 COPY packages/infrastructure/pyproject.toml packages/infrastructure/pyproject.toml
-COPY apps/api apps/api
+COPY apps/data_export_job apps/data_export_job
 COPY packages/domain packages/domain
 COPY packages/application packages/application
 COPY packages/infrastructure packages/infrastructure
-RUN uv sync --frozen --no-dev --package aws-sdlc-containers-api
+RUN uv sync --frozen --no-dev --package aws-sdlc-containers-data-export-job
 
-# ── Runtime ───────────────────────────────────────────────────────────────────
-# Tag-only (no digest) — Trivy scans the built image in CI for CVEs before push.
-# Digest pinning requires automated renewal (Renovate/Dependabot) to stay secure;
-# without it, a stale digest is worse than a fresh tag + CVE scan.
 FROM python:3.14-slim
 
-# Non-root user — do not run application processes as root
 RUN useradd --no-create-home --shell /bin/false app
+RUN mkdir -p /exports && chown app:app /exports
 USER app
 
 WORKDIR /app
 COPY --from=builder /app/.venv /app/.venv
-COPY --from=builder /app/apps/api /app/apps/api
+COPY --from=builder /app/apps/data_export_job /app/apps/data_export_job
 COPY --from=builder /app/packages/domain /app/packages/domain
 COPY --from=builder /app/packages/application /app/packages/application
 COPY --from=builder /app/packages/infrastructure /app/packages/infrastructure
@@ -37,7 +33,4 @@ COPY --from=builder /app/packages/infrastructure /app/packages/infrastructure
 ENV PATH="/app/.venv/bin:$PATH"
 ENV PYTHONPATH="/app/apps:/app/packages"
 
-HEALTHCHECK --interval=5s --timeout=3s --start-period=15s --retries=3 \
-    CMD python -c "import urllib.request; urllib.request.urlopen('http://localhost:8000/health')"
-
-CMD ["uvicorn", "api.main:app", "--host", "0.0.0.0", "--port", "8000"]
+CMD ["python", "-m", "data_export_job.main"]

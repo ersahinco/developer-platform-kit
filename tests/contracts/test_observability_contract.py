@@ -59,7 +59,7 @@ def test_grafana_stack_uses_prometheus_loki_tempo_without_cloudwatch_or_xray() -
     )
     observability_tf = _read("infra/app/observability.tf")
     compute_tf = _read("infra/app/compute_ecs.tf")
-    telemetry_py = _read("apps/api/src/aws_sdlc_api/telemetry.py")
+    telemetry_py = _read("apps/api/telemetry.py")
 
     assert "type: prometheus" in datasources
     assert "type: loki" in datasources

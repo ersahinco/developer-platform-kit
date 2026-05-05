@@ -37,11 +37,11 @@ operator workflow changes.
 | Concern | Mechanism | Key files |
 |---|---|---|
 | SDLC baseline | GitHub Actions, immutable ECR tags, reproducible Terraform state | `.github/workflows/`, `infra/`, `Makefile` |
-| Safe schema rollout | Expand, dual-write, backfill, switch, contract | `db/changelog/`, `apps/backfill-worker/src/aws_sdlc_backfill_worker/main.py` |
-| Data export flow | Local and scheduled ECS export job with raw output, manifest, and S3 object storage writes | `apps/data-export-job/src/aws_sdlc_data_export_job/main.py`, `infra/app/object_storage.tf`, `infra/app/workload_jobs.tf` |
-| Runtime config | DB-backed `WRITE_MODE` and `READ_MODE` switches | `packages/infrastructure/src/aws_sdlc_infrastructure/db/repository.py` |
+| Safe schema rollout | Expand, dual-write, backfill, switch, contract | `db/changelog/`, `apps/backfill_worker/main.py` |
+| Data export flow | Local and scheduled ECS export job with raw output, manifest, and S3 object storage writes | `apps/data_export_job/main.py`, `infra/app/object_storage.tf`, `infra/app/workload_jobs.tf` |
+| Runtime config | DB-backed `WRITE_MODE` and `READ_MODE` switches | `packages/infrastructure/db/repository.py` |
 | Connection pooling | PgBouncer in transaction mode | `compose.yaml`, `db/pgbouncer/pgbouncer.ini` |
-| Dapr event transport | Durable order outbox relayed through Dapr pub/sub on ECS with AWS SNS/SQS underneath | `apps/order-event-consumer/src/aws_sdlc_order_event_consumer/main.py`, `dapr/`, `infra/app/messaging.tf` |
+| Dapr event transport | Durable order outbox relayed through Dapr pub/sub on ECS with AWS SNS/SQS underneath | `apps/order_event_consumer/main.py`, `dapr/`, `infra/app/messaging.tf` |
 | ECS deployment | Build/scan approval followed by rolling app deploy plus one-off Liquibase and worker tasks | `.github/workflows/app-build.yml`, `.github/workflows/app-deploy.yml`, `infra/app/workload_jobs.tf` |
 | Infrastructure delivery | Terraform validate, reviewed plan, and separate manual apply | `.github/workflows/infra-plan.yml`, `.github/workflows/infra-apply.yml`, `infra/` |
 
@@ -68,9 +68,9 @@ without adding unnecessary business complexity.
 aws-sdlc-containers/
 |-- apps/
 |   |-- api/             # FastAPI workload
-|   |-- backfill-worker/ # Backfill worker workload
-|   |-- data-export-job/ # Data export job
-|   `-- order-event-consumer/
+|   |-- backfill_worker/ # Backfill worker workload
+|   |-- data_export_job/ # Data export job
+|   `-- order_event_consumer/
 |-- packages/
 |   |-- domain/          # Pure entities, value objects, and domain events
 |   |-- application/     # Use cases, ports, commands/results, outbox contracts

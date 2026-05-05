@@ -11,7 +11,7 @@ import pytest
 from sqlalchemy import text
 
 _EXPORT_SRC = os.path.join(
-    os.path.dirname(__file__), "..", "..", "apps", "data-export-job", "src"
+    os.path.dirname(__file__), "..", "..", "apps", "data_export_job"
 )
 
 
@@ -44,7 +44,7 @@ def _run_export(output_dir: Path, run_id: str, export_date: str):
             "aws-sdlc-containers-data-export-job",
             "python",
             "-m",
-            "aws_sdlc_data_export_job.main",
+            "data_export_job.main",
         ],
         cwd=_EXPORT_SRC,
         env=env,
@@ -155,7 +155,7 @@ def _load_export_module(monkeypatch):
         "postgresql://postgres:postgres@localhost:5432/aws_sdlc_containers",
     )
     monkeypatch.syspath_prepend(_EXPORT_SRC)
-    import aws_sdlc_infrastructure.data_export as export_main
+    import infrastructure.data_export as export_main
 
     return importlib.reload(export_main)
 
@@ -229,7 +229,7 @@ def test_manifest_validation_rejects_raw_checksum_mismatch(monkeypatch, tmp_path
         "DATA_EXPORT_DATABASE_URL",
         "postgresql://postgres:postgres@localhost:5432/aws_sdlc_containers",
     )
-    from aws_sdlc_application.data_export import (
+    from application.data_export import (
         ExportedObject,
         validate_success_manifest,
     )

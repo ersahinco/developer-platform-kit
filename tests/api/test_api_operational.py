@@ -14,7 +14,7 @@ os.environ.setdefault(
 
 from fastapi.testclient import TestClient  # noqa: E402
 
-from aws_sdlc_api.main import (  # noqa: E402
+from api.main import (  # noqa: E402
     app,
     get_customer_repo,
     get_db,
@@ -22,9 +22,9 @@ from aws_sdlc_api.main import (  # noqa: E402
     get_observability_fixture_repo,
     get_order_repo,
 )
-from aws_sdlc_api.main import get_config_store  # noqa: E402
-from aws_sdlc_domain.customer import Customer  # noqa: E402
-from aws_sdlc_domain.order import Order  # noqa: E402
+from api.main import get_config_store  # noqa: E402
+from domain.customer import Customer  # noqa: E402
+from domain.order import Order  # noqa: E402
 
 
 class _ReadySession:

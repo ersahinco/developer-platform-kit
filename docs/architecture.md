@@ -47,7 +47,7 @@ SQLAlchemy, boto3, Dapr adapter code, or app settings. The API can run as part
 of a modular monolith today while preserving a clean extraction path for future
 hosts because use cases speak ports and simple Python objects.
 
-`packages/application/src/aws_sdlc_application/ports.py` defines the stable
+`packages/application/ports.py` defines the stable
 application-facing contracts for synchronous order behavior:
 
 ```python
@@ -56,10 +56,10 @@ class OrderRepository(abc.ABC):
     def get_order(self, order_id: int) -> Order | None: ...
 ```
 
-`packages/application/src/aws_sdlc_application/outbox.py` defines the outbox
-relay contracts. `packages/infrastructure/src/aws_sdlc_infrastructure/db/`
+`packages/application/outbox.py` defines the outbox
+relay contracts. `packages/infrastructure/db/`
 implements the Postgres repositories and
-`packages/infrastructure/src/aws_sdlc_infrastructure/dapr/pubsub.py` implements
+`packages/infrastructure/dapr/pubsub.py` implements
 the Dapr publisher adapter.
 
 ## Database capability ownership
@@ -357,7 +357,7 @@ The `make db-tunnel` target fetches this automatically.
 
 Two sources of high-frequency log noise in a typical ECS + ALB setup:
 
-- ALB health checks — fire every `interval` seconds from each AZ plus the ECS container health check. Filtered at the Uvicorn access logger level in `apps/api/src/aws_sdlc_api/main.py` using a `logging.Filter` subclass. Non-200 responses on `/health` still pass through.
+- ALB health checks — fire every `interval` seconds from each AZ plus the ECS container health check. Filtered at the Uvicorn access logger level in `apps/api/main.py` using a `logging.Filter` subclass. Non-200 responses on `/health` still pass through.
 - PgBouncer stats logs — fire every `stats_period` seconds (default 60s) regardless of traffic. Controlled via the `STATS_PERIOD` environment variable. Set to 3600 (hourly) — low enough to preserve pool pressure signal, high enough to eliminate per-minute noise. Set to 0 to disable entirely.
 
 ---

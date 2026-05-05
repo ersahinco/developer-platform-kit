@@ -7,10 +7,10 @@ os.environ.setdefault("DATABASE_URL", _TEST_DATABASE_URL)
 os.environ.setdefault("BACKFILL_DATABASE_URL", _TEST_DATABASE_URL)
 os.environ.setdefault("DATA_EXPORT_DATABASE_URL", _TEST_DATABASE_URL)
 
-from aws_sdlc_api.config import Settings as ApiSettings  # noqa: E402
-from aws_sdlc_backfill_worker.config import Settings as BackfillSettings  # noqa: E402
-from aws_sdlc_data_export_job.config import Settings as DataExportSettings  # noqa: E402
-from aws_sdlc_order_event_consumer.config import Settings as ConsumerSettings  # noqa: E402
+from api.config import Settings as ApiSettings  # noqa: E402
+from backfill_worker.config import Settings as BackfillSettings  # noqa: E402
+from data_export_job.config import Settings as DataExportSettings  # noqa: E402
+from order_event_consumer.config import Settings as ConsumerSettings  # noqa: E402
 
 
 def test_database_url_composition_escapes_secret_passwords(monkeypatch) -> None:

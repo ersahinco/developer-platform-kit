@@ -8,7 +8,7 @@ import httpx
 import pytest
 from sqlalchemy import text
 
-from aws_sdlc_api.main import _SuppressLowValueAccessLogs
+from api.main import _SuppressLowValueAccessLogs
 from tests.conftest import contact_row, post_order
 
 

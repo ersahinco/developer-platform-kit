@@ -27,9 +27,9 @@ aws-sdlc-containers/
 |-- .github/workflows/       # CI, security, app build/deploy, infra plan/apply
 |-- apps/                    # Runtime entrypoints
 |   |-- api/
-|   |-- backfill-worker/
-|   |-- data-export-job/
-|   `-- order-event-consumer/
+|   |-- backfill_worker/
+|   |-- data_export_job/
+|   `-- order_event_consumer/
 |-- packages/                # Shared modular-monolith code
 |   |-- domain/
 |   |-- application/
@@ -102,15 +102,27 @@ Each folder under `apps/` is a runtime entrypoint with its own Dockerfile and
 
 | App | Purpose | Import package |
 |---|---|---|
-| `apps/api` | FastAPI app, health/readiness/metrics, order APIs, runtime mode switches, outbox writes. | `aws_sdlc_api` |
-| `apps/backfill-worker` | One-off safe-rollout worker for historical `billing_email` migration. | `aws_sdlc_backfill_worker` |
-| `apps/data-export-job` | Scheduled export job for operational data and manifests. | `aws_sdlc_data_export_job` |
-| `apps/order-event-consumer` | Dapr-enabled outbox relay and subscriber for `order.created.v1`. | `aws_sdlc_order_event_consumer` |
+| `apps/api` | FastAPI app, health/readiness/metrics, order APIs, runtime mode switches, outbox writes. | `api` |
+| `apps/backfill_worker` | One-off safe-rollout worker for historical `billing_email` migration. | `backfill_worker` |
+| `apps/data_export_job` | Scheduled export job for operational data and manifests. | `data_export_job` |
+| `apps/order_event_consumer` | Dapr-enabled outbox relay and subscriber for `order.created.v1`. | `order_event_consumer` |
 
 Keep app folders thin. Runtime wiring, settings, command entrypoints, and HTTP
 schemas belong here. Reusable domain concepts belong in `packages/domain`,
 use cases and ports belong in `packages/application`, and database, Dapr, queue,
 and storage implementations belong in `packages/infrastructure`.
+
+The source tree is intentionally flat. Do not add `src/` or generated package
+name wrappers such as `aws_sdlc_api` or `aws_sdlc_application`. The folder is
+the import package:
+
+- `apps/api/main.py` imports as `api.main`
+- `apps/order_event_consumer/main.py` imports as `order_event_consumer.main`
+- `packages/domain/order.py` imports as `domain.order`
+- `packages/application/order_submission.py` imports as
+  `application.order_submission`
+- `packages/infrastructure/db/repository.py` imports as
+  `infrastructure.db.repository`
 
 ## Shared Packages
 

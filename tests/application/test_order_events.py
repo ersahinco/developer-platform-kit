@@ -3,8 +3,8 @@ from __future__ import annotations
 import datetime
 from decimal import Decimal
 
-from aws_sdlc_domain.order import Order  # noqa: E402
-from aws_sdlc_domain.order_events import order_created_event, order_created_message  # noqa: E402
+from domain.order import Order  # noqa: E402
+from domain.order_events import order_created_event, order_created_message  # noqa: E402
 
 
 def _order() -> Order:

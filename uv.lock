@@ -93,7 +93,7 @@ test = [{ name = "pytest", specifier = ">=9.0.3" }]
 [[package]]
 name = "aws-sdlc-containers-api"
 version = "0.1.0"
-source = { virtual = "apps/api" }
+source = { editable = "apps/api" }
 dependencies = [
     { name = "aws-sdlc-containers-application" },
     { name = "aws-sdlc-containers-domain" },
@@ -147,7 +147,7 @@ requires-dist = [{ name = "aws-sdlc-containers-domain", editable = "packages/dom
 [[package]]
 name = "aws-sdlc-containers-backfill-worker"
 version = "0.1.0"
-source = { virtual = "apps/backfill-worker" }
+source = { editable = "apps/backfill_worker" }
 dependencies = [
     { name = "aws-sdlc-containers-application" },
     { name = "aws-sdlc-containers-infrastructure" },
@@ -164,7 +164,7 @@ requires-dist = [
 [[package]]
 name = "aws-sdlc-containers-data-export-job"
 version = "0.1.0"
-source = { virtual = "apps/data-export-job" }
+source = { editable = "apps/data_export_job" }
 dependencies = [
     { name = "aws-sdlc-containers-application" },
     { name = "aws-sdlc-containers-infrastructure" },
@@ -207,7 +207,7 @@ requires-dist = [
 [[package]]
 name = "aws-sdlc-containers-order-event-consumer"
 version = "0.1.0"
-source = { virtual = "apps/order-event-consumer" }
+source = { editable = "apps/order_event_consumer" }
 dependencies = [
     { name = "aws-sdlc-containers-application" },
     { name = "aws-sdlc-containers-infrastructure" },

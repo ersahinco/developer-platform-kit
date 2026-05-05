@@ -43,13 +43,8 @@ from sqlalchemy.pool import NullPool
 
 ROOT = Path(__file__).resolve().parents[1]
 for path in (
-    ROOT / "apps" / "api" / "src",
-    ROOT / "apps" / "backfill-worker" / "src",
-    ROOT / "apps" / "data-export-job" / "src",
-    ROOT / "apps" / "order-event-consumer" / "src",
-    ROOT / "packages" / "application" / "src",
-    ROOT / "packages" / "domain" / "src",
-    ROOT / "packages" / "infrastructure" / "src",
+    ROOT / "apps",
+    ROOT / "packages",
 ):
     sys.path.insert(0, str(path))
 

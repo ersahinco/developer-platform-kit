@@ -3,7 +3,7 @@ from __future__ import annotations
 import datetime
 from typing import Any
 
-from aws_sdlc_application.outbox import (
+from application.outbox import (
     OutboxMessage,
     dispatch_pending_outbox_messages,
 )

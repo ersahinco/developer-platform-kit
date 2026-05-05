@@ -15,7 +15,7 @@ from urllib.parse import urlparse, urlunparse
 from sqlalchemy import text
 
 _WORKER_SRC = os.path.join(
-    os.path.dirname(__file__), "..", "..", "apps", "backfill-worker", "src"
+    os.path.dirname(__file__), "..", "..", "apps", "backfill_worker"
 )
 _JOB = "order_contact_email_backfill"
 
@@ -47,7 +47,7 @@ def _run_worker(**extra_env):
             "aws-sdlc-containers-backfill-worker",
             "python",
             "-m",
-            "aws_sdlc_backfill_worker.main",
+            "backfill_worker.main",
         ],
         cwd=_WORKER_SRC,
         env=env,

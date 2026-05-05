@@ -11,13 +11,12 @@ COPY apps/order_event_consumer/pyproject.toml apps/order_event_consumer/pyprojec
 COPY packages/domain/pyproject.toml packages/domain/pyproject.toml
 COPY packages/application/pyproject.toml packages/application/pyproject.toml
 COPY packages/infrastructure/pyproject.toml packages/infrastructure/pyproject.toml
-COPY apps/api apps/api
+COPY apps/backfill_worker apps/backfill_worker
 COPY packages/domain packages/domain
 COPY packages/application packages/application
 COPY packages/infrastructure packages/infrastructure
-RUN uv sync --frozen --no-dev --package aws-sdlc-containers-api
+RUN uv sync --frozen --no-dev --package aws-sdlc-containers-backfill-worker
 
-# ── Runtime ───────────────────────────────────────────────────────────────────
 # Tag-only (no digest) — Trivy scans the built image in CI for CVEs before push.
 # Digest pinning requires automated renewal (Renovate/Dependabot) to stay secure;
 # without it, a stale digest is worse than a fresh tag + CVE scan.
@@ -29,7 +28,7 @@ USER app
 
 WORKDIR /app
 COPY --from=builder /app/.venv /app/.venv
-COPY --from=builder /app/apps/api /app/apps/api
+COPY --from=builder /app/apps/backfill_worker /app/apps/backfill_worker
 COPY --from=builder /app/packages/domain /app/packages/domain
 COPY --from=builder /app/packages/application /app/packages/application
 COPY --from=builder /app/packages/infrastructure /app/packages/infrastructure
@@ -37,7 +36,4 @@ COPY --from=builder /app/packages/infrastructure /app/packages/infrastructure
 ENV PATH="/app/.venv/bin:$PATH"
 ENV PYTHONPATH="/app/apps:/app/packages"
 
-HEALTHCHECK --interval=5s --timeout=3s --start-period=15s --retries=3 \
-    CMD python -c "import urllib.request; urllib.request.urlopen('http://localhost:8000/health')"
-
-CMD ["uvicorn", "api.main:app", "--host", "0.0.0.0", "--port", "8000"]
+CMD ["python", "-m", "backfill_worker.main"]
