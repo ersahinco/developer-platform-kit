@@ -167,7 +167,19 @@ module "ecs" {
       desired_count                      = var.app_desired_count
       deployment_minimum_healthy_percent = 100
       deployment_maximum_percent         = 200
-      ignore_task_definition_changes     = true
+      deployment_circuit_breaker = {
+        enable   = true
+        rollback = true
+      }
+      alarms = var.enable_app_symptom_cloudwatch_alarms ? {
+        alarm_names = [
+          aws_cloudwatch_metric_alarm.app_target_5xx[0].alarm_name,
+          aws_cloudwatch_metric_alarm.app_target_latency[0].alarm_name,
+        ]
+        enable   = true
+        rollback = true
+      } : null
+      ignore_task_definition_changes = true
       # Grace period prevents the ALB from health-checking the new task before the
       # app is listening. Without this (default 0), the ALB marks the task unhealthy
       # immediately on registration and ECS stalls the deploy waiting for recovery.

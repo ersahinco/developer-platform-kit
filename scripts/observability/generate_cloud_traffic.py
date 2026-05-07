@@ -104,13 +104,11 @@ def _metrics_include_observability_series(metrics: str) -> StepResult:
         "http_requests_total",
         "http_request_duration_seconds",
     ]
-    optional = "order_events_publish_total"
     missing = [name for name in required if name not in metrics]
-    has_optional = optional in metrics
     return StepResult(
         not missing,
         "GET /metrics",
-        f"required_missing={missing} order_events_publish_total_present={has_optional}",
+        f"required_missing={missing}",
     )
 
 

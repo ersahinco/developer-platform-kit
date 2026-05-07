@@ -1,4 +1,6 @@
+import asyncio
 import logging
+import os
 import re
 import time
 import uuid
@@ -99,6 +101,38 @@ def _request_id(request: Request) -> str:
     return request_id or uuid.uuid4().hex
 
 
+def _rollout_fault_paths() -> set[str]:
+    raw_paths = os.getenv("ROLLOUT_DRILL_FAULT_PATHS", "/ready")
+    return {path.strip() for path in raw_paths.split(",") if path.strip()}
+
+
+def _rollout_fault_status_code() -> int:
+    try:
+        status_code = int(os.getenv("ROLLOUT_DRILL_FAULT_STATUS_CODE", "503"))
+    except ValueError:
+        return status.HTTP_503_SERVICE_UNAVAILABLE
+    if 100 <= status_code <= 599:
+        return status_code
+    return status.HTTP_503_SERVICE_UNAVAILABLE
+
+
+def _rollout_fault_delay_seconds() -> float:
+    try:
+        delay = float(os.getenv("ROLLOUT_DRILL_FAULT_DELAY_SECONDS", "3"))
+    except ValueError:
+        return 3.0
+    return max(0.0, delay)
+
+
+def _rollout_fault_mode_for(request: Request) -> str:
+    mode = os.getenv("ROLLOUT_DRILL_FAULT_MODE", "off").strip().lower()
+    if mode not in {"error", "latency"}:
+        return "off"
+    if request.url.path not in _rollout_fault_paths():
+        return "off"
+    return mode
+
+
 @app.middleware("http")
 async def observe_requests(request: Request, call_next) -> Response:
     request_id = _request_id(request)
@@ -111,7 +145,17 @@ async def observe_requests(request: Request, call_next) -> Response:
 
     started_at = time.perf_counter()
     try:
-        response = await call_next(request)
+        fault_mode = _rollout_fault_mode_for(request)
+        if fault_mode == "latency":
+            await asyncio.sleep(_rollout_fault_delay_seconds())
+            response = await call_next(request)
+        elif fault_mode == "error":
+            response = JSONResponse(
+                status_code=_rollout_fault_status_code(),
+                content={"detail": "rollout drill fault injection"},
+            )
+        else:
+            response = await call_next(request)
     except Exception:
         route = _route_label(request)
         REQUEST_COUNT.labels(request.method, route, "500").inc()

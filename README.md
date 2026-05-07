@@ -23,10 +23,12 @@ work.
 | Local development runbook | [docs/local-development.md](docs/local-development.md) |
 | AWS deployment/runbook | [docs/deployment.md](docs/deployment.md) |
 | Incident runbooks and drills | [docs/runbooks/README.md](docs/runbooks/README.md) and [docs/drills/README.md](docs/drills/README.md) |
+| No-data rollback practice | [docs/runbooks/ecs-deploy-rollback.md](docs/runbooks/ecs-deploy-rollback.md) and [docs/runbooks/infra-rollback-drill.md](docs/runbooks/infra-rollback-drill.md) |
 | Terraform root guide | [infra/README.md](infra/README.md) |
 | DevOps toolchain | [docs/devops-toolchain.md](docs/devops-toolchain.md) |
 | Data flow plan | [docs/data-flow.md](docs/data-flow.md) |
 | Observability plan | [docs/observability.md](docs/observability.md) |
+| Follow one change across AWS and persistence | [docs/operator-observability-map.md](docs/operator-observability-map.md) |
 
 Read [docs/roadmaps.md](docs/roadmaps.md) before making DevOps,
 infrastructure, data-flow, observability, security, incident, rollout, async, or

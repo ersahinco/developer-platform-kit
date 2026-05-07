@@ -4,6 +4,10 @@ Prometheus, Loki, Tempo, and Grafana are the preferred observability target for
 this project. CloudWatch remains active for AWS-native logs and alarms while
 the Grafana stack dual-runs.
 
+For the shortest operator path from a local request to AWS edge, ECS workloads,
+database rows, downstream events, and S3 objects, use
+[Operator Observability Map](operator-observability-map.md).
+
 Grafana intentionally uses Loki for workload logs, Prometheus for application
 and observability-stack metrics, and Tempo for API traces. It does not provision
 the CloudWatch datasource by default. Parity means app-owned signals are emitted
@@ -41,6 +45,9 @@ practical; Grafana should not depend on CloudWatch queries to be useful.
   service.
 - Terraform creates CloudWatch alarms for app target 5xx responses and elevated
   target response time behind the ALB.
+- The app ECS service uses native ECS deployment circuit breaker rollback and
+  ECS deployment CloudWatch alarms for app target 5xx and latency rollback
+  practice.
 - Terraform creates CloudWatch alarms for RDS CPU, free storage, and database
   connection pressure.
 - Terraform creates a CloudWatch alarm when the order events DLQ has visible

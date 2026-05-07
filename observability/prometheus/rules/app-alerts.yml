@@ -30,13 +30,3 @@ groups:
         annotations:
           summary: App request latency is elevated
           description: Route {{ $labels.route }} p95 latency has been above 2 seconds for 5 minutes.
-
-      - alert: OrderEventPublishFailures
-        expr: sum(increase(order_events_publish_total{status="failed"}[5m])) > 0
-        for: 1m
-        labels:
-          severity: warning
-          service: app
-        annotations:
-          summary: Order event publishing is failing
-          description: One or more order event publish attempts failed in the last 5 minutes.

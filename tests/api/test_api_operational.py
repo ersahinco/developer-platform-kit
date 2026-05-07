@@ -14,6 +14,7 @@ os.environ.setdefault(
 
 from fastapi.testclient import TestClient  # noqa: E402
 
+import api.main as api_main  # noqa: E402
 from api.main import (  # noqa: E402
     app,
     get_customer_repo,
@@ -197,6 +198,72 @@ def test_ready_reports_unavailable_when_ping_fails() -> None:
         "status": "unready",
         "checks": {"database": "unavailable"},
     }
+
+
+def test_rollout_drill_fault_defaults_to_off(monkeypatch) -> None:
+    monkeypatch.delenv("ROLLOUT_DRILL_FAULT_MODE", raising=False)
+    _override_db(_ReadySession())
+    try:
+        with TestClient(app) as client:
+            response = client.get("/ready")
+    finally:
+        app.dependency_overrides.clear()
+
+    assert response.status_code == 200
+    assert response.json() == {"status": "ready", "checks": {"database": "ok"}}
+
+
+def test_rollout_drill_error_fault_returns_configured_status(monkeypatch) -> None:
+    monkeypatch.setenv("ROLLOUT_DRILL_FAULT_MODE", "error")
+    monkeypatch.setenv("ROLLOUT_DRILL_FAULT_PATHS", "/ready")
+    monkeypatch.setenv("ROLLOUT_DRILL_FAULT_STATUS_CODE", "503")
+
+    with TestClient(app) as client:
+        response = client.get("/ready")
+        metrics = client.get("/metrics")
+
+    assert response.status_code == 503
+    assert response.json() == {"detail": "rollout drill fault injection"}
+    assert 'route="/ready",status_code="503"' in metrics.text
+
+
+def test_rollout_drill_latency_fault_delays_only_configured_paths(
+    monkeypatch,
+) -> None:
+    calls: list[float] = []
+
+    async def fake_sleep(seconds: float) -> None:
+        calls.append(seconds)
+
+    monkeypatch.setenv("ROLLOUT_DRILL_FAULT_MODE", "latency")
+    monkeypatch.setenv("ROLLOUT_DRILL_FAULT_PATHS", "/ready")
+    monkeypatch.setenv("ROLLOUT_DRILL_FAULT_DELAY_SECONDS", "3")
+    monkeypatch.setattr(api_main.asyncio, "sleep", fake_sleep)
+    _override_db(_ReadySession())
+
+    try:
+        with TestClient(app) as client:
+            health_response = client.get("/health")
+            ready_response = client.get("/ready")
+    finally:
+        app.dependency_overrides.clear()
+
+    assert health_response.status_code == 200
+    assert ready_response.status_code == 200
+    assert calls == [3.0]
+
+
+def test_rollout_drill_invalid_fault_mode_behaves_as_off(monkeypatch) -> None:
+    monkeypatch.setenv("ROLLOUT_DRILL_FAULT_MODE", "surprise")
+    _override_db(_ReadySession())
+    try:
+        with TestClient(app) as client:
+            response = client.get("/ready")
+    finally:
+        app.dependency_overrides.clear()
+
+    assert response.status_code == 200
+    assert response.json() == {"status": "ready", "checks": {"database": "ok"}}
 
 
 def test_observability_fixture_endpoint_uses_application_fixture_port() -> None:

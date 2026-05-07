@@ -5,6 +5,10 @@ Liquibase expands the schema, the app dual-writes, the worker backfills, reads
 switch to the new table, and contract removes the old column only after the new
 path is verified.
 
+For a compact operator map of the same data path across AWS edge, ECS tasks,
+Postgres tables, S3 objects, logs, metrics, and downstream order events, use
+[Operator Observability Map](operator-observability-map.md).
+
 Keep this as the primary data-flow teaching artifact until the rest of the
 DevOps platform is stable.
 

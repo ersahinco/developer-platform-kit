@@ -237,9 +237,7 @@ def test_cloud_traffic_generator_exercises_representative_api_paths(
                 return FakeResponse(
                     200,
                     text=(
-                        "http_requests_total 1\n"
-                        "http_request_duration_seconds_count 1\n"
-                        "order_events_publish_total 1\n"
+                        "http_requests_total 1\nhttp_request_duration_seconds_count 1\n"
                     ),
                 )
             return FakeResponse(200, {"mode": "legacy"})

@@ -266,7 +266,7 @@ resource "aws_cloudwatch_metric_alarm" "app_target_5xx" {
   threshold           = 0
   metric_name         = "HTTPCode_Target_5XX_Count"
   namespace           = "AWS/ApplicationELB"
-  period              = 300
+  period              = 60
   statistic           = "Sum"
   treat_missing_data  = "notBreaching"
   unit                = "Count"

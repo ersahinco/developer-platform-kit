@@ -1,0 +1,261 @@
+name: App No-Data Rollback Drill
+
+on:
+  workflow_dispatch:
+    inputs:
+      image_tag:
+        description: "Immutable app image tag to deploy for the drill, for example sha-<commit>."
+        required: true
+        type: string
+      fault_mode:
+        description: "Fault behavior to inject into /ready for the drill."
+        required: true
+        default: error
+        type: choice
+        options:
+          - error
+          - latency
+      confirm_drill:
+        description: "Type rollback-drill to confirm this app-only drill."
+        required: true
+        type: string
+
+env:
+  AWS_REGION: eu-central-1
+  ECR_REGISTRY: 691627364817.dkr.ecr.eu-central-1.amazonaws.com
+  STACK_NAME: aws-sdlc-containers
+  ROOT_DOMAIN: ersahinco-sandbox.eu
+  IMAGE_TAG: ${{ inputs.image_tag }}
+
+concurrency:
+  group: app-rollback-drill-aws
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+jobs:
+  drill:
+    name: App Rollback Drill
+    if: >
+      inputs.confirm_drill == 'rollback-drill' &&
+      github.ref_name == github.event.repository.default_branch
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    environment: aws
+    permissions:
+      contents: read
+      id-token: write
+
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+
+      - uses: astral-sh/setup-uv@08807647e7069bb48b6ef5acd8ec9567f424441b # v8.1.0
+        with:
+          version: "0.11.8"
+          enable-cache: true
+
+      - name: Install verification dependencies
+        run: uv sync --frozen
+
+      - name: Validate image tag
+        run: |
+          if [[ ! "$IMAGE_TAG" =~ ^sha-[0-9a-f]{40}$ ]]; then
+            echo "image_tag must be sha- followed by a 40-character lowercase commit SHA." >&2
+            exit 1
+          fi
+          image_sha="${IMAGE_TAG#sha-}"
+          if ! git merge-base --is-ancestor "$image_sha" "origin/${{ github.event.repository.default_branch }}"; then
+            echo "image_tag must reference a commit reachable from ${{ github.event.repository.default_branch }}." >&2
+            exit 1
+          fi
+
+      - uses: aws-actions/configure-aws-credentials@a89a83ec143615402a01f672b6e172b7b1875000 # v6
+        with:
+          role-to-assume: ${{ secrets.AWS_ROLE_ARN }}
+          aws-region: ${{ env.AWS_REGION }}
+
+      - name: Verify drill images exist
+        run: |
+          aws ecr describe-images \
+            --repository-name "${{ env.STACK_NAME }}/app" \
+            --image-ids "imageTag=${IMAGE_TAG}"
+          aws ecr describe-images \
+            --repository-name "${{ env.STACK_NAME }}/firelens" \
+            --image-ids "imageTag=${IMAGE_TAG}"
+
+      - name: Capture current app task definition
+        id: current
+        run: |
+          service_json=$(aws ecs describe-services \
+            --cluster "${{ env.STACK_NAME }}" \
+            --services app \
+            --output json)
+          current_task_definition=$(echo "$service_json" | jq -r '.services[0].deployments[] | select(.status == "PRIMARY") | .taskDefinition')
+          primary_rollout_state=$(echo "$service_json" | jq -r '.services[0].deployments[] | select(.status == "PRIMARY") | .rolloutState')
+          if [[ -z "$current_task_definition" || "$current_task_definition" == "None" ]]; then
+            echo "Could not resolve current app task definition." >&2
+            exit 1
+          fi
+          if [[ "$primary_rollout_state" != "COMPLETED" ]]; then
+            echo "Current app primary deployment must be COMPLETED before rollback drill; got ${primary_rollout_state}." >&2
+            exit 1
+          fi
+          echo "task_definition=$current_task_definition" >> "$GITHUB_OUTPUT"
+          echo "Current completed task definition: $current_task_definition"
+
+      - name: Validate rollback alarms are clear
+        run: |
+          alarm_names=(
+            "${{ env.STACK_NAME }}-app-target-5xx"
+            "${{ env.STACK_NAME }}-app-target-latency"
+          )
+          alarm_count=$(aws cloudwatch describe-alarms \
+            --alarm-names "${alarm_names[@]}" \
+            --query "length(MetricAlarms)" \
+            --output text)
+          if [[ "$alarm_count" != "2" ]]; then
+            echo "Expected 2 rollback alarms, found ${alarm_count}." >&2
+            exit 1
+          fi
+          alarming=$(aws cloudwatch describe-alarms \
+            --alarm-names "${alarm_names[@]}" \
+            --query "MetricAlarms[?StateValue==\`ALARM\`].AlarmName" \
+            --output text)
+          if [[ -n "$alarming" ]]; then
+            echo "Rollback alarms must be clear before starting the drill; in ALARM: ${alarming}" >&2
+            exit 1
+          fi
+
+      - name: Render drill app task definition
+        id: render-app
+        uses: aws-actions/amazon-ecs-render-task-definition@77954e213ba1f9f9cb016b86a1d4f6fcdea0d57e # v1.8.4
+        with:
+          task-definition-family: aws-sdlc-containers
+          container-name: app
+          image: ${{ env.ECR_REGISTRY }}/${{ env.STACK_NAME }}/app:${{ env.IMAGE_TAG }}
+
+      - name: Render drill FireLens image
+        run: |
+          python3 scripts/ci/ci_set_task_container_image.py \
+            "${{ steps.render-app.outputs.task-definition }}" \
+            log-router \
+            "${{ env.ECR_REGISTRY }}/${{ env.STACK_NAME }}/firelens:${IMAGE_TAG}"
+
+      - name: Configure drill fault injection
+        env:
+          TASK_DEFINITION_PATH: ${{ steps.render-app.outputs.task-definition }}
+          FAULT_MODE: ${{ inputs.fault_mode }}
+        run: |
+          python3 - <<'PY'
+          import json
+          import os
+
+          path = os.environ["TASK_DEFINITION_PATH"]
+          fault_mode = os.environ["FAULT_MODE"]
+          fault_env = {
+              "ROLLOUT_DRILL_FAULT_MODE": fault_mode,
+              "ROLLOUT_DRILL_FAULT_PATHS": "/ready",
+              "ROLLOUT_DRILL_FAULT_DELAY_SECONDS": "3",
+              "ROLLOUT_DRILL_FAULT_STATUS_CODE": "503",
+          }
+
+          with open(path, encoding="utf-8") as handle:
+              task_definition = json.load(handle)
+
+          for container in task_definition["containerDefinitions"]:
+              if container["name"] != "app":
+                  continue
+              existing = {
+                  item["name"]: item["value"]
+                  for item in container.get("environment", [])
+              }
+              existing.update(fault_env)
+              container["environment"] = [
+                  {"name": name, "value": value}
+                  for name, value in sorted(existing.items())
+              ]
+              break
+          else:
+              raise SystemExit("app container not found in rendered task definition")
+
+          with open(path, "w", encoding="utf-8") as handle:
+              json.dump(task_definition, handle, indent=2)
+              handle.write("\n")
+          PY
+
+      - name: Deploy drill app revision
+        id: deploy_drill
+        env:
+          ECS_DEPLOY_WAIT_FOR_STABLE: "false"
+        run: scripts/ci/ci_deploy_ecs_service.sh "${{ env.STACK_NAME }}" app "${{ steps.render-app.outputs.task-definition }}"
+
+      - name: Wait for ECS automatic rollback
+        env:
+          BASE_URL: https://api.${{ env.ROOT_DOMAIN }}
+          PREVIOUS_TASK_DEFINITION: ${{ steps.current.outputs.task_definition }}
+          DRILL_TASK_DEFINITION: ${{ steps.deploy_drill.outputs.task_def_arn }}
+        run: |
+          TOKEN=$(aws secretsmanager get-secret-value \
+            --secret-id aws-sdlc-containers/api-token \
+            --region ${{ env.AWS_REGION }} \
+            --query SecretString \
+            --output text)
+          if [[ -z "$DRILL_TASK_DEFINITION" ]]; then
+            echo "Could not resolve registered drill task definition." >&2
+            exit 1
+          fi
+          traffic_deadline=$((SECONDS + 480))
+          while (( SECONDS < traffic_deadline )); do
+            curl --silent --show-error --output /dev/null \
+              --header "Authorization: Bearer ${TOKEN}" \
+              "${BASE_URL}/ready" || true
+            sleep 2
+          done &
+          traffic_pid=$!
+          trap 'kill "$traffic_pid" 2>/dev/null || true' EXIT
+
+          rollback_deadline=$((SECONDS + 600))
+          while (( SECONDS < rollback_deadline )); do
+            service_json=$(aws ecs describe-services \
+              --cluster "${{ env.STACK_NAME }}" \
+              --services app \
+              --output json)
+            primary_task_definition=$(echo "$service_json" | jq -r '.services[0].deployments[] | select(.status == "PRIMARY") | .taskDefinition')
+            primary_rollout_state=$(echo "$service_json" | jq -r '.services[0].deployments[] | select(.status == "PRIMARY") | .rolloutState')
+            echo "Primary task definition: ${primary_task_definition}; rolloutState=${primary_rollout_state}"
+
+            if [[ "$primary_task_definition" == "$PREVIOUS_TASK_DEFINITION" && "$primary_rollout_state" == "COMPLETED" ]]; then
+              echo "ECS automatically rolled back to ${PREVIOUS_TASK_DEFINITION}."
+              kill "$traffic_pid" 2>/dev/null || true
+              wait "$traffic_pid" 2>/dev/null || true
+              exit 0
+            fi
+
+            if [[ "$primary_task_definition" == "$DRILL_TASK_DEFINITION" && "$primary_rollout_state" == "COMPLETED" ]]; then
+              echo "Bad drill revision completed instead of being rolled back: ${DRILL_TASK_DEFINITION}" >&2
+              exit 1
+            fi
+
+            sleep 10
+          done
+
+          echo "Timed out waiting for ECS automatic rollback to ${PREVIOUS_TASK_DEFINITION}." >&2
+          exit 1
+
+      - name: Verify restored app revision
+        env:
+          BASE_URL: https://api.${{ env.ROOT_DOMAIN }}
+          ECS_CLUSTER: ${{ env.STACK_NAME }}
+          ECS_SERVICE: app
+          EXPECTED_TASK_FAMILY: aws-sdlc-containers
+        run: |
+          TOKEN=$(aws secretsmanager get-secret-value \
+            --secret-id aws-sdlc-containers/api-token \
+            --region ${{ env.AWS_REGION }} \
+            --query SecretString \
+            --output text)
+          TOKEN="$TOKEN" uv run python scripts/release/verify_post_deploy.py

@@ -72,6 +72,53 @@ def test_grafana_stack_uses_prometheus_loki_tempo_without_cloudwatch_or_xray() -
     assert "xray" not in combined.lower()
 
 
+def test_app_service_uses_ecs_native_rollback_detection() -> None:
+    compute_tf = _read("infra/app/compute_ecs.tf")
+
+    app_service_start = compute_tf.index("services = {")
+    app_container_start = compute_tf.index("container_definitions =", app_service_start)
+    app_service_config = compute_tf[app_service_start:app_container_start]
+
+    assert "deployment_circuit_breaker" in app_service_config
+    assert "enable   = true" in app_service_config
+    assert "rollback = true" in app_service_config
+    assert "alarms = var.enable_app_symptom_cloudwatch_alarms" in app_service_config
+    assert "aws_cloudwatch_metric_alarm.app_target_5xx[0].alarm_name" in (
+        app_service_config
+    )
+    assert "aws_cloudwatch_metric_alarm.app_target_latency[0].alarm_name" in (
+        app_service_config
+    )
+
+
+def test_app_target_5xx_alarm_is_fast_enough_for_rollback_drills() -> None:
+    edge_tf = _read("infra/app/edge.tf")
+    alarm_start = edge_tf.index(
+        'resource "aws_cloudwatch_metric_alarm" "app_target_5xx"'
+    )
+    latency_alarm_start = edge_tf.index(
+        'resource "aws_cloudwatch_metric_alarm" "app_target_latency"'
+    )
+    alarm = edge_tf[alarm_start:latency_alarm_start]
+
+    assert 'metric_name         = "HTTPCode_Target_5XX_Count"' in alarm
+    assert "period              = 60" in alarm
+
+
+def test_app_rollback_drill_uses_ecs_automatic_rollback() -> None:
+    workflow = _read(".github/workflows/app-rollback-drill.yml")
+
+    assert "fault_mode:" in workflow
+    assert "ROLLOUT_DRILL_FAULT_MODE" in workflow
+    assert 'ECS_DEPLOY_WAIT_FOR_STABLE: "false"' in workflow
+    assert "Wait for ECS automatic rollback" in workflow
+    assert "Bad drill revision completed instead of being rolled back" in workflow
+    assert "Roll back to captured task definition" not in workflow
+    assert '--task-definition "${{ steps.current.outputs.task_definition }}"' not in (
+        workflow
+    )
+
+
 def test_log_groups_dashboard_is_provisioned_and_uses_loki_only() -> None:
     dashboard = json.loads(_read("observability/grafana/dashboards/log-groups.json"))
     observability_tf = _read("infra/app/observability.tf")

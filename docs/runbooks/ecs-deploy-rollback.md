@@ -7,6 +7,21 @@ This rollback changes only the running ECS service task definition. It does not
 undo database migrations, runtime `WRITE_MODE` or `READ_MODE` values, or one-off
 worker/data-export task definitions.
 
+For a no-data practice path, use the GitHub Actions workflow
+`App No-Data Rollback Drill`. It deploys only an app service revision with
+disabled-by-default fault-injection environment variables set to make `/ready`
+slow or erroring. ECS deployment circuit breaker and deployment CloudWatch
+alarms perform the rollback automatically to the last completed app service
+revision. The workflow does not run Liquibase, backfill, data export, or runtime
+mode changes.
+
+Run the drill twice when practicing:
+
+- `fault_mode=error` makes `/ready` return 503 and should trip the ALB target
+  5xx deployment alarm.
+- `fault_mode=latency` delays `/ready` and should trip the ALB p95 latency
+  deployment alarm.
+
 ## Before Rolling Back
 
 Confirm the current service state:
