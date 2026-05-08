@@ -118,6 +118,25 @@ def test_every_long_running_ecs_service_has_circuit_breaker_rollback() -> None:
         assert "rollback = true" in service
 
 
+def test_github_actions_role_can_apply_runtime_config_and_kms_resources() -> None:
+    platform_iam = _read("infra/platform/github_actions.tf")
+
+    assert (
+        'runtime_config_bucket_name = "${local.name}-runtime-config-${local.account_id}"'
+        in platform_iam
+    )
+    assert "RuntimeConfigBucketManage" in platform_iam
+    assert "RuntimeConfigObjectsManage" in platform_iam
+    assert "local.github_actions_runtime_config_bucket_resources" in platform_iam
+    assert "local.github_actions_runtime_config_object_resources" in platform_iam
+
+    assert "KMSCreateTaggedAppKeys" in platform_iam
+    assert '"kms:CreateKey"' in platform_iam
+    assert '"kms:TagResource"' in platform_iam
+    assert "KMSManageTaggedAppKeys" in platform_iam
+    assert "KMSManageStackAliases" in platform_iam
+
+
 def test_app_target_5xx_alarm_is_fast_enough_for_rollback_drills() -> None:
     edge_tf = _read("infra/app/edge.tf")
     alarm_start = edge_tf.index(

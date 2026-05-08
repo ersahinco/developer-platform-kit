@@ -100,6 +100,7 @@ locals {
   github_actions_stack_scope = "${local.name}*"
   data_hub_bucket_name       = "${local.name}-data-hub-${local.account_id}"
   observability_bucket_name  = "${local.name}-observability-${local.account_id}"
+  runtime_config_bucket_name = "${local.name}-runtime-config-${local.account_id}"
 
   github_actions_logs_manage_resources = [
     "arn:aws:logs:${local.region}:${local.account_id}:log-group:/ecs/${local.github_actions_stack_scope}",
@@ -154,6 +155,14 @@ locals {
 
   github_actions_observability_object_resources = [
     "arn:aws:s3:::${local.observability_bucket_name}/*",
+  ]
+
+  github_actions_runtime_config_bucket_resources = [
+    "arn:aws:s3:::${local.runtime_config_bucket_name}",
+  ]
+
+  github_actions_runtime_config_object_resources = [
+    "arn:aws:s3:::${local.runtime_config_bucket_name}/*",
   ]
 
   github_actions_scheduler_resources = [
@@ -619,6 +628,55 @@ data "aws_iam_policy_document" "github_actions_data_hub" {
     ]
     resources = local.github_actions_observability_object_resources
   }
+
+  statement {
+    sid = "RuntimeConfigBucketManage"
+    actions = [
+      "s3:CreateBucket",
+      "s3:DeleteBucket",
+      "s3:GetAccelerateConfiguration",
+      "s3:GetBucketAcl",
+      "s3:GetBucketCORS",
+      "s3:GetBucketLocation",
+      "s3:GetBucketLogging",
+      "s3:GetBucketObjectLockConfiguration",
+      "s3:GetBucketOwnershipControls",
+      "s3:GetBucketPolicy",
+      "s3:GetBucketPolicyStatus",
+      "s3:GetBucketPublicAccessBlock",
+      "s3:GetBucketRequestPayment",
+      "s3:GetBucketTagging",
+      "s3:GetBucketVersioning",
+      "s3:GetBucketWebsite",
+      "s3:GetEncryptionConfiguration",
+      "s3:GetLifecycleConfiguration",
+      "s3:GetReplicationConfiguration",
+      "s3:ListBucket",
+      "s3:PutBucketOwnershipControls",
+      "s3:PutBucketPublicAccessBlock",
+      "s3:PutBucketTagging",
+      "s3:PutBucketVersioning",
+      "s3:PutEncryptionConfiguration",
+      "s3:PutLifecycleConfiguration",
+    ]
+    resources = local.github_actions_runtime_config_bucket_resources
+  }
+
+  statement {
+    sid = "RuntimeConfigObjectsManage"
+    actions = [
+      "s3:DeleteObject",
+      "s3:DeleteObjectTagging",
+      "s3:GetObject",
+      "s3:GetObjectAcl",
+      "s3:GetObjectTagging",
+      "s3:GetObjectVersion",
+      "s3:GetObjectVersionTagging",
+      "s3:PutObject",
+      "s3:PutObjectTagging",
+    ]
+    resources = local.github_actions_runtime_config_object_resources
+  }
 }
 
 data "aws_iam_policy_document" "github_actions_identity_kms" {
@@ -673,6 +731,61 @@ data "aws_iam_policy_document" "github_actions_identity_kms" {
       variable = "kms:ViaService"
       values   = ["rds.${local.region}.amazonaws.com"]
     }
+  }
+
+  statement {
+    sid = "KMSCreateTaggedAppKeys"
+    actions = [
+      "kms:CreateKey",
+      "kms:TagResource",
+    ]
+    resources = ["*"]
+    condition {
+      test     = "StringEquals"
+      variable = "aws:RequestTag/Project"
+      values   = [local.name]
+    }
+    condition {
+      test     = "StringEquals"
+      variable = "aws:RequestTag/ManagedBy"
+      values   = ["terraform"]
+    }
+  }
+
+  statement {
+    sid = "KMSManageTaggedAppKeys"
+    actions = [
+      "kms:CancelKeyDeletion",
+      "kms:DescribeKey",
+      "kms:DisableKeyRotation",
+      "kms:EnableKeyRotation",
+      "kms:GetKeyPolicy",
+      "kms:GetKeyRotationStatus",
+      "kms:ListResourceTags",
+      "kms:PutKeyPolicy",
+      "kms:ScheduleKeyDeletion",
+      "kms:TagResource",
+      "kms:UntagResource",
+    ]
+    resources = ["arn:aws:kms:${local.region}:${local.account_id}:key/*"]
+    condition {
+      test     = "StringEquals"
+      variable = "aws:ResourceTag/Project"
+      values   = [local.name]
+    }
+  }
+
+  statement {
+    sid = "KMSManageStackAliases"
+    actions = [
+      "kms:CreateAlias",
+      "kms:DeleteAlias",
+      "kms:UpdateAlias",
+    ]
+    resources = [
+      "arn:aws:kms:${local.region}:${local.account_id}:alias/${local.name}/*",
+      "arn:aws:kms:${local.region}:${local.account_id}:key/*",
+    ]
   }
 }
 
