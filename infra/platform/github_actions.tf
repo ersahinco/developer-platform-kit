@@ -685,8 +685,10 @@ data "aws_iam_policy_document" "github_actions_identity_kms" {
     actions = [
       "iam:CreateRole", "iam:DeleteRole", "iam:UpdateRole",
       "iam:CreatePolicy", "iam:DeletePolicy",
+      "iam:CreatePolicyVersion", "iam:DeletePolicyVersion",
       "iam:PutRolePolicy", "iam:DeleteRolePolicy",
       "iam:AttachRolePolicy", "iam:DetachRolePolicy",
+      "iam:SetDefaultPolicyVersion",
       "iam:TagRole", "iam:UntagRole",
       "iam:TagPolicy", "iam:UntagPolicy",
       "iam:PassRole",

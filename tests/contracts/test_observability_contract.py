@@ -135,6 +135,8 @@ def test_github_actions_role_can_apply_runtime_config_and_kms_resources() -> Non
     assert '"kms:TagResource"' in platform_iam
     assert "KMSManageTaggedAppKeys" in platform_iam
     assert "KMSManageStackAliases" in platform_iam
+    assert '"iam:CreatePolicyVersion", "iam:DeletePolicyVersion"' in platform_iam
+    assert '"iam:SetDefaultPolicyVersion"' in platform_iam
 
 
 def test_app_target_5xx_alarm_is_fast_enough_for_rollback_drills() -> None:
