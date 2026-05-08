@@ -172,6 +172,10 @@ locals {
   github_actions_sqs_resources = [
     "arn:aws:sqs:${local.region}:${local.account_id}:${local.github_actions_stack_scope}",
   ]
+
+  github_actions_sns_resources = [
+    "arn:aws:sns:${local.region}:${local.account_id}:${local.github_actions_stack_scope}",
+  ]
 }
 
 ################################################################################
@@ -275,6 +279,23 @@ data "aws_iam_policy_document" "github_actions_compute_deploy" {
       "sqs:UntagQueue",
     ]
     resources = local.github_actions_sqs_resources
+  }
+
+  statement {
+    sid = "SNSManage"
+    actions = [
+      "sns:CreateTopic",
+      "sns:DeleteTopic",
+      "sns:GetTopicAttributes",
+      "sns:ListSubscriptionsByTopic",
+      "sns:ListTagsForResource",
+      "sns:SetTopicAttributes",
+      "sns:Subscribe",
+      "sns:TagResource",
+      "sns:UntagResource",
+      "sns:Unsubscribe",
+    ]
+    resources = local.github_actions_sns_resources
   }
 
   statement {

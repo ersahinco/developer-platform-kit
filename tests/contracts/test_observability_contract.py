@@ -137,6 +137,10 @@ def test_github_actions_role_can_apply_runtime_config_and_kms_resources() -> Non
     assert "KMSManageStackAliases" in platform_iam
     assert '"iam:CreatePolicyVersion", "iam:DeletePolicyVersion"' in platform_iam
     assert '"iam:SetDefaultPolicyVersion"' in platform_iam
+    assert "local.github_actions_sns_resources" in platform_iam
+    assert "SNSManage" in platform_iam
+    assert '"sns:CreateTopic"' in platform_iam
+    assert '"sns:Subscribe"' in platform_iam
 
 
 def test_app_target_5xx_alarm_is_fast_enough_for_rollback_drills() -> None:
