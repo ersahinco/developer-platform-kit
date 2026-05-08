@@ -286,9 +286,11 @@ data "aws_iam_policy_document" "github_actions_compute_deploy" {
     actions = [
       "sns:CreateTopic",
       "sns:DeleteTopic",
+      "sns:GetSubscriptionAttributes",
       "sns:GetTopicAttributes",
       "sns:ListSubscriptionsByTopic",
       "sns:ListTagsForResource",
+      "sns:SetSubscriptionAttributes",
       "sns:SetTopicAttributes",
       "sns:Subscribe",
       "sns:TagResource",

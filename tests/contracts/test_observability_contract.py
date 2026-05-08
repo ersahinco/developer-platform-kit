@@ -140,6 +140,7 @@ def test_github_actions_role_can_apply_runtime_config_and_kms_resources() -> Non
     assert "local.github_actions_sns_resources" in platform_iam
     assert "SNSManage" in platform_iam
     assert '"sns:CreateTopic"' in platform_iam
+    assert '"sns:GetSubscriptionAttributes"' in platform_iam
     assert '"sns:Subscribe"' in platform_iam
 
 
