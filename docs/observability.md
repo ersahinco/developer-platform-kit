@@ -45,9 +45,9 @@ practical; Grafana should not depend on CloudWatch queries to be useful.
   service.
 - Terraform creates CloudWatch alarms for app target 5xx responses and elevated
   target response time behind the ALB.
-- The app ECS service uses native ECS deployment circuit breaker rollback and
-  ECS deployment CloudWatch alarms for app target 5xx and latency rollback
-  practice.
+- Long-running ECS services use native ECS deployment circuit breaker rollback.
+  The app ECS service also uses ECS deployment CloudWatch alarms for app target
+  5xx and latency rollback practice.
 - Terraform creates CloudWatch alarms for RDS CPU, free storage, and database
   connection pressure.
 - Terraform creates a CloudWatch alarm when the order events DLQ has visible

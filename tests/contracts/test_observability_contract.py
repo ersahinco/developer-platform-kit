@@ -19,6 +19,14 @@ def _read(path: str) -> str:
     return (ROOT / path).read_text(encoding="utf-8")
 
 
+def _resource_block(terraform: str, resource_type: str, name: str) -> str:
+    start = terraform.index(f'resource "{resource_type}" "{name}"')
+    next_resource = terraform.find('\nresource "', start + 1)
+    if next_resource == -1:
+        return terraform[start:]
+    return terraform[start:next_resource]
+
+
 def test_firelens_dual_writes_every_expected_workload_log_to_cloudwatch_and_loki() -> (
     None
 ):
@@ -89,6 +97,25 @@ def test_app_service_uses_ecs_native_rollback_detection() -> None:
     assert "aws_cloudwatch_metric_alarm.app_target_latency[0].alarm_name" in (
         app_service_config
     )
+
+
+def test_every_long_running_ecs_service_has_circuit_breaker_rollback() -> None:
+    workload_jobs_tf = _read("infra/app/workload_jobs.tf")
+    observability_tf = _read("infra/app/observability.tf")
+
+    services = [
+        (workload_jobs_tf, "order_event_consumer"),
+        (observability_tf, "loki"),
+        (observability_tf, "prometheus"),
+        (observability_tf, "tempo"),
+        (observability_tf, "grafana"),
+    ]
+
+    for terraform, service_name in services:
+        service = _resource_block(terraform, "aws_ecs_service", service_name)
+        assert "deployment_circuit_breaker" in service
+        assert "enable   = true" in service
+        assert "rollback = true" in service
 
 
 def test_app_target_5xx_alarm_is_fast_enough_for_rollback_drills() -> None:

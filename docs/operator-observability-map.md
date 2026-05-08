@@ -307,6 +307,11 @@ No-data rollback practice:
   only the app ECS service revision with `/ready` fault injection enabled.
   ECS circuit breaker and deployment CloudWatch alarms must roll it back
   automatically to the captured previous task definition.
+- Other ECS services: order-event-consumer and Grafana-stack services use ECS
+  deployment circuit breaker rollback for deployments that cannot stabilize.
+  One-off tasks such as Liquibase, backfill, and data export are not ECS service
+  rollouts, so practice their recovery with rerun/stop/restore runbooks instead
+  of service rollback.
 - Infra: use [Infra Rollback Drill](runbooks/infra-rollback-drill.md); it uses a
   reversible infra-only commit and its revert through the normal
   `Infra Plan`/`Infra Apply` path.

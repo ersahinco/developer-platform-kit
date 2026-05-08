@@ -651,6 +651,11 @@ resource "aws_ecs_service" "order_event_consumer" {
   deployment_minimum_healthy_percent = 100
   deployment_maximum_percent         = 200
 
+  deployment_circuit_breaker {
+    enable   = true
+    rollback = true
+  }
+
   network_configuration {
     assign_public_ip = false
     security_groups  = [aws_security_group.app.id]

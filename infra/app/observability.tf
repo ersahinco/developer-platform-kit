@@ -822,6 +822,11 @@ resource "aws_ecs_service" "loki" {
   deployment_minimum_healthy_percent = 100
   deployment_maximum_percent         = 200
 
+  deployment_circuit_breaker {
+    enable   = true
+    rollback = true
+  }
+
   network_configuration {
     assign_public_ip = false
     security_groups  = [aws_security_group.observability[0].id]
@@ -914,6 +919,11 @@ resource "aws_ecs_service" "prometheus" {
   deployment_minimum_healthy_percent = 100
   deployment_maximum_percent         = 200
 
+  deployment_circuit_breaker {
+    enable   = true
+    rollback = true
+  }
+
   network_configuration {
     assign_public_ip = false
     security_groups  = [aws_security_group.observability[0].id]
@@ -1004,6 +1014,11 @@ resource "aws_ecs_service" "tempo" {
 
   deployment_minimum_healthy_percent = 100
   deployment_maximum_percent         = 200
+
+  deployment_circuit_breaker {
+    enable   = true
+    rollback = true
+  }
 
   network_configuration {
     assign_public_ip = false
@@ -1111,6 +1126,11 @@ resource "aws_ecs_service" "grafana" {
 
   deployment_minimum_healthy_percent = 100
   deployment_maximum_percent         = 200
+
+  deployment_circuit_breaker {
+    enable   = true
+    rollback = true
+  }
 
   network_configuration {
     assign_public_ip = false

@@ -1,11 +1,19 @@
 # ECS Deploy Rollback
 
-Use this runbook when an app deploy causes unhealthy targets, target 5xxs,
-latency alarms, or another operator-confirmed regression.
+Use this runbook when an ECS service deploy causes unhealthy targets, target
+5xxs, latency alarms, failure to stabilize, or another operator-confirmed
+regression.
 
 This rollback changes only the running ECS service task definition. It does not
 undo database migrations, runtime `WRITE_MODE` or `READ_MODE` values, or one-off
 worker/data-export task definitions.
+
+The app, order event consumer, and Grafana-stack ECS services use the ECS native
+deployment circuit breaker with rollback enabled. The app service also uses ECS
+deployment CloudWatch alarms for ALB target 5xx and latency symptoms. One-off
+tasks such as Liquibase, backfill, and data export do not have ECS service
+rollback; their recovery path is rerun, stop, or restore according to their
+specific runbook.
 
 For a no-data practice path, use the GitHub Actions workflow
 `App No-Data Rollback Drill`. It deploys only an app service revision with

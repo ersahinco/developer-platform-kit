@@ -14,7 +14,8 @@ Safe rollout does not come from duplicating infrastructure. It comes from additi
 ## Current platform contract
 
 - Base stack: one VPC, one public WAF-protected ALB/TLS/DNS entrypoint, one ECS cluster, one long-running app service with PgBouncer, one PostgreSQL database, and split platform/app Terraform state.
-- Reference workload: the app, Liquibase task, and backfill worker all operate inside that same stack. Rollout stays in place through additive schema changes, task definition updates, runtime switches, and one-off tasks.
+- Reference workload: the app, order event consumer, Liquibase task, and backfill worker all operate inside that same stack. Rollout stays in place through additive schema changes, task definition updates, runtime switches, and one-off tasks.
+- ECS service deployments use the native deployment circuit breaker with rollback enabled. The public app service also uses ALB target 5xx and latency CloudWatch deployment alarms for symptom-based rollback.
 - Public-edge rule: any public-facing ALB must be associated with WAF. VPC endpoints, ECS Exec/SSM access, and similar operator conveniences can remain separate capabilities.
 - Future additions: observability, extra operator tooling, and workload-specific jobs should stay as extensions unless they become mandatory for every workload that uses this repo.
 
@@ -380,10 +381,12 @@ ECR image tags are immutable `sha-<commit>` tags, so the task definitions should
 continue to reference the exact images that were validated earlier in the
 pipeline.
 
-If a deploy reaches ECS but causes unhealthy targets, target 5xxs, or latency
-alarms, use `docs/runbooks/ecs-deploy-rollback.md` to identify the previous
-healthy task definition revision and roll the app service back without changing
-database state.
+If a deploy reaches ECS but causes unhealthy targets, target 5xxs, latency
+alarms, or a service that cannot stabilize, ECS should roll the service back to
+the last completed deployment through the native deployment circuit breaker. Use
+`docs/runbooks/ecs-deploy-rollback.md` to observe that automatic rollback or, if
+needed, identify the previous healthy task definition revision and roll the ECS
+service back without changing database state.
 
 After an app deploy reaches ECS, run the post-deploy verifier before advancing
 runtime modes or relying on the new task image:
