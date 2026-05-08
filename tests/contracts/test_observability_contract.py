@@ -279,6 +279,7 @@ def test_cloud_changing_release_paths_stay_in_reviewed_workflows() -> None:
     assert "firelens:${TAG}" in app_build
     assert "firelens:${IMAGE_TAG}" in app_deploy
     assert "verify_post_deploy.py" in app_deploy
+    assert app_build.count("if: ${{ !github.event.repository.private }}") == 7
 
 
 def test_observability_cloud_traffic_runs_quiet_cloud_log_probes() -> None:

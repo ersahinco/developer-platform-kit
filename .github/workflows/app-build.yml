@@ -256,6 +256,7 @@ jobs:
           resolve_digest pgbouncer "${{ env.ECR_REGISTRY }}/${{ env.STACK_NAME }}/pgbouncer:${PGBOUNCER_TAG}"
 
       - name: Attest app image provenance
+        if: ${{ !github.event.repository.private }}
         uses: actions/attest-build-provenance@43d14bc2b83dec42d39ecae14e916627a18bb661 # v3
         with:
           subject-name: ${{ env.ECR_REGISTRY }}/${{ env.STACK_NAME }}/app
@@ -263,6 +264,7 @@ jobs:
           push-to-registry: true
 
       - name: Attest worker image provenance
+        if: ${{ !github.event.repository.private }}
         uses: actions/attest-build-provenance@43d14bc2b83dec42d39ecae14e916627a18bb661 # v3
         with:
           subject-name: ${{ env.ECR_REGISTRY }}/${{ env.STACK_NAME }}/worker
@@ -270,6 +272,7 @@ jobs:
           push-to-registry: true
 
       - name: Attest data export image provenance
+        if: ${{ !github.event.repository.private }}
         uses: actions/attest-build-provenance@43d14bc2b83dec42d39ecae14e916627a18bb661 # v3
         with:
           subject-name: ${{ env.ECR_REGISTRY }}/${{ env.STACK_NAME }}/data-export-job
@@ -277,6 +280,7 @@ jobs:
           push-to-registry: true
 
       - name: Attest order event consumer image provenance
+        if: ${{ !github.event.repository.private }}
         uses: actions/attest-build-provenance@43d14bc2b83dec42d39ecae14e916627a18bb661 # v3
         with:
           subject-name: ${{ env.ECR_REGISTRY }}/${{ env.STACK_NAME }}/order-event-consumer
@@ -284,6 +288,7 @@ jobs:
           push-to-registry: true
 
       - name: Attest liquibase image provenance
+        if: ${{ !github.event.repository.private }}
         uses: actions/attest-build-provenance@43d14bc2b83dec42d39ecae14e916627a18bb661 # v3
         with:
           subject-name: ${{ env.ECR_REGISTRY }}/${{ env.STACK_NAME }}/liquibase
@@ -291,6 +296,7 @@ jobs:
           push-to-registry: true
 
       - name: Attest FireLens image provenance
+        if: ${{ !github.event.repository.private }}
         uses: actions/attest-build-provenance@43d14bc2b83dec42d39ecae14e916627a18bb661 # v3
         with:
           subject-name: ${{ env.ECR_REGISTRY }}/${{ env.STACK_NAME }}/firelens
@@ -298,6 +304,7 @@ jobs:
           push-to-registry: true
 
       - name: Attest PgBouncer image provenance
+        if: ${{ !github.event.repository.private }}
         uses: actions/attest-build-provenance@43d14bc2b83dec42d39ecae14e916627a18bb661 # v3
         with:
           subject-name: ${{ env.ECR_REGISTRY }}/${{ env.STACK_NAME }}/pgbouncer
