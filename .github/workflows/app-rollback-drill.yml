@@ -208,7 +208,7 @@ jobs:
             echo "Could not resolve registered drill task definition." >&2
             exit 1
           fi
-          traffic_deadline=$((SECONDS + 480))
+          traffic_deadline=$((SECONDS + 720))
           while (( SECONDS < traffic_deadline )); do
             curl --silent --show-error --output /dev/null \
               --header "Authorization: Bearer ${TOKEN}" \
@@ -218,7 +218,7 @@ jobs:
           traffic_pid=$!
           trap 'kill "$traffic_pid" 2>/dev/null || true' EXIT
 
-          rollback_deadline=$((SECONDS + 600))
+          rollback_deadline=$((SECONDS + 1200))
           while (( SECONDS < rollback_deadline )); do
             service_json=$(aws ecs describe-services \
               --cluster "${{ env.STACK_NAME }}" \

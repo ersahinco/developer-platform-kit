@@ -23,7 +23,8 @@ disabled-by-default fault-injection environment variables set to make `/ready`
 slow or erroring. ECS deployment circuit breaker and deployment CloudWatch
 alarms perform the rollback automatically to the last completed app service
 revision. The workflow does not run Liquibase, backfill, data export, or runtime
-mode changes.
+mode changes. The latency path can take over ten minutes because ECS waits
+through the deployment bake window and then stabilizes the restored revision.
 
 Run the drill twice when practicing:
 

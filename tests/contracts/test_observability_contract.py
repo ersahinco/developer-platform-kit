@@ -169,6 +169,8 @@ def test_app_rollback_drill_uses_ecs_automatic_rollback() -> None:
     assert "fault_mode:" in workflow
     assert "ROLLOUT_DRILL_FAULT_MODE" in workflow
     assert 'ECS_DEPLOY_WAIT_FOR_STABLE: "false"' in workflow
+    assert "traffic_deadline=$((SECONDS + 720))" in workflow
+    assert "rollback_deadline=$((SECONDS + 1200))" in workflow
     assert "Wait for ECS automatic rollback" in workflow
     assert "Bad drill revision completed instead of being rolled back" in workflow
     assert "Roll back to captured task definition" not in workflow
