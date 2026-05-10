@@ -26,6 +26,9 @@ env:
   STACK_NAME: aws-sdlc-containers
   ROOT_DOMAIN: ersahinco-sandbox.eu
   IMAGE_TAG: ${{ inputs.image_tag }}
+  APP_ROLLBACK_ERROR_SLO_SECONDS: "600"
+  APP_ROLLBACK_LATENCY_SLO_SECONDS: "900"
+  APP_ROLLBACK_VERIFY_SLO_SECONDS: "120"
 
 concurrency:
   group: app-rollback-drill-aws
@@ -191,11 +194,16 @@ jobs:
         id: deploy_drill
         env:
           ECS_DEPLOY_WAIT_FOR_STABLE: "false"
-        run: scripts/ci/ci_deploy_ecs_service.sh "${{ env.STACK_NAME }}" app "${{ steps.render-app.outputs.task-definition }}"
+        run: |
+          echo "deploy_started_epoch=$(date +%s)" >> "$GITHUB_OUTPUT"
+          scripts/ci/ci_deploy_ecs_service.sh "${{ env.STACK_NAME }}" app "${{ steps.render-app.outputs.task-definition }}"
 
       - name: Wait for ECS automatic rollback
+        id: wait_rollback
         env:
           BASE_URL: https://api.${{ env.ROOT_DOMAIN }}
+          FAULT_MODE: ${{ inputs.fault_mode }}
+          DEPLOY_STARTED_EPOCH: ${{ steps.deploy_drill.outputs.deploy_started_epoch }}
           PREVIOUS_TASK_DEFINITION: ${{ steps.current.outputs.task_definition }}
           DRILL_TASK_DEFINITION: ${{ steps.deploy_drill.outputs.task_def_arn }}
         run: |
@@ -207,6 +215,10 @@ jobs:
           if [[ -z "$DRILL_TASK_DEFINITION" ]]; then
             echo "Could not resolve registered drill task definition." >&2
             exit 1
+          fi
+          rollback_slo_seconds="$APP_ROLLBACK_LATENCY_SLO_SECONDS"
+          if [[ "$FAULT_MODE" == "error" ]]; then
+            rollback_slo_seconds="$APP_ROLLBACK_ERROR_SLO_SECONDS"
           fi
           traffic_deadline=$((SECONDS + 720))
           while (( SECONDS < traffic_deadline )); do
@@ -229,6 +241,21 @@ jobs:
             echo "Primary task definition: ${primary_task_definition}; rolloutState=${primary_rollout_state}"
 
             if [[ "$primary_task_definition" == "$PREVIOUS_TASK_DEFINITION" && "$primary_rollout_state" == "COMPLETED" ]]; then
+              rollback_seconds=$(($(date +%s) - DEPLOY_STARTED_EPOCH))
+              echo "rollback_seconds=${rollback_seconds}" >> "$GITHUB_OUTPUT"
+              {
+                echo "### Rollback drill SLO evidence"
+                echo ""
+                echo "- Fault mode: ${FAULT_MODE}"
+                echo "- Rollback observed in: ${rollback_seconds}s"
+                echo "- Rollback SLO: ${rollback_slo_seconds}s"
+                echo "- Bad task definition: ${DRILL_TASK_DEFINITION}"
+                echo "- Restored task definition: ${PREVIOUS_TASK_DEFINITION}"
+              } >> "$GITHUB_STEP_SUMMARY"
+              if (( rollback_seconds > rollback_slo_seconds )); then
+                echo "ECS rollback exceeded ${FAULT_MODE} SLO: ${rollback_seconds}s > ${rollback_slo_seconds}s." >&2
+                exit 1
+              fi
               echo "ECS automatically rolled back to ${PREVIOUS_TASK_DEFINITION}."
               kill "$traffic_pid" 2>/dev/null || true
               wait "$traffic_pid" 2>/dev/null || true
@@ -253,9 +280,22 @@ jobs:
           ECS_SERVICE: app
           EXPECTED_TASK_FAMILY: aws-sdlc-containers
         run: |
+          verify_started_epoch=$(date +%s)
           TOKEN=$(aws secretsmanager get-secret-value \
             --secret-id aws-sdlc-containers/api-token \
             --region ${{ env.AWS_REGION }} \
             --query SecretString \
             --output text)
           TOKEN="$TOKEN" uv run python scripts/release/verify_post_deploy.py
+          verify_seconds=$(($(date +%s) - verify_started_epoch))
+          {
+            echo ""
+            echo "### Restored app verification SLO evidence"
+            echo ""
+            echo "- Verification completed in: ${verify_seconds}s"
+            echo "- Verification SLO: ${APP_ROLLBACK_VERIFY_SLO_SECONDS}s"
+          } >> "$GITHUB_STEP_SUMMARY"
+          if (( verify_seconds > APP_ROLLBACK_VERIFY_SLO_SECONDS )); then
+            echo "Restored app verification exceeded SLO: ${verify_seconds}s > ${APP_ROLLBACK_VERIFY_SLO_SECONDS}s." >&2
+            exit 1
+          fi

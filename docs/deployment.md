@@ -388,6 +388,11 @@ the last completed deployment through the native deployment circuit breaker. Use
 needed, identify the previous healthy task definition revision and roll the ECS
 service back without changing database state.
 
+Use `docs/runbooks/rollback-drill-slos.md` as the pipeline SLO contract for
+rollback practice across app, infra, and data-phase changes. A feature release
+can be more complex than the pipeline, but it should not outrun those rollback
+objectives.
+
 After an app deploy reaches ECS, run the post-deploy verifier before advancing
 runtime modes or relying on the new task image:
 

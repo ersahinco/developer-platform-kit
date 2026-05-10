@@ -16,6 +16,11 @@ infra-only change
   -> verify restored state
 ```
 
+The SLO target for this drill is in
+[Rollback Drill SLOs](rollback-drill-slos.md): reviewed plan within 5 minutes,
+forward apply within 15 minutes, and revert plan plus apply within 30 minutes
+for a no-data drill.
+
 ## Good Drill Targets
 
 Use reversible, no-data infrastructure or observability changes:

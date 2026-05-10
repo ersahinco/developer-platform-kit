@@ -33,6 +33,11 @@ Run the drill twice when practicing:
 - `fault_mode=latency` delays `/ready` and should trip the ALB p95 latency
   deployment alarm.
 
+The drill enforces the app rollback objectives in
+[Rollback Drill SLOs](rollback-drill-slos.md): error rollback observed within
+10 minutes, latency rollback observed within 15 minutes, and restored app
+verification within 2 minutes.
+
 ## Before Rolling Back
 
 Confirm the current service state:
