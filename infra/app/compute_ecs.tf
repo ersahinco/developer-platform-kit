@@ -171,6 +171,11 @@ module "ecs" {
         enable   = true
         rollback = true
       }
+      deployment_configuration = {
+        strategy             = "ROLLING"
+        bake_time_in_minutes = "5"
+      }
+      create_infrastructure_iam_role = false
       alarms = var.enable_app_symptom_cloudwatch_alarms ? {
         alarm_names = [
           aws_cloudwatch_metric_alarm.app_target_5xx[0].alarm_name,
@@ -278,7 +283,12 @@ module "ecs" {
             { name = "DB_PASSWORD", valueFrom = "${module.rds.db_instance_master_user_secret_arn}:password::" },
           ]
 
-          environment = concat([], var.enable_observability_stack ? [
+          environment = concat([
+            { name = "ROLLOUT_DRILL_FAULT_MODE", value = "off" },
+            { name = "ROLLOUT_DRILL_FAULT_PATHS", value = "/ready" },
+            { name = "ROLLOUT_DRILL_FAULT_DELAY_SECONDS", value = "3" },
+            { name = "ROLLOUT_DRILL_FAULT_STATUS_CODE", value = "503" },
+            ], var.enable_observability_stack ? [
             { name = "OTEL_TRACES_ENABLED", value = "true" },
             { name = "OTEL_EXPORTER_OTLP_TRACES_ENDPOINT", value = "http://tempo.${local.observability_dns_namespace}:4318/v1/traces" },
             { name = "OTEL_SERVICE_NAME", value = "aws-sdlc-containers-api" },

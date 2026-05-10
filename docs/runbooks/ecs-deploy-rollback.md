@@ -10,10 +10,12 @@ worker/data-export task definitions.
 
 The app, order event consumer, and Grafana-stack ECS services use the ECS native
 deployment circuit breaker with rollback enabled. The app service also uses ECS
-deployment CloudWatch alarms for ALB target 5xx and latency symptoms. One-off
-tasks such as Liquibase, backfill, and data export do not have ECS service
-rollback; their recovery path is rerun, stop, or restore according to their
-specific runbook.
+deployment CloudWatch alarms for ALB target 5xx and latency symptoms. The app
+rolling deployment keeps a five-minute bake window so delayed CloudWatch latency
+datapoints can still trigger ECS automatic rollback before the revision is
+accepted as completed. One-off tasks such as Liquibase, backfill, and data
+export do not have ECS service rollback; their recovery path is rerun, stop, or
+restore according to their specific runbook.
 
 For a no-data practice path, use the GitHub Actions workflow
 `App No-Data Rollback Drill`. It deploys only an app service revision with

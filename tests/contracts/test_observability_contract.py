@@ -90,6 +90,9 @@ def test_app_service_uses_ecs_native_rollback_detection() -> None:
     assert "deployment_circuit_breaker" in app_service_config
     assert "enable   = true" in app_service_config
     assert "rollback = true" in app_service_config
+    assert 'strategy             = "ROLLING"' in app_service_config
+    assert 'bake_time_in_minutes = "5"' in app_service_config
+    assert "create_infrastructure_iam_role = false" in app_service_config
     assert "alarms = var.enable_app_symptom_cloudwatch_alarms" in app_service_config
     assert "aws_cloudwatch_metric_alarm.app_target_5xx[0].alarm_name" in (
         app_service_config
@@ -97,6 +100,8 @@ def test_app_service_uses_ecs_native_rollback_detection() -> None:
     assert "aws_cloudwatch_metric_alarm.app_target_latency[0].alarm_name" in (
         app_service_config
     )
+    assert 'name = "ROLLOUT_DRILL_FAULT_MODE", value = "off"' in compute_tf
+    assert 'name = "ROLLOUT_DRILL_FAULT_PATHS", value = "/ready"' in compute_tf
 
 
 def test_every_long_running_ecs_service_has_circuit_breaker_rollback() -> None:

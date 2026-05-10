@@ -15,7 +15,7 @@ Safe rollout does not come from duplicating infrastructure. It comes from additi
 
 - Base stack: one VPC, one public WAF-protected ALB/TLS/DNS entrypoint, one ECS cluster, one long-running app service with PgBouncer, one PostgreSQL database, and split platform/app Terraform state.
 - Reference workload: the app, order event consumer, Liquibase task, and backfill worker all operate inside that same stack. Rollout stays in place through additive schema changes, task definition updates, runtime switches, and one-off tasks.
-- ECS service deployments use the native deployment circuit breaker with rollback enabled. The public app service also uses ALB target 5xx and latency CloudWatch deployment alarms for symptom-based rollback.
+- ECS service deployments use the native deployment circuit breaker with rollback enabled. The public app service also uses ALB target 5xx and latency CloudWatch deployment alarms for symptom-based rollback, with a short bake window so latency alarms can trip before ECS accepts the revision.
 - Public-edge rule: any public-facing ALB must be associated with WAF. VPC endpoints, ECS Exec/SSM access, and similar operator conveniences can remain separate capabilities.
 - Future additions: observability, extra operator tooling, and workload-specific jobs should stay as extensions unless they become mandatory for every workload that uses this repo.
 
