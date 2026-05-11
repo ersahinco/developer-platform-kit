@@ -283,7 +283,7 @@ resource "aws_cloudwatch_metric_alarm" "app_target_latency" {
   count = var.enable_app_symptom_cloudwatch_alarms ? 1 : 0
 
   alarm_name          = "${local.name}-app-target-latency"
-  alarm_description   = "App target p95 response time exceeded 2 seconds. Infra rollback SLO drill marker. Runbook: docs/runbooks/app-edge-errors-latency.md"
+  alarm_description   = "App target p95 response time exceeded 2 seconds. Runbook: docs/runbooks/app-edge-errors-latency.md"
   comparison_operator = "GreaterThanThreshold"
   evaluation_periods  = 3
   datapoints_to_alarm = 2
