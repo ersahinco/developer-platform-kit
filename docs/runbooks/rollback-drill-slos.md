@@ -12,7 +12,7 @@ known-good state, and produce evidence quickly enough to keep iteration safe?
 | App rollback, error mode | `/ready` returns 503 and trips the ALB target 5xx deployment alarm. | ECS automatic rollback observed within 10 min; restored app verification within 2 min. | `App No-Data Rollback Drill` summary, ECS service events, 5xx alarm history, `verify_post_deploy.py`. |
 | App rollback, latency mode | `/ready` delays 3s and trips the ALB p95 latency deployment alarm. | ECS automatic rollback observed within 15 min; restored app verification within 2 min. | `App No-Data Rollback Drill` summary, ECS service events, latency alarm history, `verify_post_deploy.py`. |
 | Infra no-data rollback | A reversible Terraform-only change is applied and then reverted. | Reviewed plan in <= 5 min, apply in <= 15 min, revert plan+apply in <= 30 min. | `Infra Plan` and `Infra Apply` run IDs, reviewed no-data plan, restored resource state. |
-| Runtime data-phase rollback | `READ_MODE` or `WRITE_MODE` is moved back to the previous safe phase. | API write/read mode rollback verified within 2 min. | Admin API response, 5s runtime-config cache expiry, `/ready`, targeted phase test. |
+| Runtime data-phase rollback | `WRITE_MODE` is moved from `legacy` to `dual` and back to the captured safe phase. | API write-mode rollback verified within 2 min; restored app verification within 2 min. | `Data Runtime Rollback Drill` summary, admin API response, 5s runtime-config cache expiry, `verify_post_deploy.py`. |
 | Backfill/data job containment | A resumable job fails before runtime cutover. | Stop or rerun decision within 10 min; no read-mode advancement until reconciliation passes. | Worker logs, checkpoint state, reconciliation output, unchanged runtime modes. |
 
 ## Current Baseline
@@ -60,3 +60,22 @@ Run the infra rollback drill after changes to:
 
 Run data-phase rollback tests before any release that advances `READ_MODE`,
 `WRITE_MODE`, backfill behavior, or contract migration readiness.
+
+## Runtime Config Drill
+
+Use `Data Runtime Rollback Drill` as the safe, representative data rollback
+exercise. It intentionally mutates only `app_runtime_config`; it does not run
+Liquibase, backfill, data export, seed scripts, or order writes.
+
+The drill currently requires `READ_MODE=legacy` and `WRITE_MODE=legacy`, moves
+`WRITE_MODE` to `dual`, then rolls it back to the captured previous value. An
+always-run restore step posts the captured value again if any earlier step
+fails.
+
+Run it from the default branch:
+
+```bash
+gh workflow run "Data Runtime Rollback Drill" \
+  --ref main \
+  -f confirm_drill=data-rollback-drill
+```
