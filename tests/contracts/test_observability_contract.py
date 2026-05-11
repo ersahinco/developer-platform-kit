@@ -51,6 +51,7 @@ def test_local_promtail_assigns_cloudwatch_like_log_group_labels() -> None:
 def test_terraform_declares_only_the_expected_stack_log_groups() -> None:
     infra = "\n".join(
         [
+            _read("infra/app/app_log_groups.tf"),
             _read("infra/app/observability.tf"),
             _read("infra/app/workload_jobs.tf"),
             _read("infra/app/compute_ecs.tf"),
@@ -136,6 +137,7 @@ def test_portable_incident_evidence_is_assistant_ready_without_cloud_dependency(
 def test_app_service_uses_ecs_native_rollback_detection() -> None:
     compute_tf = _read("infra/app/compute_ecs.tf")
     app_task_identity_tf = _read("infra/app/app_task_identity.tf")
+    app_log_groups_tf = _read("infra/app/app_log_groups.tf")
     runtime_identity_tf = _read("infra/app/runtime_identity.tf")
     workload_jobs_tf = _read("infra/app/workload_jobs.tf")
     outputs_tf = _read("infra/app/outputs.tf")
@@ -166,6 +168,12 @@ def test_app_service_uses_ecs_native_rollback_detection() -> None:
     assert 'from = module.ecs.module.service["app"].aws_iam_role.tasks[0]' in (
         app_task_identity_tf
     )
+    assert (
+        'from = module.ecs.module.service["app"].module.container_definition["app"].aws_cloudwatch_log_group.this[0]'
+        in app_log_groups_tf
+    )
+    assert 'resource "aws_cloudwatch_log_group" "app"' in app_log_groups_tf
+    assert 'resource "aws_cloudwatch_log_group" "pgbouncer"' in app_log_groups_tf
     assert "role       = aws_iam_role.app_task.name" in runtime_identity_tf
     assert "task_role_arn            = aws_iam_role.app_task.arn" in workload_jobs_tf
     assert "value       = aws_iam_role.app_task.arn" in outputs_tf
