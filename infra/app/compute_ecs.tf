@@ -142,11 +142,15 @@ module "ecr_firelens" {
 # RDS secret so ECS can inject DB credentials into task definitions without
 # AWS SDK calls from the containers.
 # Terraform owns the ECS service shape, deployment circuit breaker, deployment
-# alarms, networking, IAM, and bootstrap task definition.
+# alarms, networking, and IAM.
 # After bootstrap, GitHub Actions owns app task-definition revisions and app
-# image roll-forward/rollback. The ECS module can still plan bootstrap task
-# definition replacements, so Infra Apply guards that boundary before applying.
+# image roll-forward/rollback. Terraform points the service at the current
+# family only for create/read purposes and ignores service task-definition drift.
 ################################################################################
+
+data "aws_ecs_task_definition" "app_current" {
+  task_definition = local.name
+}
 
 module "ecs" {
   source  = "terraform-aws-modules/ecs/aws"
@@ -202,6 +206,10 @@ module "ecs" {
       # Enables `aws ecs execute-command` for interactive access to running tasks.
       # Required for DB access via SSM port forwarding — no bastion needed.
       enable_execute_command = true
+      create_task_definition = false
+      task_definition_arn    = data.aws_ecs_task_definition.app_current.arn
+      create_tasks_iam_role  = false
+      tasks_iam_role_arn     = aws_iam_role.app_task.arn
       # Explicit family name — module default uses the service key ("app") which
       # is shared by multiple containers in the task. Scoping to local.name keeps
       # the stack self-contained.
@@ -267,9 +275,9 @@ module "ecs" {
         }
 
         app = {
-          # Bootstrap/default image only. Routine app deploys and rollbacks are
-          # GitHub Actions-owned task-definition revisions, not infra applies.
-          # See docs/runbooks/app-infra-ownership.md before changing this pin.
+          # Documentation-only container shape after the ownership migration:
+          # GitHub Actions renders and registers real app task-definition
+          # revisions. See docs/runbooks/app-infra-ownership.md.
           image     = "${module.ecr_app.repository_url}:${coalesce(var.app_image_tag, var.initial_image_tag)}"
           essential = true
 
@@ -365,7 +373,7 @@ module "ecs" {
 
 resource "aws_iam_role_policy" "task_ssm_exec" {
   name = "ssm-exec"
-  role = module.ecs.services["app"].tasks_iam_role_name
+  role = aws_iam_role.app_task.name
 
   policy = jsonencode({
     Version = "2012-10-17"

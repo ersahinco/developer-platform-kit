@@ -32,6 +32,28 @@ def test_domain_and_application_do_not_import_outer_layers() -> None:
             assert f"from {name}" not in text
 
 
+def test_domain_and_application_stay_cloud_and_delivery_agnostic() -> None:
+    text = "\n".join(
+        _python_text(ROOT / "packages" / package)
+        for package in ["domain", "application"]
+    ).lower()
+
+    for forbidden in [
+        "terraform",
+        "github",
+        "cloudwatch",
+        "grafana",
+        "prometheus",
+        "loki",
+        "tempo",
+        "opentelemetry",
+        "s3",
+        "sqs",
+        "sns",
+    ]:
+        assert forbidden not in text
+
+
 def test_domain_does_not_import_application_layer() -> None:
     text = _python_text(ROOT / "packages" / "domain")
 
@@ -133,3 +155,41 @@ def test_source_tree_is_flat_and_importable_by_folder_name() -> None:
     ).stdout.splitlines()
 
     assert not [path for path in tracked_files if ".egg-info/" in path]
+
+
+def test_platform_root_stays_bootstrap_and_github_oidc_only() -> None:
+    platform_tf = "\n".join(
+        path.read_text(encoding="utf-8")
+        for path in sorted((ROOT / "infra" / "platform").glob("*.tf"))
+    )
+    forbidden_runtime_resources = [
+        'resource "aws_ecs_',
+        'resource "aws_db_',
+        'resource "aws_rds_',
+        'resource "aws_lb"',
+        'resource "aws_lb_',
+        'resource "aws_ecr_',
+        'resource "aws_s3_bucket"',
+        'resource "aws_sqs_',
+        'resource "aws_sns_',
+        'resource "aws_cloudwatch_',
+        'resource "aws_scheduler_',
+        'resource "aws_wafv2_',
+    ]
+
+    for forbidden in forbidden_runtime_resources:
+        assert forbidden not in platform_tf
+
+
+def test_app_root_consumes_platform_only_through_remote_state_outputs() -> None:
+    providers_tf = (ROOT / "infra" / "app" / "providers.tf").read_text(encoding="utf-8")
+    app_tf = "\n".join(
+        path.read_text(encoding="utf-8")
+        for path in sorted((ROOT / "infra" / "app").glob("*.tf"))
+    )
+
+    assert 'data "terraform_remote_state" "platform"' in providers_tf
+    assert "platform = data.terraform_remote_state.platform.outputs" in providers_tf
+    assert 'source  = "../platform"' not in app_tf
+    assert "data.aws_vpc" not in app_tf
+    assert "data.aws_subnets" not in app_tf

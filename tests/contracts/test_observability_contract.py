@@ -80,8 +80,65 @@ def test_grafana_stack_uses_prometheus_loki_tempo_without_cloudwatch_or_xray() -
     assert "xray" not in combined.lower()
 
 
+def test_portable_incident_evidence_is_assistant_ready_without_cloud_dependency() -> (
+    None
+):
+    observability_doc = _read("docs/observability.md")
+    makefile = _read("Makefile")
+    evidence_script = _read("scripts/observability/incident_evidence_bundle.py")
+    firelens_config = _read("observability/firelens/fluent-bit.conf")
+    promtail_config = _read("observability/promtail/promtail.yml")
+
+    assert "make incident-evidence" in observability_doc
+    assert "OSS-portable" in observability_doc
+    assert "Grafana Cloud AI" in observability_doc
+    assert "incident-evidence" in makefile
+    assert "incident_evidence_bundle.py" in makefile
+
+    for field in [
+        "stack",
+        "environment",
+        "service",
+        "container",
+        "request_id",
+        "trace_id",
+        "task_definition",
+        "image_tag",
+        "github_run_id",
+        "order_id",
+        "event_id",
+        "export_run_id",
+    ]:
+        assert f'"{field}"' in evidence_script
+
+    assert "query_hints" in evidence_script
+    assert "AWS SDLC Containers / App Overview" in evidence_script
+    assert "AWS SDLC Containers / Log Groups" in evidence_script
+    assert (
+        "cloudwatch"
+        not in _read(
+            "observability/grafana/provisioning/datasources/datasources.yml"
+        ).lower()
+    )
+
+    for label in ["stack=", "environment=", "service=", "container=", "log_group="]:
+        assert label in firelens_config
+    for label in [
+        "target_label: stack",
+        "target_label: environment",
+        "target_label: service",
+        "target_label: container",
+        "target_label: log_group",
+    ]:
+        assert label in promtail_config
+
+
 def test_app_service_uses_ecs_native_rollback_detection() -> None:
     compute_tf = _read("infra/app/compute_ecs.tf")
+    app_task_identity_tf = _read("infra/app/app_task_identity.tf")
+    runtime_identity_tf = _read("infra/app/runtime_identity.tf")
+    workload_jobs_tf = _read("infra/app/workload_jobs.tf")
+    outputs_tf = _read("infra/app/outputs.tf")
 
     app_service_start = compute_tf.index("services = {")
     app_container_start = compute_tf.index("container_definitions =", app_service_start)
@@ -100,6 +157,18 @@ def test_app_service_uses_ecs_native_rollback_detection() -> None:
     assert "aws_cloudwatch_metric_alarm.app_target_latency[0].alarm_name" in (
         app_service_config
     )
+    assert "create_task_definition = false" in app_service_config
+    assert "task_definition_arn    = data.aws_ecs_task_definition.app_current.arn" in (
+        app_service_config
+    )
+    assert "create_tasks_iam_role  = false" in app_service_config
+    assert "tasks_iam_role_arn     = aws_iam_role.app_task.arn" in app_service_config
+    assert 'from = module.ecs.module.service["app"].aws_iam_role.tasks[0]' in (
+        app_task_identity_tf
+    )
+    assert "role       = aws_iam_role.app_task.name" in runtime_identity_tf
+    assert "task_role_arn            = aws_iam_role.app_task.arn" in workload_jobs_tf
+    assert "value       = aws_iam_role.app_task.arn" in outputs_tf
     assert 'name = "ROLLOUT_DRILL_FAULT_MODE", value = "off"' in compute_tf
     assert 'name = "ROLLOUT_DRILL_FAULT_PATHS", value = "/ready"' in compute_tf
 

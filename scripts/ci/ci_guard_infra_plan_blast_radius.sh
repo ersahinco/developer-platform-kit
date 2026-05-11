@@ -19,12 +19,15 @@ if [[ ! -f "$plan_output" ]]; then
   exit 2
 fi
 
-if grep -Eq "$ecs_task_definition_pattern" "$plan_output"; then
+matches="$(grep -En "$ecs_task_definition_pattern" "$plan_output" || true)"
+matches="$(printf "%s\n" "$matches" | grep -Ev '^[0-9]+:[[:space:]]*# data\.' || true)"
+
+if [[ -n "$matches" ]]; then
   if [[ "$allow_ecs_task_definition_changes" != "allow-ecs-task-definition-changes" ]]; then
     echo "Reviewed app plan contains ECS task definition changes." >&2
     echo "This can roll infra apply across the app deploy ownership boundary." >&2
     echo "Re-run only after reviewing the plan and setting allow_ecs_task_definition_changes=allow-ecs-task-definition-changes." >&2
-    grep -En "$ecs_task_definition_pattern" "$plan_output" >&2
+    printf "%s\n" "$matches" >&2
     exit 1
   fi
 fi

@@ -67,6 +67,28 @@ Terraform will perform the following actions:
     assert "aws_ecs_task_definition.this[0] must be replaced" in result.stderr
 
 
+def test_infra_plan_guard_allows_ecs_task_definition_data_reads(
+    tmp_path: Path,
+) -> None:
+    plan = tmp_path / "plan.txt"
+    plan.write_text(
+        """
+Terraform will perform the following actions:
+
+  # data.aws_ecs_task_definition.app_current will be read during apply
+  <= data "aws_ecs_task_definition" "app_current" {
+      task_definition = "aws-sdlc-containers"
+    }
+""",
+        encoding="utf-8",
+    )
+
+    result = _run_guard(plan)
+
+    assert result.returncode == 0
+    assert result.stderr == ""
+
+
 def test_infra_plan_guard_allows_reviewed_override(tmp_path: Path) -> None:
     plan = tmp_path / "plan.txt"
     plan.write_text(

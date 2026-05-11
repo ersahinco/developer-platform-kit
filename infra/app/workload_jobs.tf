@@ -174,7 +174,7 @@ module "ecr_order_event_consumer" {
 # Worker task definition — one-off Fargate task triggered by CI for backfill.
 # Connects directly to RDS (not via pgbouncer) — backfill transactions are
 # long-running and incompatible with pgbouncer's transaction-mode pool.
-# Reuses the execution role and task role from the app service.
+# Reuses the shared execution role and app task role.
 ################################################################################
 
 resource "aws_ecs_task_definition" "worker" {
@@ -184,7 +184,7 @@ resource "aws_ecs_task_definition" "worker" {
   cpu                      = var.worker_cpu
   memory                   = var.worker_memory
   execution_role_arn       = aws_iam_role.task_exec.arn
-  task_role_arn            = module.ecs.services["app"].tasks_iam_role_arn
+  task_role_arn            = aws_iam_role.app_task.arn
 
   container_definitions = jsonencode(concat(local.firelens_router_container, [
     merge(local.ecs_container_defaults, {

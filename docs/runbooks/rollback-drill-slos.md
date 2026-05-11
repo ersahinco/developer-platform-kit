@@ -63,6 +63,16 @@ Run the infra rollback drill after changes to:
 Run data-phase rollback tests before any release that advances `READ_MODE`,
 `WRITE_MODE`, backfill behavior, or contract migration readiness.
 
+## Workflow Inventory
+
+The rollback drill workflows are intentionally split by ownership boundary:
+
+- `App No-Data Rollback Drill` exercises app task-definition rollback only.
+- `Data Runtime Rollback Drill` exercises runtime data-phase rollback only.
+- Infra rollback drills use reviewed `Infra Plan` and `Infra Apply` runs; one-off
+  state migration workflows, such as app task-definition ownership migration,
+  are not rollback drills and should stay separately reviewed.
+
 ## Infra Drill Preflight
 
 Before running `Infra Apply`, inspect the reviewed `Infra Plan` artifact. Apply
@@ -82,9 +92,9 @@ update plus an unrelated app task-definition replacement from app-deploy
 ownership drift. The ownership boundary is documented in
 [App And Infra Ownership Boundary](app-infra-ownership.md).
 
-`Infra Apply` now has a blast-radius guard for this caveat. If the reviewed app
-plan contains ECS task-definition changes, the apply fails unless the operator
-explicitly sets:
+`Infra Apply` has a blast-radius guard for future accidental drift. If the
+reviewed app plan contains ECS task-definition create, replace, or destroy
+changes, the apply fails unless the operator explicitly sets:
 
 ```text
 allow_ecs_task_definition_changes=allow-ecs-task-definition-changes

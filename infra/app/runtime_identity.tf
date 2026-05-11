@@ -60,6 +60,6 @@ resource "aws_iam_policy" "firelens_cloudwatch_logs" {
 }
 
 resource "aws_iam_role_policy_attachment" "app_firelens_cloudwatch_logs" {
-  role       = module.ecs.services["app"].tasks_iam_role_name
+  role       = aws_iam_role.app_task.name
   policy_arn = aws_iam_policy.firelens_cloudwatch_logs.arn
 }

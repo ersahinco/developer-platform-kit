@@ -272,6 +272,13 @@ observability-cloud-jobs: ## Run only the small cloud probes for quiet observabi
 	STACK_NAME="aws-sdlc-containers" \
 	uv run python scripts/observability/run_observability_cloud_jobs.py
 
+.PHONY: incident-evidence
+incident-evidence: ## Build portable Markdown/JSON incident evidence bundle
+	@AWS_REGION="$(AWS_REGION)" \
+	STACK_NAME="aws-sdlc-containers" \
+	ROOT_DOMAIN="$(ROOT_DOMAIN)" \
+	uv run python scripts/observability/incident_evidence_bundle.py
+
 .PHONY: observability-stack-deploy
 observability-stack-deploy: ## Force new deployment of Grafana, Loki, Prometheus, and Tempo services
 	@for service in grafana loki prometheus tempo; do \

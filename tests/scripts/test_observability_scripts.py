@@ -9,6 +9,7 @@ sys.path.insert(0, str(ROOT))
 
 import scripts.observability.verify_observability_delivery as delivery  # noqa: E402
 import scripts.observability.generate_cloud_traffic as cloud_traffic  # noqa: E402
+import scripts.observability.incident_evidence_bundle as evidence  # noqa: E402
 import scripts.observability.run_observability_cloud_jobs as cloud_jobs  # noqa: E402
 
 
@@ -195,6 +196,80 @@ def test_delivery_verifier_normalizes_localhost_loki_url_to_ipv4() -> None:
         delivery._normalized_loki_url("http://127.0.0.1:3100")
         == "http://127.0.0.1:3100"
     )
+
+
+def test_incident_evidence_bundle_collects_portable_context(
+    monkeypatch, tmp_path: Path
+) -> None:
+    def fake_aws_json(args: list[str], region: str) -> dict[str, Any]:
+        assert region == "eu-central-1"
+        if args[:2] == ["ecs", "describe-services"]:
+            return {
+                "services": [
+                    {
+                        "status": "ACTIVE",
+                        "desiredCount": 1,
+                        "runningCount": 1,
+                        "pendingCount": 0,
+                        "deployments": [
+                            {
+                                "status": "PRIMARY",
+                                "rolloutState": "COMPLETED",
+                                "taskDefinition": "arn:aws:ecs:task-definition/aws-sdlc-containers:7",
+                            }
+                        ],
+                    }
+                ]
+            }
+        if args[:2] == ["ecs", "describe-task-definition"]:
+            return {
+                "taskDefinition": {
+                    "containerDefinitions": [
+                        {
+                            "name": "app",
+                            "image": "example/app:sha-1234567890abcdef1234567890abcdef12345678",
+                        },
+                        {
+                            "name": "pgbouncer",
+                            "image": "example/pgbouncer:v1",
+                        },
+                    ]
+                }
+            }
+        if args[:2] == ["cloudwatch", "describe-alarms"]:
+            return {
+                "MetricAlarms": [
+                    {
+                        "AlarmName": "aws-sdlc-containers-app-target-5xx",
+                        "StateValue": "OK",
+                        "StateReason": "Threshold not breached",
+                    }
+                ]
+            }
+        raise AssertionError(f"unexpected AWS call: {args}")
+
+    monkeypatch.setattr(evidence, "_aws_json", fake_aws_json)
+    monkeypatch.setenv("GITHUB_RUN_ID", "25701944031")
+
+    bundle = evidence.build_bundle(
+        stack_name="aws-sdlc-containers",
+        service_name="app",
+        region="eu-central-1",
+        root_domain="ersahinco-sandbox.eu",
+        lookback_minutes=30,
+    )
+    json_path, markdown_path = evidence.write_bundle(bundle, tmp_path)
+
+    markdown = markdown_path.read_text(encoding="utf-8")
+    assert json_path.is_file()
+    assert bundle["ecs"]["primary_rollout_state"] == "COMPLETED"
+    assert bundle["ecs"]["containers"][0]["image_tag"].startswith("sha-")
+    assert bundle["github"]["github_run_id"] == "25701944031"
+    assert "request_id" in bundle["correlation_fields"]
+    assert "trace_id" in bundle["correlation_fields"]
+    assert "task_definition" in bundle["correlation_fields"]
+    assert "App Overview" in markdown
+    assert "gh run list --workflow app-deploy.yml" in markdown
 
 
 def test_cloud_traffic_generator_exercises_representative_api_paths(

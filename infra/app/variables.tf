@@ -255,13 +255,13 @@ variable "rds_allocated_storage_gb" {
 }
 
 variable "initial_image_tag" {
-  description = "Bootstrap image tag used by Terraform-created task definitions before the app pipeline registers SHA-tagged deploy revisions."
+  description = "Bootstrap app image tag for the initial task-definition revision before the app pipeline registers SHA-tagged deploy revisions."
   type        = string
   default     = "sha-7e0fa31a82d7d2a6e302e0904abb79d1dff3492d"
 }
 
 variable "app_image_tag" {
-  description = "Rare operator override for the Terraform bootstrap app task definition. Routine app deploys and rollbacks are GitHub Actions-owned task-definition revisions."
+  description = "Rare operator override for the documented bootstrap app image tag. Routine app deploys and rollbacks are GitHub Actions-owned task-definition revisions."
   type        = string
   default     = null
 

@@ -66,6 +66,61 @@ def test_infra_apply_guards_app_task_definition_drift() -> None:
     )
 
 
+def test_app_task_definition_ownership_migration_is_reviewed_and_guarded() -> None:
+    workflow_text = _read(
+        ".github/workflows/infra-app-task-definition-ownership-migration.yml"
+    )
+
+    assert "workflow_dispatch" in workflow_text
+    assert "confirm_migration == 'app-task-definition-ownership'" in workflow_text
+    assert "environment: aws" in workflow_text
+    assert "group: infra-apply-aws" in workflow_text
+    assert (
+        'module.ecs.module.service["app"].aws_ecs_task_definition.this[0]'
+        in workflow_text
+    )
+    assert "terraform state rm" in workflow_text
+    assert "Verify app service is stable" in workflow_text
+    assert "ci_guard_infra_plan_blast_radius.sh" in workflow_text
+    assert "set -o pipefail" in workflow_text
+    assert (
+        "grep -Eq '^[[:space:]]*family[[:space:]]*=[[:space:]]*\"aws-sdlc-containers\"'"
+        in workflow_text
+    )
+    assert "terraform apply -auto-approve app-task-definition-ownership.tfplan" in (
+        workflow_text
+    )
+
+
+def test_workflow_inventory_keeps_drills_and_migrations_separate() -> None:
+    workflow_names = {
+        path.name: _read(str(path.relative_to(ROOT)))
+        for path in sorted((ROOT / ".github" / "workflows").glob("*.yml"))
+    }
+    rollback_drills = [
+        name
+        for name, text in workflow_names.items()
+        if "Rollback Drill" in text.splitlines()[0]
+    ]
+
+    assert sorted(rollback_drills) == [
+        "app-rollback-drill.yml",
+        "data-runtime-rollback-drill.yml",
+    ]
+    assert "Infra Plan" in workflow_names["infra-plan.yml"].splitlines()[0]
+    assert "Infra Apply" in workflow_names["infra-apply.yml"].splitlines()[0]
+    assert (
+        "Rollback Drill"
+        not in workflow_names[
+            "infra-app-task-definition-ownership-migration.yml"
+        ].splitlines()[0]
+    )
+    assert (
+        "confirm_migration"
+        in workflow_names["infra-app-task-definition-ownership-migration.yml"]
+    )
+
+
 def test_rollback_slo_runbook_covers_app_infra_and_data_paths() -> None:
     runbook = _read("docs/runbooks/rollback-drill-slos.md")
     runbooks_index = _read("docs/runbooks/README.md")
@@ -98,3 +153,5 @@ def test_rollback_slo_runbook_covers_app_infra_and_data_paths() -> None:
     assert "App And Infra Ownership Boundary" in infra_runbook
     assert "App And Infra Ownership Boundary" in deployment
     assert "rollback-drill-slos.md" in deployment
+    assert "Workflow Inventory" in runbook
+    assert "state migration workflows" in runbook

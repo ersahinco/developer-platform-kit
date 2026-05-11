@@ -324,9 +324,18 @@ The ECS module's `services` block is designed for long-running services: ALB int
 
 The ECS module auto-creates log groups only for containers defined inside its `services` block. Because liquibase and worker containers are defined in standalone task definitions, the module never sees them. Their log groups must be created explicitly — the `awslogs` log driver fails at task startup if the group does not already exist.
 
-### SSM exec policy attached outside the module
+### App task role is root-owned
 
-`aws_iam_role_policy.task_ssm_exec` attaches SSM permissions to the app task's runtime role (`tasks_iam_role`). That role is created by the ECS module, so its name is only available as `module.ecs.services["app"].tasks_iam_role_name` — a post-apply output. The policy cannot be passed into the module; it must be attached after the module creates the role. This is a standard post-module attachment pattern for permissions that depend on a module-managed role.
+The app task runtime role is managed as root Terraform resources and passed to
+the ECS service module with `create_tasks_iam_role = false` and
+`tasks_iam_role_arn = aws_iam_role.app_task.arn`. That keeps IAM ownership in
+Terraform while allowing the app task-definition resource itself to leave
+Terraform state after bootstrap.
+
+`aws_iam_role_policy.task_ssm_exec` and FireLens CloudWatch permissions attach
+directly to `aws_iam_role.app_task.name`. Worker task definitions also reference
+`aws_iam_role.app_task.arn` so support jobs keep the same runtime permissions
+without depending on ECS module task-role outputs.
 
 ### ECS Exec and readonlyRootFilesystem
 

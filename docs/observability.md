@@ -14,6 +14,16 @@ the CloudWatch datasource by default. Parity means app-owned signals are emitted
 or shipped to both AWS-native and portable Grafana-stack backends where
 practical; Grafana should not depend on CloudWatch queries to be useful.
 
+The Grafana Assistant
+[query/debug workflow](https://grafana.com/blog/debug-query-and-build-faster-with-grafana-assistant/)
+and Assistant Investigations
+[incident workflow](https://grafana.com/blog/a-tale-of-two-incident-responses-how-our-ai-assist-helped-us-find-the-cause-3-5x-faster/)
+are useful design inspiration: incident response is faster when telemetry is
+queryable, cross-correlated, and backed by deploy context. The baseline here
+stays OSS-portable. Assistant-style workflows should consume the same labels,
+query hints, and evidence bundles that a human operator can read without
+depending on Grafana Cloud AI.
+
 ## Current State
 
 - Application liveness endpoint exists at `/health`.
@@ -56,6 +66,31 @@ practical; Grafana should not depend on CloudWatch queries to be useful.
   messages.
 - Local Prometheus, Loki, Tempo, Promtail, and Grafana run through the optional
   `observability` Docker Compose profile.
+
+## Portable Incident Evidence
+
+Incident context should be portable across local Compose, ECS, and any future
+runtime. Use stable fields when emitting logs, traces, summaries, and operator
+evidence:
+
+| Field | Purpose |
+|---|---|
+| `stack`, `environment`, `service`, `container` | Select the workload quickly in Loki, Prometheus, and dashboards. |
+| `request_id`, `trace_id` | Correlate HTTP responses, logs, and Tempo traces. |
+| `task_definition`, `image_tag`, `github_run_id` | Connect symptoms to the deployed revision and delivery workflow. |
+| `order_id`, `event_id`, `export_run_id` | Follow the reference workload through API, async delivery, and data export paths. |
+
+Build a bounded Markdown and JSON evidence bundle during investigation:
+
+```bash
+make incident-evidence
+```
+
+The bundle captures current ECS service/task-definition context, CloudWatch
+alarm states, GitHub run hints, and Grafana-stack query hints for Loki,
+Prometheus, and Tempo. It is deliberately evidence, not diagnosis: it should be
+safe to paste into an incident note or feed to future assistant-style tooling
+without changing runtime state.
 
 ## CloudWatch Inventory
 

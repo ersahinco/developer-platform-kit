@@ -180,7 +180,7 @@ output "app_task_exec_role_arn" {
 
 output "app_task_role_arn" {
   description = "Task role ARN for app runtime permissions."
-  value       = module.ecs.services["app"].tasks_iam_role_arn
+  value       = aws_iam_role.app_task.arn
 }
 
 output "order_events_queue_url" {

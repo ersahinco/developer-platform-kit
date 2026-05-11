@@ -27,6 +27,8 @@ order/customer workload:
   data hub, Dapr-backed SNS/SQS order events, EventBridge, CloudWatch app
   alarms, and optional observability.
 - Local Prometheus, Loki, Promtail, and Grafana observability profile.
+- Portable incident evidence bundles that collect ECS, alarm, deploy, and
+  Grafana-stack query context without depending on managed Grafana AI features.
 - Runbooks and drills under `docs/runbooks/` and `docs/drills/` for deployment
   rollback, app health, app edge symptoms, RDS pressure, data export failures,
   dependency readiness, and order event queue failures.
@@ -42,7 +44,8 @@ switch reads, new writes, and contract.
 
 | Status | Step | Notes |
 |---|---|---|
-| Current | Harden the app-owned Grafana/Loki/Tempo/Prometheus contract. | The ECS stack is deployed and private. Current work adds private Grafana access, dual CloudWatch/Loki log delivery, and self-hosted traces. |
+| Current | Harden the app-owned Grafana/Loki/Tempo/Prometheus contract. | Keep the baseline OSS-portable: app-owned logs, metrics, traces, dashboards, and incident evidence should work without Grafana Cloud AI or a CloudWatch Grafana datasource. |
+| Current | Keep delivery rollback boundaries explicit. | App and data rollback drills are workflows; infra rollback uses reviewed `Infra Plan`/`Infra Apply`; one-off state migrations stay separate and temporary. |
 | Done | Clean Architecture package shape. | The repo now uses `apps/*` hosts with `packages/domain`, `packages/application`, and `packages/infrastructure`, plus ownership-aligned tests and docs. |
 | Next | Revisit CloudWatch reduction toggles after dual-run. | Do not disable CloudWatch yet. Only app symptom and data-export success alarms have reduction toggles. |
 | Current | Introduce Dapr as the app transport boundary. | First slices move order event relay/consume behind Dapr pub/sub and add bounded Dapr resiliency while keeping Terraform-owned AWS SNS/SQS and the durable outbox. |
@@ -89,6 +92,7 @@ switch reads, new writes, and contract.
 |---|---|---|
 | 2026-05-05 | Use Dapr pub/sub as the order event transport boundary. | The app keeps modular monolith domain and outbox semantics, while Dapr absorbs broker integration and leaves room for future service extraction. |
 | 2026-05-05 | Keep Dapr adoption foundational but lean. | Dapr should create portable application-layer foundations for future complexity, but each building block should enter when it clarifies a real boundary or operation. |
+| 2026-05-12 | Keep incident evidence portable and assistant-ready. | Grafana Assistant-style workflows need clean labels, query hints, and deploy context, but the baseline should remain Prometheus/Loki/Tempo/Grafana plus Markdown/JSON evidence bundles. |
 | 2026-05-02 | Make the local workflow devcontainer-first and keep Compose at the root. | The dev container is the reproducible dependency environment, while `compose.yaml` is the standard local runtime contract that Docker tooling discovers automatically. |
 | 2026-05-02 | Complete the Terraform split and remove the legacy root. | Platform and app now deploy from separate state keys; keeping the old root would invite accidental duplicate ownership. |
 | 2026-05-02 | Keep docs canonical instead of session-shaped. | Roadmap sessions are useful while working, but permanent docs should be short, current, and operator-owned. |

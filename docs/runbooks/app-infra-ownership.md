@@ -17,24 +17,38 @@ configuration.
 
 Short version: Terraform owns ECS service guardrails, and GitHub Actions owns app task-definition revisions after bootstrap.
 
-## Current Terraform Caveat
+## Terraform State Migration
 
-`ignore_task_definition_changes = true` on the ECS service prevents Terraform
-from moving the running service back to an older task definition. It does not
-stop the upstream ECS module from planning a replacement of its managed
-bootstrap `aws_ecs_task_definition` resource when container definitions drift
-from the app pipeline.
+The app task-definition ownership migration uses Terraform state-aware moves
+plus one explicit reviewed state removal:
 
-That means a routine infra apply can still cross the app deploy boundary by
-registering a stale or different task-definition revision. `Infra Apply` blocks
-that by running:
+- `moved` blocks transfer the app task IAM role, internal policy, and policy
+  attachment from the ECS service module to root Terraform resources.
+- `terraform state rm` forgets only the old module-managed app task-definition
+  address, so Terraform does not deregister the existing revision.
+- The ECS service keeps `ignore_task_definition_changes = true`, reads the
+  current app task-definition family for create/read purposes, and leaves app
+  revision changes to GitHub Actions after bootstrap.
+
+Run the state removal only after reviewing this exact address:
+
+```bash
+terraform -chdir=infra/app state rm 'module.ecs.module.service["app"].aws_ecs_task_definition.this[0]'
+```
+
+After that command, the reviewed plan should show the task IAM role state moves
+and no app task-definition create, replace, or destroy.
+
+`Infra Apply` still blocks accidental task-definition create/replace/destroy
+plans by running:
 
 ```bash
 scripts/ci/ci_guard_infra_plan_blast_radius.sh infra/app/app_plan_output.txt
 ```
 
-If the reviewed app plan includes `aws_ecs_task_definition` changes, apply fails
-unless the operator explicitly sets:
+If a future reviewed app plan includes destructive or replacement
+`aws_ecs_task_definition` changes, apply fails unless the operator explicitly
+sets:
 
 ```text
 allow_ecs_task_definition_changes=allow-ecs-task-definition-changes
@@ -60,10 +74,8 @@ When the plan is clean, run the normal infra path: apply the forward plan,
 observe the changed surface, revert the commit, review the revert plan, and
 apply the revert plan.
 
-## Future Migration Option
+## Bootstrap Note
 
-A stricter future model would remove the app task-definition resource from the
-Terraform-managed ECS service after bootstrap and have Terraform reference an
-externally managed task-definition ARN. Do that only as its own reviewed
-migration because it changes Terraform state ownership and can deregister or
-replace resources if handled casually.
+Fresh environments need one app task-definition revision before Terraform can
+read the externally owned family. Bootstrap with a known-good app task
+definition first, then keep routine app revisions in GitHub Actions.
