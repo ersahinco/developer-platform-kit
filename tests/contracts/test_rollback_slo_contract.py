@@ -49,6 +49,18 @@ def test_data_runtime_rollback_drill_enforces_pipeline_slos() -> None:
         assert forbidden not in workflow_text
 
 
+def test_infra_apply_guards_app_task_definition_drift() -> None:
+    workflow_text = _read(".github/workflows/infra-apply.yml")
+
+    assert "allow_ecs_task_definition_changes" in workflow_text
+    assert "Guard reviewed plan blast radius" in workflow_text
+    assert "aws_ecs_task_definition" in workflow_text
+    assert "allow-ecs-task-definition-changes" in workflow_text
+    assert "This can roll infra apply across the app deploy ownership boundary" in (
+        workflow_text
+    )
+
+
 def test_rollback_slo_runbook_covers_app_infra_and_data_paths() -> None:
     runbook = _read("docs/runbooks/rollback-drill-slos.md")
     runbooks_index = _read("docs/runbooks/README.md")
@@ -62,9 +74,12 @@ def test_rollback_slo_runbook_covers_app_infra_and_data_paths() -> None:
         "Infra no-data rollback",
         "Runtime data-phase rollback",
         "Data Runtime Rollback Drill",
+        "Infra Drill Preflight",
         "Backfill/data job containment",
         "25627263917",
         "25627680472",
+        "25675925524",
+        "25676047073",
     ]:
         assert phrase in runbook
 

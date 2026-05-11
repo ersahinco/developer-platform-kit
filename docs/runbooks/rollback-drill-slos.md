@@ -24,7 +24,9 @@ The current app drill baseline was established on 2026-05-10 in
 |---|---|---:|
 | App latency rollback | `25627263917` | Passed in 10m19s. |
 | App error rollback | `25627680472` | Passed in 6m32s. |
+| Runtime data-phase rollback | `25675925524` | Passed. `WRITE_MODE` rollback observed in 2s; restored verification passed in 8s. |
 | Infra apply for rollback support | `25626714215` | Passed in 51s. |
+| Infra no-data rollback preflight | `25676047073` | Stopped before apply. Plan completed in 2m37s but included unrelated app ECS task-definition replacement. |
 
 Treat a single SLO breach as a pipeline regression to investigate. Treat two
 consecutive breaches of the same drill as a release-blocking issue until the
@@ -60,6 +62,33 @@ Run the infra rollback drill after changes to:
 
 Run data-phase rollback tests before any release that advances `READ_MODE`,
 `WRITE_MODE`, backfill behavior, or contract migration readiness.
+
+## Infra Drill Preflight
+
+Before running `Infra Apply`, inspect the reviewed `Infra Plan` artifact. Apply
+only when the plan contains the intended infra drill target and no unrelated
+replacement.
+
+Stop and revert the drill commit if the plan includes:
+
+- `aws_ecs_task_definition` replacement outside the drill target.
+- ECS service replacement or task definition rollback to an older app image.
+- RDS, S3 bucket, SQS, SNS, Liquibase, backfill, data export, or runtime-mode
+  changes.
+
+The 2026-05-11 infra preflight run `25676047073` correctly stopped before
+apply because the plan included the intended CloudWatch alarm description
+update plus an unrelated app task-definition replacement from app-deploy
+ownership drift. That is a pipeline caveat to resolve before using the normal
+infra apply path as a clean no-data rollback drill.
+
+`Infra Apply` now has a blast-radius guard for this caveat. If the reviewed app
+plan contains ECS task-definition changes, the apply fails unless the operator
+explicitly sets:
+
+```text
+allow_ecs_task_definition_changes=allow-ecs-task-definition-changes
+```
 
 ## Runtime Config Drill
 
