@@ -33,6 +33,11 @@ only run after a separate manual trigger:
 - `app-deploy.yml`
   Manual: migrate → deploy → verify → register support task definitions → run backfill worker.
 
+Terraform owns ECS service shape, deployment alarms, IAM, networking, and other
+infra resources. After bootstrap, GitHub Actions owns app image changes and app
+task-definition revisions. Keep that boundary explicit when reviewing plans; see
+[App And Infra Ownership Boundary](runbooks/app-infra-ownership.md).
+
 ## GitHub setup
 
 Create one GitHub Environment named `aws` and store:

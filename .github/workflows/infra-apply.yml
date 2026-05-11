@@ -109,17 +109,9 @@ jobs:
           path: infra
 
       - name: Guard reviewed plan blast radius
-        run: |
-          ecs_task_definition_pattern='^[[:space:]]*# .*aws_ecs_task_definition.*(will be|must be)'
-          if grep -Eq "$ecs_task_definition_pattern" infra/app/app_plan_output.txt; then
-            if [[ "${{ inputs.allow_ecs_task_definition_changes }}" != "allow-ecs-task-definition-changes" ]]; then
-              echo "Reviewed app plan contains ECS task definition changes." >&2
-              echo "This can roll infra apply across the app deploy ownership boundary." >&2
-              echo "Re-run only after reviewing the plan and setting allow_ecs_task_definition_changes=allow-ecs-task-definition-changes." >&2
-              grep -En "$ecs_task_definition_pattern" infra/app/app_plan_output.txt >&2
-              exit 1
-            fi
-          fi
+        env:
+          ALLOW_ECS_TASK_DEFINITION_CHANGES: ${{ inputs.allow_ecs_task_definition_changes }}
+        run: scripts/ci/ci_guard_infra_plan_blast_radius.sh infra/app/app_plan_output.txt
 
       - uses: hashicorp/setup-terraform@5e8dbf3c6d9deaf4193ca7a8fb23f2ac83bb6c85 # v4
         with:

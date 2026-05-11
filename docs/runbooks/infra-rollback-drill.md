@@ -21,6 +21,11 @@ The SLO target for this drill is in
 forward apply within 15 minutes, and revert plan plus apply within 30 minutes
 for a no-data drill.
 
+The ownership boundary for this drill is in
+[App And Infra Ownership Boundary](app-infra-ownership.md). Terraform owns ECS
+service shape, alarms, IAM, networking, and observability resources; GitHub
+Actions owns app task-definition revisions and image rollback after bootstrap.
+
 ## Good Drill Targets
 
 Use reversible, no-data infrastructure or observability changes:
@@ -41,7 +46,9 @@ no-data rollback drill.
 1. Create a normal pull request with one small infra or observability change.
 2. Wait for `Infra Plan`.
 3. Review that the plan contains no database, S3 object, queue replacement, or
-   destructive change.
+   destructive change. The plan must not include app
+   `aws_ecs_task_definition` changes unless that is an explicitly reviewed
+   task-definition infra change.
 4. Merge to the default branch.
 5. Run `Infra Apply` with the reviewed plan run id.
 
@@ -90,4 +97,6 @@ Stop the drill and do not apply if the plan includes:
 - S3 bucket deletion, lifecycle tightening, or object deletion.
 - SQS/SNS replacement.
 - ECS task or service replacement outside the intended target.
+- App `aws_ecs_task_definition` changes crossing the app deploy ownership
+  boundary.
 - Any Liquibase, data export, or backfill action.

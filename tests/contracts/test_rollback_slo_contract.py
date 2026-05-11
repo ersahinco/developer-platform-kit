@@ -51,19 +51,25 @@ def test_data_runtime_rollback_drill_enforces_pipeline_slos() -> None:
 
 def test_infra_apply_guards_app_task_definition_drift() -> None:
     workflow_text = _read(".github/workflows/infra-apply.yml")
+    guard_script = _read("scripts/ci/ci_guard_infra_plan_blast_radius.sh")
 
     assert "allow_ecs_task_definition_changes" in workflow_text
     assert "Guard reviewed plan blast radius" in workflow_text
-    assert "aws_ecs_task_definition" in workflow_text
+    assert (
+        "scripts/ci/ci_guard_infra_plan_blast_radius.sh infra/app/app_plan_output.txt"
+        in workflow_text
+    )
+    assert "aws_ecs_task_definition" in guard_script
     assert "allow-ecs-task-definition-changes" in workflow_text
     assert "This can roll infra apply across the app deploy ownership boundary" in (
-        workflow_text
+        guard_script
     )
 
 
 def test_rollback_slo_runbook_covers_app_infra_and_data_paths() -> None:
     runbook = _read("docs/runbooks/rollback-drill-slos.md")
     runbooks_index = _read("docs/runbooks/README.md")
+    ownership_runbook = _read("docs/runbooks/app-infra-ownership.md")
     ecs_runbook = _read("docs/runbooks/ecs-deploy-rollback.md")
     infra_runbook = _read("docs/runbooks/infra-rollback-drill.md")
     deployment = _read("docs/deployment.md")
@@ -84,6 +90,11 @@ def test_rollback_slo_runbook_covers_app_infra_and_data_paths() -> None:
         assert phrase in runbook
 
     assert "rollback-drill-slos.md" in runbooks_index
+    assert "app-infra-ownership.md" in runbooks_index
+    assert "GitHub Actions owns app task-definition revisions" in ownership_runbook
+    assert "ci_guard_infra_plan_blast_radius.sh" in ownership_runbook
     assert "Rollback Drill SLOs" in ecs_runbook
     assert "Rollback Drill SLOs" in infra_runbook
+    assert "App And Infra Ownership Boundary" in infra_runbook
+    assert "App And Infra Ownership Boundary" in deployment
     assert "rollback-drill-slos.md" in deployment

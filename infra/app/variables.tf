@@ -255,13 +255,13 @@ variable "rds_allocated_storage_gb" {
 }
 
 variable "initial_image_tag" {
-  description = "Image tag used in task definitions on first apply. CI always registers a new task definition revision with the real SHA before deploying or running one-off tasks — this value is never used after the first apply."
+  description = "Bootstrap image tag used by Terraform-created task definitions before the app pipeline registers SHA-tagged deploy revisions."
   type        = string
   default     = "sha-7e0fa31a82d7d2a6e302e0904abb79d1dff3492d"
 }
 
 variable "app_image_tag" {
-  description = "Optional app image tag to keep Terraform aligned with the currently deployed app revision without changing support workload image tags."
+  description = "Rare operator override for the Terraform bootstrap app task definition. Routine app deploys and rollbacks are GitHub Actions-owned task-definition revisions."
   type        = string
   default     = null
 

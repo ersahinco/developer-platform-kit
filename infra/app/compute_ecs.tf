@@ -141,8 +141,11 @@ module "ecr_firelens" {
 # task_exec_secret_arns is top-level — wires the shared execution role to the
 # RDS secret so ECS can inject DB credentials into task definitions without
 # AWS SDK calls from the containers.
-# ignore_task_definition_changes prevents terraform apply from rolling back
-# the image tag after GitHub Actions has deployed a newer one.
+# Terraform owns the ECS service shape, deployment circuit breaker, deployment
+# alarms, networking, IAM, and bootstrap task definition.
+# After bootstrap, GitHub Actions owns app task-definition revisions and app
+# image roll-forward/rollback. The ECS module can still plan bootstrap task
+# definition replacements, so Infra Apply guards that boundary before applying.
 ################################################################################
 
 module "ecs" {
@@ -264,11 +267,9 @@ module "ecs" {
         }
 
         app = {
-          # var.initial_image_tag is used only on the first apply (bootstrap).
-          # var.app_image_tag can pin Terraform to a later CI/manual app revision
-          # without forcing support workload images onto the same tag.
-          # ignore_task_definition_changes = true on the service means Terraform
-          # never registers a new revision after that — CI owns the image tag.
+          # Bootstrap/default image only. Routine app deploys and rollbacks are
+          # GitHub Actions-owned task-definition revisions, not infra applies.
+          # See docs/runbooks/app-infra-ownership.md before changing this pin.
           image     = "${module.ecr_app.repository_url}:${coalesce(var.app_image_tag, var.initial_image_tag)}"
           essential = true
 

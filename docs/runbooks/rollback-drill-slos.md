@@ -79,8 +79,8 @@ Stop and revert the drill commit if the plan includes:
 The 2026-05-11 infra preflight run `25676047073` correctly stopped before
 apply because the plan included the intended CloudWatch alarm description
 update plus an unrelated app task-definition replacement from app-deploy
-ownership drift. That is a pipeline caveat to resolve before using the normal
-infra apply path as a clean no-data rollback drill.
+ownership drift. The ownership boundary is documented in
+[App And Infra Ownership Boundary](app-infra-ownership.md).
 
 `Infra Apply` now has a blast-radius guard for this caveat. If the reviewed app
 plan contains ECS task-definition changes, the apply fails unless the operator
