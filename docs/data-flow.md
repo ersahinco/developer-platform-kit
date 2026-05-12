@@ -9,6 +9,11 @@ For a compact operator map of the same data path across AWS edge, ECS tasks,
 Postgres tables, S3 objects, logs, metrics, and downstream order events, use
 [Operator Observability Map](operator-observability-map.md).
 
+For the provider boundary, use
+[Database Portability Contract](database-portability-contract.md): workloads
+depend on PostgreSQL-compatible behavior, while RDS is the current AWS runtime
+implementation.
+
 Keep this as the primary data-flow teaching artifact until the rest of the
 DevOps platform is stable.
 

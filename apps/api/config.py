@@ -13,9 +13,9 @@ class Settings(BaseSettings):
     # URLs fail immediately rather than at the first DB call.
     database_url: PostgresDsn | None = None
 
-    # ECS injects DB_PASSWORD from Secrets Manager. The full URL is composed
-    # below so the password is never stored in the task definition plaintext.
-    # db_host defaults to localhost (pgbouncer sidecar in the same ECS task).
+    # Runtime secret injection provides DB_PASSWORD. The full URL is composed
+    # below so the password is never stored in plaintext deployment config.
+    # db_host defaults to localhost for the colocated pgbouncer process.
     db_password: str | None = None
     db_user: str = "app"
     db_host: str = "localhost"

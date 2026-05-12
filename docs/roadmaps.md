@@ -35,6 +35,10 @@ order/customer workload:
 - A runtime capability contract for appendable hosting targets: networking,
   identity, secrets, ingress, observability, jobs, rollout, rollback, release
   evidence, cost controls, Terraform ownership, and local/CI guardrails.
+- A database portability contract that treats PostgreSQL semantics as the app
+  contract and RDS as the current AWS runtime implementation.
+- Portable toolkit checklists for adding workloads, Dapr eventing, config and
+  secrets, observability, CI quality gates, and data/object storage behavior.
 - Documented portability boundaries: app code, local runtime, observability
   assets, and incident evidence are portable; AWS and GitHub Actions remain
   intentional provider dependencies at the platform/delivery edges.
@@ -57,6 +61,8 @@ switch reads, new writes, and contract.
 | Current | Keep the portability boundary explicit. | See `docs/portability-status.md`: the app and observability evidence should travel, while AWS runtime infrastructure and GitHub Actions orchestration stay isolated provider edges. |
 | Current | Keep the portable app/platform contract explicit. | See `docs/platform-contract.md`: future apps and runtime targets should satisfy the workload contract before adding EKS, another cloud, or cheaper compute. |
 | Current | Keep the runtime capability contract explicit. | See `docs/runtime-capability-contract.md` and `platform/runtime-capabilities.json`: future runtime targets must satisfy the same capability set before being documented as supported. |
+| Current | Keep database portability explicit. | See `docs/database-portability-contract.md`: workloads depend on PostgreSQL semantics, Liquibase, PgBouncer expectations, backup/restore, and secret injection; RDS is only the current AWS implementation. |
+| Current | Keep the portable toolkit checklists current. | See `docs/portable-toolkit-checklists.md`: new workloads and runtime edges should reuse the same app, Dapr, config, observability, CI, and data-object-storage expectations. |
 | Current | Keep delivery rollback boundaries explicit. | App and data rollback drills are workflows; infra rollback uses reviewed `Infra Plan`/`Infra Apply`; completed one-off migration workflows are removed after execution. |
 | Done | Clean Architecture package shape. | The repo now uses `apps/*` hosts with `packages/domain`, `packages/application`, and `packages/infrastructure`, plus ownership-aligned tests and docs. |
 | Next | Revisit CloudWatch reduction toggles after dual-run. | Do not disable CloudWatch yet. Only app symptom and data-export success alarms have reduction toggles. |
@@ -94,6 +100,10 @@ switch reads, new writes, and contract.
   for future hosting targets.
 - `docs/runtime-addition-checklist.md` turns that contract into the operator
   checklist for appending a future runtime.
+- `docs/database-portability-contract.md` defines the PostgreSQL-compatible
+  database contract and keeps RDS at the provider edge.
+- `docs/portable-toolkit-checklists.md` captures the lean reusable checklist for
+  future workloads and provider edges.
 - `docs/portability-status.md` states what is portable, what is intentionally
   provider-specific, and which portability gaps remain.
 - `docs/deployment.md` is the detailed AWS operator runbook.

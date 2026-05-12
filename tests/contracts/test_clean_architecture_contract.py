@@ -96,6 +96,16 @@ def test_background_hosts_keep_sql_and_storage_in_infrastructure() -> None:
             assert forbidden not in text
 
 
+def test_app_settings_do_not_name_current_runtime_provider() -> None:
+    text = "\n".join(
+        path.read_text(encoding="utf-8")
+        for path in sorted((ROOT / "apps").glob("*/config.py"))
+    )
+
+    for forbidden in ["ECS", "RDS", "Secrets Manager", "CloudWatch"]:
+        assert forbidden not in text
+
+
 def test_docs_do_not_describe_stale_core_adapter_or_direct_sqs_model() -> None:
     paths = [
         ROOT / "README.md",
@@ -271,11 +281,19 @@ def test_portability_status_documents_intentional_provider_boundaries() -> None:
     runtime_checklist = (ROOT / "docs" / "runtime-addition-checklist.md").read_text(
         encoding="utf-8"
     )
+    database_contract = (ROOT / "docs" / "database-portability-contract.md").read_text(
+        encoding="utf-8"
+    )
+    toolkit_checklists = (ROOT / "docs" / "portable-toolkit-checklists.md").read_text(
+        encoding="utf-8"
+    )
 
     assert "docs/portability-status.md" in readme
     assert "docs/platform-contract.md" in readme
     assert "docs/runtime-capability-contract.md" in readme
     assert "docs/runtime-addition-checklist.md" in readme
+    assert "docs/database-portability-contract.md" in readme
+    assert "docs/portable-toolkit-checklists.md" in readme
     assert "Portable Baseline" in doc
     assert "Intentional Provider Dependencies" in doc
     assert "Current Gaps" in doc
@@ -372,3 +390,40 @@ def test_portability_status_documents_intentional_provider_boundaries() -> None:
         "uv run python scripts/ci/validate_platform_contract.py",
     ]:
         assert phrase in runtime_checklist_lower
+
+    database_contract_lower = database_contract.lower()
+    for phrase in [
+        "database portability contract",
+        "postgresql semantics",
+        "rds is the current aws runtime implementation",
+        "supabase",
+        "liquibase",
+        "pgbouncer",
+        "db_password",
+        "database_url",
+        "backup",
+        "restore",
+        "cloudwatch is acceptable for rds",
+        "cloudwatch must not become",
+        "packages/infrastructure/db",
+    ]:
+        assert phrase in database_contract_lower
+
+    toolkit_checklists_lower = toolkit_checklists.lower()
+    for phrase in [
+        "new workload",
+        "dapr eventing",
+        "config and secrets",
+        "observability onboarding",
+        "ci quality gates",
+        "data and object storage",
+        "platform/workloads.json",
+        "prometheus metrics",
+        "loki-compatible structured logs",
+        "otlp/http traces",
+        "github actions",
+        "terraform fmt -check -recursive infra",
+        "s3 is the current aws object-storage implementation",
+        "supabase storage",
+    ]:
+        assert phrase in toolkit_checklists_lower

@@ -13,7 +13,7 @@ class Settings(BaseSettings):
     # request traffic and should not occupy pgbouncer transaction-pool slots.
     data_export_database_url: str | None = None
 
-    # ECS can inject DB_PASSWORD from Secrets Manager while keeping host/user as
+    # Runtime secret injection provides DB_PASSWORD while host/user remain
     # non-sensitive environment variables.
     db_password: str | None = None
     db_user: str = "app"

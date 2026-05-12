@@ -14,8 +14,9 @@ class Settings(BaseSettings):
     # incompatible with pgbouncer's transaction-mode pool.
     backfill_database_url: str | None = None
 
-    # ECS injects DB_PASSWORD + DB_HOST from Secrets Manager / env. The full URL
-    # is composed below so the password is never stored in the task definition plaintext.
+    # Runtime secret injection provides DB_PASSWORD and runtime env provides DB_HOST.
+    # The full URL is composed below so the password is never stored in plaintext
+    # deployment config.
     db_password: str | None = None
     db_user: str = "app"
     db_host: str | None = None

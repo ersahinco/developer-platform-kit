@@ -62,6 +62,21 @@ def test_platform_contract_validator_rejects_secret_env_overlap(
     )
 
 
+def test_platform_contract_validator_rejects_database_config_drift(
+    tmp_path: Path,
+) -> None:
+    contract_path = tmp_path / "workloads.json"
+    contract = json.loads(validator.DEFAULT_CONTRACT.read_text(encoding="utf-8"))
+    contract["workloads"][0]["config"]["env"].remove("DB_HOST")
+    contract["workloads"][0]["config"]["secrets"].remove("DB_PASSWORD")
+    contract_path.write_text(json.dumps(contract), encoding="utf-8")
+
+    errors = validator.collect_errors(contract_path=contract_path)
+
+    assert "api: database config.env is missing ['DB_HOST']" in errors
+    assert "api: database config.secrets must include DB_PASSWORD" in errors
+
+
 def test_platform_contract_validator_requires_trace_contract_for_jobs(
     tmp_path: Path,
 ) -> None:

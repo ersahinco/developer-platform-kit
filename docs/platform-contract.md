@@ -8,6 +8,11 @@ The machine-readable workload inventory lives in `platform/workloads.json` and
 is enforced by `scripts/ci/validate_platform_contract.py`. Add future apps there
 before adding runtime-specific infrastructure for them.
 
+Database expectations live in `docs/database-portability-contract.md`. The app
+contract is PostgreSQL-compatible behavior, Liquibase migrations, PgBouncer
+pooling expectations, and runtime secret injection. RDS is the current AWS
+implementation, not the portable application contract.
+
 The current implementation target is ECS, Terraform, AWS-managed dependencies,
 and GitHub Actions. Future runtimes such as Kubernetes, another cloud, or lower
 cost compute should satisfy this contract before the repo adds another platform

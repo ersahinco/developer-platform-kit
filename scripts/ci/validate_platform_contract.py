@@ -31,6 +31,13 @@ CURRENT_RUNTIME_TERRAFORM_ROOTS = {
     "bootstrap": "infra/platform",
     "runtime": "infra/app",
 }
+DATABASE_URL_ENV_BY_WORKLOAD = {
+    "api": "DATABASE_URL",
+    "order_event_consumer": "DATABASE_URL",
+    "backfill_worker": "BACKFILL_DATABASE_URL",
+    "data_export_job": "DATA_EXPORT_DATABASE_URL",
+}
+COMPOSED_DATABASE_ENV = {"DB_HOST", "DB_PORT", "DB_USER", "DB_NAME"}
 
 sys.path.insert(0, str(ROOT))
 
@@ -146,6 +153,17 @@ def _check_common(root: Path, workload: dict[str, Any], errors: list[str]) -> No
         errors.append(
             f"{name}: secret names must not also appear in config.env: {overlapping_secret_env}"
         )
+    database_url_env = DATABASE_URL_ENV_BY_WORKLOAD.get(name)
+    if database_url_env is not None:
+        missing_database_env = sorted(
+            ({database_url_env} | COMPOSED_DATABASE_ENV) - set(env)
+        )
+        if missing_database_env:
+            errors.append(
+                f"{name}: database config.env is missing {missing_database_env}"
+            )
+        if "DB_PASSWORD" not in secrets:
+            errors.append(f"{name}: database config.secrets must include DB_PASSWORD")
 
     logs = workload.get("logs", {})
     runtime_labels = set(_as_strings(logs.get("runtime_labels")))
