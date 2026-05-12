@@ -44,13 +44,21 @@ def run_order_contact_email_backfill(
         )
         if result.completed:
             if on_event is not None:
-                on_event("backfill complete")
+                on_event(
+                    {
+                        "event": "backfill_complete",
+                        "job_name": ORDER_CONTACT_EMAIL_BACKFILL_JOB,
+                        "message": "backfill complete",
+                    }
+                )
             return
 
         batches_processed += 1
         if on_event is not None:
             on_event(
                 {
+                    "event": "backfill_batch",
+                    "job_name": ORDER_CONTACT_EMAIL_BACKFILL_JOB,
                     "last_order_id": result.last_order_id,
                     "inserted": result.inserted,
                     "elapsed_ms": round((monotonic() - started_at) * 1000, 1),
@@ -62,6 +70,7 @@ def run_order_contact_email_backfill(
                 on_event(
                     {
                         "event": "backfill_paused",
+                        "job_name": ORDER_CONTACT_EMAIL_BACKFILL_JOB,
                         "reason": "max_batches",
                         "batches_processed": batches_processed,
                         "last_order_id": result.last_order_id,

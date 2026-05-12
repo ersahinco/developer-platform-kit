@@ -259,6 +259,9 @@ def test_portability_status_documents_intentional_provider_boundaries() -> None:
     doc = (ROOT / "docs" / "portability-status.md").read_text(encoding="utf-8")
     readme = (ROOT / "README.md").read_text(encoding="utf-8")
     roadmap = (ROOT / "docs" / "roadmaps.md").read_text(encoding="utf-8")
+    app_build = (ROOT / ".github" / "workflows" / "app-build.yml").read_text(
+        encoding="utf-8"
+    )
     platform_contract = (ROOT / "docs" / "platform-contract.md").read_text(
         encoding="utf-8"
     )
@@ -278,8 +281,14 @@ def test_portability_status_documents_intentional_provider_boundaries() -> None:
     assert "Infra rollback stays reviewed `Infra Plan` plus `Infra Apply`" in doc
     assert "portability boundaries" in roadmap
     assert "portable app/platform contract" in roadmap.lower()
+    assert (ROOT / "platform" / "workloads.json").is_file()
+    assert (ROOT / "scripts" / "ci" / "validate_platform_contract.py").is_file()
+    assert app_build.count('- "platform/**"') == 2
+    assert "uv run python scripts/ci/validate_platform_contract.py" in app_build
 
     for phrase in [
+        "platform/workloads.json",
+        "scripts/ci/validate_platform_contract.py",
         "OCI image",
         "/health",
         "/ready",

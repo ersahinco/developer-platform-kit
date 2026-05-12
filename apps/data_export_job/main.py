@@ -13,6 +13,8 @@ from infrastructure.data_export import (
     SQLAlchemyOrderContactEmailExportReader,
 )
 
+DATA_EXPORT_JOB_NAME = "order_contact_email_export"
+
 
 def _utc_now() -> datetime.datetime:
     return datetime.datetime.now(tz=datetime.timezone.utc)
@@ -42,7 +44,17 @@ def run_export(s3_client: Any | None = None) -> dict[str, Any]:
         store=LocalDataExportStore(output_dir=settings.data_export_output_dir),
         publisher=publisher,
     )
-    print(json.dumps(manifest, sort_keys=True), flush=True)
+    print(
+        json.dumps(
+            {
+                "event": "data_export_succeeded",
+                "job_name": DATA_EXPORT_JOB_NAME,
+                **manifest,
+            },
+            sort_keys=True,
+        ),
+        flush=True,
+    )
     return manifest
 
 

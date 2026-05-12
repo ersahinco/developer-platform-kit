@@ -164,7 +164,16 @@ def test_worker_exits_cleanly_when_no_rows_remain(committed_db_session):
     for _ in range(2):
         result = _run_worker()
         assert result.returncode == 0
-        assert "backfill complete" in result.stdout
+        events = [
+            json.loads(line)
+            for line in result.stdout.splitlines()
+            if line.startswith("{")
+        ]
+        assert {
+            "event": "backfill_complete",
+            "job_name": _JOB,
+            "message": "backfill complete",
+        } in events
 
 
 def test_each_batch_emits_a_structured_json_log_line(committed_db_session):
@@ -180,7 +189,15 @@ def test_each_batch_emits_a_structured_json_log_line(committed_db_session):
     log_lines = [line for line in result.stdout.splitlines() if line.startswith("{")]
     assert log_lines, "expected at least one JSON log line"
     data = json.loads(log_lines[0])
-    assert {"last_order_id", "inserted", "elapsed_ms"} <= data.keys()
+    assert {
+        "event",
+        "job_name",
+        "last_order_id",
+        "inserted",
+        "elapsed_ms",
+    } <= data.keys()
+    assert data["event"] == "backfill_batch"
+    assert data["job_name"] == _JOB
 
 
 def test_worker_can_pause_after_a_bounded_number_of_batches(committed_db_session):

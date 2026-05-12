@@ -88,6 +88,10 @@ def test_data_export_writes_raw_csv_then_success_manifest(
     result = _run_export(tmp_path, run_id="test-run", export_date="2026-04-29")
 
     assert result.returncode == 0, result.stderr
+    event = json.loads(result.stdout)
+    assert event["event"] == "data_export_succeeded"
+    assert event["job_name"] == "order_contact_email_export"
+    assert event["run_id"] == "test-run"
     raw_path = (
         tmp_path / "raw" / "order_contact_email" / "dt=2026-04-29" / "test-run.csv"
     )

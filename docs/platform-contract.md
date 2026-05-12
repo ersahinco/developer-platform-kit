@@ -4,6 +4,10 @@ This is the portable application contract for this repository. It describes
 what a workload must provide to run on the project platform shape today, without
 claiming that the current runtime is cloud-neutral.
 
+The machine-readable workload inventory lives in `platform/workloads.json` and
+is enforced by `scripts/ci/validate_platform_contract.py`. Add future apps there
+before adding runtime-specific infrastructure for them.
+
 The current implementation target is ECS, Terraform, AWS-managed dependencies,
 and GitHub Actions. Future runtimes such as Kubernetes, another cloud, or lower
 cost compute should satisfy this contract before the repo adds another platform

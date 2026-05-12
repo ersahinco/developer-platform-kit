@@ -17,6 +17,7 @@ on:
       - "compose.yaml"
       - "dapr/**"
       - "observability/firelens/**"
+      - "platform/**"
       - "packages/**"
       - "pyproject.toml"
       - "db/**"
@@ -34,6 +35,7 @@ on:
       - "compose.yaml"
       - "dapr/**"
       - "observability/firelens/**"
+      - "platform/**"
       - "packages/**"
       - "pyproject.toml"
       - "db/**"
@@ -113,6 +115,9 @@ jobs:
           uv run ruff format --check apps/ packages/ tests/ scripts/
           uv run ruff check apps/ packages/ tests/ scripts/
           uv run pyright
+
+      - name: Validate platform contract
+        run: uv run python scripts/ci/validate_platform_contract.py
 
       - name: Check shell script syntax
         run: find scripts -name '*.sh' -print0 | xargs -0 bash -n

@@ -1,0 +1,213 @@
+{
+  "schema_version": "1",
+  "workloads": [
+    {
+      "name": "api",
+      "kind": "service",
+      "app_path": "apps/api",
+      "package": "api",
+      "image": {
+        "dockerfile": "apps/api/Dockerfile",
+        "non_root_user": "app"
+      },
+      "http": {
+        "health": "/health",
+        "ready": "/ready",
+        "metrics": "/metrics"
+      },
+      "logs": {
+        "runtime_labels": ["stack", "environment", "service", "container"],
+        "app_fields": ["request_id"]
+      },
+      "metrics": {
+        "format": "prometheus",
+        "required_names": ["http_requests_total", "http_request_duration_seconds"]
+      },
+      "traces": {
+        "supported": true,
+        "protocol": "otlp_http"
+      },
+      "config": {
+        "env": [
+          "DATABASE_URL",
+          "DB_HOST",
+          "DB_PORT",
+          "DB_USER",
+          "DB_NAME",
+          "OTEL_TRACES_ENABLED",
+          "OTEL_EXPORTER_OTLP_TRACES_ENDPOINT",
+          "OTEL_SERVICE_NAME",
+          "OTEL_DEPLOYMENT_ENVIRONMENT",
+          "ROLLOUT_DRILL_FAULT_MODE",
+          "ROLLOUT_DRILL_FAULT_PATHS",
+          "ROLLOUT_DRILL_FAULT_STATUS_CODE",
+          "ROLLOUT_DRILL_FAULT_DELAY_SECONDS"
+        ],
+        "secrets": ["DB_PASSWORD"],
+        "runtime_config_keys": ["READ_MODE", "WRITE_MODE"]
+      },
+      "rollback": "app_image",
+      "release_evidence": ["image_tag", "task_definition", "github_run_id", "verify_seconds"]
+    },
+    {
+      "name": "order_event_consumer",
+      "kind": "service",
+      "app_path": "apps/order_event_consumer",
+      "package": "order_event_consumer",
+      "image": {
+        "dockerfile": "apps/order_event_consumer/Dockerfile",
+        "non_root_user": "app"
+      },
+      "http": {
+        "health": "/health",
+        "ready": "/ready",
+        "metrics": "/metrics"
+      },
+      "logs": {
+        "runtime_labels": ["stack", "environment", "service", "container"],
+        "app_fields": ["event", "event_id", "request_id"]
+      },
+      "metrics": {
+        "format": "prometheus",
+        "required_names": [
+          "order_event_consumer_http_requests_total",
+          "order_event_consumer_http_request_duration_seconds"
+        ]
+      },
+      "traces": {
+        "supported": false,
+        "protocol": null
+      },
+      "config": {
+        "env": [
+          "DATABASE_URL",
+          "DB_HOST",
+          "DB_PORT",
+          "DB_USER",
+          "DB_NAME",
+          "DAPR_HTTP_ENDPOINT",
+          "ORDER_EVENTS_APP_PORT",
+          "ORDER_EVENTS_WORKER_MODE",
+          "ORDER_EVENTS_PUBSUB_NAME",
+          "ORDER_EVENTS_TOPIC",
+          "ORDER_EVENTS_RELAY_BATCH_SIZE",
+          "ORDER_EVENTS_IDLE_SLEEP_SECONDS"
+        ],
+        "secrets": ["DB_PASSWORD"]
+      },
+      "rollback": "app_image",
+      "release_evidence": ["image_tag", "task_definition", "github_run_id", "verify_seconds"]
+    },
+    {
+      "name": "backfill_worker",
+      "kind": "job",
+      "app_path": "apps/backfill_worker",
+      "package": "backfill_worker",
+      "image": {
+        "dockerfile": "apps/backfill_worker/Dockerfile",
+        "non_root_user": "app"
+      },
+      "logs": {
+        "runtime_labels": ["stack", "environment", "service", "container"],
+        "app_fields": ["event", "job_name", "last_order_id"]
+      },
+      "config": {
+        "env": [
+          "BACKFILL_DATABASE_URL",
+          "DB_HOST",
+          "DB_PORT",
+          "DB_USER",
+          "DB_NAME",
+          "BACKFILL_BATCH_SIZE",
+          "BACKFILL_SLEEP_MS",
+          "BACKFILL_MAX_BATCHES"
+        ],
+        "secrets": ["DB_PASSWORD"]
+      },
+      "job": {
+        "idempotency": "checkpointed",
+        "success_event": "backfill_complete",
+        "progress_event": "backfill_batch"
+      },
+      "rollback": "idempotent_rerun_or_forward_fix",
+      "release_evidence": ["github_run_id", "verify_seconds"]
+    },
+    {
+      "name": "data_export_job",
+      "kind": "job",
+      "app_path": "apps/data_export_job",
+      "package": "data_export_job",
+      "image": {
+        "dockerfile": "apps/data_export_job/Dockerfile",
+        "non_root_user": "app"
+      },
+      "logs": {
+        "runtime_labels": ["stack", "environment", "service", "container"],
+        "app_fields": ["event", "job_name", "dataset", "run_id", "status"]
+      },
+      "config": {
+        "env": [
+          "DATA_EXPORT_DATABASE_URL",
+          "DB_HOST",
+          "DB_PORT",
+          "DB_USER",
+          "DB_NAME",
+          "DATA_EXPORT_OUTPUT_DIR",
+          "DATA_EXPORT_RUN_ID",
+          "DATA_EXPORT_DATE",
+          "DATA_EXPORT_S3_BUCKET"
+        ],
+        "secrets": ["DB_PASSWORD"]
+      },
+      "job": {
+        "idempotency": "run_id",
+        "success_event": "data_export_succeeded",
+        "manifest_status": "succeeded"
+      },
+      "rollback": "idempotent_rerun_or_forward_fix",
+      "release_evidence": ["github_run_id", "verify_seconds"]
+    }
+  ],
+  "release_evidence": {
+    "required_fields": [
+      "schema_version",
+      "event_type",
+      "status",
+      "summary",
+      "timestamp",
+      "stack.name",
+      "stack.environment",
+      "stack.region",
+      "stack.root_domain",
+      "service",
+      "revision.image_tag",
+      "revision.task_definition",
+      "revision.previous_task_definition",
+      "revision.drill_task_definition",
+      "revision.plan_run_id",
+      "runtime.fault_mode",
+      "runtime.read_mode",
+      "runtime.write_mode",
+      "slo.rollback_seconds",
+      "slo.rollback_slo_seconds",
+      "slo.verify_seconds",
+      "slo.verify_slo_seconds",
+      "alarm_snapshot",
+      "github.repository",
+      "github.run_id",
+      "github.run_attempt",
+      "github.run_url",
+      "github.workflow",
+      "github.job",
+      "github.sha",
+      "github.ref_name",
+      "github.actor",
+      "correlation.stack",
+      "correlation.environment",
+      "correlation.service",
+      "correlation.image_tag",
+      "correlation.task_definition",
+      "correlation.github_run_id"
+    ]
+  }
+}
