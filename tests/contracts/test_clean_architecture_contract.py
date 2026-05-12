@@ -220,11 +220,16 @@ def test_portability_status_documents_intentional_provider_boundaries() -> None:
     doc = (ROOT / "docs" / "portability-status.md").read_text(encoding="utf-8")
     readme = (ROOT / "README.md").read_text(encoding="utf-8")
     roadmap = (ROOT / "docs" / "roadmaps.md").read_text(encoding="utf-8")
+    platform_contract = (ROOT / "docs" / "platform-contract.md").read_text(
+        encoding="utf-8"
+    )
 
     assert "docs/portability-status.md" in readme
+    assert "docs/platform-contract.md" in readme
     assert "Portable Baseline" in doc
     assert "Intentional Provider Dependencies" in doc
     assert "Current Gaps" in doc
+    assert "App/platform contract" in doc
     assert "packages/domain" in doc
     assert "packages/application" in doc
     assert "Grafana CloudWatch datasource" in doc
@@ -233,3 +238,23 @@ def test_portability_status_documents_intentional_provider_boundaries() -> None:
     assert "Alternate runtime platform" in doc
     assert "Infra rollback stays reviewed `Infra Plan` plus `Infra Apply`" in doc
     assert "portability boundaries" in roadmap
+    assert "portable app/platform contract" in roadmap.lower()
+
+    for phrase in [
+        "OCI image",
+        "/health",
+        "/ready",
+        "/metrics",
+        "Structured logs",
+        "OTLP/HTTP traces",
+        "environment variables",
+        "runtime secret mechanism",
+        "Prometheus, Loki, Tempo, and Grafana",
+        "release evidence artifacts",
+        "Markdown/JSON/JSONL",
+        "App image rollback",
+        "Runtime data-phase rollback",
+        "Infra rollback uses reviewed `Infra Plan` and `Infra Apply`",
+        "does not add a Kubernetes, Nomad, Azure, Google Cloud, or",
+    ]:
+        assert phrase in platform_contract

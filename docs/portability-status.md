@@ -11,6 +11,7 @@ Actions for orchestration.
 | Area | Status | Contract |
 |---|---|---|
 | Application core | Portable | `packages/domain` and `packages/application` stay free of AWS, Terraform, GitHub Actions, Grafana, Loki, Prometheus, Tempo, and OpenTelemetry imports. |
+| App/platform contract | Portable shape | `docs/platform-contract.md` defines the workload contract for images, health/readiness/metrics, logs, traces, config, evidence, and rollback before adding another runtime target. |
 | Runtime adapters | Mostly portable | `packages/infrastructure` owns SQL, Dapr, storage, and runtime adapters behind application ports. |
 | Local runtime | Portable | `compose.yaml`, Dockerfiles, Liquibase, PgBouncer, Dapr local assets, and the Grafana OSS stack run without AWS. |
 | Observability | Mostly OSS-portable | Grafana uses Prometheus, Loki, and Tempo. No Grafana Cloud AI or Grafana CloudWatch datasource is part of the baseline. |

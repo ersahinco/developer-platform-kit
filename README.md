@@ -20,6 +20,7 @@ work.
 | Roadmaps and continuation rules | [docs/roadmaps.md](docs/roadmaps.md) |
 | Architecture direction | [docs/architecture.md](docs/architecture.md) |
 | Repository/control-boundary layout | [docs/architecture-layout.md](docs/architecture-layout.md) |
+| Portable app/platform contract | [docs/platform-contract.md](docs/platform-contract.md) |
 | Portability status | [docs/portability-status.md](docs/portability-status.md) |
 | Local development runbook | [docs/local-development.md](docs/local-development.md) |
 | AWS deployment/runbook | [docs/deployment.md](docs/deployment.md) |
