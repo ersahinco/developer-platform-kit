@@ -238,6 +238,7 @@ jobs:
           exit 1
 
       - name: Verify restored app revision
+        id: verify-restored
         env:
           BASE_URL: https://api.${{ env.ROOT_DOMAIN }}
           ECS_CLUSTER: ${{ env.STACK_NAME }}
@@ -252,6 +253,7 @@ jobs:
             --output text)
           TOKEN="$TOKEN" uv run python scripts/release/verify_post_deploy.py
           verify_seconds=$(($(date +%s) - verify_started_epoch))
+          echo "verify_seconds=${verify_seconds}" >> "$GITHUB_OUTPUT"
           {
             echo ""
             echo "### Restored app verification SLO evidence"
@@ -263,3 +265,31 @@ jobs:
             echo "Restored app verification exceeded SLO: ${verify_seconds}s > ${APP_ROLLBACK_VERIFY_SLO_SECONDS}s." >&2
             exit 1
           fi
+
+      - name: Write app rollback drill evidence
+        if: ${{ always() }}
+        run: |
+          python3 scripts/observability/release_event.py \
+            --event-type app_rollback_drill \
+            --status "${{ job.status }}" \
+            --summary "App rollback drill completed with status ${{ job.status }}" \
+            --service-name app \
+            --image-tag "${{ env.IMAGE_TAG }}" \
+            --task-definition "${{ steps.current.outputs.task_definition }}" \
+            --previous-task-definition "${{ steps.current.outputs.task_definition }}" \
+            --drill-task-definition "${{ steps.deploy_drill.outputs.task_def_arn }}" \
+            --fault-mode "${{ inputs.fault_mode }}" \
+            --rollback-seconds "${{ steps.wait_rollback.outputs.rollback_seconds }}" \
+            --rollback-slo-seconds "${{ inputs.fault_mode == 'error' && env.APP_ROLLBACK_ERROR_SLO_SECONDS || env.APP_ROLLBACK_LATENCY_SLO_SECONDS }}" \
+            --verify-seconds "${{ steps.verify-restored.outputs.verify_seconds }}" \
+            --verify-slo-seconds "${{ env.APP_ROLLBACK_VERIFY_SLO_SECONDS }}" \
+            --output-dir /tmp/release-evidence/app-rollback-drill
+          cat /tmp/release-evidence/app-rollback-drill/release-event.md >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Upload app rollback drill evidence
+        if: ${{ always() }}
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
+        with:
+          name: release-evidence-app-rollback-drill-${{ github.run_id }}
+          path: /tmp/release-evidence/app-rollback-drill
+          retention-days: 30

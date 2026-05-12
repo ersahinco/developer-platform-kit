@@ -13,6 +13,11 @@ known-good state, and produce evidence quickly enough to keep iteration safe?
 | App rollback, latency mode | `/ready` delays 3s and trips the ALB p95 latency deployment alarm. | ECS automatic rollback observed within 15 min; restored app verification within 2 min. | `App No-Data Rollback Drill` summary, ECS service events, latency alarm history, `verify_post_deploy.py`. |
 | Infra no-data rollback | A reversible Terraform-only change is applied and then reverted. | Reviewed plan in <= 5 min, apply in <= 15 min, revert plan+apply in <= 30 min. | `Infra Plan` and `Infra Apply` run IDs, reviewed no-data plan, restored resource state. |
 | Runtime data-phase rollback | `WRITE_MODE` is moved from `legacy` to `dual` and back to the captured safe phase. | API write-mode rollback verified within 2 min; restored app verification within 2 min. | `Data Runtime Rollback Drill` summary, admin API response, 5s runtime-config cache expiry, `verify_post_deploy.py`. |
+
+Each cloud-changing apply/deploy/drill path also uploads a release evidence
+artifact with Markdown, JSON, and JSONL forms. Treat that artifact as the
+portable timeline record that can later be pushed into Loki for Grafana
+correlation.
 | Backfill/data job containment | A resumable job fails before runtime cutover. | Stop or rerun decision within 10 min; no read-mode advancement until reconciliation passes. | Worker logs, checkpoint state, reconciliation output, unchanged runtime modes. |
 
 ## Current Baseline

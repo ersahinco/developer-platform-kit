@@ -143,3 +143,23 @@ jobs:
       - name: terraform apply app reviewed plan
         run: terraform apply -auto-approve app.tfplan
         working-directory: infra/app
+
+      - name: Write infra apply evidence
+        if: ${{ always() }}
+        run: |
+          python3 scripts/observability/release_event.py \
+            --event-type infra_apply \
+            --status "${{ job.status }}" \
+            --summary "Infra apply workflow completed with status ${{ job.status }}" \
+            --service-name infra \
+            --plan-run-id "${{ steps.plan.outputs.run_id }}" \
+            --output-dir /tmp/release-evidence/infra-apply
+          cat /tmp/release-evidence/infra-apply/release-event.md >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Upload infra apply evidence
+        if: ${{ always() }}
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
+        with:
+          name: release-evidence-infra-apply-${{ github.run_id }}
+          path: /tmp/release-evidence/infra-apply
+          retention-days: 30

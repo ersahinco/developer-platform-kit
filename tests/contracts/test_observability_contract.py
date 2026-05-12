@@ -253,9 +253,11 @@ def test_app_rollback_drill_uses_ecs_automatic_rollback() -> None:
     assert "Wait for ECS automatic rollback" in workflow
     assert "Bad drill revision completed instead of being rolled back" in workflow
     assert "Roll back to captured task definition" not in workflow
-    assert '--task-definition "${{ steps.current.outputs.task_definition }}"' not in (
-        workflow
+    assert (
+        'ci_deploy_ecs_service.sh "${{ env.STACK_NAME }}" app "${{ steps.current.outputs.task_definition }}"'
+        not in workflow
     )
+    assert "aws ecs update-service" not in workflow
 
 
 def test_log_groups_dashboard_is_provisioned_and_uses_loki_only() -> None:
@@ -394,6 +396,45 @@ def test_infra_apply_downloads_plan_artifact_into_infra_tree() -> None:
     assert "working-directory: infra/platform" in workflow
     assert "terraform apply -auto-approve app.tfplan" in workflow
     assert "working-directory: infra/app" in workflow
+
+
+def test_release_evidence_events_are_emitted_by_cloud_changing_workflows() -> None:
+    docs = _read("docs/observability.md")
+    event_script = _read("scripts/observability/release_event.py")
+    dashboard = json.loads(_read("observability/grafana/dashboards/app-overview.json"))
+    workflows = {
+        "app_deploy": _read(".github/workflows/app-deploy.yml"),
+        "app_rollback_drill": _read(".github/workflows/app-rollback-drill.yml"),
+        "data_runtime_rollback_drill": _read(
+            ".github/workflows/data-runtime-rollback-drill.yml"
+        ),
+        "infra_apply": _read(".github/workflows/infra-apply.yml"),
+    }
+
+    assert "release-event.json" in event_script
+    assert "release-event.jsonl" in event_script
+    assert "release-event.md" in event_script
+    assert "loki/api/v1/push" in event_script
+    assert "release evidence events" in docs
+    assert "JSONL artifacts" in docs
+    assert "Delivery Events" in docs
+
+    delivery_panel = next(
+        panel for panel in dashboard["panels"] if panel["title"] == "Delivery Events"
+    )
+    assert delivery_panel["datasource"]["type"] == "loki"
+    assert delivery_panel["type"] == "logs"
+    delivery_query = delivery_panel["targets"][0]["expr"]
+    assert "event_type" in delivery_query
+    assert "app_deploy" in delivery_query
+    assert "infra_apply" in delivery_query
+
+    for event_type, workflow in workflows.items():
+        assert "scripts/observability/release_event.py" in workflow
+        assert f"--event-type {event_type}" in workflow
+        assert "actions/upload-artifact" in workflow
+        assert "release-evidence-" in workflow
+        assert 'release-event.md >> "$GITHUB_STEP_SUMMARY"' in workflow
 
 
 def test_app_overview_uses_loki_for_order_event_worker_outcomes() -> None:

@@ -374,6 +374,43 @@
       ],
       "title": "Order Event Worker Outcomes",
       "type": "timeseries"
+    },
+    {
+      "datasource": {
+        "type": "loki",
+        "uid": "Loki"
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 24,
+        "x": 0,
+        "y": 30
+      },
+      "id": 6,
+      "options": {
+        "dedupStrategy": "none",
+        "enableLogDetails": true,
+        "prettifyLogMessage": true,
+        "showCommonLabels": false,
+        "showLabels": true,
+        "showTime": true,
+        "sortOrder": "Descending",
+        "wrapLogMessage": true
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "loki",
+            "uid": "Loki"
+          },
+          "editorMode": "code",
+          "expr": "{stack=\"aws-sdlc-containers\", environment=\"aws\", event_type=~\"app_deploy|app_rollback_drill|data_runtime_rollback_drill|infra_apply\"}",
+          "queryType": "range",
+          "refId": "A"
+        }
+      ],
+      "title": "Delivery Events",
+      "type": "logs"
     }
   ],
   "refresh": "10s",

@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import json
 import sys
 from pathlib import Path
 from typing import Any
@@ -10,6 +11,7 @@ sys.path.insert(0, str(ROOT))
 import scripts.observability.verify_observability_delivery as delivery  # noqa: E402
 import scripts.observability.generate_cloud_traffic as cloud_traffic  # noqa: E402
 import scripts.observability.incident_evidence_bundle as evidence  # noqa: E402
+import scripts.observability.release_event as release_event  # noqa: E402
 import scripts.observability.run_observability_cloud_jobs as cloud_jobs  # noqa: E402
 
 
@@ -270,6 +272,110 @@ def test_incident_evidence_bundle_collects_portable_context(
     assert "task_definition" in bundle["correlation_fields"]
     assert "App Overview" in markdown
     assert "gh run list --workflow app-deploy.yml" in markdown
+
+
+def test_release_event_writes_markdown_json_and_jsonl(tmp_path: Path) -> None:
+    event = release_event.build_event(
+        event_type="app_deploy",
+        status="success",
+        summary="App deploy verification passed",
+        service_name="app",
+        image_tag="sha-1234567890abcdef1234567890abcdef12345678",
+        task_definition="arn:aws:ecs:task-definition/aws-sdlc-containers:9",
+        previous_task_definition=None,
+        drill_task_definition=None,
+        plan_run_id=None,
+        fault_mode=None,
+        read_mode="legacy",
+        write_mode="legacy",
+        rollback_seconds=None,
+        rollback_slo_seconds=None,
+        verify_seconds=12,
+        verify_slo_seconds=120,
+        env={
+            "STACK_NAME": "aws-sdlc-containers",
+            "AWS_REGION": "eu-central-1",
+            "GITHUB_REPOSITORY": "ersahinco/aws-sdlc-containers",
+            "GITHUB_RUN_ID": "25704755534",
+            "GITHUB_WORKFLOW": "App Deploy",
+        },
+    )
+
+    json_path, jsonl_path, markdown_path = release_event.write_event(event, tmp_path)
+
+    assert json_path.is_file()
+    assert jsonl_path.read_text(encoding="utf-8").count("\n") == 1
+    markdown = markdown_path.read_text(encoding="utf-8")
+    assert "Release Evidence Event" in markdown
+    assert "app_deploy" in markdown
+    assert "25704755534" in markdown
+    assert event["correlation"]["github_run_id"] == "25704755534"
+    assert event["revision"]["image_tag"].startswith("sha-")
+
+
+def test_release_event_derives_loki_push_url_from_loki_url() -> None:
+    assert (
+        release_event.loki_push_url({"LOKI_URL": "http://127.0.0.1:3100"}, None)
+        == "http://127.0.0.1:3100/loki/api/v1/push"
+    )
+    assert (
+        release_event.loki_push_url(
+            {"LOKI_PUSH_URL": "http://loki/push", "LOKI_URL": "http://ignored"},
+            None,
+        )
+        == "http://loki/push"
+    )
+
+
+def test_release_event_pushes_loki_stream(monkeypatch) -> None:
+    requests: list[object] = []
+
+    class FakeResponse:
+        status = 204
+
+        def __enter__(self) -> "FakeResponse":
+            return self
+
+        def __exit__(self, *args: object) -> None:
+            return None
+
+    def fake_urlopen(req: object, timeout: int) -> FakeResponse:
+        assert timeout == 10
+        requests.append(req)
+        return FakeResponse()
+
+    monkeypatch.setattr(release_event.request, "urlopen", fake_urlopen)
+    event = release_event.build_event(
+        event_type="app_rollback_drill",
+        status="success",
+        summary=None,
+        service_name="app",
+        image_tag="sha-test",
+        task_definition="restored",
+        previous_task_definition="restored",
+        drill_task_definition="bad",
+        plan_run_id=None,
+        fault_mode="latency",
+        read_mode=None,
+        write_mode=None,
+        rollback_seconds=120,
+        rollback_slo_seconds=900,
+        verify_seconds=20,
+        verify_slo_seconds=120,
+        env={
+            "STACK_NAME": "aws-sdlc-containers",
+            "GITHUB_WORKFLOW": "App No-Data Rollback Drill",
+        },
+    )
+
+    release_event.push_loki(event, "http://loki:3100/loki/api/v1/push")
+
+    assert len(requests) == 1
+    payload = json.loads(getattr(requests[0], "data").decode("utf-8"))
+    stream = payload["streams"][0]
+    assert stream["stream"]["event_type"] == "app_rollback_drill"
+    assert stream["stream"]["workflow"] == "App_No-Data_Rollback_Drill"
+    assert "app_rollback_drill" in stream["values"][0][1]
 
 
 def test_cloud_traffic_generator_exercises_representative_api_paths(

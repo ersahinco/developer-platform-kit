@@ -170,9 +170,11 @@ jobs:
             "${{ env.ECR_REGISTRY }}/${{ env.STACK_NAME }}/firelens:${IMAGE_TAG}"
 
       - name: Deploy app service
+        id: deploy-app
         run: scripts/ci/ci_deploy_ecs_service.sh aws-sdlc-containers app "${{ steps.render-app.outputs.task-definition }}"
 
       - name: Verify deployed app
+        id: verify-app
         env:
           BASE_URL: https://api.${{ env.ROOT_DOMAIN }}
           ECS_CLUSTER: aws-sdlc-containers
@@ -180,12 +182,15 @@ jobs:
           EXPECTED_TASK_FAMILY: aws-sdlc-containers
           EXPECTED_IMAGE_TAG: ${{ env.IMAGE_TAG }}
         run: |
+          verify_started_epoch=$(date +%s)
           TOKEN=$(aws secretsmanager get-secret-value \
             --secret-id aws-sdlc-containers/api-token \
             --region ${{ env.AWS_REGION }} \
             --query SecretString \
             --output text)
           TOKEN="$TOKEN" uv run python scripts/release/verify_post_deploy.py
+          verify_seconds=$(($(date +%s) - verify_started_epoch))
+          echo "verify_seconds=${verify_seconds}" >> "$GITHUB_OUTPUT"
 
       - name: Render worker task definition
         id: render-worker
@@ -247,3 +252,25 @@ jobs:
           echo "Monitor: CloudWatch Logs /ecs/aws-sdlc-containers/worker"
           scripts/ci/ci_poll_ecs_task_until_stopped.sh aws-sdlc-containers "$TASK_ARN" Worker
           scripts/ci/ci_assert_ecs_task_succeeded.sh aws-sdlc-containers "$TASK_ARN" "Backfill worker"
+
+      - name: Write app deploy evidence
+        if: ${{ always() }}
+        run: |
+          python3 scripts/observability/release_event.py \
+            --event-type app_deploy \
+            --status "${{ job.status }}" \
+            --summary "App deploy workflow completed with status ${{ job.status }}" \
+            --service-name app \
+            --image-tag "${{ env.IMAGE_TAG }}" \
+            --task-definition "${{ steps.deploy-app.outputs.task_def_arn }}" \
+            --verify-seconds "${{ steps.verify-app.outputs.verify_seconds }}" \
+            --output-dir /tmp/release-evidence/app-deploy
+          cat /tmp/release-evidence/app-deploy/release-event.md >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Upload app deploy evidence
+        if: ${{ always() }}
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
+        with:
+          name: release-evidence-app-deploy-${{ github.run_id }}
+          path: /tmp/release-evidence/app-deploy
+          retention-days: 30

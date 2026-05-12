@@ -92,6 +92,30 @@ Prometheus, and Tempo. It is deliberately evidence, not diagnosis: it should be
 safe to paste into an incident note or feed to future assistant-style tooling
 without changing runtime state.
 
+Delivery workflows also emit release evidence events. `App Deploy`,
+`App No-Data Rollback Drill`, `Data Runtime Rollback Drill`, and `Infra Apply`
+write a small `release-event.json`, `release-event.jsonl`, and
+`release-event.md` artifact with the GitHub run ID, image tag or plan run,
+task definition, rollback timing, verification timing, and stable labels. These
+events close the main Assistant-style gap between deploy context and telemetry:
+operators can line up a symptom window with the exact workflow run and revision
+without scraping GitHub summaries by hand.
+`AWS SDLC Containers / App Overview` includes a Loki-backed `Delivery Events`
+panel for these records when they are pushed to Loki.
+
+The event helper is OSS-portable and does not require Grafana Cloud. By default
+it writes artifacts only. If a reachable Loki endpoint is provided later, the
+same event can be pushed to the Grafana stack:
+
+```bash
+LOKI_URL=http://127.0.0.1:3100 \
+python scripts/observability/release_event.py \
+  --event-type app_deploy \
+  --status success \
+  --service-name app \
+  --push-loki
+```
+
 ## CloudWatch Inventory
 
 CloudWatch Logs are intentionally limited to the stack-scoped
@@ -250,6 +274,9 @@ and checks:
   dashboard path as `App Overview`.
 - API traces point at Tempo and no X-Ray path is configured.
 - Prometheus scrapes the app plus Prometheus, Loki, and Tempo runtime metrics.
+- Release evidence events are produced by GitHub Actions as Markdown, JSON, and
+  JSONL artifacts and can be pushed to Loki without adding a CloudWatch
+  datasource or managed AI dependency.
 
 Helper-script behavior is covered in
 `tests/scripts/test_observability_scripts.py`, keeping AWS/Loki client fakes and
