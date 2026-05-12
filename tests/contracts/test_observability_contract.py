@@ -87,6 +87,9 @@ def test_portable_incident_evidence_is_assistant_ready_without_cloud_dependency(
     observability_doc = _read("docs/observability.md")
     makefile = _read("Makefile")
     evidence_script = _read("scripts/observability/incident_evidence_bundle.py")
+    release_delivery_script = _read(
+        "scripts/observability/verify_release_event_loki_delivery.py"
+    )
     firelens_config = _read("observability/firelens/fluent-bit.conf")
     promtail_config = _read("observability/promtail/promtail.yml")
 
@@ -95,6 +98,10 @@ def test_portable_incident_evidence_is_assistant_ready_without_cloud_dependency(
     assert "Grafana Cloud AI" in observability_doc
     assert "incident-evidence" in makefile
     assert "incident_evidence_bundle.py" in makefile
+    assert "release-event-delivery-verify" in makefile
+    assert "verify_release_event_loki_delivery.py" in makefile
+    assert "release_event_delivery_probe" in release_delivery_script
+    assert "/loki/api/v1/query_range" in release_delivery_script
 
     for field in [
         "stack",
@@ -425,6 +432,8 @@ def test_release_evidence_events_are_emitted_by_cloud_changing_workflows() -> No
     assert "dashboard annotations" in docs
     assert "CloudWatch alarm" in docs
     assert "LOKI_PUSH_URL" in docs
+    assert "GitHub `aws`" in docs
+    assert "make release-event-delivery-verify" in docs
     assert "RELEASE_EVENTS_DIR" in docs
     assert "release-evidence-*" in docs
     assert "release_events" in evidence_script
@@ -459,6 +468,7 @@ def test_release_evidence_events_are_emitted_by_cloud_changing_workflows() -> No
         assert "--include-alarms" in workflow
         assert "--push-loki" in workflow
         assert "--loki-push-best-effort" in workflow
+        assert "secrets.LOKI_PUSH_URL || vars.LOKI_PUSH_URL" in workflow
         assert "LOKI_PUSH_URL" in workflow
         assert "LOKI_URL" in workflow
         assert "actions/upload-artifact" in workflow

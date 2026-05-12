@@ -14,6 +14,7 @@ import scripts.observability.generate_cloud_traffic as cloud_traffic  # noqa: E4
 import scripts.observability.incident_evidence_bundle as evidence  # noqa: E402
 import scripts.observability.release_event as release_event  # noqa: E402
 import scripts.observability.run_observability_cloud_jobs as cloud_jobs  # noqa: E402
+import scripts.observability.verify_release_event_loki_delivery as release_verify  # noqa: E402
 
 
 def test_delivery_verifier_checks_expected_inventory_and_rejects_stale_streams(
@@ -601,6 +602,67 @@ def test_release_event_pushes_loki_stream(monkeypatch) -> None:
     assert stream["stream"]["event_type"] == "app_rollback_drill"
     assert stream["stream"]["workflow"] == "App_No-Data_Rollback_Drill"
     assert "app_rollback_drill" in stream["values"][0][1]
+
+
+def test_release_event_delivery_verifier_derives_query_url_from_push_url() -> None:
+    assert (
+        release_verify.loki_query_url(
+            {"LOKI_PUSH_URL": "https://loki.example.com/loki/api/v1/push"},
+            None,
+        )
+        == "https://loki.example.com"
+    )
+    assert (
+        release_verify.loki_query_url(
+            {
+                "LOKI_URL": "http://127.0.0.1:3100",
+                "LOKI_PUSH_URL": "https://ignored/loki/api/v1/push",
+            },
+            None,
+        )
+        == "http://127.0.0.1:3100"
+    )
+
+
+def test_release_event_delivery_verifier_pushes_and_queries_probe(monkeypatch) -> None:
+    pushed_events: list[dict[str, Any]] = []
+    queries: list[dict[str, object]] = []
+
+    class FakeResponse:
+        status_code = 200
+
+        def json(self) -> dict[str, Any]:
+            return {"data": {"result": [{"stream": {}, "values": [["1", "{}"]]}]}}
+
+    def fake_push(event: dict[str, Any], url: str) -> None:
+        assert url == "http://127.0.0.1:3100/loki/api/v1/push"
+        pushed_events.append(event)
+
+    def fake_get(url: str, **kwargs: object) -> FakeResponse:
+        assert url == "http://127.0.0.1:3100/loki/api/v1/query_range"
+        params = kwargs["params"]
+        assert isinstance(params, dict)
+        queries.append(params)
+        return FakeResponse()
+
+    monkeypatch.setattr(release_verify.release_event, "push_loki", fake_push)
+    monkeypatch.setattr(release_verify.httpx, "get", fake_get)
+    monkeypatch.setenv("LOKI_URL", "http://127.0.0.1:3100")
+    monkeypatch.setenv("STACK_NAME", "aws-sdlc-containers")
+    monkeypatch.setattr(
+        sys,
+        "argv",
+        [
+            "verify_release_event_loki_delivery.py",
+            "--timeout-seconds",
+            "1",
+        ],
+    )
+
+    assert release_verify.main() == 0
+    assert pushed_events[0]["event_type"] == "release_event_delivery_probe"
+    assert pushed_events[0]["probe_id"].startswith("probe-")
+    assert "release_event_delivery_probe" in str(queries[0]["query"])
 
 
 def test_cloud_traffic_generator_exercises_representative_api_paths(

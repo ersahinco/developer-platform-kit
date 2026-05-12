@@ -109,6 +109,17 @@ is not reachable from the runner. `make incident-evidence` also queries the
 same Loki release-event stream when `LOKI_URL` is set, then merges those records
 with any downloaded `release-evidence-*` artifacts.
 
+For production CI publishing, configure `LOKI_PUSH_URL` on the GitHub `aws`
+environment as a secret when the URL contains credentials, or as a variable only
+when the endpoint is already private to the runner. Do not point GitHub-hosted
+runners at the private ECS service-discovery name; use a VPC self-hosted runner
+or another reviewed private network path. Verify the configured path with a
+round-trip probe before treating CI-to-Loki delivery events as active:
+
+```bash
+LOKI_URL=http://127.0.0.1:3100 make release-event-delivery-verify
+```
+
 To include downloaded release evidence artifacts in the next incident bundle:
 
 ```bash
@@ -326,6 +337,7 @@ To verify Loki as well, open a private path to Loki or Grafana's network and set
 ```bash
 make loki-tunnel
 LOKI_URL=http://127.0.0.1:3100 make observability-delivery-verify
+LOKI_URL=http://127.0.0.1:3100 make release-event-delivery-verify
 ```
 
 Useful overrides:
@@ -335,6 +347,7 @@ Useful overrides:
 | `CLOUDWATCH_LOG_FRESHNESS_SECONDS` | Recent-event window for always-on CloudWatch log groups. Defaults to `86400`. |
 | `CLOUDWATCH_FRESH_LOG_GROUPS` | Comma-separated suffixes to freshness-check, for example `app,pgbouncer,order-event-consumer`. |
 | `LOKI_URL` | Enables Loki `log_group` inventory and delivery checks through `/loki/api/v1/series` and `/loki/api/v1/query_range`. |
+| `LOKI_PUSH_URL` | Enables release-event push verification and CI release-event publishing through `/loki/api/v1/push`; use a GitHub environment secret if it contains credentials. |
 | `LOKI_LABEL_LOOKBACK_SECONDS` | Lookback window for expected Loki `log_group` labels. Defaults to `2592000`. |
 | `LOKI_FRESH_LOG_GROUPS` | Comma-separated log-group suffixes to freshness-check in Loki. Defaults to `app,loki`; add quiet or batch groups after generating representative traffic for them. |
 

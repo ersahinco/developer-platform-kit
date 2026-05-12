@@ -256,7 +256,7 @@ jobs:
       - name: Write app deploy evidence
         if: ${{ always() }}
         env:
-          LOKI_PUSH_URL: ${{ vars.LOKI_PUSH_URL }}
+          LOKI_PUSH_URL: ${{ secrets.LOKI_PUSH_URL || vars.LOKI_PUSH_URL }}
           LOKI_URL: ${{ vars.LOKI_URL }}
         run: |
           python3 scripts/observability/release_event.py \

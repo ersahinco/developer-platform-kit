@@ -257,6 +257,12 @@ observability-delivery-verify: ## Verify CloudWatch/Loki log delivery inventory 
 	STACK_NAME="aws-sdlc-containers" \
 	uv run python scripts/observability/verify_observability_delivery.py
 
+.PHONY: release-event-delivery-verify
+release-event-delivery-verify: ## Verify release-event push/query round-trip through Loki
+	@AWS_REGION="$(AWS_REGION)" \
+	STACK_NAME="aws-sdlc-containers" \
+	uv run python scripts/observability/verify_release_event_loki_delivery.py
+
 .PHONY: observability-cloud-traffic
 observability-cloud-traffic: ## Generate live API traffic and small cloud probes for Grafana/CloudWatch observation
 	@AWS_REGION="$(AWS_REGION)" \
