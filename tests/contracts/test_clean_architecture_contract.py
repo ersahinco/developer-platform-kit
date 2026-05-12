@@ -170,6 +170,34 @@ def test_canonical_docs_do_not_contain_session_prompt_blocks() -> None:
         assert forbidden not in docs
 
 
+def test_documentation_inventory_keeps_canonical_docs_linked() -> None:
+    readme = (ROOT / "README.md").read_text(encoding="utf-8")
+    top_level_docs = sorted((ROOT / "docs").glob("*.md"))
+
+    missing_from_readme = [
+        str(path.relative_to(ROOT))
+        for path in top_level_docs
+        if f"({path.relative_to(ROOT)})" not in readme
+    ]
+
+    assert missing_from_readme == []
+
+    for collection in ["runbooks", "drills"]:
+        index = (ROOT / "docs" / collection / "README.md").read_text(encoding="utf-8")
+        child_docs = sorted(
+            path
+            for path in (ROOT / "docs" / collection).glob("*.md")
+            if path.name != "README.md"
+        )
+        missing_from_index = [
+            str(path.relative_to(ROOT))
+            for path in child_docs
+            if f"({path.name})" not in index
+        ]
+
+        assert missing_from_index == []
+
+
 def test_long_running_workloads_implement_portable_app_contract() -> None:
     for app_name in ["api", "order_event_consumer"]:
         text = (ROOT / "apps" / app_name / "main.py").read_text(encoding="utf-8")
