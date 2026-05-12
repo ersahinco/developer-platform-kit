@@ -144,18 +144,41 @@ jobs:
         run: terraform apply -auto-approve app.tfplan
         working-directory: infra/app
 
+  evidence:
+    name: Evidence
+    needs: apply
+    if: >
+      always() &&
+      inputs.confirm_apply == 'apply' &&
+      github.ref_name == github.event.repository.default_branch
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    environment: aws
+    permissions:
+      contents: read
+      id-token: write
+
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
+        with:
+          persist-credentials: false
+
+      - uses: aws-actions/configure-aws-credentials@a89a83ec143615402a01f672b6e172b7b1875000 # v6
+        with:
+          role-to-assume: ${{ secrets.AWS_ROLE_ARN }}
+          aws-region: ${{ env.AWS_REGION }}
+
       - name: Write infra apply evidence
-        if: ${{ always() }}
         env:
           LOKI_PUSH_URL: ${{ secrets.LOKI_PUSH_URL || vars.LOKI_PUSH_URL }}
           LOKI_URL: ${{ vars.LOKI_URL }}
         run: |
           python3 scripts/observability/release_event.py \
             --event-type infra_apply \
-            --status "${{ job.status }}" \
-            --summary "Infra apply workflow completed with status ${{ job.status }}" \
+            --status "${{ needs.apply.result }}" \
+            --summary "Infra apply workflow completed with apply=${{ needs.apply.result }}" \
             --service-name infra \
-            --plan-run-id "${{ steps.plan.outputs.run_id }}" \
+            --plan-run-id "${{ env.PLAN_RUN_ID }}" \
             --include-alarms \
             --push-loki \
             --loki-push-best-effort \

@@ -443,6 +443,7 @@ def test_release_evidence_events_are_emitted_by_cloud_changing_workflows() -> No
     assert "loki_count" in evidence_script
     assert "LOKI_URL" in docs
     assert "migration failures still leave a portable timeline artifact" in docs
+    assert "failed or partial applies retain the reviewed plan ID" in docs
 
     delivery_annotation = next(
         item
@@ -499,6 +500,17 @@ def test_release_evidence_events_are_emitted_by_cloud_changing_workflows() -> No
     assert '--status "${status}"' in app_deploy
     assert "${{ needs.deploy.outputs.task_definition }}" in app_deploy
     assert "${{ needs.deploy.outputs.verify_seconds }}" in app_deploy
+
+    infra_apply = workflows["infra_apply"]
+    infra_apply_evidence_job = "evidence:\n    name: Evidence\n    needs: apply"
+    assert infra_apply_evidence_job in infra_apply
+    assert "always() &&" in infra_apply
+    assert '--status "${{ needs.apply.result }}"' in infra_apply
+    assert (
+        "Infra apply workflow completed with apply=${{ needs.apply.result }}"
+        in infra_apply
+    )
+    assert '--plan-run-id "${{ env.PLAN_RUN_ID }}"' in infra_apply
 
 
 def test_app_overview_uses_loki_for_order_event_worker_outcomes() -> None:
