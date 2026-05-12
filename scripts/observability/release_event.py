@@ -28,6 +28,47 @@ DEFAULT_ALARM_SUFFIXES = [
     "data-export-job-failures",
 ]
 
+REQUIRED_EVENT_FIELDS = [
+    ("schema_version",),
+    ("event_type",),
+    ("status",),
+    ("summary",),
+    ("timestamp",),
+    ("stack", "name"),
+    ("stack", "environment"),
+    ("stack", "region"),
+    ("stack", "root_domain"),
+    ("service",),
+    ("revision", "image_tag"),
+    ("revision", "task_definition"),
+    ("revision", "previous_task_definition"),
+    ("revision", "drill_task_definition"),
+    ("revision", "plan_run_id"),
+    ("runtime", "fault_mode"),
+    ("runtime", "read_mode"),
+    ("runtime", "write_mode"),
+    ("slo", "rollback_seconds"),
+    ("slo", "rollback_slo_seconds"),
+    ("slo", "verify_seconds"),
+    ("slo", "verify_slo_seconds"),
+    ("alarm_snapshot",),
+    ("github", "repository"),
+    ("github", "run_id"),
+    ("github", "run_attempt"),
+    ("github", "run_url"),
+    ("github", "workflow"),
+    ("github", "job"),
+    ("github", "sha"),
+    ("github", "ref_name"),
+    ("github", "actor"),
+    ("correlation", "stack"),
+    ("correlation", "environment"),
+    ("correlation", "service"),
+    ("correlation", "image_tag"),
+    ("correlation", "task_definition"),
+    ("correlation", "github_run_id"),
+]
+
 
 def _clean_optional(value: str | None) -> str | None:
     if value is None or value == "":
@@ -206,6 +247,23 @@ def build_event(
     }
 
 
+def validate_event_contract(event: dict[str, Any]) -> None:
+    missing: list[str] = []
+    for path in REQUIRED_EVENT_FIELDS:
+        current: Any = event
+        for part in path:
+            if not isinstance(current, dict) or part not in current:
+                missing.append(".".join(path))
+                break
+            current = current[part]
+
+    if missing:
+        raise ValueError(
+            "Release event is missing required contract fields: "
+            + ", ".join(sorted(missing))
+        )
+
+
 def render_markdown(event: dict[str, Any]) -> str:
     revision = event["revision"]
     slo = event["slo"]
@@ -286,6 +344,7 @@ def render_markdown(event: dict[str, Any]) -> str:
 
 
 def write_event(event: dict[str, Any], output_dir: Path) -> tuple[Path, Path, Path]:
+    validate_event_contract(event)
     output_dir.mkdir(parents=True, exist_ok=True)
     json_path = output_dir / "release-event.json"
     jsonl_path = output_dir / "release-event.jsonl"

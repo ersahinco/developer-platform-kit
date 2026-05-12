@@ -6,6 +6,8 @@ from datetime import UTC, datetime, timedelta
 from pathlib import Path
 from typing import Any
 
+import pytest
+
 ROOT = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(ROOT))
 
@@ -475,6 +477,41 @@ def test_release_event_writes_markdown_json_and_jsonl(tmp_path: Path) -> None:
     assert event["correlation"]["github_run_id"] == "25704755534"
     assert event["revision"]["image_tag"].startswith("sha-")
     assert event["alarm_snapshot"]["alarms"][0]["state"] == "OK"
+
+
+def test_release_event_contract_requires_portable_fields() -> None:
+    event = release_event.build_event(
+        event_type="app_deploy",
+        status="success",
+        summary="App deploy verification passed",
+        service_name="app",
+        image_tag="sha-1234567890abcdef1234567890abcdef12345678",
+        task_definition="arn:aws:ecs:task-definition/aws-sdlc-containers:9",
+        previous_task_definition=None,
+        drill_task_definition=None,
+        plan_run_id=None,
+        fault_mode=None,
+        read_mode="legacy",
+        write_mode="dual",
+        rollback_seconds=None,
+        rollback_slo_seconds=None,
+        verify_seconds=12,
+        verify_slo_seconds=120,
+        env={
+            "STACK_NAME": "aws-sdlc-containers",
+            "AWS_REGION": "eu-central-1",
+            "GITHUB_REPOSITORY": "ersahinco/aws-sdlc-containers",
+            "GITHUB_RUN_ID": "25704755534",
+            "GITHUB_WORKFLOW": "App Deploy",
+        },
+    )
+
+    release_event.validate_event_contract(event)
+
+    broken_event = {**event, "github": {**event["github"]}}
+    del broken_event["github"]["run_id"]
+    with pytest.raises(ValueError, match="github.run_id"):
+        release_event.validate_event_contract(broken_event)
 
 
 def test_release_event_captures_cloudwatch_alarm_snapshot(monkeypatch) -> None:
