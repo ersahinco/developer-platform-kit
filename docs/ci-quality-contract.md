@@ -3,6 +3,7 @@
 GitHub Actions is the current delivery control plane. The portable contract is
 the gate shape: the same app, contract, security, workflow, docs, image, and
 Terraform checks should run before code reaches deployable artifacts.
+`tests/contracts/test_ci_quality_contract.py` keeps this inventory enforced.
 
 ## Standard Gates
 
