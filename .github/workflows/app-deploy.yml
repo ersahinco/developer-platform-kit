@@ -255,6 +255,9 @@ jobs:
 
       - name: Write app deploy evidence
         if: ${{ always() }}
+        env:
+          LOKI_PUSH_URL: ${{ vars.LOKI_PUSH_URL }}
+          LOKI_URL: ${{ vars.LOKI_URL }}
         run: |
           python3 scripts/observability/release_event.py \
             --event-type app_deploy \
@@ -264,6 +267,9 @@ jobs:
             --image-tag "${{ env.IMAGE_TAG }}" \
             --task-definition "${{ steps.deploy-app.outputs.task_def_arn }}" \
             --verify-seconds "${{ steps.verify-app.outputs.verify_seconds }}" \
+            --include-alarms \
+            --push-loki \
+            --loki-push-best-effort \
             --output-dir /tmp/release-evidence/app-deploy
           cat /tmp/release-evidence/app-deploy/release-event.md >> "$GITHUB_STEP_SUMMARY"
 

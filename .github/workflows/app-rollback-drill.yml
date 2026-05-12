@@ -268,6 +268,9 @@ jobs:
 
       - name: Write app rollback drill evidence
         if: ${{ always() }}
+        env:
+          LOKI_PUSH_URL: ${{ vars.LOKI_PUSH_URL }}
+          LOKI_URL: ${{ vars.LOKI_URL }}
         run: |
           python3 scripts/observability/release_event.py \
             --event-type app_rollback_drill \
@@ -283,6 +286,9 @@ jobs:
             --rollback-slo-seconds "${{ inputs.fault_mode == 'error' && env.APP_ROLLBACK_ERROR_SLO_SECONDS || env.APP_ROLLBACK_LATENCY_SLO_SECONDS }}" \
             --verify-seconds "${{ steps.verify-restored.outputs.verify_seconds }}" \
             --verify-slo-seconds "${{ env.APP_ROLLBACK_VERIFY_SLO_SECONDS }}" \
+            --include-alarms \
+            --push-loki \
+            --loki-push-best-effort \
             --output-dir /tmp/release-evidence/app-rollback-drill
           cat /tmp/release-evidence/app-rollback-drill/release-event.md >> "$GITHUB_STEP_SUMMARY"
 

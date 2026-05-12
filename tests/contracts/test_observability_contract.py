@@ -416,13 +416,28 @@ def test_release_evidence_events_are_emitted_by_cloud_changing_workflows() -> No
     assert "release-event.jsonl" in event_script
     assert "release-event.md" in event_script
     assert "loki/api/v1/push" in event_script
+    assert "capture_alarm_snapshot" in event_script
+    assert "--loki-push-best-effort" in event_script
+    assert "--include-alarms" in event_script
     assert "release evidence events" in docs
     assert "JSONL artifacts" in docs
     assert "Delivery Events" in docs
+    assert "dashboard annotations" in docs
+    assert "CloudWatch alarm" in docs
+    assert "LOKI_PUSH_URL" in docs
     assert "RELEASE_EVENTS_DIR" in docs
     assert "release-evidence-*" in docs
     assert "release_events" in evidence_script
     assert "--release-events-dir" in evidence_script
+
+    delivery_annotation = next(
+        item
+        for item in dashboard["annotations"]["list"]
+        if item["name"] == "Delivery Events"
+    )
+    assert delivery_annotation["datasource"]["type"] == "loki"
+    assert "event_type" in delivery_annotation["expr"]
+    assert "infra_apply" in delivery_annotation["expr"]
 
     delivery_panel = next(
         panel for panel in dashboard["panels"] if panel["title"] == "Delivery Events"
@@ -437,6 +452,11 @@ def test_release_evidence_events_are_emitted_by_cloud_changing_workflows() -> No
     for event_type, workflow in workflows.items():
         assert "scripts/observability/release_event.py" in workflow
         assert f"--event-type {event_type}" in workflow
+        assert "--include-alarms" in workflow
+        assert "--push-loki" in workflow
+        assert "--loki-push-best-effort" in workflow
+        assert "LOKI_PUSH_URL" in workflow
+        assert "LOKI_URL" in workflow
         assert "actions/upload-artifact" in workflow
         assert "release-evidence-" in workflow
         assert 'release-event.md >> "$GITHUB_STEP_SUMMARY"' in workflow

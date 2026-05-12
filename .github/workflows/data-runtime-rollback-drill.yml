@@ -233,6 +233,9 @@ jobs:
 
       - name: Write data runtime rollback evidence
         if: ${{ always() }}
+        env:
+          LOKI_PUSH_URL: ${{ vars.LOKI_PUSH_URL }}
+          LOKI_URL: ${{ vars.LOKI_URL }}
         run: |
           python3 scripts/observability/release_event.py \
             --event-type data_runtime_rollback_drill \
@@ -245,6 +248,9 @@ jobs:
             --rollback-slo-seconds "${{ env.DATA_RUNTIME_ROLLBACK_SLO_SECONDS }}" \
             --verify-seconds "${{ steps.verify-restored.outputs.verify_seconds }}" \
             --verify-slo-seconds "${{ env.DATA_RUNTIME_VERIFY_SLO_SECONDS }}" \
+            --include-alarms \
+            --push-loki \
+            --loki-push-best-effort \
             --output-dir /tmp/release-evidence/data-runtime-rollback-drill
           cat /tmp/release-evidence/data-runtime-rollback-drill/release-event.md >> "$GITHUB_STEP_SUMMARY"
 

@@ -96,12 +96,16 @@ Delivery workflows also emit release evidence events. `App Deploy`,
 `App No-Data Rollback Drill`, `Data Runtime Rollback Drill`, and `Infra Apply`
 write a small `release-event.json`, `release-event.jsonl`, and
 `release-event.md` artifact with the GitHub run ID, image tag or plan run,
-task definition, rollback timing, verification timing, and stable labels. These
-events close the main Assistant-style gap between deploy context and telemetry:
-operators can line up a symptom window with the exact workflow run and revision
-without scraping GitHub summaries by hand.
+task definition, rollback timing, verification timing, CloudWatch alarm
+snapshot, and stable labels. These events close the main Assistant-style gap
+between deploy context and telemetry: operators can line up a symptom window
+with the exact workflow run, revision, and alarm state without scraping GitHub
+summaries by hand.
 `AWS SDLC Containers / App Overview` includes a Loki-backed `Delivery Events`
-panel for these records when they are pushed to Loki.
+panel and dashboard annotations for these records when they are pushed to Loki.
+The workflows push them best-effort when the repository or environment provides
+`LOKI_PUSH_URL` or `LOKI_URL`; the artifact remains the source of truth if Loki
+is not reachable from the runner.
 
 To include downloaded release evidence artifacts in the next incident bundle:
 
@@ -123,7 +127,9 @@ python scripts/observability/release_event.py \
   --event-type app_deploy \
   --status success \
   --service-name app \
-  --push-loki
+  --include-alarms \
+  --push-loki \
+  --loki-push-best-effort
 ```
 
 ## CloudWatch Inventory

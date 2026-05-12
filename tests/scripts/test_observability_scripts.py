@@ -346,6 +346,19 @@ def test_incident_evidence_bundle_includes_recent_release_events(
 
 
 def test_release_event_writes_markdown_json_and_jsonl(tmp_path: Path) -> None:
+    alarm_snapshot = {
+        "captured_at": "2026-05-12T10:00:00+00:00",
+        "region": "eu-central-1",
+        "alarms": [
+            {
+                "name": "aws-sdlc-containers-app-target-5xx",
+                "state": "OK",
+                "reason": "Threshold not breached",
+                "updated_at": "2026-05-12T09:59:00+00:00",
+            }
+        ],
+        "errors": [],
+    }
     event = release_event.build_event(
         event_type="app_deploy",
         status="success",
@@ -363,6 +376,7 @@ def test_release_event_writes_markdown_json_and_jsonl(tmp_path: Path) -> None:
         rollback_slo_seconds=None,
         verify_seconds=12,
         verify_slo_seconds=120,
+        alarm_snapshot=alarm_snapshot,
         env={
             "STACK_NAME": "aws-sdlc-containers",
             "AWS_REGION": "eu-central-1",
@@ -380,8 +394,73 @@ def test_release_event_writes_markdown_json_and_jsonl(tmp_path: Path) -> None:
     assert "Release Evidence Event" in markdown
     assert "app_deploy" in markdown
     assert "25704755534" in markdown
+    assert "Alarm Snapshot" in markdown
+    assert "aws-sdlc-containers-app-target-5xx: OK" in markdown
     assert event["correlation"]["github_run_id"] == "25704755534"
     assert event["revision"]["image_tag"].startswith("sha-")
+    assert event["alarm_snapshot"]["alarms"][0]["state"] == "OK"
+
+
+def test_release_event_captures_cloudwatch_alarm_snapshot(monkeypatch) -> None:
+    def fake_aws_json(args: list[str], region: str) -> dict[str, Any]:
+        assert region == "eu-central-1"
+        assert args[:3] == ["cloudwatch", "describe-alarms", "--alarm-names"]
+        assert "aws-sdlc-containers-app-target-5xx" in args
+        return {
+            "MetricAlarms": [
+                {
+                    "AlarmName": "aws-sdlc-containers-app-target-5xx",
+                    "StateValue": "ALARM",
+                    "StateReason": "5xx rollback drill fault observed",
+                    "StateUpdatedTimestamp": "2026-05-12T10:00:00+00:00",
+                }
+            ]
+        }
+
+    monkeypatch.setattr(release_event, "_aws_json", fake_aws_json)
+
+    snapshot = release_event.capture_alarm_snapshot(
+        stack_name="aws-sdlc-containers",
+        region="eu-central-1",
+        alarm_names=[],
+        now=datetime(2026, 5, 12, 10, 1, tzinfo=UTC),
+    )
+
+    assert snapshot["errors"] == []
+    assert snapshot["alarms"][0]["name"] == "aws-sdlc-containers-app-target-5xx"
+    assert snapshot["alarms"][0]["state"] == "ALARM"
+
+
+def test_release_event_best_effort_loki_push_keeps_artifact(
+    monkeypatch,
+    tmp_path: Path,
+) -> None:
+    def fail_push(event: dict[str, Any], url: str) -> None:
+        raise OSError("loki unavailable")
+
+    monkeypatch.setattr(release_event, "push_loki", fail_push)
+    monkeypatch.setattr(
+        sys,
+        "argv",
+        [
+            "release_event.py",
+            "--event-type",
+            "infra_apply",
+            "--status",
+            "failure",
+            "--service-name",
+            "infra",
+            "--output-dir",
+            str(tmp_path),
+            "--push-loki",
+            "--loki-push-best-effort",
+            "--loki-url",
+            "http://loki:3100/loki/api/v1/push",
+        ],
+    )
+
+    assert release_event.main() == 0
+    assert (tmp_path / "release-event.json").is_file()
 
 
 def test_release_event_derives_loki_push_url_from_loki_url() -> None:

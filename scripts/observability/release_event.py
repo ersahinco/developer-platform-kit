@@ -14,9 +14,19 @@ from datetime import UTC, datetime
 from pathlib import Path
 import re
 import sys
+import subprocess
 import time
 from typing import Any
 from urllib import error, request
+
+DEFAULT_ALARM_SUFFIXES = [
+    "app-target-5xx",
+    "app-target-latency",
+    "app-log-errors",
+    "app-log-rollback-drill-faults",
+    "order-event-consumer-failures",
+    "data-export-job-failures",
+]
 
 
 def _clean_optional(value: str | None) -> str | None:
@@ -53,6 +63,71 @@ def _github_context(env: dict[str, str]) -> dict[str, str | None]:
     }
 
 
+def _default_alarm_names(stack_name: str) -> list[str]:
+    return [f"{stack_name}-{suffix}" for suffix in DEFAULT_ALARM_SUFFIXES]
+
+
+def _aws_json(args: list[str], region: str) -> dict[str, Any]:
+    command = [
+        "aws",
+        *args,
+        "--region",
+        region,
+        "--output",
+        "json",
+    ]
+    completed = subprocess.run(
+        command,
+        check=True,
+        capture_output=True,
+        text=True,
+    )
+    return json.loads(completed.stdout or "{}")
+
+
+def capture_alarm_snapshot(
+    *,
+    stack_name: str,
+    region: str,
+    alarm_names: list[str] | None,
+    now: datetime | None = None,
+) -> dict[str, Any]:
+    now = datetime.now(UTC) if now is None else now
+    names = alarm_names if alarm_names else _default_alarm_names(stack_name)
+    snapshot: dict[str, Any] = {
+        "captured_at": now.isoformat(),
+        "region": region,
+        "alarms": [],
+        "errors": [],
+    }
+    if not names:
+        return snapshot
+
+    try:
+        response = _aws_json(
+            ["cloudwatch", "describe-alarms", "--alarm-names", *names],
+            region,
+        )
+    except (
+        FileNotFoundError,
+        json.JSONDecodeError,
+        subprocess.CalledProcessError,
+    ) as exc:
+        snapshot["errors"].append(str(exc))
+        return snapshot
+
+    for alarm in response.get("MetricAlarms", []):
+        snapshot["alarms"].append(
+            {
+                "name": alarm.get("AlarmName"),
+                "state": alarm.get("StateValue"),
+                "reason": alarm.get("StateReason"),
+                "updated_at": alarm.get("StateUpdatedTimestamp"),
+            }
+        )
+    return snapshot
+
+
 def build_event(
     *,
     event_type: str,
@@ -71,6 +146,7 @@ def build_event(
     rollback_slo_seconds: int | None,
     verify_seconds: int | None,
     verify_slo_seconds: int | None,
+    alarm_snapshot: dict[str, Any] | None = None,
     env: dict[str, str] | None = None,
     now: datetime | None = None,
 ) -> dict[str, Any]:
@@ -110,6 +186,14 @@ def build_event(
             "verify_seconds": verify_seconds,
             "verify_slo_seconds": verify_slo_seconds,
         },
+        "alarm_snapshot": alarm_snapshot
+        if alarm_snapshot is not None
+        else {
+            "captured_at": None,
+            "region": env.get("AWS_REGION", "eu-central-1"),
+            "alarms": [],
+            "errors": [],
+        },
         "github": _github_context(env),
         "correlation": {
             "stack": stack_name,
@@ -126,6 +210,7 @@ def render_markdown(event: dict[str, Any]) -> str:
     revision = event["revision"]
     slo = event["slo"]
     github = event["github"]
+    alarm_snapshot = event.get("alarm_snapshot", {})
     lines = [
         "# Release Evidence Event",
         "",
@@ -166,6 +251,20 @@ def render_markdown(event: dict[str, Any]) -> str:
     present_slo_lines = [line for line in slo_lines if line is not None]
     if present_slo_lines:
         lines.extend(["", "## SLO Evidence", *present_slo_lines])
+
+    alarm_lines = []
+    for alarm in alarm_snapshot.get("alarms", []):
+        alarm_lines.append(
+            "- %s: %s"
+            % (
+                alarm.get("name", "unknown"),
+                alarm.get("state", "unknown"),
+            )
+        )
+    for alarm_error in alarm_snapshot.get("errors", []):
+        alarm_lines.append(f"- Alarm snapshot error: {alarm_error}")
+    if alarm_lines:
+        lines.extend(["", "## Alarm Snapshot", *alarm_lines])
 
     lines.extend(
         [
@@ -276,7 +375,41 @@ def main() -> int:
     )
     parser.add_argument("--push-loki", action="store_true")
     parser.add_argument("--loki-url")
+    parser.add_argument(
+        "--loki-push-best-effort",
+        action="store_true",
+        help="Keep the artifact even when an optional Loki push fails.",
+    )
+    parser.add_argument(
+        "--include-alarms",
+        action="store_true",
+        help="Include a CloudWatch alarm-state snapshot for rollback context.",
+    )
+    parser.add_argument(
+        "--alarm-name",
+        action="append",
+        default=[],
+        help="CloudWatch alarm name to capture; defaults to the app alarm set.",
+    )
+    parser.add_argument(
+        "--strict-alarms",
+        action="store_true",
+        help="Fail if alarm snapshot collection fails.",
+    )
     args = parser.parse_args()
+
+    env = dict(os.environ)
+    alarm_snapshot = None
+    if args.include_alarms:
+        alarm_snapshot = capture_alarm_snapshot(
+            stack_name=env.get("STACK_NAME", "aws-sdlc-containers"),
+            region=env.get("AWS_REGION", "eu-central-1"),
+            alarm_names=args.alarm_name,
+        )
+        if args.strict_alarms and alarm_snapshot["errors"]:
+            for alarm_error in alarm_snapshot["errors"]:
+                print(f"Alarm snapshot failed: {alarm_error}", file=sys.stderr)
+            return 1
 
     event = build_event(
         event_type=args.event_type,
@@ -295,6 +428,8 @@ def main() -> int:
         rollback_slo_seconds=_int_optional(args.rollback_slo_seconds),
         verify_seconds=_int_optional(args.verify_seconds),
         verify_slo_seconds=_int_optional(args.verify_slo_seconds),
+        alarm_snapshot=alarm_snapshot,
+        env=env,
     )
     json_path, jsonl_path, markdown_path = write_event(event, args.output_dir)
     print(f"Wrote {markdown_path}")
@@ -302,7 +437,7 @@ def main() -> int:
     print(f"Wrote {jsonl_path}")
 
     if args.push_loki:
-        url = loki_push_url(dict(os.environ), args.loki_url)
+        url = loki_push_url(env, args.loki_url)
         if url is None:
             print("LOKI_PUSH_URL or LOKI_URL not set; skipping Loki push.")
         else:
@@ -311,7 +446,8 @@ def main() -> int:
                 print(f"Pushed release event to {url}")
             except (OSError, RuntimeError, error.URLError) as exc:
                 print(f"Failed to push release event to Loki: {exc}", file=sys.stderr)
-                return 1
+                if not args.loki_push_best_effort:
+                    return 1
 
     return 0
 
