@@ -321,6 +321,45 @@ def test_repository_does_not_track_generated_or_placeholder_artifacts() -> None:
         assert not path.exists()
 
 
+def test_tracked_scripts_are_referenced_outside_themselves() -> None:
+    tracked_files = subprocess.run(
+        ["git", "ls-files"],
+        check=True,
+        capture_output=True,
+        text=True,
+    ).stdout.splitlines()
+    script_paths = [
+        path
+        for path in tracked_files
+        if path.startswith("scripts/")
+        and Path(path).suffix in {".py", ".sh"}
+        and Path(path).name != "__init__.py"
+    ]
+    reference_paths = [
+        path
+        for path in tracked_files
+        if path == "Makefile"
+        or path == "README.md"
+        or path.startswith((".github/", "docs/", "platform/", "scripts/", "tests/"))
+    ]
+
+    unreferenced_scripts = []
+    for script_path in script_paths:
+        script_name = Path(script_path).name
+        references = []
+        for reference_path in reference_paths:
+            if reference_path == script_path:
+                continue
+            text = (ROOT / reference_path).read_text(encoding="utf-8")
+            if script_path in text or script_name in text:
+                references.append(reference_path)
+
+        if not references:
+            unreferenced_scripts.append(script_path)
+
+    assert unreferenced_scripts == []
+
+
 def test_platform_root_stays_bootstrap_and_github_oidc_only() -> None:
     platform_tf = "\n".join(
         path.read_text(encoding="utf-8")
