@@ -9,11 +9,10 @@ Terraform is organized by lifecycle boundary:
   edge, S3 data hub, scheduled jobs, Dapr-backed SNS/SQS queues, app IAM, CloudWatch app
   alarms, and optional Grafana/Loki/Prometheus observability.
 
-There is no Terraform root directly in `infra/` anymore. The old single-root
-state key, `aws-sdlc-containers/stack.tfstate`, has been retired. Use the split
-roots only. The empty retired object was archived under
-`aws-sdlc-containers/retired/stack.tfstate-2026-05-01.json` and removed from
-the active state prefix on May 2, 2026.
+`infra/` is an index and shared configuration boundary, not a runnable
+Terraform root. Keep executable Terraform in the explicit lifecycle roots above
+so platform bootstrap, workload runtime, and application delivery ownership do
+not blur together.
 
 ## State Keys
 

@@ -246,6 +246,53 @@ def test_source_tree_is_flat_and_importable_by_folder_name() -> None:
     assert not [path for path in tracked_files if ".egg-info/" in path]
 
 
+def test_repository_does_not_track_generated_or_placeholder_artifacts() -> None:
+    tracked_files = subprocess.run(
+        ["git", "ls-files"],
+        check=True,
+        capture_output=True,
+        text=True,
+    ).stdout.splitlines()
+
+    forbidden_segments = [
+        "__pycache__/",
+        ".pytest_cache/",
+        ".ruff_cache/",
+        ".venv/",
+        ".terraform/",
+        ".egg-info/",
+        "/dist/",
+        "/build/",
+    ]
+    forbidden_suffixes = [
+        ".pyc",
+        ".pyo",
+        ".tmp",
+        ".bak",
+        ".swp",
+        "~",
+    ]
+
+    offenders = [
+        path
+        for path in tracked_files
+        if any(segment in f"{path}/" for segment in forbidden_segments)
+        or any(path.endswith(suffix) for suffix in forbidden_suffixes)
+    ]
+
+    assert offenders == []
+
+    placeholder_roots = [
+        ROOT / "deploy",
+        ROOT / "local",
+        ROOT / "ops",
+        ROOT / "security",
+    ]
+
+    for path in placeholder_roots:
+        assert not path.exists()
+
+
 def test_platform_root_stays_bootstrap_and_github_oidc_only() -> None:
     platform_tf = "\n".join(
         path.read_text(encoding="utf-8")
