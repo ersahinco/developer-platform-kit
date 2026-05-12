@@ -38,7 +38,7 @@ aws-sdlc-containers/
 |-- infra/                   # Terraform roots split by lifecycle
 |   |-- platform/
 |   `-- app/
-|-- platform/                # Machine-readable portable workload contract
+|-- platform/                # Machine-readable portable workload and runtime contracts
 |-- observability/           # Portable Prometheus, Loki, Promtail, Grafana assets
 |-- scripts/                 # Grouped CI, release, operator, data, and observability helpers
 |-- tests/                   # Pytest behavior, contract, and script checks

@@ -265,13 +265,18 @@ def test_portability_status_documents_intentional_provider_boundaries() -> None:
     platform_contract = (ROOT / "docs" / "platform-contract.md").read_text(
         encoding="utf-8"
     )
+    runtime_contract = (ROOT / "docs" / "runtime-capability-contract.md").read_text(
+        encoding="utf-8"
+    )
 
     assert "docs/portability-status.md" in readme
     assert "docs/platform-contract.md" in readme
+    assert "docs/runtime-capability-contract.md" in readme
     assert "Portable Baseline" in doc
     assert "Intentional Provider Dependencies" in doc
     assert "Current Gaps" in doc
     assert "App/platform contract" in doc
+    assert "Runtime capability contract" in doc
     assert "packages/domain" in doc
     assert "packages/application" in doc
     assert "Grafana CloudWatch datasource" in doc
@@ -281,7 +286,9 @@ def test_portability_status_documents_intentional_provider_boundaries() -> None:
     assert "Infra rollback stays reviewed `Infra Plan` plus `Infra Apply`" in doc
     assert "portability boundaries" in roadmap
     assert "portable app/platform contract" in roadmap.lower()
+    assert "runtime capability contract" in roadmap.lower()
     assert (ROOT / "platform" / "workloads.json").is_file()
+    assert (ROOT / "platform" / "runtime-capabilities.json").is_file()
     assert (ROOT / "scripts" / "ci" / "validate_platform_contract.py").is_file()
     assert app_build.count('- "platform/**"') == 2
     assert "uv run python scripts/ci/validate_platform_contract.py" in app_build
@@ -314,3 +321,27 @@ def test_portability_status_documents_intentional_provider_boundaries() -> None:
         "does not add a Kubernetes, Nomad, Azure, Google Cloud, or",
     ]:
         assert phrase in platform_contract
+
+    runtime_contract_lower = runtime_contract.lower()
+    for phrase in [
+        "platform/runtime-capabilities.json",
+        "container runtime",
+        "networking",
+        "identity",
+        "secrets",
+        "ingress",
+        "observability",
+        "jobs",
+        "rollout",
+        "rollback",
+        "release evidence",
+        "cost controls",
+        "terraform ownership",
+        "local/ci guardrails",
+        "eks",
+        "azure",
+        "gcp",
+        "without changing app/domain code",
+        "platform/delivery edges",
+    ]:
+        assert phrase in runtime_contract_lower

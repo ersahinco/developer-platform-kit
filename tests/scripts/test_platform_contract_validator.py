@@ -76,3 +76,41 @@ def test_platform_contract_validator_requires_trace_contract_for_jobs(
         "backfill_worker: traces.supported must be declared for every workload"
         in errors
     )
+
+
+def test_platform_contract_validator_rejects_missing_runtime_capability(
+    tmp_path: Path,
+) -> None:
+    contract_path = tmp_path / "runtime-capabilities.json"
+    contract = json.loads(
+        validator.DEFAULT_RUNTIME_CONTRACT.read_text(encoding="utf-8")
+    )
+    del contract["runtime_targets"][0]["capabilities"]["ingress"]
+    contract_path.write_text(json.dumps(contract), encoding="utf-8")
+
+    errors = validator.collect_errors(runtime_contract_path=contract_path)
+
+    assert any(
+        "aws-ecs: capabilities must match required_capabilities exactly" in error
+        for error in errors
+    )
+
+
+def test_platform_contract_validator_rejects_runtime_proof_drift(
+    tmp_path: Path,
+) -> None:
+    contract_path = tmp_path / "runtime-capabilities.json"
+    contract = json.loads(
+        validator.DEFAULT_RUNTIME_CONTRACT.read_text(encoding="utf-8")
+    )
+    contract["runtime_targets"][0]["capabilities"]["terraform_ownership"][
+        "required_tokens"
+    ].append("future_runtime_without_ownership_boundary")
+    contract_path.write_text(json.dumps(contract), encoding="utf-8")
+
+    errors = validator.collect_errors(runtime_contract_path=contract_path)
+
+    assert any(
+        "capability terraform_ownership proof is missing token" in error
+        for error in errors
+    )

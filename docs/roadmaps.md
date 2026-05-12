@@ -32,6 +32,9 @@ order/customer workload:
 - A documented portable app/platform contract for workload images, health,
   readiness, metrics, logs, traces, config, release evidence, and rollback
   categories before adding another runtime target.
+- A runtime capability contract for appendable hosting targets: networking,
+  identity, secrets, ingress, observability, jobs, rollout, rollback, release
+  evidence, cost controls, Terraform ownership, and local/CI guardrails.
 - Documented portability boundaries: app code, local runtime, observability
   assets, and incident evidence are portable; AWS and GitHub Actions remain
   intentional provider dependencies at the platform/delivery edges.
@@ -53,6 +56,7 @@ switch reads, new writes, and contract.
 | Current | Harden the app-owned Grafana/Loki/Tempo/Prometheus contract. | Keep the baseline OSS-portable: app-owned logs, metrics, traces, dashboards, and incident evidence should work without Grafana Cloud AI or a CloudWatch Grafana datasource. |
 | Current | Keep the portability boundary explicit. | See `docs/portability-status.md`: the app and observability evidence should travel, while AWS runtime infrastructure and GitHub Actions orchestration stay isolated provider edges. |
 | Current | Keep the portable app/platform contract explicit. | See `docs/platform-contract.md`: future apps and runtime targets should satisfy the workload contract before adding EKS, another cloud, or cheaper compute. |
+| Current | Keep the runtime capability contract explicit. | See `docs/runtime-capability-contract.md` and `platform/runtime-capabilities.json`: future runtime targets must satisfy the same capability set before being documented as supported. |
 | Current | Keep delivery rollback boundaries explicit. | App and data rollback drills are workflows; infra rollback uses reviewed `Infra Plan`/`Infra Apply`; completed one-off migration workflows are removed after execution. |
 | Done | Clean Architecture package shape. | The repo now uses `apps/*` hosts with `packages/domain`, `packages/application`, and `packages/infrastructure`, plus ownership-aligned tests and docs. |
 | Next | Revisit CloudWatch reduction toggles after dual-run. | Do not disable CloudWatch yet. Only app symptom and data-export success alarms have reduction toggles. |
@@ -86,6 +90,8 @@ switch reads, new writes, and contract.
   layout from GitHub automation through app, infra, scripts, tests, and docs.
 - `docs/platform-contract.md` defines the portable workload contract for future
   apps and runtime targets.
+- `docs/runtime-capability-contract.md` defines the runtime capability contract
+  for future hosting targets.
 - `docs/portability-status.md` states what is portable, what is intentionally
   provider-specific, and which portability gaps remain.
 - `docs/deployment.md` is the detailed AWS operator runbook.

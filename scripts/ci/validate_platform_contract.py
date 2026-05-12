@@ -9,8 +9,24 @@ from typing import Any
 
 ROOT = Path(__file__).resolve().parents[2]
 DEFAULT_CONTRACT = ROOT / "platform" / "workloads.json"
+DEFAULT_RUNTIME_CONTRACT = ROOT / "platform" / "runtime-capabilities.json"
 REQUIRED_RUNTIME_LOG_LABELS = {"stack", "environment", "service", "container"}
 ENV_NAME_RE = re.compile(r"^[A-Z][A-Z0-9_]*$")
+REQUIRED_RUNTIME_CAPABILITIES = {
+    "container_runtime",
+    "networking",
+    "identity",
+    "secrets",
+    "ingress",
+    "observability",
+    "jobs",
+    "rollout",
+    "rollback",
+    "release_evidence",
+    "cost_controls",
+    "terraform_ownership",
+    "local_ci_guardrails",
+}
 
 sys.path.insert(0, str(ROOT))
 
@@ -45,6 +61,19 @@ def _source_text(root: Path, workload: dict[str, Any]) -> str:
     for path in sorted(app_path.rglob("*.py")):
         parts.append(path.read_text(encoding="utf-8"))
     for path in sorted((root / "packages" / "application").rglob("*.py")):
+        parts.append(path.read_text(encoding="utf-8"))
+    return "\n".join(parts)
+
+
+def _joined_file_text(
+    root: Path, paths: list[str], errors: list[str], label: str
+) -> str:
+    parts = []
+    for raw_path in paths:
+        path = root / raw_path
+        if not path.is_file():
+            errors.append(f"{label}: proof file does not exist: {raw_path}")
+            continue
         parts.append(path.read_text(encoding="utf-8"))
     return "\n".join(parts)
 
@@ -201,9 +230,108 @@ def _check_release_evidence(contract: dict[str, Any], errors: list[str]) -> None
         )
 
 
+def _check_runtime_contract(
+    *,
+    root: Path,
+    runtime_contract_path: Path,
+    errors: list[str],
+) -> None:
+    contract = _load_json(runtime_contract_path)
+    if contract.get("schema_version") != "1":
+        errors.append("runtime schema_version must be '1'")
+
+    required = set(_as_strings(contract.get("required_capabilities")))
+    if required != REQUIRED_RUNTIME_CAPABILITIES:
+        errors.append(
+            "runtime required_capabilities must match the portable runtime contract"
+        )
+
+    future_rules = _as_strings(contract.get("future_runtime_rules"))
+    if len(future_rules) < 3:
+        errors.append("runtime future_runtime_rules must document append-only rules")
+
+    targets = contract.get("runtime_targets")
+    if not isinstance(targets, list) or not targets:
+        errors.append("runtime_targets must be a non-empty list")
+        return
+
+    current_targets = [
+        target
+        for target in targets
+        if isinstance(target, dict) and target.get("status") == "current"
+    ]
+    if len(current_targets) != 1:
+        errors.append("exactly one current runtime target must be declared")
+
+    for target in targets:
+        if not isinstance(target, dict):
+            errors.append("each runtime target must be an object")
+            continue
+
+        name = str(target.get("name", "<unknown>"))
+        if target.get("workload_contract") != "platform/workloads.json":
+            errors.append(
+                f"{name}: workload_contract must reference platform/workloads.json"
+            )
+
+        if target.get("orchestrator") != "github_actions":
+            errors.append(
+                f"{name}: orchestrator must be declared as github_actions today"
+            )
+
+        roots = target.get("terraform_roots", {})
+        for owner, expected_path in {
+            "bootstrap": "infra/platform",
+            "runtime": "infra/app",
+        }.items():
+            if not isinstance(roots, dict) or roots.get(owner) != expected_path:
+                errors.append(
+                    f"{name}: terraform_roots.{owner} must be {expected_path}"
+                )
+            elif not (root / expected_path).is_dir():
+                errors.append(f"{name}: terraform root is missing: {expected_path}")
+
+        capabilities = target.get("capabilities")
+        if not isinstance(capabilities, dict):
+            errors.append(f"{name}: capabilities must be an object")
+            continue
+        if set(capabilities) != REQUIRED_RUNTIME_CAPABILITIES:
+            errors.append(
+                f"{name}: capabilities must match required_capabilities exactly"
+            )
+
+        for capability in sorted(REQUIRED_RUNTIME_CAPABILITIES):
+            spec = capabilities.get(capability)
+            if not isinstance(spec, dict):
+                errors.append(f"{name}: capability {capability} must be an object")
+                continue
+
+            proof_files = _as_strings(spec.get("proof_files"))
+            required_tokens = _as_strings(spec.get("required_tokens"))
+            if not proof_files:
+                errors.append(f"{name}: capability {capability} needs proof_files")
+            if not required_tokens:
+                errors.append(f"{name}: capability {capability} needs required_tokens")
+            if not isinstance(spec.get("description"), str) or not spec["description"]:
+                errors.append(f"{name}: capability {capability} needs a description")
+
+            proof_text = _joined_file_text(
+                root,
+                proof_files,
+                errors,
+                f"{name}.{capability}",
+            )
+            for token in required_tokens:
+                if token not in proof_text:
+                    errors.append(
+                        f"{name}: capability {capability} proof is missing token {token!r}"
+                    )
+
+
 def collect_errors(
     root: Path = ROOT,
     contract_path: Path = DEFAULT_CONTRACT,
+    runtime_contract_path: Path = DEFAULT_RUNTIME_CONTRACT,
 ) -> list[str]:
     contract = _load_json(contract_path)
     errors: list[str] = []
@@ -246,6 +374,11 @@ def collect_errors(
             )
 
     _check_release_evidence(contract, errors)
+    _check_runtime_contract(
+        root=root,
+        runtime_contract_path=runtime_contract_path,
+        errors=errors,
+    )
     return errors
 
 
