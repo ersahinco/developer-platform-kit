@@ -5,6 +5,15 @@ another runtime before there is a real need. They are intentionally small:
 standard app surfaces, standard delivery checks, standard observability, and
 provider-specific details kept at platform edges.
 
+Canonical contracts:
+
+- [Workload Onboarding Contract](workload-onboarding-contract.md)
+- [Dapr Portability Contract](dapr-portability-contract.md)
+- [Config And Secrets Contract](config-secrets-contract.md)
+- [Observability Onboarding Contract](observability-onboarding-contract.md)
+- [CI Quality Contract](ci-quality-contract.md)
+- [Data And Object Storage Portability](data-object-storage-portability.md)
+
 ## New Workload
 
 Use this when adding a service, worker, scheduled job, or one-off job:

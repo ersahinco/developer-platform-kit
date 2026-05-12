@@ -23,7 +23,13 @@ work.
 | Portable app/platform contract | [docs/platform-contract.md](docs/platform-contract.md) |
 | Runtime capability contract | [docs/runtime-capability-contract.md](docs/runtime-capability-contract.md) |
 | Future runtime addition checklist | [docs/runtime-addition-checklist.md](docs/runtime-addition-checklist.md) |
+| Workload onboarding contract | [docs/workload-onboarding-contract.md](docs/workload-onboarding-contract.md) |
 | Database portability contract | [docs/database-portability-contract.md](docs/database-portability-contract.md) |
+| Dapr portability contract | [docs/dapr-portability-contract.md](docs/dapr-portability-contract.md) |
+| Config and secrets contract | [docs/config-secrets-contract.md](docs/config-secrets-contract.md) |
+| Observability onboarding contract | [docs/observability-onboarding-contract.md](docs/observability-onboarding-contract.md) |
+| CI quality contract | [docs/ci-quality-contract.md](docs/ci-quality-contract.md) |
+| Data/object storage portability | [docs/data-object-storage-portability.md](docs/data-object-storage-portability.md) |
 | Portable toolkit checklists | [docs/portable-toolkit-checklists.md](docs/portable-toolkit-checklists.md) |
 | Portability status | [docs/portability-status.md](docs/portability-status.md) |
 | Local development runbook | [docs/local-development.md](docs/local-development.md) |

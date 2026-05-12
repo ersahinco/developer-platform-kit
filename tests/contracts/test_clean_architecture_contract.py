@@ -106,6 +106,25 @@ def test_app_settings_do_not_name_current_runtime_provider() -> None:
         assert forbidden not in text
 
 
+def test_object_storage_provider_sdk_stays_in_infrastructure() -> None:
+    tracked_files = subprocess.run(
+        ["git", "ls-files", "*.py"],
+        check=True,
+        capture_output=True,
+        text=True,
+    ).stdout.splitlines()
+    offenders = []
+    for tracked_file in tracked_files:
+        path = ROOT / tracked_file
+        if path == Path(__file__):
+            continue
+        text = path.read_text(encoding="utf-8")
+        if "import boto3" in text or "from boto3" in text:
+            offenders.append(tracked_file)
+
+    assert offenders == ["packages/infrastructure/data_export.py"]
+
+
 def test_docs_do_not_describe_stale_core_adapter_or_direct_sqs_model() -> None:
     paths = [
         ROOT / "README.md",
@@ -281,9 +300,27 @@ def test_portability_status_documents_intentional_provider_boundaries() -> None:
     runtime_checklist = (ROOT / "docs" / "runtime-addition-checklist.md").read_text(
         encoding="utf-8"
     )
+    workload_contract = (ROOT / "docs" / "workload-onboarding-contract.md").read_text(
+        encoding="utf-8"
+    )
     database_contract = (ROOT / "docs" / "database-portability-contract.md").read_text(
         encoding="utf-8"
     )
+    dapr_contract = (ROOT / "docs" / "dapr-portability-contract.md").read_text(
+        encoding="utf-8"
+    )
+    config_contract = (ROOT / "docs" / "config-secrets-contract.md").read_text(
+        encoding="utf-8"
+    )
+    observability_onboarding = (
+        ROOT / "docs" / "observability-onboarding-contract.md"
+    ).read_text(encoding="utf-8")
+    ci_quality_contract = (ROOT / "docs" / "ci-quality-contract.md").read_text(
+        encoding="utf-8"
+    )
+    data_object_contract = (
+        ROOT / "docs" / "data-object-storage-portability.md"
+    ).read_text(encoding="utf-8")
     toolkit_checklists = (ROOT / "docs" / "portable-toolkit-checklists.md").read_text(
         encoding="utf-8"
     )
@@ -292,7 +329,13 @@ def test_portability_status_documents_intentional_provider_boundaries() -> None:
     assert "docs/platform-contract.md" in readme
     assert "docs/runtime-capability-contract.md" in readme
     assert "docs/runtime-addition-checklist.md" in readme
+    assert "docs/workload-onboarding-contract.md" in readme
     assert "docs/database-portability-contract.md" in readme
+    assert "docs/dapr-portability-contract.md" in readme
+    assert "docs/config-secrets-contract.md" in readme
+    assert "docs/observability-onboarding-contract.md" in readme
+    assert "docs/ci-quality-contract.md" in readme
+    assert "docs/data-object-storage-portability.md" in readme
     assert "docs/portable-toolkit-checklists.md" in readme
     assert "Portable Baseline" in doc
     assert "Intentional Provider Dependencies" in doc
@@ -391,6 +434,21 @@ def test_portability_status_documents_intentional_provider_boundaries() -> None:
     ]:
         assert phrase in runtime_checklist_lower
 
+    workload_contract_lower = workload_contract.lower()
+    for phrase in [
+        "workload onboarding contract",
+        "apps/<name>/main.py",
+        "apps/<name>/dockerfile",
+        "/health",
+        "/ready",
+        "/metrics",
+        "platform/workloads.json",
+        "rollback",
+        "release evidence",
+        "provider-specific env names",
+    ]:
+        assert phrase in workload_contract_lower
+
     database_contract_lower = database_contract.lower()
     for phrase in [
         "database portability contract",
@@ -409,8 +467,88 @@ def test_portability_status_documents_intentional_provider_boundaries() -> None:
     ]:
         assert phrase in database_contract_lower
 
+    dapr_contract_lower = dapr_contract.lower()
+    for phrase in [
+        "dapr portability contract",
+        "dapr pub/sub",
+        "cloudevents",
+        "sns/sqs",
+        "redis",
+        "kafka",
+        "azure service bus",
+        "gcp pub/sub",
+        "outbox",
+        "idempotency",
+        "provider-native sqs metrics",
+    ]:
+        assert phrase in dapr_contract_lower
+
+    config_contract_lower = config_contract.lower()
+    for phrase in [
+        "config and secrets contract",
+        "upper snake case",
+        "platform/workloads.json",
+        "a name cannot be both config and secret",
+        "db_password",
+        "runtime secret mechanism",
+        "github actions env",
+        "future runtime",
+    ]:
+        assert phrase in config_contract_lower
+
+    observability_onboarding_lower = observability_onboarding.lower()
+    for phrase in [
+        "observability onboarding contract",
+        "prometheus",
+        "loki-compatible structured logs",
+        "otlp/http traces",
+        "grafana",
+        "no cloudwatch datasource is required",
+        "incident",
+        "query hints",
+    ]:
+        assert phrase in observability_onboarding_lower
+
+    ci_quality_contract_lower = ci_quality_contract.lower()
+    for phrase in [
+        "ci quality contract",
+        "github actions",
+        "ruff format check",
+        "pyright",
+        "pytest",
+        "validate_platform_contract.py",
+        "actionlint",
+        "gitleaks",
+        "checkov",
+        "trivy",
+        "reviewed plan",
+    ]:
+        assert phrase in ci_quality_contract_lower
+
+    data_object_contract_lower = data_object_contract.lower()
+    for phrase in [
+        "data and object storage portability",
+        "s3 is the current aws implementation",
+        "raw/",
+        "curated/",
+        "manifests/",
+        "sha-256 checksum",
+        "data_export_s3_bucket",
+        "gcs",
+        "azure blob",
+        "supabase storage",
+        "provider sdk imports stay out",
+    ]:
+        assert phrase in data_object_contract_lower
+
     toolkit_checklists_lower = toolkit_checklists.lower()
     for phrase in [
+        "workload-onboarding-contract.md",
+        "dapr-portability-contract.md",
+        "config-secrets-contract.md",
+        "observability-onboarding-contract.md",
+        "ci-quality-contract.md",
+        "data-object-storage-portability.md",
         "new workload",
         "dapr eventing",
         "config and secrets",

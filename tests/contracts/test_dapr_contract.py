@@ -68,3 +68,34 @@ def test_app_build_validates_dapr_and_local_runtime_changes() -> None:
 
     assert app_build.count('- "compose.yaml"') == 2
     assert app_build.count('- "dapr/**"') == 2
+
+
+def test_dapr_portability_contract_keeps_broker_at_runtime_edge() -> None:
+    contract = _read("docs/dapr-portability-contract.md").lower()
+    consumer = _read("apps/order_event_consumer/main.py").lower()
+    adapter = _read("packages/infrastructure/dapr/pubsub.py").lower()
+    runtime_edge = "\n".join(
+        [
+            _read("infra/app/messaging.tf"),
+            _read("dapr/local/components/order-events-pubsub.yaml"),
+        ]
+    ).lower()
+
+    for phrase in [
+        "dapr pub/sub",
+        "cloudevents",
+        "outbox",
+        "sns/sqs",
+        "redis",
+        "kafka",
+        "azure service bus",
+        "gcp pub/sub",
+        "provider-native sqs metrics",
+    ]:
+        assert phrase in contract
+
+    assert "/v1.0/publish/" in adapter
+    assert "sns" not in consumer
+    assert "sqs" not in consumer
+    assert "boto3" not in consumer
+    assert "snssqs" in runtime_edge

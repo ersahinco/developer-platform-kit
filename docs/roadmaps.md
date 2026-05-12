@@ -39,6 +39,9 @@ order/customer workload:
   contract and RDS as the current AWS runtime implementation.
 - Portable toolkit checklists for adding workloads, Dapr eventing, config and
   secrets, observability, CI quality gates, and data/object storage behavior.
+- Dedicated portability contracts for workload onboarding, Dapr eventing,
+  config/secrets, observability onboarding, reusable CI quality gates, and
+  data/object storage.
 - Documented portability boundaries: app code, local runtime, observability
   assets, and incident evidence are portable; AWS and GitHub Actions remain
   intentional provider dependencies at the platform/delivery edges.
@@ -63,6 +66,7 @@ switch reads, new writes, and contract.
 | Current | Keep the runtime capability contract explicit. | See `docs/runtime-capability-contract.md` and `platform/runtime-capabilities.json`: future runtime targets must satisfy the same capability set before being documented as supported. |
 | Current | Keep database portability explicit. | See `docs/database-portability-contract.md`: workloads depend on PostgreSQL semantics, Liquibase, PgBouncer expectations, backup/restore, and secret injection; RDS is only the current AWS implementation. |
 | Current | Keep the portable toolkit checklists current. | See `docs/portable-toolkit-checklists.md`: new workloads and runtime edges should reuse the same app, Dapr, config, observability, CI, and data-object-storage expectations. |
+| Current | Keep dedicated toolkit contracts current. | See `docs/workload-onboarding-contract.md`, `docs/dapr-portability-contract.md`, `docs/config-secrets-contract.md`, `docs/observability-onboarding-contract.md`, `docs/ci-quality-contract.md`, and `docs/data-object-storage-portability.md`. |
 | Current | Keep delivery rollback boundaries explicit. | App and data rollback drills are workflows; infra rollback uses reviewed `Infra Plan`/`Infra Apply`; completed one-off migration workflows are removed after execution. |
 | Done | Clean Architecture package shape. | The repo now uses `apps/*` hosts with `packages/domain`, `packages/application`, and `packages/infrastructure`, plus ownership-aligned tests and docs. |
 | Next | Revisit CloudWatch reduction toggles after dual-run. | Do not disable CloudWatch yet. Only app symptom and data-export success alarms have reduction toggles. |
@@ -104,6 +108,9 @@ switch reads, new writes, and contract.
   database contract and keeps RDS at the provider edge.
 - `docs/portable-toolkit-checklists.md` captures the lean reusable checklist for
   future workloads and provider edges.
+- The dedicated toolkit contracts split the checklist into stable operator
+  references for workload onboarding, Dapr, config/secrets, observability, CI,
+  and data/object storage.
 - `docs/portability-status.md` states what is portable, what is intentionally
   provider-specific, and which portability gaps remain.
 - `docs/deployment.md` is the detailed AWS operator runbook.
