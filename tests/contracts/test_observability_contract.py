@@ -242,9 +242,11 @@ def test_app_target_5xx_alarm_is_fast_enough_for_rollback_drills() -> None:
 
 def test_app_rollback_drill_uses_ecs_automatic_rollback() -> None:
     workflow = _read(".github/workflows/app-rollback-drill.yml")
+    fault_helper = _read("scripts/ci/ci_set_app_drill_fault.py")
 
     assert "fault_mode:" in workflow
-    assert "ROLLOUT_DRILL_FAULT_MODE" in workflow
+    assert "ci_set_app_drill_fault.py" in workflow
+    assert "ROLLOUT_DRILL_FAULT_MODE" in fault_helper
     assert 'ECS_DEPLOY_WAIT_FOR_STABLE: "false"' in workflow
     assert "traffic_deadline=$((SECONDS + 720))" in workflow
     assert "rollback_deadline=$((SECONDS + 1200))" in workflow

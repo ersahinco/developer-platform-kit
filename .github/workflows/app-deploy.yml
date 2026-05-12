@@ -87,38 +87,10 @@ jobs:
           image: ${{ env.ECR_REGISTRY }}/${{ env.STACK_NAME }}/liquibase:${{ env.IMAGE_TAG }}
 
       - name: Normalize liquibase command
-        env:
-          TASK_DEFINITION_PATH: ${{ steps.render-liquibase.outputs.task-definition }}
-          FIRELENS_IMAGE: ${{ env.ECR_REGISTRY }}/${{ env.STACK_NAME }}/firelens:${{ env.IMAGE_TAG }}
         run: |
-          python3 - <<'PY'
-          import json
-          import os
-
-          path = os.environ["TASK_DEFINITION_PATH"]
-          firelens_image = os.environ["FIRELENS_IMAGE"]
-          with open(path, encoding="utf-8") as handle:
-            task_definition = json.load(handle)
-
-          for container in task_definition["containerDefinitions"]:
-            if container["name"] == "liquibase":
-              container["workingDirectory"] = "/liquibase"
-              container["command"] = [
-                "--search-path=/liquibase",
-                "--changelog-file=changelog/db.changelog-master.yaml",
-                "update",
-              ]
-            if container["name"] == "log-router":
-              container["image"] = firelens_image
-          if not any(container["name"] == "log-router" for container in task_definition["containerDefinitions"]):
-            raise SystemExit("log-router container not found in rendered task definition")
-          if not any(container["name"] == "liquibase" for container in task_definition["containerDefinitions"]):
-            raise SystemExit("liquibase container not found in rendered task definition")
-
-          with open(path, "w", encoding="utf-8") as handle:
-            json.dump(task_definition, handle, indent=2)
-            handle.write("\n")
-          PY
+          python3 scripts/ci/ci_prepare_liquibase_task_definition.py \
+            "${{ steps.render-liquibase.outputs.task-definition }}" \
+            "${{ env.ECR_REGISTRY }}/${{ env.STACK_NAME }}/firelens:${{ env.IMAGE_TAG }}"
 
       - name: Register liquibase task definition
         id: register-liquibase

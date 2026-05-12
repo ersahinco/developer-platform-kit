@@ -69,9 +69,11 @@ The rollback drill workflows are intentionally split by ownership boundary:
 
 - `App No-Data Rollback Drill` exercises app task-definition rollback only.
 - `Data Runtime Rollback Drill` exercises runtime data-phase rollback only.
-- Infra rollback drills use reviewed `Infra Plan` and `Infra Apply` runs; one-off
-  state migration workflows, such as app task-definition ownership migration,
-  are not rollback drills and should stay separately reviewed.
+- Infra rollback drills use reviewed `Infra Plan` and `Infra Apply` runs.
+
+There are exactly two permanent rollback drill workflows. One-off migration
+workflows must be removed after successful execution so they do not become
+parallel rollback paths.
 
 ## Infra Drill Preflight
 

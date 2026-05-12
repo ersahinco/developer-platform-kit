@@ -17,27 +17,25 @@ configuration.
 
 Short version: Terraform owns ECS service guardrails, and GitHub Actions owns app task-definition revisions after bootstrap.
 
-## Terraform State Migration
+## Terraform State Ownership
 
-The app task-definition ownership migration uses Terraform state-aware moves
-plus one explicit reviewed state removal:
+The app task-definition ownership migration completed in reviewed run
+`25704521559`, followed by a clean post-migration `Infra Plan` run
+`25704608943` and reviewed `Infra Apply` run `25704755534`.
+
+The steady-state model is:
 
 - `moved` blocks transfer the app task IAM role, internal policy, and policy
   attachment from the ECS service module to root Terraform resources.
-- `terraform state rm` forgets only the old module-managed app task-definition
-  address, so Terraform does not deregister the existing revision.
+- The old module-managed app task-definition state address has been forgotten,
+  so Terraform does not deregister app pipeline-owned revisions.
 - The ECS service keeps `ignore_task_definition_changes = true`, reads the
   current app task-definition family for create/read purposes, and leaves app
   revision changes to GitHub Actions after bootstrap.
 
-Run the state removal only after reviewing this exact address:
-
-```bash
-terraform -chdir=infra/app state rm 'module.ecs.module.service["app"].aws_ecs_task_definition.this[0]'
-```
-
-After that command, the reviewed plan should show the task IAM role state moves
-and no app task-definition create, replace, or destroy.
+Future infra plans should show no app task-definition create, replace, or
+destroy. The Terraform `moved` blocks remain as normal state history and should
+not be treated as active migration steps.
 
 `Infra Apply` still blocks accidental task-definition create/replace/destroy
 plans by running:
@@ -65,7 +63,8 @@ the app and data ownership boundaries untouched.
 Before applying, the reviewed plan must show:
 
 - The intended reversible infra or observability change.
-- No `aws_ecs_task_definition` replacement unless that is the reviewed target.
+- No `aws_ecs_task_definition` create, replace, or destroy unless that is the
+  reviewed target.
 - No ECS service replacement or service move to an older app image.
 - No RDS replacement, S3 bucket deletion, queue replacement, Liquibase task,
   backfill task, data export, or runtime-mode change.

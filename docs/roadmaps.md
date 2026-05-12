@@ -45,7 +45,7 @@ switch reads, new writes, and contract.
 | Status | Step | Notes |
 |---|---|---|
 | Current | Harden the app-owned Grafana/Loki/Tempo/Prometheus contract. | Keep the baseline OSS-portable: app-owned logs, metrics, traces, dashboards, and incident evidence should work without Grafana Cloud AI or a CloudWatch Grafana datasource. |
-| Current | Keep delivery rollback boundaries explicit. | App and data rollback drills are workflows; infra rollback uses reviewed `Infra Plan`/`Infra Apply`; one-off state migrations stay separate and temporary. |
+| Current | Keep delivery rollback boundaries explicit. | App and data rollback drills are workflows; infra rollback uses reviewed `Infra Plan`/`Infra Apply`; completed one-off migration workflows are removed after execution. |
 | Done | Clean Architecture package shape. | The repo now uses `apps/*` hosts with `packages/domain`, `packages/application`, and `packages/infrastructure`, plus ownership-aligned tests and docs. |
 | Next | Revisit CloudWatch reduction toggles after dual-run. | Do not disable CloudWatch yet. Only app symptom and data-export success alarms have reduction toggles. |
 | Current | Introduce Dapr as the app transport boundary. | First slices move order event relay/consume behind Dapr pub/sub and add bounded Dapr resiliency while keeping Terraform-owned AWS SNS/SQS and the durable outbox. |
