@@ -33,6 +33,30 @@ class _SessionContext:
         return None
 
 
+class _Engine:
+    def dispose(self) -> None:
+        return None
+
+
+class _ReadySession:
+    def execute(self, statement: object) -> None:
+        return None
+
+
+class _FailingSession:
+    def execute(self, statement: object) -> None:
+        raise RuntimeError("database unavailable")
+
+
+def _set_lifespan_session(monkeypatch, session: object) -> None:
+    monkeypatch.setattr(settings, "order_events_worker_mode", "consumer")
+    monkeypatch.setattr(
+        consumer_main,
+        "_engine_and_session_factory",
+        lambda: (_Engine(), lambda: _SessionContext(session)),
+    )
+
+
 def _payload(
     event_id: str,
     *,
@@ -227,6 +251,26 @@ def test_consumer_callback_records_delivery(committed_db_session):
     assert response.json() == {"status": "SUCCESS"}
 
 
+def test_consumer_callback_logs_request_id(committed_db_session, capsys):
+    app.state.SessionLocal = lambda: _SessionContext(committed_db_session)
+    client = TestClient(app)
+    payload = _payload("order.created.v1:callback-request-id")
+
+    response = client.post(
+        "/internal/events/order-created",
+        json=_cloud_event(payload),
+        headers={"X-Request-ID": "consumer-trace-123"},
+    )
+
+    assert response.status_code == 200
+    assert json.loads(capsys.readouterr().out) == {
+        "event": "order_event_consumed",
+        "event_id": "order.created.v1:callback-request-id",
+        "request_id": "consumer-trace-123",
+        "status": "processed",
+    }
+
+
 def test_consumer_callback_retries_malformed_message(committed_db_session):
     app.state.SessionLocal = lambda: _SessionContext(committed_db_session)
     client = TestClient(app, raise_server_exceptions=False)
@@ -237,6 +281,47 @@ def test_consumer_callback_retries_malformed_message(committed_db_session):
     )
 
     assert response.status_code == 500
+
+
+def test_ready_reports_database_ok_when_ping_succeeds(monkeypatch):
+    _set_lifespan_session(monkeypatch, _ReadySession())
+
+    with TestClient(app) as client:
+        response = client.get("/ready")
+
+    assert response.status_code == 200
+    assert response.json() == {"status": "ready", "checks": {"database": "ok"}}
+
+
+def test_ready_reports_unavailable_when_ping_fails(monkeypatch):
+    _set_lifespan_session(monkeypatch, _FailingSession())
+
+    with TestClient(app) as client:
+        response = client.get("/ready")
+
+    assert response.status_code == 503
+    assert response.json() == {
+        "status": "unready",
+        "checks": {"database": "unavailable"},
+    }
+
+
+def test_metrics_endpoint_exposes_prometheus_text(monkeypatch):
+    _set_lifespan_session(monkeypatch, _ReadySession())
+
+    with TestClient(app) as client:
+        health_response = client.get(
+            "/health",
+            headers={"X-Request-ID": "consumer-health-123"},
+        )
+        metrics_response = client.get("/metrics")
+
+    assert health_response.status_code == 200
+    assert health_response.headers["x-request-id"] == "consumer-health-123"
+    assert metrics_response.status_code == 200
+    assert "text/plain" in metrics_response.headers["content-type"]
+    assert "order_event_consumer_http_requests_total" in metrics_response.text
+    assert 'route="/health"' in metrics_response.text
 
 
 def test_dapr_subscribe_declares_order_topic(monkeypatch):

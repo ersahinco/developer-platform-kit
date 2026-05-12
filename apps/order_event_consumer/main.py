@@ -4,9 +4,14 @@ import datetime
 from contextlib import asynccontextmanager
 import json
 import threading
+import time
 from typing import Any, Protocol
+import uuid
 
 from fastapi import FastAPI, Request
+from prometheus_client import CONTENT_TYPE_LATEST, Counter, Histogram, generate_latest
+from starlette import status
+from starlette.responses import JSONResponse, Response
 import uvicorn
 
 from application.order_event_processing import (
@@ -19,7 +24,7 @@ from infrastructure.db.repository import (
     SQLAlchemyOrderEventReceiptRepository,
     SQLAlchemyOutboxRepository,
 )
-from infrastructure.db.session import engine_and_session_factory
+from infrastructure.db.session import engine_and_session_factory, ping_database
 from infrastructure.dapr.pubsub import (
     DaprOrderEventPublisher,
     payload_from_cloud_event,
@@ -28,6 +33,17 @@ from order_event_consumer.config import settings
 
 
 ORDER_EVENTS_CALLBACK_ROUTE = "/internal/events/order-created"
+
+REQUEST_COUNT = Counter(
+    "order_event_consumer_http_requests_total",
+    "Order event consumer HTTP requests by method, route, and status code.",
+    ["method", "route", "status_code"],
+)
+REQUEST_LATENCY = Histogram(
+    "order_event_consumer_http_request_duration_seconds",
+    "Order event consumer HTTP request latency by method and route.",
+    ["method", "route"],
+)
 
 
 class OrderEventPublisher(Protocol):
@@ -137,9 +153,68 @@ async def lifespan(app: FastAPI):
 app = FastAPI(title="aws-sdlc-containers-order-event-consumer", lifespan=lifespan)
 
 
+def _route_label(request: Request) -> str:
+    route = request.scope.get("route")
+    return getattr(route, "path", request.url.path)
+
+
+def _request_id(request: Request) -> str:
+    request_id = request.headers.get("x-request-id", "").strip()
+    return request_id or uuid.uuid4().hex
+
+
+@app.middleware("http")
+async def observe_requests(request: Request, call_next) -> Response:
+    request_id = _request_id(request)
+    request.state.request_id = request_id
+
+    if request.url.path == "/metrics":
+        response = await call_next(request)
+        response.headers["X-Request-ID"] = request_id
+        return response
+
+    started_at = time.perf_counter()
+    try:
+        response = await call_next(request)
+    except Exception:
+        route = _route_label(request)
+        REQUEST_COUNT.labels(request.method, route, "500").inc()
+        REQUEST_LATENCY.labels(request.method, route).observe(
+            time.perf_counter() - started_at
+        )
+        raise
+
+    route = _route_label(request)
+    REQUEST_COUNT.labels(request.method, route, str(response.status_code)).inc()
+    REQUEST_LATENCY.labels(request.method, route).observe(
+        time.perf_counter() - started_at
+    )
+    response.headers["X-Request-ID"] = request_id
+    return response
+
+
 @app.get("/health")
 def health() -> dict[str, str]:
     return {"status": "ok"}
+
+
+@app.get("/ready", response_model=None)
+def ready(request: Request) -> dict[str, object] | JSONResponse:
+    try:
+        with request.app.state.SessionLocal() as session:
+            ping_database(session)
+    except Exception:
+        return JSONResponse(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            content={"status": "unready", "checks": {"database": "unavailable"}},
+        )
+
+    return {"status": "ready", "checks": {"database": "ok"}}
+
+
+@app.get("/metrics", include_in_schema=False)
+def metrics() -> Response:
+    return Response(generate_latest(), media_type=CONTENT_TYPE_LATEST)
 
 
 @app.get("/dapr/subscribe")
@@ -167,6 +242,7 @@ async def handle_order_created(request: Request) -> dict[str, str]:
                 {
                     "event": "order_event_consumed",
                     "event_id": result.event_id,
+                    "request_id": request.state.request_id,
                     "status": result.status,
                 },
                 sort_keys=True,
@@ -179,6 +255,7 @@ async def handle_order_created(request: Request) -> dict[str, str]:
                 {
                     "event": "order_event_consume_failed",
                     "error": str(exc),
+                    "request_id": request.state.request_id,
                     "retry": True,
                 },
                 sort_keys=True,

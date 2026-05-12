@@ -25,6 +25,11 @@ One-off and scheduled workloads should follow the same image, logging, config,
 and evidence conventions. They do not need HTTP endpoints unless they expose a
 service.
 
+Current long-running workloads implementing this surface are `apps/api` and
+`apps/order_event_consumer`. `apps/backfill_worker` and `apps/data_export_job`
+remain one-off/scheduled workloads and should not grow HTTP endpoints just to
+look like services.
+
 ## Configuration And Secrets
 
 Runtime configuration should enter through environment variables, mounted

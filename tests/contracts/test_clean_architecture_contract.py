@@ -141,6 +141,45 @@ def test_canonical_docs_do_not_contain_session_prompt_blocks() -> None:
         assert forbidden not in docs
 
 
+def test_long_running_workloads_implement_portable_app_contract() -> None:
+    for app_name in ["api", "order_event_consumer"]:
+        text = (ROOT / "apps" / app_name / "main.py").read_text(encoding="utf-8")
+
+        for required in [
+            '@app.get("/health"',
+            '@app.get("/ready"',
+            '@app.get("/metrics"',
+            "CONTENT_TYPE_LATEST",
+            "Counter(",
+            "Histogram(",
+            "X-Request-ID",
+        ]:
+            assert required in text
+
+
+def test_app_workloads_have_committed_oci_image_contracts() -> None:
+    for app_dir in sorted((ROOT / "apps").iterdir()):
+        if not app_dir.is_dir() or not (app_dir / "pyproject.toml").is_file():
+            continue
+
+        dockerfile = app_dir / "Dockerfile"
+        assert dockerfile.is_file()
+        text = dockerfile.read_text(encoding="utf-8")
+        package_name = app_dir.name
+
+        for required in [
+            "FROM python:3.14-slim",
+            f"COPY apps/{package_name}/pyproject.toml",
+            f"COPY apps/{package_name}",
+            "RUN uv sync --frozen --no-dev --package",
+            "USER app",
+            'ENV PATH="/app/.venv/bin:$PATH"',
+            'ENV PYTHONPATH="/app/apps:/app/packages"',
+            "CMD ",
+        ]:
+            assert required in text
+
+
 def test_source_tree_is_flat_and_importable_by_folder_name() -> None:
     expected_files = [
         ROOT / "apps" / "api" / "main.py",
