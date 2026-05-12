@@ -451,6 +451,7 @@ def test_release_evidence_events_are_emitted_by_cloud_changing_workflows() -> No
     assert delivery_annotation["datasource"]["type"] == "loki"
     assert "event_type" in delivery_annotation["expr"]
     assert "infra_apply" in delivery_annotation["expr"]
+    assert "github_run_id" in delivery_annotation["tagKeys"]
 
     delivery_panel = next(
         panel for panel in dashboard["panels"] if panel["title"] == "Delivery Events"
@@ -461,6 +462,9 @@ def test_release_evidence_events_are_emitted_by_cloud_changing_workflows() -> No
     assert "event_type" in delivery_query
     assert "app_deploy" in delivery_query
     assert "infra_apply" in delivery_query
+    assert "| json" in delivery_query
+    assert '"github_run_id"' in event_script
+    assert '"status"' in event_script
 
     for event_type, workflow in workflows.items():
         assert "scripts/observability/release_event.py" in workflow

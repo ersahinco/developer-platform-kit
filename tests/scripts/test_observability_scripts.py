@@ -591,6 +591,7 @@ def test_release_event_pushes_loki_stream(monkeypatch) -> None:
         env={
             "STACK_NAME": "aws-sdlc-containers",
             "GITHUB_WORKFLOW": "App No-Data Rollback Drill",
+            "GITHUB_RUN_ID": "25705755619",
         },
     )
 
@@ -600,6 +601,8 @@ def test_release_event_pushes_loki_stream(monkeypatch) -> None:
     payload = json.loads(getattr(requests[0], "data").decode("utf-8"))
     stream = payload["streams"][0]
     assert stream["stream"]["event_type"] == "app_rollback_drill"
+    assert stream["stream"]["status"] == "success"
+    assert stream["stream"]["github_run_id"] == "25705755619"
     assert stream["stream"]["workflow"] == "App_No-Data_Rollback_Drill"
     assert "app_rollback_drill" in stream["values"][0][1]
 

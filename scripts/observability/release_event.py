@@ -322,6 +322,8 @@ def push_loki(event: dict[str, Any], url: str) -> None:
         "environment": _label_value(event["stack"]["environment"]),
         "service": _label_value(event["service"]),
         "event_type": _label_value(event["event_type"]),
+        "status": _label_value(event["status"]),
+        "github_run_id": _label_value(event["github"].get("run_id")),
         "workflow": _label_value(event["github"].get("workflow")),
     }
     payload = {

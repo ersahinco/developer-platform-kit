@@ -103,6 +103,8 @@ with the exact workflow run, revision, and alarm state without scraping GitHub
 summaries by hand.
 `AWS SDLC Containers / App Overview` includes a Loki-backed `Delivery Events`
 panel and dashboard annotations for these records when they are pushed to Loki.
+The release-event stream labels include `event_type`, `status`, `service`, and
+`github_run_id`, while the JSON line keeps revision, SLO, and alarm context.
 The workflows push them best-effort when the repository or environment provides
 `LOKI_PUSH_URL` or `LOKI_URL`; the artifact remains the source of truth if Loki
 is not reachable from the runner. `make incident-evidence` also queries the
