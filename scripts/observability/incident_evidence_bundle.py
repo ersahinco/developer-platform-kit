@@ -12,6 +12,7 @@ Usage:
 Environment:
     AWS_REGION          Default: eu-central-1
     STACK_NAME          Default: aws-sdlc-containers
+    LOKI_URL            Optional Loki base URL for release-event lookup
     RELEASE_EVENTS_DIR  Optional directory containing release-event artifacts
 """
 
@@ -24,6 +25,7 @@ import subprocess
 from datetime import UTC, datetime, timedelta
 from pathlib import Path
 from typing import Any
+from urllib import parse, request
 
 
 CORRELATION_FIELDS = [
@@ -119,7 +121,11 @@ def _parse_datetime(value: object) -> datetime | None:
     return parsed.astimezone(UTC)
 
 
-def _release_event_summary(event: dict[str, Any]) -> dict[str, Any]:
+def _release_event_summary(
+    event: dict[str, Any],
+    *,
+    source: str | None = None,
+) -> dict[str, Any]:
     github = event.get("github", {})
     revision = event.get("revision", {})
     runtime = event.get("runtime", {})
@@ -133,7 +139,7 @@ def _release_event_summary(event: dict[str, Any]) -> dict[str, Any]:
     if not isinstance(slo, dict):
         slo = {}
 
-    return {
+    summary = {
         "event_type": event.get("event_type"),
         "status": event.get("status"),
         "summary": event.get("summary"),
@@ -153,6 +159,9 @@ def _release_event_summary(event: dict[str, Any]) -> dict[str, Any]:
         "rollback_seconds": slo.get("rollback_seconds"),
         "verify_seconds": slo.get("verify_seconds"),
     }
+    if source:
+        summary["source"] = source
+    return summary
 
 
 def _event_identity(event: dict[str, Any]) -> tuple[object, object, object]:
@@ -219,10 +228,106 @@ def _load_release_events(
             if identity in seen:
                 continue
             seen.add(identity)
-            events.append(_release_event_summary(event))
+            events.append(_release_event_summary(event, source="artifact"))
 
     events.sort(key=lambda item: str(item.get("timestamp") or ""), reverse=True)
     return events[:limit]
+
+
+def _summary_identity(event: dict[str, Any]) -> tuple[object, object, object]:
+    return (event.get("timestamp"), event.get("event_type"), event.get("github_run_id"))
+
+
+def _merge_release_events(
+    events: list[dict[str, Any]],
+    *,
+    limit: int,
+) -> list[dict[str, Any]]:
+    seen: set[tuple[object, object, object]] = set()
+    merged: list[dict[str, Any]] = []
+    for event in sorted(
+        events,
+        key=lambda item: str(item.get("timestamp") or ""),
+        reverse=True,
+    ):
+        identity = _summary_identity(event)
+        if identity in seen:
+            continue
+        seen.add(identity)
+        merged.append(event)
+        if len(merged) >= limit:
+            break
+    return merged
+
+
+def _loki_json(loki_url: str, params: dict[str, str]) -> dict[str, Any]:
+    query_string = parse.urlencode(params)
+    url = f"{loki_url.rstrip('/')}/loki/api/v1/query_range?{query_string}"
+    req = request.Request(url, method="GET")
+    with request.urlopen(req, timeout=10) as response:
+        return json.loads(response.read().decode("utf-8"))
+
+
+def _load_loki_release_events(
+    loki_url: str | None,
+    *,
+    stack_name: str,
+    window_start: datetime,
+    window_end: datetime,
+    limit: int = 10,
+) -> tuple[list[dict[str, Any]], str | None]:
+    if not loki_url:
+        return [], None
+
+    query = (
+        f'{{stack="{stack_name}",environment="aws",'
+        'event_type=~"app_deploy|app_rollback_drill|'
+        'data_runtime_rollback_drill|infra_apply"}}'
+    )
+    try:
+        response = _loki_json(
+            loki_url,
+            {
+                "query": query,
+                "start": str(int(window_start.timestamp() * 1_000_000_000)),
+                "end": str(int(window_end.timestamp() * 1_000_000_000)),
+                "limit": str(limit),
+                "direction": "BACKWARD",
+            },
+        )
+    except (OSError, json.JSONDecodeError) as exc:
+        return [], str(exc)
+
+    data = response.get("data", {})
+    results = data.get("result", []) if isinstance(data, dict) else []
+    if not isinstance(results, list):
+        return [], "Loki response data.result was not a list"
+
+    events: list[dict[str, Any]] = []
+    for result in results:
+        if not isinstance(result, dict):
+            continue
+        values = result.get("values", [])
+        if not isinstance(values, list):
+            continue
+        for value in values:
+            if not isinstance(value, list) or len(value) < 2:
+                continue
+            line = value[1]
+            if not isinstance(line, str):
+                continue
+            try:
+                event = json.loads(line)
+            except json.JSONDecodeError:
+                continue
+            if not isinstance(event, dict):
+                continue
+            timestamp = _parse_datetime(event.get("timestamp"))
+            if timestamp is None or timestamp < window_start or timestamp > window_end:
+                continue
+            events.append(_release_event_summary(event, source="loki"))
+
+    return _merge_release_events(events, limit=limit), None
 
 
 def _query_hints(
@@ -289,6 +394,7 @@ def build_bundle(
     root_domain: str,
     lookback_minutes: int,
     release_events_dir: Path | None = None,
+    loki_url: str | None = None,
 ) -> dict[str, Any]:
     now = datetime.now(UTC)
     window_start = now - timedelta(minutes=lookback_minutes)
@@ -334,10 +440,20 @@ def build_bundle(
     )
     metric_alarms = alarm_response.get("MetricAlarms", [])
     alarms = metric_alarms if isinstance(metric_alarms, list) else []
-    release_events = _load_release_events(
+    artifact_release_events = _load_release_events(
         release_events_dir,
         window_start=window_start,
         window_end=now,
+    )
+    loki_release_events, loki_release_event_error = _load_loki_release_events(
+        loki_url,
+        stack_name=stack_name,
+        window_start=window_start,
+        window_end=now,
+    )
+    release_events = _merge_release_events(
+        [*loki_release_events, *artifact_release_events],
+        limit=10,
     )
 
     return {
@@ -384,6 +500,10 @@ def build_bundle(
         "release_events": release_events,
         "release_event_sources": {
             "directory": str(release_events_dir) if release_events_dir else None,
+            "artifact_count": len(artifact_release_events),
+            "loki_url": loki_url,
+            "loki_count": len(loki_release_events),
+            "loki_error": loki_release_event_error,
             "loaded_count": len(release_events),
         },
         "correlation_fields": CORRELATION_FIELDS,
@@ -445,7 +565,8 @@ def render_markdown(bundle: dict[str, Any]) -> str:
             run = event.get("github_run_id") or "unknown run"
             status = event.get("status") or "unknown"
             timestamp = event.get("timestamp") or "unknown time"
-            lines.append(f"- {timestamp}: {detail} ({status}, run {run})")
+            source = event.get("source") or "unknown source"
+            lines.append(f"- {timestamp}: {detail} ({status}, run {run}, {source})")
             if event.get("image_tag"):
                 lines.append(f"  - image_tag: `{event['image_tag']}`")
             if event.get("task_definition"):
@@ -454,7 +575,12 @@ def render_markdown(bundle: dict[str, Any]) -> str:
                 lines.append(f"  - plan_run_id: `{event['plan_run_id']}`")
     else:
         lines.append(
-            "- No local release events loaded. Download `release-evidence-*` artifacts or query the Grafana Delivery Events panel."
+            "- No release events loaded from Loki or local artifacts. Download `release-evidence-*` artifacts or query the Grafana Delivery Events panel."
+        )
+    release_event_sources = bundle.get("release_event_sources", {})
+    if release_event_sources.get("loki_error"):
+        lines.append(
+            f"- Loki release-event query error: {release_event_sources['loki_error']}"
         )
 
     lines.extend(["", "## Correlation Fields"])
@@ -515,6 +641,7 @@ def main() -> int:
         type=Path,
         default=Path(release_events_default) if release_events_default else None,
     )
+    parser.add_argument("--loki-url", default=os.environ.get("LOKI_URL"))
     parser.add_argument(
         "--output-dir",
         type=Path,
@@ -529,6 +656,7 @@ def main() -> int:
         root_domain=args.root_domain,
         lookback_minutes=args.lookback_minutes,
         release_events_dir=args.release_events_dir,
+        loki_url=args.loki_url,
     )
     json_path, markdown_path = write_bundle(bundle, args.output_dir)
     print(f"Wrote {markdown_path}")

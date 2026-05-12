@@ -105,7 +105,9 @@ summaries by hand.
 panel and dashboard annotations for these records when they are pushed to Loki.
 The workflows push them best-effort when the repository or environment provides
 `LOKI_PUSH_URL` or `LOKI_URL`; the artifact remains the source of truth if Loki
-is not reachable from the runner.
+is not reachable from the runner. `make incident-evidence` also queries the
+same Loki release-event stream when `LOKI_URL` is set, then merges those records
+with any downloaded `release-evidence-*` artifacts.
 
 To include downloaded release evidence artifacts in the next incident bundle:
 
@@ -115,6 +117,12 @@ gh run download <run-id> \
   -p 'release-evidence-*' \
   -D /tmp/aws-sdlc-containers-release-events
 RELEASE_EVENTS_DIR=/tmp/aws-sdlc-containers-release-events make incident-evidence
+```
+
+To build the same incident bundle from a reachable Loki endpoint:
+
+```bash
+LOKI_URL=http://127.0.0.1:3100 make incident-evidence
 ```
 
 The event helper is OSS-portable and does not require Grafana Cloud. By default

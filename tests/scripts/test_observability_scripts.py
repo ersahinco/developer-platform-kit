@@ -345,6 +345,81 @@ def test_incident_evidence_bundle_includes_recent_release_events(
     assert "release-evidence-*" in markdown
 
 
+def test_incident_evidence_bundle_queries_loki_release_events(
+    monkeypatch, tmp_path: Path
+) -> None:
+    now = datetime.now(UTC)
+    event = release_event.build_event(
+        event_type="infra_apply",
+        status="success",
+        summary="Infra apply completed",
+        service_name="infra",
+        image_tag=None,
+        task_definition=None,
+        previous_task_definition=None,
+        drill_task_definition=None,
+        plan_run_id="25706433611",
+        fault_mode=None,
+        read_mode=None,
+        write_mode=None,
+        rollback_seconds=None,
+        rollback_slo_seconds=None,
+        verify_seconds=None,
+        verify_slo_seconds=None,
+        env={
+            "STACK_NAME": "aws-sdlc-containers",
+            "GITHUB_RUN_ID": "25706433611",
+            "GITHUB_WORKFLOW": "Infra Apply",
+        },
+        now=now,
+    )
+
+    def fake_aws_json(args: list[str], region: str) -> dict[str, Any]:
+        if args[:2] == ["ecs", "describe-services"]:
+            return {"services": [{"deployments": []}]}
+        if args[:2] == ["cloudwatch", "describe-alarms"]:
+            return {"MetricAlarms": []}
+        raise AssertionError(f"unexpected AWS call: {args}")
+
+    def fake_loki_json(loki_url: str, params: dict[str, str]) -> dict[str, Any]:
+        assert loki_url == "http://127.0.0.1:3100"
+        assert "query_range" not in loki_url
+        assert "event_type" in params["query"]
+        assert params["direction"] == "BACKWARD"
+        return {
+            "data": {
+                "result": [
+                    {
+                        "stream": {"event_type": "infra_apply"},
+                        "values": [["1", json.dumps(event)]],
+                    }
+                ]
+            }
+        }
+
+    monkeypatch.setattr(evidence, "_aws_json", fake_aws_json)
+    monkeypatch.setattr(evidence, "_loki_json", fake_loki_json)
+
+    bundle = evidence.build_bundle(
+        stack_name="aws-sdlc-containers",
+        service_name="app",
+        region="eu-central-1",
+        root_domain="ersahinco-sandbox.eu",
+        lookback_minutes=60,
+        loki_url="http://127.0.0.1:3100",
+    )
+    _, markdown_path = evidence.write_bundle(bundle, tmp_path)
+
+    assert bundle["release_event_sources"]["loki_count"] == 1
+    assert bundle["release_event_sources"]["artifact_count"] == 0
+    assert bundle["release_events"][0]["event_type"] == "infra_apply"
+    assert bundle["release_events"][0]["source"] == "loki"
+    assert bundle["release_events"][0]["plan_run_id"] == "25706433611"
+    markdown = markdown_path.read_text(encoding="utf-8")
+    assert "Infra apply completed" in markdown
+    assert "loki" in markdown
+
+
 def test_release_event_writes_markdown_json_and_jsonl(tmp_path: Path) -> None:
     alarm_snapshot = {
         "captured_at": "2026-05-12T10:00:00+00:00",

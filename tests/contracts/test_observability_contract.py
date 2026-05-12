@@ -429,6 +429,10 @@ def test_release_evidence_events_are_emitted_by_cloud_changing_workflows() -> No
     assert "release-evidence-*" in docs
     assert "release_events" in evidence_script
     assert "--release-events-dir" in evidence_script
+    assert "--loki-url" in evidence_script
+    assert "query_range" in evidence_script
+    assert "loki_count" in evidence_script
+    assert "LOKI_URL" in docs
 
     delivery_annotation = next(
         item
