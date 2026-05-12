@@ -193,3 +193,22 @@ def test_app_root_consumes_platform_only_through_remote_state_outputs() -> None:
     assert 'source  = "../platform"' not in app_tf
     assert "data.aws_vpc" not in app_tf
     assert "data.aws_subnets" not in app_tf
+
+
+def test_portability_status_documents_intentional_provider_boundaries() -> None:
+    doc = (ROOT / "docs" / "portability-status.md").read_text(encoding="utf-8")
+    readme = (ROOT / "README.md").read_text(encoding="utf-8")
+    roadmap = (ROOT / "docs" / "roadmaps.md").read_text(encoding="utf-8")
+
+    assert "docs/portability-status.md" in readme
+    assert "Portable Baseline" in doc
+    assert "Intentional Provider Dependencies" in doc
+    assert "Current Gaps" in doc
+    assert "packages/domain" in doc
+    assert "packages/application" in doc
+    assert "Grafana CloudWatch datasource" in doc
+    assert "LOKI_PUSH_URL" in doc
+    assert "OpenTelemetry Collector" in doc
+    assert "Alternate runtime platform" in doc
+    assert "Infra rollback stays reviewed `Infra Plan` plus `Infra Apply`" in doc
+    assert "portability boundaries" in roadmap
