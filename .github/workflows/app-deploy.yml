@@ -80,7 +80,7 @@ jobs:
 
       - name: Render liquibase task definition
         id: render-liquibase
-        uses: aws-actions/amazon-ecs-render-task-definition@77954e213ba1f9f9cb016b86a1d4f6fcdea0d57e # v1.8.4
+        uses: aws-actions/amazon-ecs-render-task-definition@6853cfae8c3a7d978fbf68b5a55453395541dfbb # v1.8.5
         with:
           task-definition-family: aws-sdlc-containers-liquibase
           container-name: liquibase
@@ -156,7 +156,7 @@ jobs:
 
       - name: Render app task definition
         id: render-app
-        uses: aws-actions/amazon-ecs-render-task-definition@77954e213ba1f9f9cb016b86a1d4f6fcdea0d57e # v1.8.4
+        uses: aws-actions/amazon-ecs-render-task-definition@6853cfae8c3a7d978fbf68b5a55453395541dfbb # v1.8.5
         with:
           task-definition-family: aws-sdlc-containers
           container-name: app
@@ -194,7 +194,7 @@ jobs:
 
       - name: Render worker task definition
         id: render-worker
-        uses: aws-actions/amazon-ecs-render-task-definition@77954e213ba1f9f9cb016b86a1d4f6fcdea0d57e # v1.8.4
+        uses: aws-actions/amazon-ecs-render-task-definition@6853cfae8c3a7d978fbf68b5a55453395541dfbb # v1.8.5
         with:
           task-definition-family: aws-sdlc-containers-worker
           container-name: worker
@@ -211,7 +211,7 @@ jobs:
 
       - name: Render data export task definition
         id: render-data-export
-        uses: aws-actions/amazon-ecs-render-task-definition@77954e213ba1f9f9cb016b86a1d4f6fcdea0d57e # v1.8.4
+        uses: aws-actions/amazon-ecs-render-task-definition@6853cfae8c3a7d978fbf68b5a55453395541dfbb # v1.8.5
         with:
           task-definition-family: aws-sdlc-containers-data-export-job
           container-name: data-export-job
@@ -227,7 +227,7 @@ jobs:
 
       - name: Render order event consumer task definition
         id: render-order-event-consumer
-        uses: aws-actions/amazon-ecs-render-task-definition@77954e213ba1f9f9cb016b86a1d4f6fcdea0d57e # v1.8.4
+        uses: aws-actions/amazon-ecs-render-task-definition@6853cfae8c3a7d978fbf68b5a55453395541dfbb # v1.8.5
         with:
           task-definition-family: aws-sdlc-containers-order-event-consumer
           container-name: order-event-consumer
