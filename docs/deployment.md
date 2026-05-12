@@ -120,7 +120,6 @@ This target is idempotent. It creates or confirms:
 
 - S3 state bucket: `aws-sdlc-containers-tfstate-<account-id>`
 - S3 bucket versioning
-- DynamoDB table: `terraform-locks`
 - IAM OIDC provider: `token.actions.githubusercontent.com`
 
 Terraform uses two state objects:
@@ -131,9 +130,7 @@ aws-sdlc-containers/app.tfstate
 ```
 
 The active backend lock is Terraform's S3 native lockfile through
-`use_lockfile = true` in each root's `versions.tf`. The `terraform-locks`
-DynamoDB table is still bootstrapped for compatibility with older runbooks and
-IAM policy surfaces, but the current backends do not set `dynamodb_table`.
+`use_lockfile = true` in each root's `versions.tf`.
 
 Confirm the Route 53 zone can be found before applying the stack:
 

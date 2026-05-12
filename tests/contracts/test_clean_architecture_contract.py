@@ -284,6 +284,26 @@ def test_app_root_consumes_platform_only_through_remote_state_outputs() -> None:
     assert "data.aws_subnets" not in app_tf
 
 
+def test_terraform_state_uses_s3_native_lockfiles_only() -> None:
+    versions_text = "\n".join(
+        (ROOT / path).read_text(encoding="utf-8")
+        for path in ["infra/platform/versions.tf", "infra/app/versions.tf"]
+    )
+    state_docs = "\n".join(
+        (ROOT / path).read_text(encoding="utf-8")
+        for path in [
+            "Makefile",
+            "docs/deployment.md",
+            "infra/platform/github_actions.tf",
+        ]
+    )
+
+    assert versions_text.count("use_lockfile = true") == 2
+    assert "dynamodb_table" not in versions_text
+    assert "terraform-locks" not in state_docs
+    assert "dynamodb:" not in state_docs
+
+
 def test_portability_status_documents_intentional_provider_boundaries() -> None:
     doc = (ROOT / "docs" / "portability-status.md").read_text(encoding="utf-8")
     readme = (ROOT / "README.md").read_text(encoding="utf-8")

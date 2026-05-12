@@ -65,15 +65,6 @@ data "aws_iam_policy_document" "github_actions_state_access" {
     ]
   }
 
-  statement {
-    sid = "TerraformStateLock"
-    actions = [
-      "dynamodb:DeleteItem",
-      "dynamodb:GetItem",
-      "dynamodb:PutItem",
-    ]
-    resources = ["arn:aws:dynamodb:${local.region}:${local.account_id}:table/terraform-locks"]
-  }
 }
 
 resource "aws_iam_policy" "github_actions_state_access" {

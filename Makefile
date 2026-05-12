@@ -34,7 +34,6 @@
 AWS_REGION             := eu-central-1
 ACCOUNT_ID             := 691627364817
 TF_STATE_BUCKET        := aws-sdlc-containers-tfstate-$(ACCOUNT_ID)
-TF_LOCK_TABLE          := terraform-locks
 ROOT_DOMAIN            ?= ersahinco-sandbox.eu
 TF_PLATFORM_STATE_KEY  := aws-sdlc-containers/platform.tfstate
 TF_APP_STATE_KEY       := aws-sdlc-containers/app.tfstate
@@ -170,15 +169,6 @@ bootstrap: ## One-time AWS account setup — idempotent, safe to re-run
 				--bucket $(TF_STATE_BUCKET) \
 				--versioning-configuration Status=Enabled \
 		)
-	@echo "--- DynamoDB lock table ---"
-	@aws dynamodb describe-table --table-name $(TF_LOCK_TABLE) --region $(AWS_REGION) 2>/dev/null \
-		&& echo "  already exists, skipping" \
-		|| aws dynamodb create-table \
-			--table-name $(TF_LOCK_TABLE) \
-			--attribute-definitions AttributeName=LockID,AttributeType=S \
-			--key-schema AttributeName=LockID,KeyType=HASH \
-			--billing-mode PAY_PER_REQUEST \
-			--region $(AWS_REGION)
 	@echo "--- GitHub Actions OIDC provider ---"
 	@aws iam list-open-id-connect-providers \
 		--query 'OpenIDConnectProviderList[?ends_with(Arn, `token.actions.githubusercontent.com`)]' \
