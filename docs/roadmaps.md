@@ -92,6 +92,8 @@ switch reads, new writes, and contract.
   apps and runtime targets.
 - `docs/runtime-capability-contract.md` defines the runtime capability contract
   for future hosting targets.
+- `docs/runtime-addition-checklist.md` turns that contract into the operator
+  checklist for appending a future runtime.
 - `docs/portability-status.md` states what is portable, what is intentionally
   provider-specific, and which portability gaps remain.
 - `docs/deployment.md` is the detailed AWS operator runbook.

@@ -27,6 +27,10 @@ REQUIRED_RUNTIME_CAPABILITIES = {
     "terraform_ownership",
     "local_ci_guardrails",
 }
+CURRENT_RUNTIME_TERRAFORM_ROOTS = {
+    "bootstrap": "infra/platform",
+    "runtime": "infra/app",
+}
 
 sys.path.insert(0, str(ROOT))
 
@@ -280,16 +284,28 @@ def _check_runtime_contract(
             )
 
         roots = target.get("terraform_roots", {})
-        for owner, expected_path in {
-            "bootstrap": "infra/platform",
-            "runtime": "infra/app",
-        }.items():
-            if not isinstance(roots, dict) or roots.get(owner) != expected_path:
-                errors.append(
-                    f"{name}: terraform_roots.{owner} must be {expected_path}"
-                )
-            elif not (root / expected_path).is_dir():
-                errors.append(f"{name}: terraform root is missing: {expected_path}")
+        if not isinstance(roots, dict):
+            errors.append(f"{name}: terraform_roots must be an object")
+        else:
+            for owner in ["bootstrap", "runtime"]:
+                root_path = roots.get(owner)
+                if not isinstance(root_path, str):
+                    errors.append(f"{name}: terraform_roots.{owner} must be declared")
+                    continue
+                if not root_path.startswith("infra/"):
+                    errors.append(
+                        f"{name}: terraform_roots.{owner} must stay under infra/"
+                    )
+                    continue
+                if target.get("status") == "current":
+                    expected_path = CURRENT_RUNTIME_TERRAFORM_ROOTS[owner]
+                    if root_path != expected_path:
+                        errors.append(
+                            f"{name}: terraform_roots.{owner} must be {expected_path}"
+                        )
+                        continue
+                if not (root / root_path).is_dir():
+                    errors.append(f"{name}: terraform root is missing: {root_path}")
 
         capabilities = target.get("capabilities")
         if not isinstance(capabilities, dict):

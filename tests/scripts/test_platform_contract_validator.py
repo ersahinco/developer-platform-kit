@@ -114,3 +114,34 @@ def test_platform_contract_validator_rejects_runtime_proof_drift(
         "capability terraform_ownership proof is missing token" in error
         for error in errors
     )
+
+
+def test_platform_contract_validator_allows_future_runtime_specific_roots(
+    tmp_path: Path,
+) -> None:
+    root = tmp_path / "repo"
+    ignore = shutil.ignore_patterns(".venv", ".git", ".pytest_cache", "__pycache__")
+    shutil.copytree(validator.ROOT, root, ignore=ignore)
+    (root / "infra" / "example-platform").mkdir()
+    (root / "infra" / "example-app").mkdir()
+
+    contract_path = root / "platform" / "runtime-capabilities.json"
+    contract = json.loads(contract_path.read_text(encoding="utf-8"))
+    future_target = json.loads(json.dumps(contract["runtime_targets"][0]))
+    future_target["name"] = "example-runtime"
+    future_target["status"] = "supported"
+    future_target["provider"] = "example"
+    future_target["terraform_roots"] = {
+        "bootstrap": "infra/example-platform",
+        "runtime": "infra/example-app",
+    }
+    contract["runtime_targets"].append(future_target)
+    contract_path.write_text(json.dumps(contract), encoding="utf-8")
+
+    errors = validator.collect_errors(
+        root=root,
+        contract_path=root / "platform" / "workloads.json",
+        runtime_contract_path=contract_path,
+    )
+
+    assert errors == []

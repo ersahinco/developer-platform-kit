@@ -22,6 +22,7 @@ work.
 | Repository/control-boundary layout | [docs/architecture-layout.md](docs/architecture-layout.md) |
 | Portable app/platform contract | [docs/platform-contract.md](docs/platform-contract.md) |
 | Runtime capability contract | [docs/runtime-capability-contract.md](docs/runtime-capability-contract.md) |
+| Future runtime addition checklist | [docs/runtime-addition-checklist.md](docs/runtime-addition-checklist.md) |
 | Portability status | [docs/portability-status.md](docs/portability-status.md) |
 | Local development runbook | [docs/local-development.md](docs/local-development.md) |
 | AWS deployment/runbook | [docs/deployment.md](docs/deployment.md) |

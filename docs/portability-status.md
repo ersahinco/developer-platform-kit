@@ -12,7 +12,7 @@ Actions for orchestration.
 |---|---|---|
 | Application core | Portable | `packages/domain` and `packages/application` stay free of AWS, Terraform, GitHub Actions, Grafana, Loki, Prometheus, Tempo, and OpenTelemetry imports. |
 | App/platform contract | Portable shape | `docs/platform-contract.md` defines the workload contract for images, health/readiness/metrics, logs, traces, config, evidence, and rollback before adding another runtime target. |
-| Runtime capability contract | Appendable shape | `docs/runtime-capability-contract.md` and `platform/runtime-capabilities.json` define what a runtime target must provide for networking, identity, secrets, ingress, observability, jobs, rollout, rollback, evidence, cost controls, and Terraform ownership. |
+| Runtime capability contract | Appendable shape | `docs/runtime-capability-contract.md`, `docs/runtime-addition-checklist.md`, and `platform/runtime-capabilities.json` define what a runtime target must provide for networking, identity, secrets, ingress, observability, jobs, rollout, rollback, evidence, cost controls, and Terraform ownership. |
 | Runtime adapters | Mostly portable | `packages/infrastructure` owns SQL, Dapr, storage, and runtime adapters behind application ports. |
 | Local runtime | Portable | `compose.yaml`, Dockerfiles, Liquibase, PgBouncer, Dapr local assets, and the Grafana OSS stack run without AWS. |
 | Observability | Mostly OSS-portable | Grafana uses Prometheus, Loki, and Tempo. No Grafana Cloud AI or Grafana CloudWatch datasource is part of the baseline. |
@@ -34,7 +34,7 @@ Actions for orchestration.
 | Gap | Status | Next normal move |
 |---|---|---|
 | CI-to-Loki release-event publishing | Ready but not active | Configure a real `LOKI_PUSH_URL` on the GitHub `aws` environment through a private runner/network path or reviewed authenticated endpoint, then run `make release-event-delivery-verify`. |
-| Metrics parity for AWS-managed resources | Partial | Keep CloudWatch alarms for ALB, RDS, SQS, Scheduler, WAF, and data-export freshness until a deliberate exporter/ruler path exists. |
+| Metrics parity for AWS-managed resources | Partial | Keep CloudWatch alarms for ALB, RDS, SQS, Scheduler, WAF, and data-export freshness at the AWS platform edge until a deliberate exporter/ruler path exists. Do not make CloudWatch the application observability contract. |
 | Trace routing abstraction | Partial | The API emits OTLP/HTTP directly to Tempo. Add an OpenTelemetry Collector only when there is a real need for routing, filtering, or multi-backend export. |
 | Alternate runtime platform | Deferred but appendable | The app and runtime capability contracts are explicit, but no Kubernetes, Nomad, or second-cloud Terraform root exists. Add one only when there is a real operating requirement and it satisfies `platform/runtime-capabilities.json`. |
 | Infra rollback drill workflow | Intentionally absent | Infra rollback stays reviewed `Infra Plan` plus `Infra Apply`; do not add a permanent infra rollback drill workflow. |

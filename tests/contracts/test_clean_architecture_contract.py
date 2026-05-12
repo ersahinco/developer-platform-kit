@@ -268,10 +268,14 @@ def test_portability_status_documents_intentional_provider_boundaries() -> None:
     runtime_contract = (ROOT / "docs" / "runtime-capability-contract.md").read_text(
         encoding="utf-8"
     )
+    runtime_checklist = (ROOT / "docs" / "runtime-addition-checklist.md").read_text(
+        encoding="utf-8"
+    )
 
     assert "docs/portability-status.md" in readme
     assert "docs/platform-contract.md" in readme
     assert "docs/runtime-capability-contract.md" in readme
+    assert "docs/runtime-addition-checklist.md" in readme
     assert "Portable Baseline" in doc
     assert "Intentional Provider Dependencies" in doc
     assert "Current Gaps" in doc
@@ -343,5 +347,28 @@ def test_portability_status_documents_intentional_provider_boundaries() -> None:
         "gcp",
         "without changing app/domain code",
         "platform/delivery edges",
+        "docs/runtime-addition-checklist.md",
     ]:
         assert phrase in runtime_contract_lower
+
+    runtime_checklist_lower = runtime_checklist.lower()
+    for phrase in [
+        "future runtime addition checklist",
+        "platform/runtime-capabilities.json",
+        "platform/workloads.json",
+        "packages/domain",
+        "packages/application",
+        "prometheus metrics",
+        "loki-compatible logs",
+        "otlp/http traces",
+        "provider-native observability is allowed",
+        "provider-managed infrastructure",
+        "cloudwatch",
+        "terraform roots under `infra/`",
+        "app image rollback",
+        "runtime data rollback",
+        "infra rollback",
+        "same markdown/json/jsonl schema",
+        "uv run python scripts/ci/validate_platform_contract.py",
+    ]:
+        assert phrase in runtime_checklist_lower

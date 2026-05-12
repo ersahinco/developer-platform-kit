@@ -40,7 +40,8 @@ credentials. The portable part is the capability shape and evidence schema.
 
 ## Adding A Runtime Later
 
-To add a runtime target later:
+Use `docs/runtime-addition-checklist.md` before adding a runtime target. To add
+a runtime target later:
 
 1. Keep app/domain/application code unchanged.
 2. Add a new runtime target to `platform/runtime-capabilities.json`.
@@ -48,6 +49,11 @@ To add a runtime target later:
 4. Reuse `platform/workloads.json` and the existing release evidence schema.
 5. Add Terraform ownership docs and reviewed plan/apply boundaries.
 6. Add local/CI validation before declaring the runtime supported.
+
+Do not add the target to `platform/runtime-capabilities.json` until its proof
+files and required tokens exist. Future Terraform roots may be runtime-specific,
+but they must stay explicit under `infra/` and preserve separate
+bootstrap/platform and app/runtime ownership.
 
 Do not add EKS, Azure, GCP, Nomad, or another target just to prove portability.
 The target becomes useful when it can host real workloads cheaper, safer, or
