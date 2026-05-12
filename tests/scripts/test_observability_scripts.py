@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import json
 import sys
+from datetime import UTC, datetime, timedelta
 from pathlib import Path
 from typing import Any
 
@@ -272,6 +273,76 @@ def test_incident_evidence_bundle_collects_portable_context(
     assert "task_definition" in bundle["correlation_fields"]
     assert "App Overview" in markdown
     assert "gh run list --workflow app-deploy.yml" in markdown
+
+
+def test_incident_evidence_bundle_includes_recent_release_events(
+    monkeypatch, tmp_path: Path
+) -> None:
+    now = datetime.now(UTC)
+    release_events_dir = tmp_path / "release-events"
+    release_events_dir.mkdir()
+    recent_event = release_event.build_event(
+        event_type="app_deploy",
+        status="success",
+        summary="App deploy verification passed",
+        service_name="app",
+        image_tag="sha-1234567890abcdef1234567890abcdef12345678",
+        task_definition="arn:aws:ecs:task-definition/aws-sdlc-containers:9",
+        previous_task_definition=None,
+        drill_task_definition=None,
+        plan_run_id=None,
+        fault_mode=None,
+        read_mode="legacy",
+        write_mode="legacy",
+        rollback_seconds=None,
+        rollback_slo_seconds=None,
+        verify_seconds=12,
+        verify_slo_seconds=120,
+        env={
+            "STACK_NAME": "aws-sdlc-containers",
+            "GITHUB_RUN_ID": "25705755619",
+            "GITHUB_WORKFLOW": "App Deploy",
+        },
+        now=now,
+    )
+    old_event = {
+        **recent_event,
+        "timestamp": (now - timedelta(hours=3)).isoformat(),
+        "event_type": "infra_apply",
+    }
+    (release_events_dir / "release-event.jsonl").write_text(
+        json.dumps(old_event) + "\n" + json.dumps(recent_event) + "\n",
+        encoding="utf-8",
+    )
+
+    def fake_aws_json(args: list[str], region: str) -> dict[str, Any]:
+        if args[:2] == ["ecs", "describe-services"]:
+            return {"services": [{"deployments": []}]}
+        if args[:2] == ["cloudwatch", "describe-alarms"]:
+            return {"MetricAlarms": []}
+        raise AssertionError(f"unexpected AWS call: {args}")
+
+    monkeypatch.setattr(evidence, "_aws_json", fake_aws_json)
+
+    bundle = evidence.build_bundle(
+        stack_name="aws-sdlc-containers",
+        service_name="app",
+        region="eu-central-1",
+        root_domain="ersahinco-sandbox.eu",
+        lookback_minutes=60,
+        release_events_dir=release_events_dir,
+    )
+    _, markdown_path = evidence.write_bundle(bundle, tmp_path / "bundle")
+
+    assert bundle["release_event_sources"]["loaded_count"] == 1
+    assert bundle["release_events"][0]["event_type"] == "app_deploy"
+    assert bundle["release_events"][0]["github_run_id"] == "25705755619"
+    assert bundle["release_events"][0]["image_tag"].startswith("sha-")
+    markdown = markdown_path.read_text(encoding="utf-8")
+    assert "Recent Delivery Events" in markdown
+    assert "App deploy verification passed" in markdown
+    assert "25705755619" in markdown
+    assert "release-evidence-*" in markdown
 
 
 def test_release_event_writes_markdown_json_and_jsonl(tmp_path: Path) -> None:

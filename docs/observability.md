@@ -87,10 +87,10 @@ make incident-evidence
 ```
 
 The bundle captures current ECS service/task-definition context, CloudWatch
-alarm states, GitHub run hints, and Grafana-stack query hints for Loki,
-Prometheus, and Tempo. It is deliberately evidence, not diagnosis: it should be
-safe to paste into an incident note or feed to future assistant-style tooling
-without changing runtime state.
+alarm states, recent delivery events, GitHub run hints, and Grafana-stack query
+hints for Loki, Prometheus, and Tempo. It is deliberately evidence, not
+diagnosis: it should be safe to paste into an incident note or feed to future
+assistant-style tooling without changing runtime state.
 
 Delivery workflows also emit release evidence events. `App Deploy`,
 `App No-Data Rollback Drill`, `Data Runtime Rollback Drill`, and `Infra Apply`
@@ -102,6 +102,16 @@ operators can line up a symptom window with the exact workflow run and revision
 without scraping GitHub summaries by hand.
 `AWS SDLC Containers / App Overview` includes a Loki-backed `Delivery Events`
 panel for these records when they are pushed to Loki.
+
+To include downloaded release evidence artifacts in the next incident bundle:
+
+```bash
+mkdir -p /tmp/aws-sdlc-containers-release-events
+gh run download <run-id> \
+  -p 'release-evidence-*' \
+  -D /tmp/aws-sdlc-containers-release-events
+RELEASE_EVENTS_DIR=/tmp/aws-sdlc-containers-release-events make incident-evidence
+```
 
 The event helper is OSS-portable and does not require Grafana Cloud. By default
 it writes artifacts only. If a reachable Loki endpoint is provided later, the

@@ -10,8 +10,9 @@ Usage:
     python scripts/observability/incident_evidence_bundle.py --output-dir /tmp/incident
 
 Environment:
-    AWS_REGION  Default: eu-central-1
-    STACK_NAME  Default: aws-sdlc-containers
+    AWS_REGION          Default: eu-central-1
+    STACK_NAME          Default: aws-sdlc-containers
+    RELEASE_EVENTS_DIR  Optional directory containing release-event artifacts
 """
 
 from __future__ import annotations
@@ -106,6 +107,124 @@ def _github_context() -> dict[str, str | None]:
     return {key.lower(): os.environ.get(key) for key in keys}
 
 
+def _parse_datetime(value: object) -> datetime | None:
+    if not isinstance(value, str) or not value:
+        return None
+    try:
+        parsed = datetime.fromisoformat(value.replace("Z", "+00:00"))
+    except ValueError:
+        return None
+    if parsed.tzinfo is None:
+        return parsed.replace(tzinfo=UTC)
+    return parsed.astimezone(UTC)
+
+
+def _release_event_summary(event: dict[str, Any]) -> dict[str, Any]:
+    github = event.get("github", {})
+    revision = event.get("revision", {})
+    runtime = event.get("runtime", {})
+    slo = event.get("slo", {})
+    if not isinstance(github, dict):
+        github = {}
+    if not isinstance(revision, dict):
+        revision = {}
+    if not isinstance(runtime, dict):
+        runtime = {}
+    if not isinstance(slo, dict):
+        slo = {}
+
+    return {
+        "event_type": event.get("event_type"),
+        "status": event.get("status"),
+        "summary": event.get("summary"),
+        "timestamp": event.get("timestamp"),
+        "service": event.get("service"),
+        "github_run_id": github.get("run_id"),
+        "github_run_url": github.get("run_url"),
+        "workflow": github.get("workflow"),
+        "image_tag": revision.get("image_tag"),
+        "task_definition": revision.get("task_definition"),
+        "previous_task_definition": revision.get("previous_task_definition"),
+        "drill_task_definition": revision.get("drill_task_definition"),
+        "plan_run_id": revision.get("plan_run_id"),
+        "fault_mode": runtime.get("fault_mode"),
+        "read_mode": runtime.get("read_mode"),
+        "write_mode": runtime.get("write_mode"),
+        "rollback_seconds": slo.get("rollback_seconds"),
+        "verify_seconds": slo.get("verify_seconds"),
+    }
+
+
+def _event_identity(event: dict[str, Any]) -> tuple[object, object, object]:
+    github = event.get("github", {})
+    if not isinstance(github, dict):
+        github = {}
+    return (event.get("timestamp"), event.get("event_type"), github.get("run_id"))
+
+
+def _read_release_event_file(path: Path) -> list[dict[str, Any]]:
+    try:
+        text = path.read_text(encoding="utf-8")
+    except OSError:
+        return []
+
+    events: list[dict[str, Any]] = []
+    if path.suffix == ".jsonl":
+        for line in text.splitlines():
+            if not line.strip():
+                continue
+            try:
+                value = json.loads(line)
+            except json.JSONDecodeError:
+                continue
+            if isinstance(value, dict):
+                events.append(value)
+        return events
+
+    try:
+        value = json.loads(text)
+    except json.JSONDecodeError:
+        return []
+    if isinstance(value, dict):
+        events.append(value)
+    elif isinstance(value, list):
+        events.extend(item for item in value if isinstance(item, dict))
+    return events
+
+
+def _load_release_events(
+    release_events_dir: Path | None,
+    *,
+    window_start: datetime,
+    window_end: datetime,
+    limit: int = 10,
+) -> list[dict[str, Any]]:
+    if release_events_dir is None or not release_events_dir.exists():
+        return []
+
+    candidates = [
+        *release_events_dir.rglob("release-event.json"),
+        *release_events_dir.rglob("release-event.jsonl"),
+    ]
+    seen: set[tuple[object, object, object]] = set()
+    events: list[dict[str, Any]] = []
+    for path in sorted(candidates):
+        for event in _read_release_event_file(path):
+            timestamp = _parse_datetime(event.get("timestamp"))
+            if timestamp is None:
+                continue
+            if timestamp < window_start or timestamp > window_end:
+                continue
+            identity = _event_identity(event)
+            if identity in seen:
+                continue
+            seen.add(identity)
+            events.append(_release_event_summary(event))
+
+    events.sort(key=lambda item: str(item.get("timestamp") or ""), reverse=True)
+    return events[:limit]
+
+
 def _query_hints(
     stack_name: str, service_name: str, root_domain: str
 ) -> dict[str, Any]:
@@ -127,6 +246,10 @@ def _query_hints(
             {
                 "name": "order event relay",
                 "expr": f'{{stack="{stack_name}",environment="aws",service="order-event-consumer"}} |= "<event_id>"',
+            },
+            {
+                "name": "delivery events",
+                "expr": f'{{stack="{stack_name}",environment="aws",event_type=~"app_deploy|app_rollback_drill|data_runtime_rollback_drill|infra_apply"}}',
             },
         ],
         "prometheus": [
@@ -165,6 +288,7 @@ def build_bundle(
     region: str,
     root_domain: str,
     lookback_minutes: int,
+    release_events_dir: Path | None = None,
 ) -> dict[str, Any]:
     now = datetime.now(UTC)
     window_start = now - timedelta(minutes=lookback_minutes)
@@ -210,6 +334,11 @@ def build_bundle(
     )
     metric_alarms = alarm_response.get("MetricAlarms", [])
     alarms = metric_alarms if isinstance(metric_alarms, list) else []
+    release_events = _load_release_events(
+        release_events_dir,
+        window_start=window_start,
+        window_end=now,
+    )
 
     return {
         "schema_version": "1",
@@ -252,6 +381,11 @@ def build_bundle(
             for alarm in alarms
             if isinstance(alarm, dict)
         ],
+        "release_events": release_events,
+        "release_event_sources": {
+            "directory": str(release_events_dir) if release_events_dir else None,
+            "loaded_count": len(release_events),
+        },
         "correlation_fields": CORRELATION_FIELDS,
         "query_hints": _query_hints(stack_name, service_name, root_domain),
         "workflow_hints": {
@@ -269,6 +403,10 @@ def build_bundle(
                 "gh run list --workflow data-runtime-rollback-drill.yml --limit 5",
                 "gh run list --workflow infra-plan.yml --limit 5",
                 "gh run list --workflow infra-apply.yml --limit 5",
+            ],
+            "release_event_artifacts": [
+                "gh run download <run-id> -p 'release-evidence-*' -D /tmp/aws-sdlc-containers-release-events",
+                "RELEASE_EVENTS_DIR=/tmp/aws-sdlc-containers-release-events make incident-evidence",
             ],
         },
     }
@@ -299,6 +437,26 @@ def render_markdown(bundle: dict[str, Any]) -> str:
     else:
         lines.append("- No alarm states collected.")
 
+    lines.extend(["", "## Recent Delivery Events"])
+    release_events = bundle.get("release_events", [])
+    if release_events:
+        for event in release_events:
+            detail = event.get("summary") or event.get("event_type")
+            run = event.get("github_run_id") or "unknown run"
+            status = event.get("status") or "unknown"
+            timestamp = event.get("timestamp") or "unknown time"
+            lines.append(f"- {timestamp}: {detail} ({status}, run {run})")
+            if event.get("image_tag"):
+                lines.append(f"  - image_tag: `{event['image_tag']}`")
+            if event.get("task_definition"):
+                lines.append(f"  - task_definition: `{event['task_definition']}`")
+            if event.get("plan_run_id"):
+                lines.append(f"  - plan_run_id: `{event['plan_run_id']}`")
+    else:
+        lines.append(
+            "- No local release events loaded. Download `release-evidence-*` artifacts or query the Grafana Delivery Events panel."
+        )
+
     lines.extend(["", "## Correlation Fields"])
     lines.append(", ".join(f"`{field}`" for field in bundle["correlation_fields"]))
 
@@ -320,6 +478,8 @@ def render_markdown(bundle: dict[str, Any]) -> str:
     for command in bundle["query_hints"]["operator_commands"]:
         lines.append(f"- `{command}`")
     for command in bundle["workflow_hints"]["recent_runs"]:
+        lines.append(f"- `{command}`")
+    for command in bundle["workflow_hints"]["release_event_artifacts"]:
         lines.append(f"- `{command}`")
 
     return "\n".join(lines) + "\n"
@@ -349,6 +509,12 @@ def main() -> int:
         "--root-domain", default=os.environ.get("ROOT_DOMAIN", "ersahinco-sandbox.eu")
     )
     parser.add_argument("--lookback-minutes", type=int, default=60)
+    release_events_default = os.environ.get("RELEASE_EVENTS_DIR")
+    parser.add_argument(
+        "--release-events-dir",
+        type=Path,
+        default=Path(release_events_default) if release_events_default else None,
+    )
     parser.add_argument(
         "--output-dir",
         type=Path,
@@ -362,6 +528,7 @@ def main() -> int:
         region=args.region,
         root_domain=args.root_domain,
         lookback_minutes=args.lookback_minutes,
+        release_events_dir=args.release_events_dir,
     )
     json_path, markdown_path = write_bundle(bundle, args.output_dir)
     print(f"Wrote {markdown_path}")

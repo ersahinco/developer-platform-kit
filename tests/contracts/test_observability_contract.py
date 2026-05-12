@@ -401,6 +401,7 @@ def test_infra_apply_downloads_plan_artifact_into_infra_tree() -> None:
 def test_release_evidence_events_are_emitted_by_cloud_changing_workflows() -> None:
     docs = _read("docs/observability.md")
     event_script = _read("scripts/observability/release_event.py")
+    evidence_script = _read("scripts/observability/incident_evidence_bundle.py")
     dashboard = json.loads(_read("observability/grafana/dashboards/app-overview.json"))
     workflows = {
         "app_deploy": _read(".github/workflows/app-deploy.yml"),
@@ -418,6 +419,10 @@ def test_release_evidence_events_are_emitted_by_cloud_changing_workflows() -> No
     assert "release evidence events" in docs
     assert "JSONL artifacts" in docs
     assert "Delivery Events" in docs
+    assert "RELEASE_EVENTS_DIR" in docs
+    assert "release-evidence-*" in docs
+    assert "release_events" in evidence_script
+    assert "--release-events-dir" in evidence_script
 
     delivery_panel = next(
         panel for panel in dashboard["panels"] if panel["title"] == "Delivery Events"
