@@ -111,6 +111,10 @@
         "runtime_labels": ["stack", "environment", "service", "container"],
         "app_fields": ["event", "job_name", "last_order_id"]
       },
+      "traces": {
+        "supported": false,
+        "protocol": null
+      },
       "config": {
         "env": [
           "BACKFILL_DATABASE_URL",
@@ -144,6 +148,10 @@
       "logs": {
         "runtime_labels": ["stack", "environment", "service", "container"],
         "app_fields": ["event", "job_name", "dataset", "run_id", "status"]
+      },
+      "traces": {
+        "supported": false,
+        "protocol": null
       },
       "config": {
         "env": [

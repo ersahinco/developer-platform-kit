@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import json
+import re
 import sys
 from pathlib import Path
 from typing import Any
@@ -9,6 +10,7 @@ from typing import Any
 ROOT = Path(__file__).resolve().parents[2]
 DEFAULT_CONTRACT = ROOT / "platform" / "workloads.json"
 REQUIRED_RUNTIME_LOG_LABELS = {"stack", "environment", "service", "container"}
+ENV_NAME_RE = re.compile(r"^[A-Z][A-Z0-9_]*$")
 
 sys.path.insert(0, str(ROOT))
 
@@ -21,6 +23,20 @@ def _as_strings(value: object) -> list[str]:
     if not isinstance(value, list):
         return []
     return [item for item in value if isinstance(item, str)]
+
+
+def _check_env_names(
+    *,
+    workload_name: str,
+    label: str,
+    names: list[str],
+    errors: list[str],
+) -> None:
+    for name in names:
+        if not ENV_NAME_RE.fullmatch(name):
+            errors.append(
+                f"{workload_name}: {label} entry {name!r} must be UPPER_SNAKE_CASE"
+            )
 
 
 def _source_text(root: Path, workload: dict[str, Any]) -> str:
@@ -79,10 +95,24 @@ def _check_common(root: Path, workload: dict[str, Any], errors: list[str]) -> No
             errors.append(f"{name}: Dockerfile must not bake secret values")
 
     config = workload.get("config", {})
-    if not _as_strings(config.get("env")):
+    env = _as_strings(config.get("env"))
+    secrets = _as_strings(config.get("secrets"))
+    if not env:
         errors.append(f"{name}: config.env must declare runtime environment keys")
     if not isinstance(config.get("secrets"), list):
         errors.append(f"{name}: config.secrets must be a list, even when empty")
+    _check_env_names(workload_name=name, label="config.env", names=env, errors=errors)
+    _check_env_names(
+        workload_name=name,
+        label="config.secrets",
+        names=secrets,
+        errors=errors,
+    )
+    overlapping_secret_env = sorted(set(env) & set(secrets))
+    if overlapping_secret_env:
+        errors.append(
+            f"{name}: secret names must not also appear in config.env: {overlapping_secret_env}"
+        )
 
     logs = workload.get("logs", {})
     runtime_labels = set(_as_strings(logs.get("runtime_labels")))
@@ -101,6 +131,14 @@ def _check_common(root: Path, workload: dict[str, Any], errors: list[str]) -> No
         errors.append(f"{name}: release_evidence must declare expected evidence fields")
     if not isinstance(workload.get("rollback"), str):
         errors.append(f"{name}: rollback expectation must be declared")
+
+    traces = workload.get("traces")
+    if not isinstance(traces, dict) or not isinstance(traces.get("supported"), bool):
+        errors.append(f"{name}: traces.supported must be declared for every workload")
+    elif traces["supported"] is True and traces.get("protocol") != "otlp_http":
+        errors.append(f"{name}: supported traces must use protocol='otlp_http'")
+    elif traces["supported"] is False and traces.get("protocol") is not None:
+        errors.append(f"{name}: unsupported traces must use protocol=null")
 
 
 def _check_service(root: Path, workload: dict[str, Any], errors: list[str]) -> None:

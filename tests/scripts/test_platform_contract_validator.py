@@ -45,3 +45,34 @@ def test_platform_contract_validator_rejects_release_evidence_drift(
     errors = validator.collect_errors(contract_path=contract_path)
 
     assert any("release_evidence.required_fields" in error for error in errors)
+
+
+def test_platform_contract_validator_rejects_secret_env_overlap(
+    tmp_path: Path,
+) -> None:
+    contract_path = tmp_path / "workloads.json"
+    contract = json.loads(validator.DEFAULT_CONTRACT.read_text(encoding="utf-8"))
+    contract["workloads"][0]["config"]["env"].append("DB_PASSWORD")
+    contract_path.write_text(json.dumps(contract), encoding="utf-8")
+
+    errors = validator.collect_errors(contract_path=contract_path)
+
+    assert any(
+        "secret names must not also appear in config.env" in error for error in errors
+    )
+
+
+def test_platform_contract_validator_requires_trace_contract_for_jobs(
+    tmp_path: Path,
+) -> None:
+    contract_path = tmp_path / "workloads.json"
+    contract = json.loads(validator.DEFAULT_CONTRACT.read_text(encoding="utf-8"))
+    del contract["workloads"][2]["traces"]
+    contract_path.write_text(json.dumps(contract), encoding="utf-8")
+
+    errors = validator.collect_errors(contract_path=contract_path)
+
+    assert (
+        "backfill_worker: traces.supported must be declared for every workload"
+        in errors
+    )
