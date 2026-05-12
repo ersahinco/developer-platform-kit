@@ -118,6 +118,9 @@ jobs:
     permissions:
       contents: read
       id-token: write
+    outputs:
+      task_definition: ${{ steps.deploy-app.outputs.task_def_arn }}
+      verify_seconds: ${{ steps.verify-app.outputs.verify_seconds }}
 
     steps:
       - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
@@ -253,20 +256,50 @@ jobs:
           scripts/ci/ci_poll_ecs_task_until_stopped.sh aws-sdlc-containers "$TASK_ARN" Worker
           scripts/ci/ci_assert_ecs_task_succeeded.sh aws-sdlc-containers "$TASK_ARN" "Backfill worker"
 
+  evidence:
+    name: Evidence
+    needs:
+      - migrate
+      - deploy
+    if: >
+      always() &&
+      inputs.confirm_deploy == 'deploy' &&
+      github.ref_name == github.event.repository.default_branch
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    environment: aws
+    permissions:
+      contents: read
+      id-token: write
+
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
+        with:
+          persist-credentials: false
+
+      - uses: aws-actions/configure-aws-credentials@a89a83ec143615402a01f672b6e172b7b1875000 # v6
+        with:
+          role-to-assume: ${{ secrets.AWS_ROLE_ARN }}
+          aws-region: ${{ env.AWS_REGION }}
+
       - name: Write app deploy evidence
-        if: ${{ always() }}
         env:
           LOKI_PUSH_URL: ${{ secrets.LOKI_PUSH_URL || vars.LOKI_PUSH_URL }}
           LOKI_URL: ${{ vars.LOKI_URL }}
         run: |
+          status="${{ needs.deploy.result }}"
+          if [[ "${{ needs.migrate.result }}" != "success" ]]; then
+            status="${{ needs.migrate.result }}"
+          fi
+          summary="App deploy workflow completed with migrate=${{ needs.migrate.result }}, deploy=${{ needs.deploy.result }}"
           python3 scripts/observability/release_event.py \
             --event-type app_deploy \
-            --status "${{ job.status }}" \
-            --summary "App deploy workflow completed with status ${{ job.status }}" \
+            --status "${status}" \
+            --summary "${summary}" \
             --service-name app \
             --image-tag "${{ env.IMAGE_TAG }}" \
-            --task-definition "${{ steps.deploy-app.outputs.task_def_arn }}" \
-            --verify-seconds "${{ steps.verify-app.outputs.verify_seconds }}" \
+            --task-definition "${{ needs.deploy.outputs.task_definition }}" \
+            --verify-seconds "${{ needs.deploy.outputs.verify_seconds }}" \
             --include-alarms \
             --push-loki \
             --loki-push-best-effort \

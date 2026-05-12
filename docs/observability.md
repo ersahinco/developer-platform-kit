@@ -101,6 +101,8 @@ snapshot, and stable labels. These events close the main Assistant-style gap
 between deploy context and telemetry: operators can line up a symptom window
 with the exact workflow run, revision, and alarm state without scraping GitHub
 summaries by hand.
+`App Deploy` writes this evidence from a final job after both migration and
+deployment, so migration failures still leave a portable timeline artifact.
 `AWS SDLC Containers / App Overview` includes a Loki-backed `Delivery Events`
 panel and dashboard annotations for these records when they are pushed to Loki.
 The release-event stream labels include `event_type`, `status`, `service`, and

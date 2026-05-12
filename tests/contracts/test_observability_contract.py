@@ -442,6 +442,7 @@ def test_release_evidence_events_are_emitted_by_cloud_changing_workflows() -> No
     assert "query_range" in evidence_script
     assert "loki_count" in evidence_script
     assert "LOKI_URL" in docs
+    assert "migration failures still leave a portable timeline artifact" in docs
 
     delivery_annotation = next(
         item
@@ -478,6 +479,26 @@ def test_release_evidence_events_are_emitted_by_cloud_changing_workflows() -> No
         assert "actions/upload-artifact" in workflow
         assert "release-evidence-" in workflow
         assert 'release-event.md >> "$GITHUB_STEP_SUMMARY"' in workflow
+
+    app_deploy = workflows["app_deploy"]
+    app_deploy_evidence_job = (
+        "evidence:\n    name: Evidence\n    needs:\n      - migrate\n      - deploy"
+    )
+    assert app_deploy_evidence_job in app_deploy
+    assert "always() &&" in app_deploy
+    assert "task_definition: ${{ steps.deploy-app.outputs.task_def_arn }}" in (
+        app_deploy
+    )
+    assert "verify_seconds: ${{ steps.verify-app.outputs.verify_seconds }}" in (
+        app_deploy
+    )
+    assert (
+        "App deploy workflow completed with migrate=${{ needs.migrate.result }}, deploy=${{ needs.deploy.result }}"
+        in app_deploy
+    )
+    assert '--status "${status}"' in app_deploy
+    assert "${{ needs.deploy.outputs.task_definition }}" in app_deploy
+    assert "${{ needs.deploy.outputs.verify_seconds }}" in app_deploy
 
 
 def test_app_overview_uses_loki_for_order_event_worker_outcomes() -> None:
