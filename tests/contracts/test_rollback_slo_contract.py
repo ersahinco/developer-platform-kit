@@ -136,4 +136,10 @@ def test_rollback_slo_runbook_covers_app_infra_and_data_paths() -> None:
     assert "rollback-drill-slos.md" in deployment
     assert "Workflow Inventory" in runbook
     assert "exactly two permanent rollback drill workflows" in runbook
+    infra_reviewed_path = (
+        "Infra rollback drills use reviewed `Infra Plan` and `Infra Apply` runs."
+    )
+    assert infra_reviewed_path in runbook
+    assert "| Backfill/data job containment |" not in runbook
+    assert "Backfill/data job containment is a guardrail" in runbook
     assert "25704521559" in ownership_runbook

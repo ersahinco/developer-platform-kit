@@ -120,6 +120,27 @@ def test_docs_do_not_describe_stale_core_adapter_or_direct_sqs_model() -> None:
         assert forbidden not in text
 
 
+def test_canonical_docs_do_not_contain_session_prompt_blocks() -> None:
+    docs = "\n".join(
+        path.read_text(encoding="utf-8")
+        for path in [
+            ROOT / "README.md",
+            *sorted((ROOT / "docs").rglob("*.md")),
+        ]
+    )
+
+    forbidden_terms = [
+        "\n## Prompt\n",
+        "You are working in the aws-sdlc-containers repo.",
+        "Start by reading:",
+        "Evaluate critically:",
+        "Current known remaining gaps to consider:",
+    ]
+
+    for forbidden in forbidden_terms:
+        assert forbidden not in docs
+
+
 def test_source_tree_is_flat_and_importable_by_folder_name() -> None:
     expected_files = [
         ROOT / "apps" / "api" / "main.py",

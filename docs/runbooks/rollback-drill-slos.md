@@ -18,7 +18,6 @@ Each cloud-changing apply/deploy/drill path also uploads a release evidence
 artifact with Markdown, JSON, and JSONL forms. Treat that artifact as the
 portable timeline record that can later be pushed into Loki for Grafana
 correlation.
-| Backfill/data job containment | A resumable job fails before runtime cutover. | Stop or rerun decision within 10 min; no read-mode advancement until reconciliation passes. | Worker logs, checkpoint state, reconciliation output, unchanged runtime modes. |
 
 ## Current Baseline
 
@@ -46,6 +45,9 @@ signal, timeout, rollback, or verification path is repaired.
 - Data-phase rollback must stay additive until the contract phase. After a
   destructive contract migration, rollback is snapshot/restore work, not a fast
   pipeline rollback.
+- Backfill/data job containment is a guardrail, not a separate rollback drill:
+  if a resumable job fails before runtime cutover, stop or rerun within 10
+  minutes and do not advance read mode until reconciliation passes.
 - Grafana/Prometheus/Loki are the human observation layer. ECS automatic
   rollback for the app drill is driven by CloudWatch deployment alarms because
   ECS deployment alarms are CloudWatch-native.
