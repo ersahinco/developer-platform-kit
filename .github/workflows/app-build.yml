@@ -42,11 +42,9 @@ on:
       - "uv.lock"
 
 env:
-  AWS_REGION: eu-central-1
-  ECR_REGISTRY: 691627364817.dkr.ecr.eu-central-1.amazonaws.com
-  STACK_NAME: aws-sdlc-containers
-  ROOT_DOMAIN: ersahinco-sandbox.eu
-  PGBOUNCER_TAG: v1.25.1-p0
+  AWS_REGION: ${{ vars.AWS_REGION || 'eu-central-1' }}
+  STACK_NAME: ${{ vars.STACK_NAME || github.event.repository.name }}
+  PGBOUNCER_TAG: ${{ vars.PGBOUNCER_TAG || 'v1.25.1-p0' }}
 
 # PRs and pushes validate the reference workload locally. Manual runs build,
 # scan, and push immutable images only; deployment is a separate approval step.
@@ -127,10 +125,10 @@ jobs:
 
       - name: Run Liquibase migrations
         run: |
-          docker build -t aws-sdlc-containers-liquibase:test db/
+          docker build -t "${STACK_NAME}-liquibase:test" db/
           docker run --rm --network host \
             -v "${{ github.workspace }}/db:/liquibase/db" \
-            aws-sdlc-containers-liquibase:test \
+            "${STACK_NAME}-liquibase:test" \
               --changelog-file=changelog/db.changelog-master.yaml \
               --search-path=/liquibase/db \
               --url=jdbc:postgresql://localhost:5432/aws_sdlc_containers \
@@ -166,9 +164,67 @@ jobs:
         if: always()
         run: pkill -f "uvicorn" || true
 
-  build-and-push:
-    name: Build, Scan & Push to ECR
+  image-matrix:
+    name: Resolve Image Matrix
     needs: validate-and-test
+    if: >
+      github.event_name == 'workflow_dispatch' &&
+      inputs.confirm_build == 'build' &&
+      github.ref_name == github.event.repository.default_branch
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    outputs:
+      images: ${{ steps.images.outputs.images }}
+
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
+        with:
+          persist-credentials: false
+
+      - name: Build image matrix
+        id: images
+        env:
+          TAG: sha-${{ github.sha }}
+        run: |
+          images=$(jq -c \
+            --arg tag "$TAG" \
+            --arg pgbouncer_tag "$PGBOUNCER_TAG" \
+            '
+              [
+                .workloads[]
+                | {
+                    name,
+                    repository: .image.repository,
+                    dockerfile: .image.dockerfile,
+                    context: ".",
+                    tag: $tag,
+                    build_arg_name: ""
+                  }
+              ] + [
+                {
+                  name: "liquibase",
+                  repository: "liquibase",
+                  dockerfile: "db/Dockerfile",
+                  context: "db",
+                  tag: $tag,
+                  build_arg_name: ""
+                },
+                {
+                  name: "pgbouncer",
+                  repository: "pgbouncer",
+                  dockerfile: "db/pgbouncer/Dockerfile",
+                  context: "db/pgbouncer",
+                  tag: $pgbouncer_tag,
+                  build_arg_name: "PGBOUNCER_TAG"
+                }
+              ]
+            ' platform/workloads.json)
+          echo "images=${images}" >> "$GITHUB_OUTPUT"
+
+  build-scan-push:
+    name: Build, Scan & Push (${{ matrix.image.name }})
+    needs: image-matrix
     if: >
       github.event_name == 'workflow_dispatch' &&
       inputs.confirm_build == 'build' &&
@@ -176,12 +232,14 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 30
     environment: aws
+    strategy:
+      fail-fast: false
+      matrix:
+        image: ${{ fromJSON(needs.image-matrix.outputs.images) }}
     permissions:
       id-token: write
       contents: read
       attestations: write
-    outputs:
-      image_tag: sha-${{ github.sha }}
 
     steps:
       - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
@@ -195,126 +253,60 @@ jobs:
           aws-region: ${{ env.AWS_REGION }}
 
       - name: Log in to ECR
+        id: login-ecr
         uses: aws-actions/amazon-ecr-login@19d944daaa35f0fa1d3f7f8af1d3f2e5de25c5b7 # v2
 
-      - name: Build images
-        env:
-          TAG: sha-${{ github.sha }}
+      - name: Build image
+        id: image
         run: |
-          docker build -f apps/api/Dockerfile -t "${{ env.ECR_REGISTRY }}/${{ env.STACK_NAME }}/app:${TAG}" . &
-          docker build -f apps/backfill_worker/Dockerfile -t "${{ env.ECR_REGISTRY }}/${{ env.STACK_NAME }}/worker:${TAG}" . &
-          docker build -f apps/data_export_job/Dockerfile -t "${{ env.ECR_REGISTRY }}/${{ env.STACK_NAME }}/data-export-job:${TAG}" . &
-          docker build -f apps/order_event_consumer/Dockerfile -t "${{ env.ECR_REGISTRY }}/${{ env.STACK_NAME }}/order-event-consumer:${TAG}" . &
-          docker build -t "${{ env.ECR_REGISTRY }}/${{ env.STACK_NAME }}/liquibase:${TAG}" db/ &
-          docker build -f db/pgbouncer/Dockerfile --build-arg "PGBOUNCER_TAG=${PGBOUNCER_TAG}" -t "${{ env.ECR_REGISTRY }}/${{ env.STACK_NAME }}/pgbouncer:${PGBOUNCER_TAG}" db/pgbouncer &
-          wait
+          image="${{ steps.login-ecr.outputs.registry }}/${{ env.STACK_NAME }}/${{ matrix.image.repository }}:${{ matrix.image.tag }}"
+          build_args=()
+          build_arg_name="${{ matrix.image.build_arg_name }}"
+          if [[ -n "$build_arg_name" ]]; then
+            build_args+=(--build-arg "${build_arg_name}=${!build_arg_name}")
+          fi
+          docker build \
+            -f "${{ matrix.image.dockerfile }}" \
+            "${build_args[@]}" \
+            -t "$image" \
+            "${{ matrix.image.context }}"
+          echo "image=${image}" >> "$GITHUB_OUTPUT"
 
-      - name: Scan images
+      - name: Scan image
         run: |
-          scan() {
-            docker run --rm \
-              -v /var/run/docker.sock:/var/run/docker.sock \
-              -v "$HOME/.cache/trivy:/root/.cache/trivy" \
-              ghcr.io/aquasecurity/trivy:0.70.0@sha256:be1190afcb28352bfddc4ddeb71470835d16462af68d310f9f4bca710961a41e image \
-              --exit-code 1 --severity CRITICAL --no-progress "$1"
-          }
-          scan "${{ env.ECR_REGISTRY }}/${{ env.STACK_NAME }}/app:sha-${{ github.sha }}" &
-          scan "${{ env.ECR_REGISTRY }}/${{ env.STACK_NAME }}/worker:sha-${{ github.sha }}" &
-          scan "${{ env.ECR_REGISTRY }}/${{ env.STACK_NAME }}/data-export-job:sha-${{ github.sha }}" &
-          scan "${{ env.ECR_REGISTRY }}/${{ env.STACK_NAME }}/order-event-consumer:sha-${{ github.sha }}" &
-          scan "${{ env.ECR_REGISTRY }}/${{ env.STACK_NAME }}/liquibase:sha-${{ github.sha }}" &
-          scan "${{ env.ECR_REGISTRY }}/${{ env.STACK_NAME }}/pgbouncer:${PGBOUNCER_TAG}" &
-          wait
+          docker run --rm \
+            -v /var/run/docker.sock:/var/run/docker.sock \
+            -v "$HOME/.cache/trivy:/root/.cache/trivy" \
+            ghcr.io/aquasecurity/trivy:0.70.0@sha256:be1190afcb28352bfddc4ddeb71470835d16462af68d310f9f4bca710961a41e image \
+            --exit-code 1 --severity CRITICAL --no-progress \
+            "${{ steps.image.outputs.image }}"
 
-      - name: Push images
-        env:
-          TAG: sha-${{ github.sha }}
+      - name: Push image
+        run: docker push "${{ steps.image.outputs.image }}"
+
+      - name: Resolve pushed image digest
+        id: digest
         run: |
-          for repo in app worker data-export-job order-event-consumer liquibase; do
-            docker push "${{ env.ECR_REGISTRY }}/${{ env.STACK_NAME }}/${repo}:${TAG}" &
-          done
-          docker push "${{ env.ECR_REGISTRY }}/${{ env.STACK_NAME }}/pgbouncer:${PGBOUNCER_TAG}" &
-          wait
+          digest=$(docker buildx imagetools inspect "${{ steps.image.outputs.image }}" --format '{{json .Manifest.Digest}}')
+          digest=${digest#\"}
+          digest=${digest%\"}
+          echo "digest=${digest}" >> "$GITHUB_OUTPUT"
 
-      - name: Resolve pushed image digests
-        id: image-digests
-        env:
-          TAG: sha-${{ github.sha }}
-        run: |
-          resolve_digest() {
-            local output_name="$1"
-            local image="$2"
-            local digest
-            digest=$(docker buildx imagetools inspect "$image" --format '{{json .Manifest.Digest}}')
-            digest=${digest#\"}
-            digest=${digest%\"}
-            echo "${output_name}=${digest}" >> "$GITHUB_OUTPUT"
-          }
-
-          resolve_digest app "${{ env.ECR_REGISTRY }}/${{ env.STACK_NAME }}/app:${TAG}"
-          resolve_digest worker "${{ env.ECR_REGISTRY }}/${{ env.STACK_NAME }}/worker:${TAG}"
-          resolve_digest data_export_job "${{ env.ECR_REGISTRY }}/${{ env.STACK_NAME }}/data-export-job:${TAG}"
-          resolve_digest order_event_consumer "${{ env.ECR_REGISTRY }}/${{ env.STACK_NAME }}/order-event-consumer:${TAG}"
-          resolve_digest liquibase "${{ env.ECR_REGISTRY }}/${{ env.STACK_NAME }}/liquibase:${TAG}"
-          resolve_digest pgbouncer "${{ env.ECR_REGISTRY }}/${{ env.STACK_NAME }}/pgbouncer:${PGBOUNCER_TAG}"
-
-      - name: Attest app image provenance
+      - name: Attest image provenance
         if: ${{ !github.event.repository.private }}
         uses: actions/attest-build-provenance@43d14bc2b83dec42d39ecae14e916627a18bb661 # v3
         with:
-          subject-name: ${{ env.ECR_REGISTRY }}/${{ env.STACK_NAME }}/app
-          subject-digest: ${{ steps.image-digests.outputs.app }}
-          push-to-registry: true
-
-      - name: Attest worker image provenance
-        if: ${{ !github.event.repository.private }}
-        uses: actions/attest-build-provenance@43d14bc2b83dec42d39ecae14e916627a18bb661 # v3
-        with:
-          subject-name: ${{ env.ECR_REGISTRY }}/${{ env.STACK_NAME }}/worker
-          subject-digest: ${{ steps.image-digests.outputs.worker }}
-          push-to-registry: true
-
-      - name: Attest data export image provenance
-        if: ${{ !github.event.repository.private }}
-        uses: actions/attest-build-provenance@43d14bc2b83dec42d39ecae14e916627a18bb661 # v3
-        with:
-          subject-name: ${{ env.ECR_REGISTRY }}/${{ env.STACK_NAME }}/data-export-job
-          subject-digest: ${{ steps.image-digests.outputs.data_export_job }}
-          push-to-registry: true
-
-      - name: Attest order event consumer image provenance
-        if: ${{ !github.event.repository.private }}
-        uses: actions/attest-build-provenance@43d14bc2b83dec42d39ecae14e916627a18bb661 # v3
-        with:
-          subject-name: ${{ env.ECR_REGISTRY }}/${{ env.STACK_NAME }}/order-event-consumer
-          subject-digest: ${{ steps.image-digests.outputs.order_event_consumer }}
-          push-to-registry: true
-
-      - name: Attest liquibase image provenance
-        if: ${{ !github.event.repository.private }}
-        uses: actions/attest-build-provenance@43d14bc2b83dec42d39ecae14e916627a18bb661 # v3
-        with:
-          subject-name: ${{ env.ECR_REGISTRY }}/${{ env.STACK_NAME }}/liquibase
-          subject-digest: ${{ steps.image-digests.outputs.liquibase }}
-          push-to-registry: true
-
-      - name: Attest PgBouncer image provenance
-        if: ${{ !github.event.repository.private }}
-        uses: actions/attest-build-provenance@43d14bc2b83dec42d39ecae14e916627a18bb661 # v3
-        with:
-          subject-name: ${{ env.ECR_REGISTRY }}/${{ env.STACK_NAME }}/pgbouncer
-          subject-digest: ${{ steps.image-digests.outputs.pgbouncer }}
+          subject-name: ${{ steps.login-ecr.outputs.registry }}/${{ env.STACK_NAME }}/${{ matrix.image.repository }}
+          subject-digest: ${{ steps.digest.outputs.digest }}
           push-to-registry: true
 
       - name: Publish build summary
-        env:
-          TAG: sha-${{ github.sha }}
         run: |
           {
-            echo "### App images ready for deployment approval"
+            echo "### Image ready for deployment approval"
             echo ""
             echo "Commit: ${{ github.sha }}"
-            echo "Image tag: ${TAG}"
+            echo "Image: ${{ steps.image.outputs.image }}"
             echo ""
-            echo "Run the App Deploy workflow with this image tag after review."
+            echo "Run the App Deploy workflow with image tag sha-${{ github.sha }} after review."
           } >> "$GITHUB_STEP_SUMMARY"

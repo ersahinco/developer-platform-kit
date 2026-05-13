@@ -13,6 +13,7 @@ DEFAULT_CONTRACT = ROOT / "platform" / "workloads.json"
 DEFAULT_RUNTIME_CONTRACT = ROOT / "platform" / "runtime-capabilities.json"
 REQUIRED_RUNTIME_LOG_LABELS = {"stack", "environment", "service", "container"}
 ENV_NAME_RE = re.compile(r"^[A-Z][A-Z0-9_]*$")
+IMAGE_REPOSITORY_RE = re.compile(r"^[a-z0-9][a-z0-9/-]*[a-z0-9]$")
 REQUIRED_RUNTIME_CAPABILITIES = {
     "container_runtime",
     "networking",
@@ -172,7 +173,13 @@ def _check_common(root: Path, workload: dict[str, Any], errors: list[str]) -> No
     name = str(workload.get("name", "<unknown>"))
     app_path = root / str(workload.get("app_path", ""))
     package = str(workload.get("package", ""))
-    dockerfile = root / str(workload.get("image", {}).get("dockerfile", ""))
+    image = workload.get("image", {})
+    repository = image.get("repository") if isinstance(image, dict) else None
+    dockerfile_value = image.get("dockerfile", "") if isinstance(image, dict) else ""
+    non_root_user = (
+        image.get("non_root_user", "app") if isinstance(image, dict) else "app"
+    )
+    dockerfile = root / str(dockerfile_value)
     pyproject = app_path / "pyproject.toml"
 
     if not app_path.is_dir():
@@ -189,6 +196,11 @@ def _check_common(root: Path, workload: dict[str, Any], errors: list[str]) -> No
         if f'package-dir = {{ {package} = "." }}' not in pyproject_text:
             errors.append(f"{name}: pyproject must map package {package!r} to app root")
 
+    if not isinstance(repository, str) or not IMAGE_REPOSITORY_RE.fullmatch(repository):
+        errors.append(
+            f"{name}: image.repository must be a lowercase image repository name"
+        )
+
     if not dockerfile.is_file():
         errors.append(f"{name}: image.dockerfile does not exist: {dockerfile}")
     else:
@@ -196,7 +208,7 @@ def _check_common(root: Path, workload: dict[str, Any], errors: list[str]) -> No
         for required in [
             "FROM ",
             "RUN uv sync --frozen --no-dev --package",
-            f"USER {workload.get('image', {}).get('non_root_user', 'app')}",
+            f"USER {non_root_user}",
             'ENV PYTHONPATH="/app/apps:/app/packages"',
             "CMD ",
         ]:

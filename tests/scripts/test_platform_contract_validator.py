@@ -62,6 +62,19 @@ def test_platform_contract_validator_rejects_secret_env_overlap(
     )
 
 
+def test_platform_contract_validator_rejects_missing_image_repository(
+    tmp_path: Path,
+) -> None:
+    contract_path = tmp_path / "workloads.json"
+    contract = json.loads(validator.DEFAULT_CONTRACT.read_text(encoding="utf-8"))
+    del contract["workloads"][0]["image"]["repository"]
+    contract_path.write_text(json.dumps(contract), encoding="utf-8")
+
+    errors = validator.collect_errors(contract_path=contract_path)
+
+    assert "api: image.repository must be a lowercase image repository name" in errors
+
+
 def test_platform_contract_validator_rejects_database_config_drift(
     tmp_path: Path,
 ) -> None:

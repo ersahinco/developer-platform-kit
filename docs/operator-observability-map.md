@@ -38,7 +38,7 @@ For local-to-AWS tracing, always send your own identifiers:
 
 ### Data Hub Bucket
 
-Bucket: `arn:aws:s3:::aws-sdlc-containers-data-hub-691627364817`
+Bucket: `arn:aws:s3:::<stack-name>-data-hub-<account-id>`
 
 This is app-owned data output. Runtime code writes here; Terraform owns only the
 bucket guardrails.
@@ -60,7 +60,7 @@ Critical notes:
 
 ### ALB Access Logs Bucket
 
-Bucket: `arn:aws:s3:::aws-sdlc-containers-observability-691627364817`
+Bucket: `arn:aws:s3:::<stack-name>-observability-<account-id>`
 
 This bucket is now owned by the ALB access-log path. The name is retained from
 the retired observability stack to avoid replacing deployed log storage.
@@ -69,26 +69,18 @@ the retired observability stack to avoid replacing deployed log storage.
 |---|---|---|---|---|
 | `alb-access-logs/AWSLogs/.../*.log.gz` | gzip text | ALB log delivery | Edge request records: client, target, timings, status codes, request line, user agent, TLS, routing, errors. | `aws s3 cp s3://...log.gz - | gzip -dc` |
 | `alb-access-logs/AWSLogs/.../ELBAccessLogTestFile` | text test file | AWS | Delivery permission test, not traffic. | Usually ignore. |
-| `config/loki/loki.yml` | YAML | Terraform | Deployed Loki config. | `aws s3 cp s3://.../config/loki/loki.yml -` |
-| `config/prometheus/prometheus.yml` | YAML | Terraform | Deployed Prometheus scrape config. | `aws s3 cp s3://.../config/prometheus/prometheus.yml -` |
-| `config/prometheus/rules/app-alerts.yml` | YAML | Terraform | App alert rules loaded by Prometheus. | `aws s3 cp s3://.../config/prometheus/rules/app-alerts.yml -` |
-| `config/grafana/...` | YAML/JSON | Terraform | Grafana datasources, dashboard provisioning, dashboards. | `aws s3 cp s3://.../config/grafana/... -` |
-| Loki chunk/index objects such as `fake/<fingerprint>/<chunk-id>` | Loki TSDB/chunk internals, Snappy-compressed | Loki | Stored log streams. Example labels include `service=pgbouncer`, `container=pgbouncer`, `stack=aws-sdlc-containers`. | Query Loki/Grafana; do not read objects directly. |
-| `tempo/...` | Tempo block internals | Tempo | Stored trace blocks. | Query Tempo/Grafana; do not read objects directly. |
 
 Critical notes:
 
 - ALB access logs are the edge truth, but they are delayed and file-oriented.
   Use them for forensic edge debugging, not fast inner-loop iteration.
-- Loki and Tempo objects are backend storage, not an operator interface. Query
-  them through Grafana, Loki API, or Tempo API.
-- This bucket also stores config used at task startup. A bad config object can
-  break the observability task that reads it.
+- This bucket no longer stores hosted LGTM configuration or telemetry backend
+  objects. Grafana, Loki, Prometheus, and Tempo assets stay local/external.
 
 ### Runtime Config Bucket
 
 There is also a generated runtime-config bucket:
-`aws-sdlc-containers-runtime-config-691627364817`.
+`<stack-name>-runtime-config-<account-id>`.
 
 It is not one of the two buckets above, but it is part of persistence because
 the Dapr sidecars load SNS/SQS component config from it at startup:
@@ -219,10 +211,10 @@ Observe it with:
 
 ```bash
 aws s3 ls \
-  s3://aws-sdlc-containers-data-hub-691627364817/manifests/order_contact_email/ \
+  s3://<stack-name>-data-hub-<account-id>/manifests/order_contact_email/ \
   --recursive
 
-aws s3 cp s3://aws-sdlc-containers-data-hub-691627364817/<manifest-key> - | jq .
+aws s3 cp s3://<stack-name>-data-hub-<account-id>/<manifest-key> - | jq .
 ```
 
 Critical note: the CloudWatch success metric is derived from the manifest JSON

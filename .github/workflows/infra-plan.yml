@@ -15,11 +15,13 @@ on:
       - "observability/**"
 
 env:
-  AWS_REGION: eu-central-1
+  AWS_REGION: ${{ vars.AWS_REGION || 'eu-central-1' }}
+  STACK_NAME: ${{ vars.STACK_NAME || github.event.repository.name }}
+  TF_STATE_BUCKET: ${{ vars.TF_STATE_BUCKET }}
   TF_VERSION: 1.15.0
   TFLINT_VERSION: v0.62.0
-  TF_PLATFORM_STATE_KEY: aws-sdlc-containers/platform.tfstate
-  TF_APP_STATE_KEY: aws-sdlc-containers/app.tfstate
+  TF_PLATFORM_STATE_KEY: ${{ vars.TF_PLATFORM_STATE_KEY || format('{0}/platform.tfstate', vars.STACK_NAME || github.event.repository.name) }}
+  TF_APP_STATE_KEY: ${{ vars.TF_APP_STATE_KEY || format('{0}/app.tfstate', vars.STACK_NAME || github.event.repository.name) }}
   TF_VARS_FILE: stack.tfvars
 
 permissions:
@@ -109,10 +111,22 @@ jobs:
           role-to-assume: ${{ secrets.AWS_ROLE_ARN }}
           aws-region: ${{ env.AWS_REGION }}
 
+      - name: Resolve Terraform backend
+        id: backend
+        run: |
+          state_bucket="${TF_STATE_BUCKET}"
+          if [[ -z "$state_bucket" ]]; then
+            account_id=$(aws sts get-caller-identity --query Account --output text)
+            state_bucket="${STACK_NAME}-tfstate-${account_id}"
+          fi
+          echo "state_bucket=${state_bucket}" >> "$GITHUB_OUTPUT"
+
       - name: terraform init platform
         run: |
           terraform init \
+            -backend-config="bucket=${{ steps.backend.outputs.state_bucket }}" \
             -backend-config="key=${{ env.TF_PLATFORM_STATE_KEY }}" \
+            -backend-config="region=${{ env.AWS_REGION }}" \
             -reconfigure
         working-directory: infra/platform
 
@@ -128,14 +142,21 @@ jobs:
       - name: terraform init app
         run: |
           terraform init \
+            -backend-config="bucket=${{ steps.backend.outputs.state_bucket }}" \
             -backend-config="key=${{ env.TF_APP_STATE_KEY }}" \
+            -backend-config="region=${{ env.AWS_REGION }}" \
             -reconfigure
         working-directory: infra/app
 
       - name: terraform plan app
         id: app-plan
         run: |
-          terraform plan -var-file="${{ env.TF_VARS_FILE }}" -no-color -out=app.tfplan 2>&1 \
+          terraform plan \
+            -var-file="${{ env.TF_VARS_FILE }}" \
+            -var="platform_state_bucket=${{ steps.backend.outputs.state_bucket }}" \
+            -var="platform_state_key=${{ env.TF_PLATFORM_STATE_KEY }}" \
+            -no-color \
+            -out=app.tfplan 2>&1 \
             | tee app_plan_output.txt
           echo "exitcode=${PIPESTATUS[0]}" >> "$GITHUB_OUTPUT"
         working-directory: infra/app

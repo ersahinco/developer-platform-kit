@@ -233,7 +233,11 @@ environments. The rationale:
 **Reset procedure**:
 
 ```bash
-terraform -chdir=infra/app init -backend-config="key=aws-sdlc-containers/app.tfstate" -reconfigure
+terraform -chdir=infra/app init \
+  -backend-config="bucket=$TF_STATE_BUCKET" \
+  -backend-config="key=$TF_APP_STATE_KEY" \
+  -backend-config="region=$AWS_REGION" \
+  -reconfigure
 terraform -chdir=infra/app destroy -var-file=stack.tfvars
 terraform -chdir=infra/app apply   -var-file=stack.tfvars
 ```

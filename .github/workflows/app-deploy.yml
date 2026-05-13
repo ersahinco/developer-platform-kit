@@ -13,11 +13,11 @@ on:
         type: string
 
 env:
-  AWS_REGION: eu-central-1
-  ECR_REGISTRY: 691627364817.dkr.ecr.eu-central-1.amazonaws.com
-  STACK_NAME: aws-sdlc-containers
-  ROOT_DOMAIN: ersahinco-sandbox.eu
-  PGBOUNCER_TAG: v1.25.1-p0
+  AWS_REGION: ${{ vars.AWS_REGION || 'eu-central-1' }}
+  STACK_NAME: ${{ vars.STACK_NAME || github.event.repository.name }}
+  ROOT_DOMAIN: ${{ vars.ROOT_DOMAIN }}
+  API_TOKEN_SECRET: ${{ vars.API_TOKEN_SECRET || format('{0}/api-token', vars.STACK_NAME || github.event.repository.name) }}
+  PGBOUNCER_TAG: ${{ vars.PGBOUNCER_TAG || 'v1.25.1-p0' }}
   IMAGE_TAG: ${{ inputs.image_tag }}
 
 concurrency:
@@ -48,6 +48,10 @@ jobs:
 
       - name: Validate image tag
         run: |
+          if [[ -z "${ROOT_DOMAIN}" ]]; then
+            echo "Set ROOT_DOMAIN as a GitHub repository or environment variable before deploying." >&2
+            exit 1
+          fi
           if [[ ! "$IMAGE_TAG" =~ ^sha-[0-9a-f]{40}$ ]]; then
             echo "image_tag must be sha- followed by a 40-character lowercase commit SHA." >&2
             exit 1
@@ -63,15 +67,21 @@ jobs:
           role-to-assume: ${{ secrets.AWS_ROLE_ARN }}
           aws-region: ${{ env.AWS_REGION }}
 
+      - name: Resolve AWS image registry
+        id: aws-context
+        run: |
+          account_id=$(aws sts get-caller-identity --query Account --output text)
+          echo "ecr_registry=${account_id}.dkr.ecr.${AWS_REGION}.amazonaws.com" >> "$GITHUB_OUTPUT"
+
       - name: Verify approved images exist
         run: |
           for repo in app worker data-export-job order-event-consumer liquibase; do
             aws ecr describe-images \
-              --repository-name "${{ env.STACK_NAME }}/${repo}" \
+              --repository-name "${STACK_NAME}/${repo}" \
               --image-ids "imageTag=${IMAGE_TAG}"
           done
           aws ecr describe-images \
-            --repository-name "${{ env.STACK_NAME }}/pgbouncer" \
+            --repository-name "${STACK_NAME}/pgbouncer" \
             --image-ids "imageTag=${{ env.PGBOUNCER_TAG }}"
 
       - name: Resolve network config
@@ -79,31 +89,28 @@ jobs:
         run: scripts/ci/ci_resolve_ecs_network.sh "${{ env.STACK_NAME }}"
 
       - name: Render liquibase task definition
-        id: render-liquibase
-        uses: aws-actions/amazon-ecs-render-task-definition@77954e213ba1f9f9cb016b86a1d4f6fcdea0d57e # v1.8.4
-        with:
-          task-definition-family: aws-sdlc-containers-liquibase
-          container-name: liquibase
-          image: ${{ env.ECR_REGISTRY }}/${{ env.STACK_NAME }}/liquibase:${{ env.IMAGE_TAG }}
-
-      - name: Normalize liquibase command
         run: |
+          scripts/ci/ci_render_ecs_task_definition.sh \
+            "${STACK_NAME}-liquibase" \
+            liquibase \
+            "${{ steps.aws-context.outputs.ecr_registry }}/${STACK_NAME}/liquibase:${IMAGE_TAG}" \
+            /tmp/liquibase-task-definition.json
           python3 scripts/ci/ci_prepare_liquibase_task_definition.py \
-            "${{ steps.render-liquibase.outputs.task-definition }}"
+            /tmp/liquibase-task-definition.json
 
       - name: Register liquibase task definition
         id: register-liquibase
-        run: scripts/ci/ci_register_ecs_task_definition.sh "${{ steps.render-liquibase.outputs.task-definition }}"
+        run: scripts/ci/ci_register_ecs_task_definition.sh /tmp/liquibase-task-definition.json
 
       - name: Run Liquibase
         run: |
           TASK_ARN=$(scripts/ci/ci_run_ecs_task.sh \
-            aws-sdlc-containers \
+            "${STACK_NAME}" \
             "${{ steps.register-liquibase.outputs.task_def_arn }}" \
             "${{ steps.net.outputs.subnet_id }}" \
             "${{ steps.net.outputs.sg_id }}")
-          aws ecs wait tasks-stopped --cluster aws-sdlc-containers --tasks "$TASK_ARN"
-          scripts/ci/ci_assert_ecs_task_succeeded.sh aws-sdlc-containers "$TASK_ARN" Liquibase
+          aws ecs wait tasks-stopped --cluster "${STACK_NAME}" --tasks "$TASK_ARN"
+          scripts/ci/ci_assert_ecs_task_succeeded.sh "${STACK_NAME}" "$TASK_ARN" Liquibase
 
   deploy:
     name: Deploy
@@ -152,34 +159,40 @@ jobs:
           role-to-assume: ${{ secrets.AWS_ROLE_ARN }}
           aws-region: ${{ env.AWS_REGION }}
 
+      - name: Resolve AWS image registry
+        id: aws-context
+        run: |
+          account_id=$(aws sts get-caller-identity --query Account --output text)
+          echo "ecr_registry=${account_id}.dkr.ecr.${AWS_REGION}.amazonaws.com" >> "$GITHUB_OUTPUT"
+
       - name: Resolve network config
         id: net
         run: scripts/ci/ci_resolve_ecs_network.sh "${{ env.STACK_NAME }}"
 
       - name: Render app task definition
-        id: render-app
-        uses: aws-actions/amazon-ecs-render-task-definition@77954e213ba1f9f9cb016b86a1d4f6fcdea0d57e # v1.8.4
-        with:
-          task-definition-family: aws-sdlc-containers
-          container-name: app
-          image: ${{ env.ECR_REGISTRY }}/${{ env.STACK_NAME }}/app:${{ env.IMAGE_TAG }}
+        run: |
+          scripts/ci/ci_render_ecs_task_definition.sh \
+            "${STACK_NAME}" \
+            app \
+            "${{ steps.aws-context.outputs.ecr_registry }}/${STACK_NAME}/app:${IMAGE_TAG}" \
+            /tmp/app-task-definition.json
 
       - name: Deploy app service
         id: deploy-app
-        run: scripts/ci/ci_deploy_ecs_service.sh aws-sdlc-containers app "${{ steps.render-app.outputs.task-definition }}"
+        run: scripts/ci/ci_deploy_ecs_service.sh "${STACK_NAME}" app /tmp/app-task-definition.json
 
       - name: Verify deployed app
         id: verify-app
         env:
           BASE_URL: https://api.${{ env.ROOT_DOMAIN }}
-          ECS_CLUSTER: aws-sdlc-containers
+          ECS_CLUSTER: ${{ env.STACK_NAME }}
           ECS_SERVICE: app
-          EXPECTED_TASK_FAMILY: aws-sdlc-containers
+          EXPECTED_TASK_FAMILY: ${{ env.STACK_NAME }}
           EXPECTED_IMAGE_TAG: ${{ env.IMAGE_TAG }}
         run: |
           verify_started_epoch=$(date +%s)
           TOKEN=$(aws secretsmanager get-secret-value \
-            --secret-id aws-sdlc-containers/api-token \
+            --secret-id "${API_TOKEN_SECRET}" \
             --region ${{ env.AWS_REGION }} \
             --query SecretString \
             --output text)
@@ -187,51 +200,57 @@ jobs:
           verify_seconds=$(($(date +%s) - verify_started_epoch))
           echo "verify_seconds=${verify_seconds}" >> "$GITHUB_OUTPUT"
 
-      - name: Render worker task definition
-        id: render-worker
-        uses: aws-actions/amazon-ecs-render-task-definition@77954e213ba1f9f9cb016b86a1d4f6fcdea0d57e # v1.8.4
-        with:
-          task-definition-family: aws-sdlc-containers-worker
-          container-name: worker
-          image: ${{ env.ECR_REGISTRY }}/${{ env.STACK_NAME }}/worker:${{ env.IMAGE_TAG }}
+      - name: Register support task definitions
+        id: support-tasks
+        env:
+          ECR_REGISTRY: ${{ steps.aws-context.outputs.ecr_registry }}
+        run: |
+          declare -A task_families=(
+            [worker]="${STACK_NAME}-worker"
+            [data_export_job]="${STACK_NAME}-data-export-job"
+          )
+          declare -A containers=(
+            [worker]="worker"
+            [data_export_job]="data-export-job"
+          )
+          for key in worker data_export_job; do
+            container="${containers[$key]}"
+            task_definition="/tmp/${container}-task-definition.json"
+            scripts/ci/ci_render_ecs_task_definition.sh \
+              "${task_families[$key]}" \
+              "$container" \
+              "${ECR_REGISTRY}/${STACK_NAME}/${container}:${IMAGE_TAG}" \
+              "$task_definition"
+            task_def_arn=$(scripts/ci/ci_register_ecs_task_definition.sh "$task_definition")
+            echo "${key}_task_def_arn=${task_def_arn}" >> "$GITHUB_OUTPUT"
+          done
 
-      - name: Register worker task definition
-        id: register-worker
-        run: scripts/ci/ci_register_ecs_task_definition.sh "${{ steps.render-worker.outputs.task-definition }}"
-
-      - name: Render data export task definition
-        id: render-data-export
-        uses: aws-actions/amazon-ecs-render-task-definition@77954e213ba1f9f9cb016b86a1d4f6fcdea0d57e # v1.8.4
-        with:
-          task-definition-family: aws-sdlc-containers-data-export-job
-          container-name: data-export-job
-          image: ${{ env.ECR_REGISTRY }}/${{ env.STACK_NAME }}/data-export-job:${{ env.IMAGE_TAG }}
-
-      - name: Register data export task definition
-        run: scripts/ci/ci_register_ecs_task_definition.sh "${{ steps.render-data-export.outputs.task-definition }}"
-
-      - name: Render order event consumer task definition
-        id: render-order-event-consumer
-        uses: aws-actions/amazon-ecs-render-task-definition@77954e213ba1f9f9cb016b86a1d4f6fcdea0d57e # v1.8.4
-        with:
-          task-definition-family: aws-sdlc-containers-order-event-consumer
-          container-name: order-event-consumer
-          image: ${{ env.ECR_REGISTRY }}/${{ env.STACK_NAME }}/order-event-consumer:${{ env.IMAGE_TAG }}
-
-      - name: Deploy order event consumer service
-        run: scripts/ci/ci_deploy_ecs_service.sh aws-sdlc-containers order-event-consumer "${{ steps.render-order-event-consumer.outputs.task-definition }}"
+      - name: Deploy service task definitions
+        env:
+          ECR_REGISTRY: ${{ steps.aws-context.outputs.ecr_registry }}
+        run: |
+          services=(order-event-consumer)
+          for service in "${services[@]}"; do
+            task_definition="/tmp/${service}-task-definition.json"
+            scripts/ci/ci_render_ecs_task_definition.sh \
+              "${STACK_NAME}-${service}" \
+              "$service" \
+              "${ECR_REGISTRY}/${STACK_NAME}/${service}:${IMAGE_TAG}" \
+              "$task_definition"
+            scripts/ci/ci_deploy_ecs_service.sh "${STACK_NAME}" "$service" "$task_definition"
+          done
 
       - name: Run backfill worker
         run: |
           TASK_ARN=$(scripts/ci/ci_run_ecs_task.sh \
-            aws-sdlc-containers \
-            "${{ steps.register-worker.outputs.task_def_arn }}" \
+            "${STACK_NAME}" \
+            "${{ steps.support-tasks.outputs.worker_task_def_arn }}" \
             "${{ steps.net.outputs.subnet_id }}" \
             "${{ steps.net.outputs.sg_id }}")
           echo "Backfill task: $TASK_ARN"
-          echo "Monitor: CloudWatch Logs /ecs/aws-sdlc-containers/worker"
-          scripts/ci/ci_poll_ecs_task_until_stopped.sh aws-sdlc-containers "$TASK_ARN" Worker
-          scripts/ci/ci_assert_ecs_task_succeeded.sh aws-sdlc-containers "$TASK_ARN" "Backfill worker"
+          echo "Monitor: CloudWatch Logs /ecs/${STACK_NAME}/worker"
+          scripts/ci/ci_poll_ecs_task_until_stopped.sh "${STACK_NAME}" "$TASK_ARN" Worker
+          scripts/ci/ci_assert_ecs_task_succeeded.sh "${STACK_NAME}" "$TASK_ARN" "Backfill worker"
 
   evidence:
     name: Evidence

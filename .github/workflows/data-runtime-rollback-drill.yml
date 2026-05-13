@@ -9,9 +9,10 @@ on:
         type: string
 
 env:
-  AWS_REGION: eu-central-1
-  STACK_NAME: aws-sdlc-containers
-  ROOT_DOMAIN: ersahinco-sandbox.eu
+  AWS_REGION: ${{ vars.AWS_REGION || 'eu-central-1' }}
+  STACK_NAME: ${{ vars.STACK_NAME || github.event.repository.name }}
+  ROOT_DOMAIN: ${{ vars.ROOT_DOMAIN }}
+  API_TOKEN_SECRET: ${{ vars.API_TOKEN_SECRET || format('{0}/api-token', vars.STACK_NAME || github.event.repository.name) }}
   DATA_RUNTIME_ROLLBACK_SLO_SECONDS: "120"
   DATA_RUNTIME_VERIFY_SLO_SECONDS: "120"
 
@@ -54,6 +55,13 @@ jobs:
           role-to-assume: ${{ secrets.AWS_ROLE_ARN }}
           aws-region: ${{ env.AWS_REGION }}
 
+      - name: Validate cloud settings
+        run: |
+          if [[ -z "${ROOT_DOMAIN}" ]]; then
+            echo "Set ROOT_DOMAIN as a GitHub repository or environment variable before running the drill." >&2
+            exit 1
+          fi
+
       - name: Require stable app service
         run: |
           service_json=$(aws ecs describe-services \
@@ -72,7 +80,7 @@ jobs:
           BASE_URL: https://api.${{ env.ROOT_DOMAIN }}
         run: |
           TOKEN=$(aws secretsmanager get-secret-value \
-            --secret-id aws-sdlc-containers/api-token \
+            --secret-id "${API_TOKEN_SECRET}" \
             --region "${AWS_REGION}" \
             --query SecretString \
             --output text)
@@ -109,7 +117,7 @@ jobs:
           BASE_URL: https://api.${{ env.ROOT_DOMAIN }}
         run: |
           TOKEN=$(aws secretsmanager get-secret-value \
-            --secret-id aws-sdlc-containers/api-token \
+            --secret-id "${API_TOKEN_SECRET}" \
             --region "${AWS_REGION}" \
             --query SecretString \
             --output text)
@@ -143,7 +151,7 @@ jobs:
           PREVIOUS_WRITE_MODE: ${{ steps.current.outputs.write_mode }}
         run: |
           TOKEN=$(aws secretsmanager get-secret-value \
-            --secret-id aws-sdlc-containers/api-token \
+            --secret-id "${API_TOKEN_SECRET}" \
             --region "${AWS_REGION}" \
             --query SecretString \
             --output text)
@@ -188,7 +196,7 @@ jobs:
           PREVIOUS_WRITE_MODE: ${{ steps.current.outputs.write_mode }}
         run: |
           TOKEN=$(aws secretsmanager get-secret-value \
-            --secret-id aws-sdlc-containers/api-token \
+            --secret-id "${API_TOKEN_SECRET}" \
             --region "${AWS_REGION}" \
             --query SecretString \
             --output text)
@@ -206,13 +214,13 @@ jobs:
           BASE_URL: https://api.${{ env.ROOT_DOMAIN }}
           ECS_CLUSTER: ${{ env.STACK_NAME }}
           ECS_SERVICE: app
-          EXPECTED_TASK_FAMILY: aws-sdlc-containers
+          EXPECTED_TASK_FAMILY: ${{ env.STACK_NAME }}
           EXPECTED_READ_MODE: ${{ steps.current.outputs.read_mode }}
           EXPECTED_WRITE_MODE: ${{ steps.current.outputs.write_mode }}
         run: |
           verify_started_epoch=$(date +%s)
           TOKEN=$(aws secretsmanager get-secret-value \
-            --secret-id aws-sdlc-containers/api-token \
+            --secret-id "${API_TOKEN_SECRET}" \
             --region "${AWS_REGION}" \
             --query SecretString \
             --output text)

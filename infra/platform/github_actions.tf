@@ -531,7 +531,7 @@ data "aws_iam_policy_document" "github_actions_logs_secrets" {
     ]
     resources = [
       "arn:aws:secretsmanager:${local.region}:${local.account_id}:secret:rds!db-*",
-      "arn:aws:secretsmanager:${local.region}:${local.account_id}:secret:aws-sdlc-containers/grafana-admin*",
+      "arn:aws:secretsmanager:${local.region}:${local.account_id}:secret:${local.name}/grafana-admin*",
     ]
   }
 
@@ -539,7 +539,7 @@ data "aws_iam_policy_document" "github_actions_logs_secrets" {
     sid     = "SecretsManagerAPIToken"
     actions = ["secretsmanager:GetSecretValue"]
     resources = [
-      "arn:aws:secretsmanager:${local.region}:${local.account_id}:secret:aws-sdlc-containers/api-token*",
+      "arn:aws:secretsmanager:${local.region}:${local.account_id}:secret:${local.name}/api-token*",
     ]
   }
 

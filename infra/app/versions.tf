@@ -9,9 +9,9 @@ terraform {
   }
 
   backend "s3" {
-    bucket       = "aws-sdlc-containers-tfstate-691627364817"
-    key          = "aws-sdlc-containers/app.tfstate"
-    region       = "eu-central-1"
+    bucket       = "replace-with-tf-state-bucket"
+    key          = "replace-with/app.tfstate"
+    region       = "us-east-1"
     use_lockfile = true
     encrypt      = true
   }

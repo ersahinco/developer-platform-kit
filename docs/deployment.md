@@ -63,9 +63,11 @@ Prerequisites:
 - AWS credentials for the target account, with permissions to create S3,
   DynamoDB, IAM, ECR, Secrets Manager, ACM, Route 53, VPC, RDS, ECS, and
   CloudWatch resources.
-- The target region is `eu-central-1`.
+- Choose the target region and expose it as `AWS_REGION` locally or as the
+  GitHub `AWS_REGION` variable. The checked-in tfvars use the current sandbox
+  region as a starter value.
 - A public Route 53 hosted zone already exists for `root_domain` in
-  `infra/platform/stack.tfvars` (currently `ersahinco-sandbox.eu`).
+  `infra/platform/stack.tfvars`.
 - The GitHub repository has an Environment named `aws`.
 - GitHub CLI access can set environment secrets for the repository.
 
@@ -82,23 +84,28 @@ At minimum, confirm:
 - `api_token_secret_name` is the Secrets Manager name the ALB auth rule should
   read, if overridden in `infra/app/stack.tfvars`.
 
-For a different AWS account than the checked-in sandbox, also align the
-account-specific Terraform backend values before bootstrapping:
+For a different account, set these operator values instead of editing Terraform
+backend blocks:
 
-- `ACCOUNT_ID` in `Makefile`
-- `bucket` in `infra/platform/versions.tf`
-- `bucket` in `infra/app/versions.tf`
+```bash
+export STACK_NAME=<stack-name>
+export AWS_REGION=<aws-region>
+export TF_STATE_BUCKET=<stack-name>-tfstate-<account-id>
+export TF_PLATFORM_STATE_KEY=<stack-name>/platform.tfstate
+export TF_APP_STATE_KEY=<stack-name>/app.tfstate
+```
 
-Terraform backend blocks cannot read normal Terraform variables, so the backend
-bucket name is intentionally a literal value.
+Terraform backend blocks cannot read normal Terraform variables, so backend
+bucket, key, and region are passed through `terraform init -backend-config` by
+the Makefile and workflows.
 
 Create the API token secret out of band so the token value never lands in
 Terraform state or tfvars:
 
 ```bash
 aws secretsmanager create-secret \
-  --name aws-sdlc-containers/api-token \
-  --region eu-central-1 \
+  --name "${STACK_NAME:-aws-sdlc-containers}/api-token" \
+  --region "${AWS_REGION:-eu-central-1}" \
   --secret-string "$(openssl rand -hex 32)"
 ```
 
@@ -106,8 +113,8 @@ If the secret already exists, leave it in place. To check:
 
 ```bash
 aws secretsmanager describe-secret \
-  --secret-id aws-sdlc-containers/api-token \
-  --region eu-central-1
+  --secret-id "${STACK_NAME:-aws-sdlc-containers}/api-token" \
+  --region "${AWS_REGION:-eu-central-1}"
 ```
 
 Create the Terraform backend bootstrap resources:
@@ -118,15 +125,15 @@ make bootstrap
 
 This target is idempotent. It creates or confirms:
 
-- S3 state bucket: `aws-sdlc-containers-tfstate-<account-id>`
+- S3 state bucket: `<stack-name>-tfstate-<account-id>`
 - S3 bucket versioning
 - IAM OIDC provider: `token.actions.githubusercontent.com`
 
 Terraform uses two state objects:
 
 ```bash
-aws-sdlc-containers/platform.tfstate
-aws-sdlc-containers/app.tfstate
+<stack-name>/platform.tfstate
+<stack-name>/app.tfstate
 ```
 
 The active backend lock is Terraform's S3 native lockfile through
@@ -135,7 +142,7 @@ The active backend lock is Terraform's S3 native lockfile through
 Confirm the Route 53 zone can be found before applying the stack:
 
 ```bash
-ROOT_DOMAIN=ersahinco-sandbox.eu
+ROOT_DOMAIN=<your-domain.example>
 aws route53 list-hosted-zones-by-name \
   --dns-name "$ROOT_DOMAIN" \
   --max-items 1
@@ -163,8 +170,8 @@ Store the role ARN in the GitHub Environment named `aws`:
 ```bash
 gh secret set AWS_ROLE_ARN \
   --env aws \
-  --repo ersahinco/aws-sdlc-containers \
-  --body arn:aws:iam::<account-id>:role/aws-sdlc-containers-github-actions
+  --repo <owner>/<repo> \
+  --body arn:aws:iam::<account-id>:role/<stack-name>-github-actions
 ```
 
 Check it with:
@@ -172,7 +179,18 @@ Check it with:
 ```bash
 gh secret list \
   --env aws \
-  --repo ersahinco/aws-sdlc-containers
+  --repo <owner>/<repo>
+```
+
+Set the reusable workflow variables in GitHub as well:
+
+```bash
+gh variable set AWS_REGION --body "$AWS_REGION"
+gh variable set STACK_NAME --body "$STACK_NAME"
+gh variable set ROOT_DOMAIN --body "$ROOT_DOMAIN"
+gh variable set TF_STATE_BUCKET --body "$TF_STATE_BUCKET"
+gh variable set TF_PLATFORM_STATE_KEY --body "$TF_PLATFORM_STATE_KEY"
+gh variable set TF_APP_STATE_KEY --body "$TF_APP_STATE_KEY"
 ```
 
 After that, deploy the app root:
@@ -190,15 +208,15 @@ Useful bootstrap checks:
 
 ```bash
 aws s3api get-bucket-versioning \
-  --bucket aws-sdlc-containers-tfstate-<account-id>
+  --bucket "$TF_STATE_BUCKET"
 
 aws s3api head-object \
-  --bucket aws-sdlc-containers-tfstate-<account-id> \
-  --key aws-sdlc-containers/platform.tfstate
+  --bucket "$TF_STATE_BUCKET" \
+  --key "$TF_PLATFORM_STATE_KEY"
 
 aws s3api head-object \
-  --bucket aws-sdlc-containers-tfstate-<account-id> \
-  --key aws-sdlc-containers/app.tfstate
+  --bucket "$TF_STATE_BUCKET" \
+  --key "$TF_APP_STATE_KEY"
 
 aws iam list-open-id-connect-providers
 
@@ -215,13 +233,13 @@ Operator-set values live in `infra/platform/stack.tfvars` and
 
 Resources use the project prefix `aws-sdlc-containers`.
 
-- ECS cluster: `aws-sdlc-containers`
+- ECS cluster: `<stack-name>`
 - ECS service: `app`
-- App task family: `aws-sdlc-containers`
-- Worker task family: `aws-sdlc-containers-worker`
-- Liquibase task family: `aws-sdlc-containers-liquibase`
+- App task family: `<stack-name>`
+- Worker task family: `<stack-name>-worker`
+- Liquibase task family: `<stack-name>-liquibase`
 - ECR repos:
-  `aws-sdlc-containers/{app,worker,data-export-job,order-event-consumer,liquibase,pgbouncer}`
+  `<stack-name>/{app,worker,data-export-job,order-event-consumer,liquibase,pgbouncer}`
 - API hostname: `api.<root_domain>`
 
 ## Rollout model

@@ -18,8 +18,8 @@ not blur together.
 
 | Root | State key |
 |---|---|
-| `infra/platform` | `aws-sdlc-containers/platform.tfstate` |
-| `infra/app` | `aws-sdlc-containers/app.tfstate` |
+| `infra/platform` | `<stack-name>/platform.tfstate` |
+| `infra/app` | `<stack-name>/app.tfstate` |
 
 ## Operator Commands
 

@@ -5,16 +5,26 @@ set -euo pipefail
 
 SEED_NUM_CUSTOMERS=${1:-1000}
 SEED_NUM_ORDERS=${2:-10000}
-AWS_REGION=${3:-eu-central-1}
+AWS_REGION=${3:-${AWS_REGION:-eu-central-1}}
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 ROOT_DIR="$(cd "${SCRIPT_DIR}/../.." && pwd)"
 cd "$ROOT_DIR"
 
+STACK_NAME=${STACK_NAME:-$(basename "$ROOT_DIR")}
+TF_APP_STATE_KEY=${TF_APP_STATE_KEY:-${STACK_NAME}/app.tfstate}
+if [ -z "${TF_STATE_BUCKET:-}" ]; then
+  ACCOUNT_ID=${ACCOUNT_ID:-$(aws sts get-caller-identity --query Account --output text --region "$AWS_REGION" 2>/dev/null)}
+  [ -n "$ACCOUNT_ID" ] || { echo "ERROR: set TF_STATE_BUCKET or configure AWS credentials."; exit 1; }
+  TF_STATE_BUCKET="${STACK_NAME}-tfstate-${ACCOUNT_ID}"
+fi
+
 echo "→ resolving app infrastructure outputs"
 cd infra/app
 terraform init \
-  -backend-config="key=aws-sdlc-containers/app.tfstate" \
+  -backend-config="bucket=${TF_STATE_BUCKET}" \
+  -backend-config="key=${TF_APP_STATE_KEY}" \
+  -backend-config="region=${AWS_REGION}" \
   -reconfigure -input=false > /dev/null 2>&1
 
 CLUSTER=$(terraform output -raw ecs_cluster_name)

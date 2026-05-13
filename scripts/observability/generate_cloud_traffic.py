@@ -7,11 +7,13 @@ The goal is to make Grafana/Loki/Prometheus panels visibly move without running
 large data jobs or changing runtime modes.
 
 Environment:
-    BASE_URL         Default: https://api.ersahinco-sandbox.eu
+    BASE_URL         Optional absolute API URL. If absent, ROOT_DOMAIN is used.
+    ROOT_DOMAIN      Optional root domain used to derive https://api.<root-domain>.
     TOKEN            Optional bearer token. If absent, read from Secrets Manager.
     AUTH_TOKEN       TOKEN alias
     AWS_REGION       Default: eu-central-1
-    API_TOKEN_SECRET Default: aws-sdlc-containers/api-token
+    STACK_NAME       Used to derive API_TOKEN_SECRET when needed.
+    API_TOKEN_SECRET Optional explicit secret id.
     CUSTOMER_ID      Optional exact customer id.
     CUSTOMER_ID_CANDIDATES
                      Optional comma-separated ids to probe when CUSTOMER_ID is absent.
@@ -69,14 +71,29 @@ def _aws_secret(secret_id: str, region: str) -> str:
     return result.stdout.strip()
 
 
+def _api_token_secret() -> str:
+    if secret_id := os.environ.get("API_TOKEN_SECRET"):
+        return secret_id
+    if stack_name := os.environ.get("STACK_NAME"):
+        return f"{stack_name}/api-token"
+    raise ValueError("Set API_TOKEN_SECRET or STACK_NAME before reading the API token")
+
+
 def _token() -> str:
     token = os.environ.get("TOKEN") or os.environ.get("AUTH_TOKEN")
     if token:
         return token
     return _aws_secret(
-        os.environ.get("API_TOKEN_SECRET", "aws-sdlc-containers/api-token"),
-        os.environ.get("AWS_REGION", "eu-central-1"),
+        _api_token_secret(), os.environ.get("AWS_REGION", "eu-central-1")
     )
+
+
+def _base_url() -> str:
+    if base_url := os.environ.get("BASE_URL"):
+        return _validated_base_url(base_url)
+    if root_domain := os.environ.get("ROOT_DOMAIN"):
+        return _validated_base_url(f"https://api.{root_domain}")
+    raise ValueError("Set BASE_URL or ROOT_DOMAIN before generating cloud traffic")
 
 
 def _check_response(
@@ -171,9 +188,7 @@ def _resolve_customer_id(client: httpx.Client) -> tuple[int | None, StepResult]:
 
 
 def run() -> list[StepResult]:
-    base_url = _validated_base_url(
-        os.environ.get("BASE_URL", "https://api.ersahinco-sandbox.eu")
-    )
+    base_url = _base_url()
     order_count = int(os.environ.get("ORDER_COUNT", "3"))
     if order_count < 1 or order_count > 20:
         raise ValueError("ORDER_COUNT must be between 1 and 20")

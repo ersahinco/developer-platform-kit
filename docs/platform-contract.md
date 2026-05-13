@@ -32,7 +32,7 @@ Every long-running app workload must provide this surface:
 
 | Area | Contract |
 | --- | --- |
-| OCI image | A committed `apps/<name>/Dockerfile`, non-root runtime user, no secrets baked into layers, `PYTHONPATH`/entrypoint wiring that works from a clean image build. |
+| OCI image | A committed `apps/<name>/Dockerfile`, declared `image.repository` in `platform/workloads.json`, non-root runtime user, no secrets baked into layers, `PYTHONPATH`/entrypoint wiring that works from a clean image build. |
 | App package | A stable app folder and import package under `apps/`; runtime wiring stays in `apps/*`, not in `packages/domain` or `packages/application`. |
 | Liveness | `/health` returns `200` when the process can accept traffic, without requiring downstream dependencies. |
 | Readiness | `/ready` checks required runtime dependencies and returns `503` with a structured failed check when the workload should be removed from rotation. |

@@ -631,7 +631,7 @@ def main() -> int:
         "--region", default=os.environ.get("AWS_REGION", "eu-central-1")
     )
     parser.add_argument(
-        "--root-domain", default=os.environ.get("ROOT_DOMAIN", "ersahinco-sandbox.eu")
+        "--root-domain", default=os.environ.get("ROOT_DOMAIN", "example.invalid")
     )
     parser.add_argument("--lookback-minutes", type=int, default=60)
     release_events_default = os.environ.get("RELEASE_EVENTS_DIR")

@@ -190,6 +190,7 @@ def test_cloud_changing_release_paths_stay_in_reviewed_workflows() -> None:
     makefile = _read("Makefile")
     app_build = _read(".github/workflows/app-build.yml")
     app_deploy = _read(".github/workflows/app-deploy.yml")
+    workloads = _read("platform/workloads.json")
 
     for removed in [
         "app-build-push",
@@ -200,12 +201,12 @@ def test_cloud_changing_release_paths_stay_in_reviewed_workflows() -> None:
     ]:
         assert removed not in makefile
 
-    assert "apps/api/Dockerfile" in app_build
-    assert "apps/backfill_worker/Dockerfile" in app_build
-    assert "apps/data_export_job/Dockerfile" in app_build
-    assert "apps/order_event_consumer/Dockerfile" in app_build
+    for repository in ["app", "worker", "data-export-job", "order-event-consumer"]:
+        assert f'"repository": "{repository}"' in workloads
+    assert "fromJSON(needs.image-matrix.outputs.images)" in app_build
+    assert "ci_render_ecs_task_definition.sh" in app_deploy
     assert "verify_post_deploy.py" in app_deploy
-    assert app_build.count("if: ${{ !github.event.repository.private }}") == 6
+    assert app_build.count("if: ${{ !github.event.repository.private }}") == 1
 
 
 def test_log_groups_dashboard_is_loki_only_and_matches_cloud_groups() -> None:

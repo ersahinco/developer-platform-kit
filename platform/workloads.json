@@ -7,6 +7,7 @@
       "app_path": "apps/api",
       "package": "api",
       "image": {
+        "repository": "app",
         "dockerfile": "apps/api/Dockerfile",
         "non_root_user": "app"
       },
@@ -85,6 +86,7 @@
       "app_path": "apps/order_event_consumer",
       "package": "order_event_consumer",
       "image": {
+        "repository": "order-event-consumer",
         "dockerfile": "apps/order_event_consumer/Dockerfile",
         "non_root_user": "app"
       },
@@ -168,6 +170,7 @@
       "app_path": "apps/backfill_worker",
       "package": "backfill_worker",
       "image": {
+        "repository": "worker",
         "dockerfile": "apps/backfill_worker/Dockerfile",
         "non_root_user": "app"
       },
@@ -229,6 +232,7 @@
       "app_path": "apps/data_export_job",
       "package": "data_export_job",
       "image": {
+        "repository": "data-export-job",
         "dockerfile": "apps/data_export_job/Dockerfile",
         "non_root_user": "app"
       },

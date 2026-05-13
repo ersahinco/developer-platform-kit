@@ -13,13 +13,13 @@ variable "stack_name" {
 variable "platform_state_bucket" {
   description = "Terraform state bucket containing the platform root state."
   type        = string
-  default     = "aws-sdlc-containers-tfstate-691627364817"
+  default     = null
 }
 
 variable "platform_state_key" {
   description = "Terraform state key for platform outputs consumed by this app root."
   type        = string
-  default     = "aws-sdlc-containers/platform.tfstate"
+  default     = null
 }
 
 # ── Edge ──────────────────────────────────────────────────────────────────────
@@ -33,7 +33,7 @@ variable "alb_ingress_cidr" {
 variable "api_token_secret_name" {
   description = "Secrets Manager secret name holding the API bearer token. Create it out of band and keep it out of Terraform state and tfvars."
   type        = string
-  default     = "aws-sdlc-containers/api-token"
+  default     = null
 }
 
 # ── ECS ───────────────────────────────────────────────────────────────────────

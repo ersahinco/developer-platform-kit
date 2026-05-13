@@ -14,7 +14,7 @@ infrastructure is added for it. Run
 | Area | Service expectation | Job expectation |
 | --- | --- | --- |
 | Source | `apps/<name>/main.py` and `apps/<name>/pyproject.toml`. | Same. |
-| Image | `apps/<name>/Dockerfile`, non-root user, no baked secrets. | Same. |
+| Image | `apps/<name>/Dockerfile`, `image.repository`, non-root user, no baked secrets. | Same. |
 | Health | `/health` returns process liveness. | Not required unless the job exposes HTTP. |
 | Readiness | `/ready` checks runtime dependencies and returns structured failures. | Not required unless the job exposes HTTP. |
 | Metrics | `/metrics` exposes Prometheus text for request/error/latency and useful workload outcomes. | Emit structured job outcome events; add metrics only when a long-running job host exposes HTTP. |
@@ -51,6 +51,8 @@ Use this compact checklist when adding a workload:
 - Add `apps/<name>/main.py`, `apps/<name>/pyproject.toml`, and
   `apps/<name>/Dockerfile`.
 - Add the workload to `platform/workloads.json`.
+- Declare the image repository name there so build workflows do not need a
+  second workload list.
 - For services, expose `/health`, `/ready`, and `/metrics`.
 - For jobs, emit structured start, progress, success, and failure events and
   document idempotency.

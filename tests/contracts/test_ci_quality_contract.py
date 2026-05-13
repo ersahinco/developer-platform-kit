@@ -61,6 +61,7 @@ def test_makefile_exposes_local_ci_quality_gates() -> None:
 
 def test_app_build_workflow_keeps_app_validation_image_and_scan_gates() -> None:
     workflow = _read(".github/workflows/app-build.yml")
+    workloads = _read("platform/workloads.json")
 
     for phrase in [
         "uv sync --frozen --all-packages --group dev --group test",
@@ -72,15 +73,25 @@ def test_app_build_workflow_keeps_app_validation_image_and_scan_gates() -> None:
         "Run Liquibase migrations",
         "uv run pytest tests/ -v",
         "make runtime-conformance",
-        "docker build -f apps/api/Dockerfile",
-        "docker build -f apps/backfill_worker/Dockerfile",
-        "docker build -f apps/data_export_job/Dockerfile",
-        "docker build -f apps/order_event_consumer/Dockerfile",
+        "Build image matrix",
+        "fromJSON(needs.image-matrix.outputs.images)",
         "ghcr.io/aquasecurity/trivy",
         "docker push",
         "actions/attest-build-provenance",
     ]:
         assert phrase in workflow
+
+    for phrase in [
+        '"repository": "app"',
+        '"repository": "worker"',
+        '"repository": "data-export-job"',
+        '"repository": "order-event-consumer"',
+        "apps/api/Dockerfile",
+        "apps/backfill_worker/Dockerfile",
+        "apps/data_export_job/Dockerfile",
+        "apps/order_event_consumer/Dockerfile",
+    ]:
+        assert phrase in workloads
 
 
 def test_security_and_sast_workflows_keep_repository_hygiene_gates() -> None:
@@ -110,7 +121,8 @@ def test_infra_workflows_keep_reviewed_plan_apply_gates() -> None:
         "tflint --init",
         "tflint --format compact",
         "bridgecrewio/checkov-action",
-        "terraform plan -var-file",
+        "terraform plan",
+        "-var-file",
         "actions/upload-artifact",
         "Post plan to PR",
     ]:

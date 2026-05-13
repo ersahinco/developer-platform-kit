@@ -30,12 +30,14 @@
 
 .DEFAULT_GOAL := help
 
-AWS_REGION             := eu-central-1
-ACCOUNT_ID             := 691627364817
-TF_STATE_BUCKET        := aws-sdlc-containers-tfstate-$(ACCOUNT_ID)
-ROOT_DOMAIN            ?= ersahinco-sandbox.eu
-TF_PLATFORM_STATE_KEY  := aws-sdlc-containers/platform.tfstate
-TF_APP_STATE_KEY       := aws-sdlc-containers/app.tfstate
+STACK_NAME             ?= $(notdir $(CURDIR))
+AWS_REGION             ?= eu-central-1
+ACCOUNT_ID             ?= $(shell aws sts get-caller-identity --query Account --output text 2>/dev/null)
+TF_STATE_BUCKET        ?= $(STACK_NAME)-tfstate-$(ACCOUNT_ID)
+ROOT_DOMAIN            ?=
+API_TOKEN_SECRET       ?= $(STACK_NAME)/api-token
+TF_PLATFORM_STATE_KEY  ?= $(STACK_NAME)/platform.tfstate
+TF_APP_STATE_KEY       ?= $(STACK_NAME)/app.tfstate
 TF_PLATFORM_VARS_FILE  := stack.tfvars
 TF_APP_VARS_FILE       := stack.tfvars
 
@@ -188,7 +190,9 @@ bootstrap: ## One-time AWS account setup — idempotent, safe to re-run
 .PHONY: infra-platform-init
 infra-platform-init:
 	cd infra/platform && terraform init \
+		-backend-config="bucket=$(TF_STATE_BUCKET)" \
 		-backend-config="key=$(TF_PLATFORM_STATE_KEY)" \
+		-backend-config="region=$(AWS_REGION)" \
 		-reconfigure
 
 .PHONY: infra-platform-plan
@@ -202,16 +206,24 @@ infra-platform-apply: infra-platform-init ## Terraform apply — platform/bootst
 .PHONY: infra-app-init
 infra-app-init:
 	cd infra/app && terraform init \
+		-backend-config="bucket=$(TF_STATE_BUCKET)" \
 		-backend-config="key=$(TF_APP_STATE_KEY)" \
+		-backend-config="region=$(AWS_REGION)" \
 		-reconfigure
 
 .PHONY: infra-app-plan
 infra-app-plan: infra-app-init ## Terraform plan — app-owned root
-	cd infra/app && terraform plan -var-file=$(TF_APP_VARS_FILE)
+	cd infra/app && terraform plan \
+		-var-file=$(TF_APP_VARS_FILE) \
+		-var="platform_state_bucket=$(TF_STATE_BUCKET)" \
+		-var="platform_state_key=$(TF_PLATFORM_STATE_KEY)"
 
 .PHONY: infra-app-apply
 infra-app-apply: infra-app-init ## Terraform apply — app-owned root
-	cd infra/app && terraform apply -var-file=$(TF_APP_VARS_FILE)
+	cd infra/app && terraform apply \
+		-var-file=$(TF_APP_VARS_FILE) \
+		-var="platform_state_bucket=$(TF_STATE_BUCKET)" \
+		-var="platform_state_key=$(TF_PLATFORM_STATE_KEY)"
 
 .PHONY: infra-plan
 infra-plan: infra-platform-plan infra-app-plan ## Terraform plan — platform then app roots
@@ -224,9 +236,9 @@ infra-apply: infra-platform-apply infra-app-apply ## Terraform apply — platfor
 .PHONY: app-deploy
 app-deploy: ## Force new deployment of the existing ECS app service
 	aws ecs update-service \
-		--cluster aws-sdlc-containers \
+		--cluster $(STACK_NAME) \
 		--service app \
-		--task-definition aws-sdlc-containers \
+		--task-definition $(STACK_NAME) \
 		--force-new-deployment \
 		--region $(AWS_REGION) \
 		--query 'service.taskDefinition' \
@@ -235,25 +247,25 @@ app-deploy: ## Force new deployment of the existing ECS app service
 .PHONY: post-deploy-verify
 post-deploy-verify: ## Verify deployed app readiness, metrics, modes, and ECS image
 	@TOKEN="$${TOKEN:-$$(aws secretsmanager get-secret-value \
-		--secret-id aws-sdlc-containers/api-token \
+		--secret-id $(API_TOKEN_SECRET) \
 		--region $(AWS_REGION) \
 		--query SecretString --output text)}" \
 	BASE_URL="$${BASE_URL:-https://api.$(ROOT_DOMAIN)}" \
-	ECS_CLUSTER="$${ECS_CLUSTER:-aws-sdlc-containers}" \
+	ECS_CLUSTER="$${ECS_CLUSTER:-$(STACK_NAME)}" \
 	ECS_SERVICE="$${ECS_SERVICE:-app}" \
-	EXPECTED_TASK_FAMILY="$${EXPECTED_TASK_FAMILY:-aws-sdlc-containers}" \
+	EXPECTED_TASK_FAMILY="$${EXPECTED_TASK_FAMILY:-$(STACK_NAME)}" \
 	uv run python scripts/release/verify_post_deploy.py
 
 .PHONY: observability-delivery-verify
 observability-delivery-verify: ## Verify CloudWatch/Loki log delivery inventory and freshness
 	@AWS_REGION="$(AWS_REGION)" \
-	STACK_NAME="aws-sdlc-containers" \
+	STACK_NAME="$(STACK_NAME)" \
 	uv run python scripts/observability/verify_observability_delivery.py
 
 .PHONY: release-event-delivery-verify
 release-event-delivery-verify: ## Verify release-event push/query round-trip through Loki
 	@AWS_REGION="$(AWS_REGION)" \
-	STACK_NAME="aws-sdlc-containers" \
+	STACK_NAME="$(STACK_NAME)" \
 	uv run python scripts/observability/verify_release_event_loki_delivery.py
 
 .PHONY: observability-cloud-traffic
@@ -262,19 +274,19 @@ observability-cloud-traffic: ## Generate live API traffic and small cloud probes
 	BASE_URL="$${BASE_URL:-https://api.$(ROOT_DOMAIN)}" \
 	uv run python scripts/observability/generate_cloud_traffic.py
 	@AWS_REGION="$(AWS_REGION)" \
-	STACK_NAME="aws-sdlc-containers" \
+	STACK_NAME="$(STACK_NAME)" \
 	uv run python scripts/observability/run_observability_cloud_jobs.py
 
 .PHONY: observability-cloud-jobs
 observability-cloud-jobs: ## Run only the small cloud probes for quiet observability log groups
 	@AWS_REGION="$(AWS_REGION)" \
-	STACK_NAME="aws-sdlc-containers" \
+	STACK_NAME="$(STACK_NAME)" \
 	uv run python scripts/observability/run_observability_cloud_jobs.py
 
 .PHONY: incident-evidence
 incident-evidence: ## Build portable Markdown/JSON incident evidence bundle
 	@AWS_REGION="$(AWS_REGION)" \
-	STACK_NAME="aws-sdlc-containers" \
+	STACK_NAME="$(STACK_NAME)" \
 	ROOT_DOMAIN="$(ROOT_DOMAIN)" \
 	uv run python scripts/observability/incident_evidence_bundle.py
 
@@ -325,7 +337,7 @@ api-get-order: ## Query a live order by ID  (ORDER_ID=1, FIELD=billing_email)
 	AUTH_TOKEN="$${TOKEN:-}" && \
 	if [ -z "$$AUTH_TOKEN" ]; then \
 		AUTH_TOKEN=$$(aws secretsmanager get-secret-value \
-			--secret-id aws-sdlc-containers/api-token \
+			--secret-id $(API_TOKEN_SECRET) \
 			--region $(AWS_REGION) \
 			--query SecretString --output text); \
 	fi && \
