@@ -22,9 +22,9 @@ no successful export is observed for two consecutive daily evaluation windows.
 ## First Checks
 
 If `terraform -chdir=infra/app output -raw data_export_success_cloudwatch_alarm_enabled`
-returns `false`, the success-missing CloudWatch alarm was intentionally disabled
-after Grafana-stack dual-run. Still check the Scheduler delivery alarm, then use
-the Grafana-stack freshness checks below.
+returns `false`, the success-missing CloudWatch alarm was intentionally
+disabled. Still check the Scheduler delivery alarm, then use the Grafana
+freshness checks below.
 
 Confirm the alarm and schedule:
 
@@ -68,20 +68,19 @@ aws logs tail /ecs/aws-sdlc-containers/data-export-job \
   --region eu-central-1
 ```
 
-## Grafana-Stack Checks
+## Grafana Checks
 
-When the optional Grafana stack is enabled and data export job logs are routed
-to Loki, inspect successful and failed manifest log records there before
-changing CloudWatch alarms:
+When a reachable Loki endpoint contains data export logs, inspect successful
+and failed manifest log records there before changing CloudWatch alarms:
 
 ```logql
 {stack="aws-sdlc-containers", service="data-export-job"} | json | dataset="order_contact_email"
 ```
 
-A future Grafana-stack freshness alert should be based on either that successful
+A future Grafana freshness alert should be based on either that successful
 manifest log record or a native data-export job metric. Until that replacement
-is deployed and dual-run, the CloudWatch `SuccessCount` metric filter and
-success-missing alarm remain authoritative.
+is deployed, the CloudWatch `SuccessCount` metric filter and success-missing
+alarm remain authoritative.
 
 ## Common Causes
 

@@ -2,7 +2,7 @@
 """Emit portable release and rollback evidence events.
 
 The event is useful as a GitHub artifact by default. If a reachable Loki push
-endpoint is provided, the same JSON is also sent to the OSS Grafana stack.
+endpoint is provided, the same JSON is also sent to the portable Grafana stack.
 """
 
 from __future__ import annotations

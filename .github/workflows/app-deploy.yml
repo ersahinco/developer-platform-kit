@@ -65,7 +65,7 @@ jobs:
 
       - name: Verify approved images exist
         run: |
-          for repo in app worker data-export-job order-event-consumer liquibase firelens; do
+          for repo in app worker data-export-job order-event-consumer liquibase; do
             aws ecr describe-images \
               --repository-name "${{ env.STACK_NAME }}/${repo}" \
               --image-ids "imageTag=${IMAGE_TAG}"
@@ -89,8 +89,7 @@ jobs:
       - name: Normalize liquibase command
         run: |
           python3 scripts/ci/ci_prepare_liquibase_task_definition.py \
-            "${{ steps.render-liquibase.outputs.task-definition }}" \
-            "${{ env.ECR_REGISTRY }}/${{ env.STACK_NAME }}/firelens:${{ env.IMAGE_TAG }}"
+            "${{ steps.render-liquibase.outputs.task-definition }}"
 
       - name: Register liquibase task definition
         id: register-liquibase
@@ -165,13 +164,6 @@ jobs:
           container-name: app
           image: ${{ env.ECR_REGISTRY }}/${{ env.STACK_NAME }}/app:${{ env.IMAGE_TAG }}
 
-      - name: Render app FireLens image
-        run: |
-          python3 scripts/ci/ci_set_task_container_image.py \
-            "${{ steps.render-app.outputs.task-definition }}" \
-            log-router \
-            "${{ env.ECR_REGISTRY }}/${{ env.STACK_NAME }}/firelens:${IMAGE_TAG}"
-
       - name: Deploy app service
         id: deploy-app
         run: scripts/ci/ci_deploy_ecs_service.sh aws-sdlc-containers app "${{ steps.render-app.outputs.task-definition }}"
@@ -205,12 +197,7 @@ jobs:
 
       - name: Register worker task definition
         id: register-worker
-        run: |
-          python3 scripts/ci/ci_set_task_container_image.py \
-            "${{ steps.render-worker.outputs.task-definition }}" \
-            log-router \
-            "${{ env.ECR_REGISTRY }}/${{ env.STACK_NAME }}/firelens:${IMAGE_TAG}"
-          scripts/ci/ci_register_ecs_task_definition.sh "${{ steps.render-worker.outputs.task-definition }}"
+        run: scripts/ci/ci_register_ecs_task_definition.sh "${{ steps.render-worker.outputs.task-definition }}"
 
       - name: Render data export task definition
         id: render-data-export
@@ -221,12 +208,7 @@ jobs:
           image: ${{ env.ECR_REGISTRY }}/${{ env.STACK_NAME }}/data-export-job:${{ env.IMAGE_TAG }}
 
       - name: Register data export task definition
-        run: |
-          python3 scripts/ci/ci_set_task_container_image.py \
-            "${{ steps.render-data-export.outputs.task-definition }}" \
-            log-router \
-            "${{ env.ECR_REGISTRY }}/${{ env.STACK_NAME }}/firelens:${IMAGE_TAG}"
-          scripts/ci/ci_register_ecs_task_definition.sh "${{ steps.render-data-export.outputs.task-definition }}"
+        run: scripts/ci/ci_register_ecs_task_definition.sh "${{ steps.render-data-export.outputs.task-definition }}"
 
       - name: Render order event consumer task definition
         id: render-order-event-consumer
@@ -237,12 +219,7 @@ jobs:
           image: ${{ env.ECR_REGISTRY }}/${{ env.STACK_NAME }}/order-event-consumer:${{ env.IMAGE_TAG }}
 
       - name: Deploy order event consumer service
-        run: |
-          python3 scripts/ci/ci_set_task_container_image.py \
-            "${{ steps.render-order-event-consumer.outputs.task-definition }}" \
-            log-router \
-            "${{ env.ECR_REGISTRY }}/${{ env.STACK_NAME }}/firelens:${IMAGE_TAG}"
-          scripts/ci/ci_deploy_ecs_service.sh aws-sdlc-containers order-event-consumer "${{ steps.render-order-event-consumer.outputs.task-definition }}"
+        run: scripts/ci/ci_deploy_ecs_service.sh aws-sdlc-containers order-event-consumer "${{ steps.render-order-event-consumer.outputs.task-definition }}"
 
       - name: Run backfill worker
         run: |

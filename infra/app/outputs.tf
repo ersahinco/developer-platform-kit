@@ -68,11 +68,6 @@ output "ecr_order_event_consumer_repository_url" {
   value       = module.ecr_order_event_consumer.repository_url
 }
 
-output "ecr_firelens_repository_url" {
-  description = "ECR URL for the FireLens log router image."
-  value       = module.ecr_firelens.repository_url
-}
-
 output "worker_task_definition_arn" {
   description = "Worker task definition ARN. Pass to `aws ecs run-task` to trigger a backfill."
   value       = aws_ecs_task_definition.worker.arn
@@ -218,37 +213,12 @@ output "github_actions_role_arn" {
   value       = local.github_actions_role_arn
 }
 
-output "observability_stack_enabled" {
-  description = "Whether the optional ECS Grafana/Loki/Prometheus stack is enabled."
-  value       = var.enable_observability_stack
+output "alb_access_logs_bucket_name" {
+  description = "S3 bucket for public ALB access logs."
+  value       = aws_s3_bucket.alb_access_logs.bucket
 }
 
-output "observability_bucket_name" {
-  description = "S3 bucket for optional observability config and Loki storage."
-  value       = var.enable_observability_stack ? aws_s3_bucket.observability[0].bucket : null
-}
-
-output "observability_private_namespace" {
-  description = "Private Cloud Map namespace used by the optional observability stack."
-  value       = var.enable_observability_stack ? aws_service_discovery_private_dns_namespace.observability[0].name : null
-}
-
-output "observability_grafana_service_name" {
-  description = "ECS service name for optional Grafana."
-  value       = var.enable_observability_stack ? aws_ecs_service.grafana[0].name : null
-}
-
-output "observability_loki_service_name" {
-  description = "ECS service name for optional Loki."
-  value       = var.enable_observability_stack ? aws_ecs_service.loki[0].name : null
-}
-
-output "observability_prometheus_service_name" {
-  description = "ECS service name for optional Prometheus."
-  value       = var.enable_observability_stack ? aws_ecs_service.prometheus[0].name : null
-}
-
-output "observability_tempo_service_name" {
-  description = "ECS service name for optional Tempo."
-  value       = var.enable_observability_stack ? aws_ecs_service.tempo[0].name : null
+output "adot_sidecar_enabled" {
+  description = "Whether the app task definition includes the ADOT collector sidecar."
+  value       = var.enable_adot_sidecar
 }

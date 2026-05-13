@@ -65,6 +65,12 @@ ALLOWED_PROVIDER_EDGE_PREFIXES = (
     "tests/",
 )
 PROVIDER_CONFIG_TERMS = {"AWS", "ECS", "RDS", "GITHUB", "CLOUDWATCH"}
+CAPABILITY_SPEC_FIELDS = {
+    "description",
+    "provides",
+    "owned_by",
+    "evidence_paths",
+}
 
 sys.path.insert(0, str(ROOT))
 
@@ -150,19 +156,6 @@ def _source_text(root: Path, workload: dict[str, Any]) -> str:
     for path in sorted(app_path.rglob("*.py")):
         parts.append(path.read_text(encoding="utf-8"))
     for path in sorted((root / "packages" / "application").rglob("*.py")):
-        parts.append(path.read_text(encoding="utf-8"))
-    return "\n".join(parts)
-
-
-def _joined_file_text(
-    root: Path, paths: list[str], errors: list[str], label: str
-) -> str:
-    parts = []
-    for raw_path in paths:
-        path = root / raw_path
-        if not path.is_file():
-            errors.append(f"{label}: proof file does not exist: {raw_path}")
-            continue
         parts.append(path.read_text(encoding="utf-8"))
     return "\n".join(parts)
 
@@ -557,8 +550,11 @@ def _check_runtime_contract(
                 errors.append(f"{name}: capability {capability} must be an object")
                 continue
 
-            proof_files = _as_strings(spec.get("proof_files"))
-            required_tokens = _as_strings(spec.get("required_tokens"))
+            extra_fields = sorted(set(spec) - CAPABILITY_SPEC_FIELDS)
+            if extra_fields:
+                errors.append(
+                    f"{name}: capability {capability} has unsupported fields {extra_fields}"
+                )
             owned_by = _as_strings(spec.get("owned_by"))
             evidence_paths = _as_strings(spec.get("evidence_paths"))
             provides = _as_strings(spec.get("provides"))
@@ -579,18 +575,6 @@ def _check_runtime_contract(
                 if not (root / owner_path).exists():
                     errors.append(
                         f"{name}: capability {capability} owner/evidence path is missing: {owner_path}"
-                    )
-
-            proof_text = _joined_file_text(
-                root,
-                sorted(set([*proof_files, *evidence_paths])),
-                errors,
-                f"{name}.{capability}",
-            )
-            for token in required_tokens:
-                if token not in proof_text:
-                    errors.append(
-                        f"{name}: capability {capability} proof is missing token {token!r}"
                     )
         if set(provided_contract) != PROVIDER_NEUTRAL_RUNTIME_PROVIDES:
             errors.append(

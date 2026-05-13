@@ -18,7 +18,7 @@ that does not already have a clearer owner.
 | `Makefile` | Root command facade for common local, quality, and migration tasks. |
 | `pyproject.toml` and `uv.lock` | Root Python workspace and locked dependency graph. |
 | `.devcontainer/` | Primary reproducible development shell and pinned non-app tooling. |
-| `observability/` | Local Prometheus, Loki, Promtail, and Grafana config reused by the app-owned AWS observability stack where possible. |
+| `observability/` | Local Prometheus, Loki, Promtail, Tempo, and Grafana config that remains portable outside AWS. |
 | `db/` | Database-owned local assets: Liquibase changelog, Postgres bootstrap SQL, and PgBouncer config/images. |
 | `apps/*/Dockerfile` | Workload-owned container build definitions. Keep app Dockerfiles next to the workload they package. |
 | `.dockerignore` | Root Docker build-context hygiene for all workload images. |
@@ -31,7 +31,8 @@ Local development should reflect production where it buys confidence:
 - Run Postgres, PgBouncer, Liquibase, the API, workers, and data export through
   Compose so schema, connection, and job behavior are visible locally.
 - Reuse Grafana dashboards, Prometheus rules, and Loki/Prometheus/Grafana
-  provisioning between local Compose and the app-owned AWS observability stack.
+  provisioning locally; ECS emits standard telemetry through CloudWatch and
+  ADOT instead of self-hosting Grafana.
 - Keep CloudWatch, ALB, RDS, IAM, ECS service discovery, and AWS networking in
   Terraform/AWS where local emulation would hide the real failure modes.
 

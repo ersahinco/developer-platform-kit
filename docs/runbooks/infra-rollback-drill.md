@@ -33,7 +33,7 @@ Use reversible, no-data infrastructure or observability changes:
 | Target | Good for | Avoid |
 |---|---|---|
 | Grafana dashboard JSON | Practicing config rollout and rollback. | Dashboard changes that hide all rollback signals. |
-| Prometheus alert threshold or label | Practicing Grafana-stack alert rollback. | Removing every app health alert at once. |
+| Prometheus alert threshold or label | Practicing local Grafana alert rollback. | Removing every app health alert at once. |
 | CloudWatch app symptom alarm threshold | Practicing AWS-native alarm rollback while dual-running Grafana. | RDS, S3, or queue deletion/replacement. |
 | ECS desired count for non-production drill windows | Practicing Terraform-controlled compute rollback. | Running during active investigation or load tests. |
 
@@ -55,7 +55,7 @@ no-data rollback drill.
 After apply, verify only the changed surface. Examples:
 
 ```bash
-make grafana-tunnel
+make observability
 ```
 
 ```bash

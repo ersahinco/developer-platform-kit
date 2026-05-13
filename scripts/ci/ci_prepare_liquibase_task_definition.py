@@ -24,34 +24,23 @@ def _write_task_definition(path: Path, task_definition: dict[str, Any]) -> None:
 
 
 def main() -> int:
-    if len(sys.argv) != 3:
+    if len(sys.argv) != 2:
         print(
-            "usage: ci_prepare_liquibase_task_definition.py <task-definition-json> <firelens-image>",
+            "usage: ci_prepare_liquibase_task_definition.py <task-definition-json>",
             file=sys.stderr,
         )
         return 2
 
     path = Path(sys.argv[1])
-    firelens_image = sys.argv[2]
     task_definition = _load_task_definition(path)
 
     found_liquibase = False
-    found_log_router = False
     for container in task_definition.get("containerDefinitions", []):
         if container.get("name") == "liquibase":
             container["workingDirectory"] = "/liquibase"
             container["command"] = LIQUIBASE_COMMAND
             found_liquibase = True
-        if container.get("name") == "log-router":
-            container["image"] = firelens_image
-            found_log_router = True
 
-    if not found_log_router:
-        print(
-            "log-router container not found in rendered task definition",
-            file=sys.stderr,
-        )
-        return 1
     if not found_liquibase:
         print(
             "liquibase container not found in rendered task definition", file=sys.stderr

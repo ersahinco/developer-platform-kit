@@ -8,5 +8,5 @@ independent of the app workload:
 - Account/domain lookups used by app-owned DNS records.
 
 It intentionally does not own RDS, ECS compute, ALB/API edge, workload queues,
-data buckets, jobs, or Grafana/Loki/Prometheus observability. Those belong in
-the app root.
+data buckets, jobs, ALB access logs, or ADOT sidecar wiring. Those belong in the
+app root.

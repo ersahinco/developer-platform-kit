@@ -28,7 +28,7 @@ AWS/ECS implementation around one intentionally simple order/customer workload:
   alarms, and optional observability.
 - Local Prometheus, Loki, Promtail, and Grafana observability profile.
 - Portable incident evidence bundles that collect ECS, alarm, deploy, and
-  Grafana-stack query context without depending on cloud-only Grafana features.
+  Grafana query context without depending on cloud-only Grafana features.
 - A documented portable app/platform contract for workload images, health,
   readiness, metrics, logs, traces, config, release evidence, and rollback
   categories before adding another runtime target.
@@ -61,7 +61,7 @@ switch reads, new writes, and contract.
 | Area | Remaining work | Why it is not done now |
 |---|---|---|
 | Build and containerize | Keep runtime conformance and image/security gates fast enough for normal PRs as more workloads are added. | The current Python workloads are covered; the next proof should come with a real new workload, not synthetic scaffolding. |
-| Observe | Decide CloudWatch reduction only after the Grafana-stack signals have dual-run long enough. | CloudWatch still owns AWS-native rollback alarms and managed-resource signals. |
+| Observe | Keep AWS-native CloudWatch alarms while using ADOT and local/external OSS tools for app telemetry. | CloudWatch still owns rollback alarms and managed-resource signals. |
 | Deploy evidence | Turn on CI-to-Loki release-event publishing when a private or authenticated runner path exists. | Release artifacts already exist; Loki publishing needs a real network/security path. |
 | Runtime portability | Add a second runtime target only when it has a concrete cost, reliability, or capability benefit. | The contract is ready; adding a runtime only as a demo would add noise. |
 | Dapr scope | Decide whether secrets/configuration, service invocation, or workflows belong in Dapr. | Pub/sub is proven; broader adoption should wait for a workload that needs it. |
@@ -70,7 +70,7 @@ switch reads, new writes, and contract.
 
 | Status | Step | Notes |
 |---|---|---|
-| Current | Harden the app-owned Grafana/Loki/Tempo/Prometheus contract. | Keep the baseline OSS-portable: app-owned logs, metrics, traces, dashboards, and incident evidence should work without a CloudWatch Grafana datasource. |
+| Current | Harden the local-first Grafana/Loki/Tempo/Prometheus plus ADOT contract. | Keep the baseline OSS-portable: app-owned logs, metrics, traces, dashboards, and incident evidence should work without a CloudWatch Grafana datasource or hosted LGTM Terraform. |
 | Current | Keep the portability boundary explicit. | See `docs/portability-status.md`: the app and observability evidence should travel, while AWS runtime infrastructure and GitHub Actions orchestration stay isolated provider edges. |
 | Current | Keep the portable app/platform contract explicit. | See `docs/platform-contract.md`: future apps and runtime targets should satisfy the workload contract before adding EKS, another cloud, or cheaper compute. |
 | Current | Keep the runtime toolkit explicit. | See `docs/runtime-toolkit.md` and `platform/runtime-capabilities.json`: future runtime targets must satisfy the same capability set before being documented as supported. |
@@ -79,13 +79,13 @@ switch reads, new writes, and contract.
 | Current | Keep dedicated edge contracts current. | See `docs/dapr-portability-contract.md`, `docs/config-secrets-contract.md`, `docs/observability-onboarding-contract.md`, and `docs/ci-quality-contract.md`. |
 | Current | Keep delivery rollback boundaries explicit. | App and data rollback drills are workflows; infra rollback uses reviewed `Infra Plan`/`Infra Apply`; completed one-off migration workflows are removed after execution. |
 | Done | Clean Architecture package shape. | The repo now uses `apps/*` hosts with `packages/domain`, `packages/application`, and `packages/infrastructure`, plus ownership-aligned tests and docs. |
-| Next | Revisit CloudWatch reduction toggles after dual-run. | Do not disable CloudWatch yet. Only app symptom and data-export success alarms have reduction toggles. |
+| Next | Revisit CloudWatch reduction only when a deliberate metrics/ruler path exists. | Do not disable CloudWatch yet. App symptom and data-export success alarms still protect AWS rollbacks and freshness. |
 | Current | Introduce Dapr as the app transport boundary. | First slices move order event relay/consume behind Dapr pub/sub and add bounded Dapr resiliency while keeping Terraform-owned AWS SNS/SQS and the durable outbox. |
 | Waiting | Decide broader Dapr platform scope. | Candidate next slices: secrets/configuration, service invocation for extracted modules, and workflow orchestration for long-running application jobs. |
 | Deferred | Data analytics stack work. | Do not add DuckDB, dbt, dlt, or analytics orchestration until the app/infra roadmap asks for it. |
 | Done | Local development workflow housekeeping. | The repo is devcontainer-first, keeps `compose.yaml` as the root Compose contract, removes host-specific dependency manifests, and shares observability assets from `observability/`. |
-| Recovered | App observability deploy drift. | Recovered by reconciling `infra/app`, fixing Cloud Map replacement noise, using a Secrets Manager ARN for Grafana, and verifying all ECS services steady. |
-| Done | Platform/app Terraform split. | Platform owns VPC, endpoints, Route 53 lookup, and GitHub OIDC/CI IAM. App owns RDS, ECS, ALB/API edge, workload resources, CloudWatch app alarms, and optional observability. |
+| Superseded | App-hosted observability deploy drift. | The ECS-hosted LGTM stack was retired in favor of local-first OSS assets, CloudWatch runtime logs, and an ADOT sidecar. |
+| Done | Platform/app Terraform split. | Platform owns VPC, endpoints, Route 53 lookup, and GitHub OIDC/CI IAM. App owns RDS, ECS, ALB/API edge, workload resources, CloudWatch app alarms, ALB access logs, and ADOT sidecar wiring. |
 | Done | Local observability parity. | Local Prometheus/Loki/Tempo/Grafana profile is the app observability contract for logs, metrics, and traces. |
 
 ## Continuation Rules
@@ -116,10 +116,11 @@ switch reads, new writes, and contract.
 | 2026-05-05 | Use Dapr pub/sub as the order event transport boundary. | The app keeps modular monolith domain and outbox semantics, while Dapr absorbs broker integration and leaves room for future service extraction. |
 | 2026-05-05 | Keep Dapr adoption foundational but lean. | Dapr should create portable application-layer foundations for future complexity, but each building block should enter when it clarifies a real boundary or operation. |
 | 2026-05-12 | Keep incident evidence portable and operator-readable. | Incident response needs clean labels, query hints, and deploy context; the baseline remains Prometheus/Loki/Tempo/Grafana plus Markdown/JSON evidence bundles. |
+| 2026-05-13 | Retire the ECS-hosted LGTM/FireLens stack. | The learning value is in standard telemetry contracts and dashboards, not hand-wiring Grafana, Loki, Prometheus, Tempo, ALBs, service discovery, IAM, and storage in Terraform. ECS now keeps CloudWatch logs, ALB access logs, and ADOT sidecar telemetry. |
 | 2026-05-02 | Make the local workflow devcontainer-first and keep Compose at the root. | The dev container is the reproducible dependency environment, while `compose.yaml` is the standard local runtime contract that Docker tooling discovers automatically. |
 | 2026-05-02 | Complete the Terraform split and remove the legacy root. | Platform and app now deploy from separate state keys; keeping the old root would invite accidental duplicate ownership. |
 | 2026-05-02 | Keep docs canonical instead of session-shaped. | Roadmap sessions are useful while working, but permanent docs should be short, current, and operator-owned. |
-| 2026-05-01 | Split Terraform into platform/bootstrap and app roots before ECS Grafana-stack deployment. | VPC and GitHub OIDC have a different lifecycle from RDS, ECS compute, ALB/API edge, workload resources, and observability; the app-owned stack needs a clean deployment root before observability can be runtime-validated. |
+| 2026-05-01 | Split Terraform into platform/bootstrap and app roots before app-owned runtime resources expanded. | VPC and GitHub OIDC have a different lifecycle from RDS, ECS compute, ALB/API edge, workload resources, and observability. |
 | 2026-04-29 | Keep one Terraform root until lifecycle boundaries become real. | Multiple stacks add naming, state, workflow, and documentation overhead before the project has repeated infrastructure shape. |
 | 2026-04-29 | Use an evolutionary monorepo structure. | The reference workload should remain usable while the repo shape improves. |
 | 2026-04-29 | Keep the application domain simple. | The value is in ECS delivery, data safety, DevOps practices, and operator maturity, not broad business features. |

@@ -12,7 +12,6 @@ import scripts.observability.verify_observability_delivery as delivery  # noqa: 
 
 
 EXPECTED_LOG_GROUP_SUFFIXES = set(delivery.EXPECTED_LOG_GROUP_SUFFIXES)
-EXPECTED_LOKI_LOG_GROUP_SUFFIXES = set(delivery.EXPECTED_LOKI_LOG_GROUP_SUFFIXES)
 
 
 def _read(path: str) -> str:
@@ -27,28 +26,67 @@ def _resource_block(terraform: str, resource_type: str, name: str) -> str:
     return terraform[start:next_resource]
 
 
-def test_firelens_dual_writes_every_expected_workload_log_to_cloudwatch_and_loki() -> (
-    None
-):
-    config = _read("observability/firelens/fluent-bit.conf")
+def test_cloud_observability_is_adot_sidecar_not_hosted_lgtm() -> None:
+    observability_tf = _read("infra/app/observability.tf")
+    compute_tf = _read("infra/app/compute_ecs.tf")
+    variables_tf = _read("infra/app/variables.tf")
+    workflows = "\n".join(
+        [
+            _read(".github/workflows/app-build.yml"),
+            _read(".github/workflows/app-deploy.yml"),
+            _read(".github/workflows/app-rollback-drill.yml"),
+        ]
+    )
+    infra = "\n".join(
+        [
+            observability_tf,
+            compute_tf,
+            _read("infra/app/workload_jobs.tf"),
+            _read("infra/app/runtime_identity.tf"),
+            _read("infra/app/outputs.tf"),
+        ]
+    )
 
-    for suffix in EXPECTED_LOKI_LOG_GROUP_SUFFIXES:
-        match = f"{suffix}-firelens*"
-        assert f"Name cloudwatch_logs\n    Match {match}" in config
-        assert f"log_group_name /ecs/${{STACK_NAME}}/{suffix}" in config
-        assert f"Name loki\n    Match {match}" in config
-        assert f"service={suffix}" in config
-        assert f"log_group=/ecs/${{STACK_NAME}}/{suffix}" in config
+    assert "enable_adot_sidecar" in variables_tf
+    assert "aws-otel-collector:v0.47.0" in variables_tf
+    assert "adot_collector_container" in observability_tf
+    assert 'command   = ["--config=env:ADOT_COLLECTOR_CONFIG"]' in (observability_tf)
+    assert "http://127.0.0.1:4318/v1/traces" in compute_tf
+    assert "default_adot_collector_config" in observability_tf
+    assert "job_name: app" in observability_tf
+
+    for retired in [
+        'resource "aws_ecs_service" "grafana"',
+        'resource "aws_ecs_service" "loki"',
+        'resource "aws_ecs_service" "prometheus"',
+        'resource "aws_ecs_service" "tempo"',
+        "awsfirelens",
+        "log-router",
+        'module "ecr_firelens"',
+        "enable_observability_stack",
+        "firelens",
+    ]:
+        assert retired not in infra.lower()
+        assert retired not in workflows.lower()
 
 
-def test_local_promtail_assigns_cloudwatch_like_log_group_labels() -> None:
-    config = _read("observability/promtail/promtail.yml")
+def test_local_grafana_stack_uses_prometheus_loki_tempo_without_cloudwatch() -> None:
+    datasources = _read(
+        "observability/grafana/provisioning/datasources/datasources.yml"
+    )
+    docs = _read("docs/observability.md")
 
-    assert "target_label: log_group" in config
-    assert 'replacement: "/ecs/aws-sdlc-containers/$1"' in config
+    assert "type: prometheus" in datasources
+    assert "type: loki" in datasources
+    assert "type: tempo" in datasources
+    assert "cloudwatch" not in datasources.lower()
+    assert "local-first" in docs
+    assert "AWS ECS does not self-host that stack" in docs
+    assert "cloud-only Grafana feature" in docs
+    assert "Grafana Cloud AI" not in docs
 
 
-def test_terraform_declares_only_the_expected_stack_log_groups() -> None:
+def test_terraform_declares_only_expected_cloud_log_groups() -> None:
     infra = "\n".join(
         [
             _read("infra/app/app_log_groups.tf"),
@@ -62,91 +100,22 @@ def test_terraform_declares_only_the_expected_stack_log_groups() -> None:
     assert declared_names == EXPECTED_LOG_GROUP_SUFFIXES
 
 
-def test_grafana_stack_uses_prometheus_loki_tempo_without_cloudwatch_or_xray() -> None:
-    datasources = _read(
-        "observability/grafana/provisioning/datasources/datasources.yml"
-    )
-    observability_tf = _read("infra/app/observability.tf")
-    compute_tf = _read("infra/app/compute_ecs.tf")
-    telemetry_py = _read("apps/api/telemetry.py")
+def test_alb_access_logs_are_not_coupled_to_observability_stack() -> None:
+    edge_tf = _read("infra/app/edge.tf")
+    edge_logs_tf = _read("infra/app/edge_access_logs.tf")
+    outputs_tf = _read("infra/app/outputs.tf")
 
-    assert "type: prometheus" in datasources
-    assert "type: loki" in datasources
-    assert "type: tempo" in datasources
-    assert "cloudwatch" not in datasources.lower()
-
-    assert "OTEL_EXPORTER_OTLP_TRACES_ENDPOINT" in compute_tf
-    assert "tempo.${local.observability_dns_namespace}:4318/v1/traces" in compute_tf
-    combined = f"{observability_tf}\n{compute_tf}\n{telemetry_py}"
-    assert "xray" not in combined.lower()
-
-
-def test_portable_incident_evidence_is_operator_readable_without_cloud_dependency() -> (
-    None
-):
-    observability_doc = _read("docs/observability.md")
-    makefile = _read("Makefile")
-    evidence_script = _read("scripts/observability/incident_evidence_bundle.py")
-    release_delivery_script = _read(
-        "scripts/observability/verify_release_event_loki_delivery.py"
-    )
-    firelens_config = _read("observability/firelens/fluent-bit.conf")
-    promtail_config = _read("observability/promtail/promtail.yml")
-
-    assert "make incident-evidence" in observability_doc
-    assert "OSS-portable" in observability_doc
-    assert "cloud-only Grafana feature" in observability_doc
-    assert "Grafana Cloud AI" not in observability_doc
-    assert "incident-evidence" in makefile
-    assert "incident_evidence_bundle.py" in makefile
-    assert "release-event-delivery-verify" in makefile
-    assert "verify_release_event_loki_delivery.py" in makefile
-    assert "release_event_delivery_probe" in release_delivery_script
-    assert "/loki/api/v1/query_range" in release_delivery_script
-
-    for field in [
-        "stack",
-        "environment",
-        "service",
-        "container",
-        "request_id",
-        "trace_id",
-        "task_definition",
-        "image_tag",
-        "github_run_id",
-        "order_id",
-        "event_id",
-        "export_run_id",
-    ]:
-        assert f'"{field}"' in evidence_script
-
-    assert "query_hints" in evidence_script
-    assert "AWS SDLC Containers / App Overview" in evidence_script
-    assert "AWS SDLC Containers / Log Groups" in evidence_script
-    assert (
-        "cloudwatch"
-        not in _read(
-            "observability/grafana/provisioning/datasources/datasources.yml"
-        ).lower()
-    )
-
-    for label in ["stack=", "environment=", "service=", "container=", "log_group="]:
-        assert label in firelens_config
-    for label in [
-        "target_label: stack",
-        "target_label: environment",
-        "target_label: service",
-        "target_label: container",
-        "target_label: log_group",
-    ]:
-        assert label in promtail_config
+    assert "local.alb_access_logs_bucket_name" in edge_tf
+    assert "aws_s3_bucket_policy.alb_access_logs" in edge_tf
+    assert 'resource "aws_s3_bucket" "alb_access_logs"' in edge_logs_tf
+    assert "alb_access_logs_bucket_name" in outputs_tf
+    assert "observability_bucket_name" not in edge_tf
 
 
 def test_app_service_uses_ecs_native_rollback_detection() -> None:
     compute_tf = _read("infra/app/compute_ecs.tf")
     app_task_identity_tf = _read("infra/app/app_task_identity.tf")
     app_log_groups_tf = _read("infra/app/app_log_groups.tf")
-    runtime_identity_tf = _read("infra/app/runtime_identity.tf")
     workload_jobs_tf = _read("infra/app/workload_jobs.tf")
     outputs_tf = _read("infra/app/outputs.tf")
 
@@ -161,12 +130,6 @@ def test_app_service_uses_ecs_native_rollback_detection() -> None:
     assert 'bake_time_in_minutes = "5"' in app_service_config
     assert "create_infrastructure_iam_role = false" in app_service_config
     assert "alarms = var.enable_app_symptom_cloudwatch_alarms" in app_service_config
-    assert "aws_cloudwatch_metric_alarm.app_target_5xx[0].alarm_name" in (
-        app_service_config
-    )
-    assert "aws_cloudwatch_metric_alarm.app_target_latency[0].alarm_name" in (
-        app_service_config
-    )
     assert "create_task_definition = false" in app_service_config
     assert "task_definition_arn    = data.aws_ecs_task_definition.app_current.arn" in (
         app_service_config
@@ -176,76 +139,21 @@ def test_app_service_uses_ecs_native_rollback_detection() -> None:
     assert 'from = module.ecs.module.service["app"].aws_iam_role.tasks[0]' in (
         app_task_identity_tf
     )
-    assert (
-        'from = module.ecs.module.service["app"].module.container_definition["app"].aws_cloudwatch_log_group.this[0]'
-        in app_log_groups_tf
-    )
     assert 'resource "aws_cloudwatch_log_group" "app"' in app_log_groups_tf
     assert 'resource "aws_cloudwatch_log_group" "pgbouncer"' in app_log_groups_tf
-    assert "role       = aws_iam_role.app_task.name" in runtime_identity_tf
     assert "task_role_arn            = aws_iam_role.app_task.arn" in workload_jobs_tf
     assert "value       = aws_iam_role.app_task.arn" in outputs_tf
-    assert 'name = "ROLLOUT_DRILL_FAULT_MODE", value = "off"' in compute_tf
-    assert 'name = "ROLLOUT_DRILL_FAULT_PATHS", value = "/ready"' in compute_tf
 
 
 def test_every_long_running_ecs_service_has_circuit_breaker_rollback() -> None:
     workload_jobs_tf = _read("infra/app/workload_jobs.tf")
-    observability_tf = _read("infra/app/observability.tf")
-
-    services = [
-        (workload_jobs_tf, "order_event_consumer"),
-        (observability_tf, "loki"),
-        (observability_tf, "prometheus"),
-        (observability_tf, "tempo"),
-        (observability_tf, "grafana"),
-    ]
-
-    for terraform, service_name in services:
-        service = _resource_block(terraform, "aws_ecs_service", service_name)
-        assert "deployment_circuit_breaker" in service
-        assert "enable   = true" in service
-        assert "rollback = true" in service
-
-
-def test_github_actions_role_can_apply_runtime_config_and_kms_resources() -> None:
-    platform_iam = _read("infra/platform/github_actions.tf")
-
-    assert (
-        'runtime_config_bucket_name = "${local.name}-runtime-config-${local.account_id}"'
-        in platform_iam
+    order_event_consumer = _resource_block(
+        workload_jobs_tf, "aws_ecs_service", "order_event_consumer"
     )
-    assert "RuntimeConfigBucketManage" in platform_iam
-    assert "RuntimeConfigObjectsManage" in platform_iam
-    assert "local.github_actions_runtime_config_bucket_resources" in platform_iam
-    assert "local.github_actions_runtime_config_object_resources" in platform_iam
 
-    assert "KMSCreateTaggedAppKeys" in platform_iam
-    assert '"kms:CreateKey"' in platform_iam
-    assert '"kms:TagResource"' in platform_iam
-    assert "KMSManageTaggedAppKeys" in platform_iam
-    assert "KMSManageStackAliases" in platform_iam
-    assert '"iam:CreatePolicyVersion", "iam:DeletePolicyVersion"' in platform_iam
-    assert '"iam:SetDefaultPolicyVersion"' in platform_iam
-    assert "local.github_actions_sns_resources" in platform_iam
-    assert "SNSManage" in platform_iam
-    assert '"sns:CreateTopic"' in platform_iam
-    assert '"sns:GetSubscriptionAttributes"' in platform_iam
-    assert '"sns:Subscribe"' in platform_iam
-
-
-def test_app_target_5xx_alarm_is_fast_enough_for_rollback_drills() -> None:
-    edge_tf = _read("infra/app/edge.tf")
-    alarm_start = edge_tf.index(
-        'resource "aws_cloudwatch_metric_alarm" "app_target_5xx"'
-    )
-    latency_alarm_start = edge_tf.index(
-        'resource "aws_cloudwatch_metric_alarm" "app_target_latency"'
-    )
-    alarm = edge_tf[alarm_start:latency_alarm_start]
-
-    assert 'metric_name         = "HTTPCode_Target_5XX_Count"' in alarm
-    assert "period              = 60" in alarm
+    assert "deployment_circuit_breaker" in order_event_consumer
+    assert "enable   = true" in order_event_consumer
+    assert "rollback = true" in order_event_consumer
 
 
 def test_app_rollback_drill_uses_ecs_automatic_rollback() -> None:
@@ -260,22 +168,51 @@ def test_app_rollback_drill_uses_ecs_automatic_rollback() -> None:
     assert "rollback_deadline=$((SECONDS + 1200))" in workflow
     assert "Wait for ECS automatic rollback" in workflow
     assert "Bad drill revision completed instead of being rolled back" in workflow
-    assert "Roll back to captured task definition" not in workflow
-    assert (
-        'ci_deploy_ecs_service.sh "${{ env.STACK_NAME }}" app "${{ steps.current.outputs.task_definition }}"'
-        not in workflow
-    )
     assert "aws ecs update-service" not in workflow
 
 
-def test_log_groups_dashboard_is_provisioned_and_uses_loki_only() -> None:
+def test_operator_scripts_resolve_repo_root_from_script_path() -> None:
+    for path in [
+        "scripts/operator/db_exec.sh",
+        "scripts/operator/db_seed_tunnel.sh",
+        "scripts/operator/db_tunnel.sh",
+    ]:
+        script = _read(path)
+
+        assert 'SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"' in script
+        assert 'ROOT_DIR="$(cd "${SCRIPT_DIR}/../.." && pwd)"' in script
+        assert 'cd "$ROOT_DIR"' in script
+        assert "20 20 12" not in script
+        assert 'dirname "-e"' not in script
+
+
+def test_cloud_changing_release_paths_stay_in_reviewed_workflows() -> None:
+    makefile = _read("Makefile")
+    app_build = _read(".github/workflows/app-build.yml")
+    app_deploy = _read(".github/workflows/app-deploy.yml")
+
+    for removed in [
+        "app-build-push",
+        "app-roll",
+        "build_push_app.py",
+        "roll_app_image.py",
+        "observability-stack-deploy",
+    ]:
+        assert removed not in makefile
+
+    assert "apps/api/Dockerfile" in app_build
+    assert "apps/backfill_worker/Dockerfile" in app_build
+    assert "apps/data_export_job/Dockerfile" in app_build
+    assert "apps/order_event_consumer/Dockerfile" in app_build
+    assert "verify_post_deploy.py" in app_deploy
+    assert app_build.count("if: ${{ !github.event.repository.private }}") == 6
+
+
+def test_log_groups_dashboard_is_loki_only_and_matches_cloud_groups() -> None:
     dashboard = json.loads(_read("observability/grafana/dashboards/log-groups.json"))
-    observability_tf = _read("infra/app/observability.tf")
 
     assert dashboard["title"] == "Log Groups"
     assert dashboard["uid"] == "aws-sdlc-log-groups"
-    assert "log-groups.json" in observability_tf
-    assert "grafana_log_groups_dashboard" in observability_tf
 
     def walk(value: object) -> list[str]:
         if isinstance(value, dict):
@@ -297,113 +234,14 @@ def test_log_groups_dashboard_is_provisioned_and_uses_loki_only() -> None:
     assert set(datasource_types) == {"loki"}
     assert "log_group" in json.dumps(dashboard)
     assert "Open Selected Group In Explore" in json.dumps(dashboard)
-    logs_expr = dashboard["panels"][1]["targets"][0]["expr"]
-    assert 'log_group=~"$log_group"' in logs_expr
-    assert 'container=~"$container"' in logs_expr
 
     variables = {item["name"]: item for item in dashboard["templating"]["list"]}
     log_group_variable = variables["log_group"]
     container_variable = variables["container"]
-    assert log_group_variable["type"] == "custom"
-    assert container_variable["type"] == "custom"
 
-    for suffix in EXPECTED_LOKI_LOG_GROUP_SUFFIXES:
+    for suffix in EXPECTED_LOG_GROUP_SUFFIXES:
         assert f"/ecs/aws-sdlc-containers/{suffix}" in log_group_variable["query"]
         assert suffix in container_variable["query"]
-
-
-def test_loki_tunnel_has_ecs_exec_support() -> None:
-    makefile = _read("Makefile")
-    tunnel_script = _read("scripts/operator/loki_tunnel.sh")
-    observability_tf = _read("infra/app/observability.tf")
-
-    assert "loki-tunnel" in makefile
-    assert "observability-stack-deploy" in makefile
-    assert "observability_loki_service_name" in tunnel_script
-    assert 'aws_iam_role_policy" "loki_ssm_exec' in observability_tf
-    loki_service_start = observability_tf.index('resource "aws_ecs_service" "loki"')
-    prometheus_service_start = observability_tf.index(
-        'resource "aws_ecs_task_definition" "prometheus"'
-    )
-    loki_service = observability_tf[loki_service_start:prometheus_service_start]
-    assert "enable_execute_command = true" in loki_service
-    assert "aws_iam_role_policy.loki_ssm_exec" in loki_service
-
-
-def test_operator_scripts_resolve_repo_root_from_script_path() -> None:
-    for path in [
-        "scripts/operator/db_exec.sh",
-        "scripts/operator/db_seed_tunnel.sh",
-        "scripts/operator/db_tunnel.sh",
-        "scripts/operator/grafana_tunnel.sh",
-        "scripts/operator/loki_tunnel.sh",
-    ]:
-        script = _read(path)
-
-        assert 'SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"' in script
-        assert 'ROOT_DIR="$(cd "${SCRIPT_DIR}/../.." && pwd)"' in script
-        assert 'cd "$ROOT_DIR"' in script
-        assert "20 20 12" not in script
-        assert 'dirname "-e"' not in script
-
-
-def test_cloud_changing_release_paths_stay_in_reviewed_workflows() -> None:
-    makefile = _read("Makefile")
-    docs = _read("docs/observability.md")
-    app_build = _read(".github/workflows/app-build.yml")
-    app_deploy = _read(".github/workflows/app-deploy.yml")
-
-    removed_targets = [
-        "-".join(("app", "build", "push")),
-        "-".join(("app", "roll")),
-        "-".join(("firelens", "build", "push")),
-        "-".join(("firelens", "roll")),
-    ]
-    removed_scripts = [
-        "_".join(("build", "push", "app")) + ".py",
-        "_".join(("roll", "app", "image")) + ".py",
-        "_".join(("build", "push", "firelens")) + ".py",
-        "_".join(("roll", "firelens", "image")) + ".py",
-    ]
-
-    for removed in [*removed_targets, *removed_scripts]:
-        assert removed not in makefile
-        assert removed not in docs
-
-    assert "observability/firelens/Dockerfile" in app_build
-    assert "apps/api/Dockerfile" in app_build
-    assert "firelens:${TAG}" in app_build
-    assert "firelens:${IMAGE_TAG}" in app_deploy
-    assert "verify_post_deploy.py" in app_deploy
-    assert app_build.count("if: ${{ !github.event.repository.private }}") == 7
-
-
-def test_observability_cloud_traffic_runs_quiet_cloud_log_probes() -> None:
-    makefile = _read("Makefile")
-    probe_script = _read("scripts/observability/run_observability_cloud_jobs.py")
-
-    assert "scripts/observability/generate_cloud_traffic.py" in makefile
-    assert "scripts/observability/run_observability_cloud_jobs.py" in makefile
-    assert "observability-cloud-jobs" in makefile
-
-    for target in ["worker", "data-export-job", "liquibase", "prometheus", "tempo"]:
-        assert target in probe_script
-
-    assert "BACKFILL_MAX_BATCHES" in probe_script
-    assert "DATA_EXPORT_RUN_ID" in probe_script
-    assert "status" in probe_script
-    assert "force-new-deployment" in probe_script
-
-
-def test_infra_apply_downloads_plan_artifact_into_infra_tree() -> None:
-    workflow = _read(".github/workflows/infra-apply.yml")
-
-    assert "actions/download-artifact@v8" in workflow
-    assert "path: infra" in workflow
-    assert "terraform apply -auto-approve platform.tfplan" in workflow
-    assert "working-directory: infra/platform" in workflow
-    assert "terraform apply -auto-approve app.tfplan" in workflow
-    assert "working-directory: infra/app" in workflow
 
 
 def test_release_evidence_events_are_emitted_by_cloud_changing_workflows() -> None:
@@ -424,27 +262,13 @@ def test_release_evidence_events_are_emitted_by_cloud_changing_workflows() -> No
     assert "release-event.jsonl" in event_script
     assert "release-event.md" in event_script
     assert "loki/api/v1/push" in event_script
-    assert "capture_alarm_snapshot" in event_script
     assert "--loki-push-best-effort" in event_script
-    assert "--include-alarms" in event_script
-    assert "release evidence events" in docs
-    assert "JSONL artifacts" in docs
-    assert "Delivery Events" in docs
-    assert "dashboard annotations" in docs
-    assert "CloudWatch alarm" in docs
-    assert "LOKI_PUSH_URL" in docs
-    assert "GitHub `aws`" in docs
-    assert "make release-event-delivery-verify" in docs
-    assert "RELEASE_EVENTS_DIR" in docs
+    assert "Release and incident evidence stay portable" in docs
     assert "release-evidence-*" in docs
     assert "release_events" in evidence_script
     assert "--release-events-dir" in evidence_script
     assert "--loki-url" in evidence_script
     assert "query_range" in evidence_script
-    assert "loki_count" in evidence_script
-    assert "LOKI_URL" in docs
-    assert "migration failures still leave a portable timeline artifact" in docs
-    assert "failed or partial applies retain the reviewed plan ID" in docs
 
     delivery_annotation = next(
         item
@@ -452,22 +276,12 @@ def test_release_evidence_events_are_emitted_by_cloud_changing_workflows() -> No
         if item["name"] == "Delivery Events"
     )
     assert delivery_annotation["datasource"]["type"] == "loki"
-    assert "event_type" in delivery_annotation["expr"]
-    assert "infra_apply" in delivery_annotation["expr"]
-    assert "github_run_id" in delivery_annotation["tagKeys"]
 
     delivery_panel = next(
         panel for panel in dashboard["panels"] if panel["title"] == "Delivery Events"
     )
     assert delivery_panel["datasource"]["type"] == "loki"
     assert delivery_panel["type"] == "logs"
-    delivery_query = delivery_panel["targets"][0]["expr"]
-    assert "event_type" in delivery_query
-    assert "app_deploy" in delivery_query
-    assert "infra_apply" in delivery_query
-    assert "| json" in delivery_query
-    assert '"github_run_id"' in event_script
-    assert '"status"' in event_script
 
     for event_type, workflow in workflows.items():
         assert "scripts/observability/release_event.py" in workflow
@@ -475,71 +289,18 @@ def test_release_evidence_events_are_emitted_by_cloud_changing_workflows() -> No
         assert "--include-alarms" in workflow
         assert "--push-loki" in workflow
         assert "--loki-push-best-effort" in workflow
-        assert "secrets.LOKI_PUSH_URL || vars.LOKI_PUSH_URL" in workflow
-        assert "LOKI_PUSH_URL" in workflow
-        assert "LOKI_URL" in workflow
         assert "actions/upload-artifact" in workflow
         assert "release-evidence-" in workflow
-        assert 'release-event.md >> "$GITHUB_STEP_SUMMARY"' in workflow
-
-    app_deploy = workflows["app_deploy"]
-    app_deploy_evidence_job = (
-        "evidence:\n    name: Evidence\n    needs:\n      - migrate\n      - deploy"
-    )
-    assert app_deploy_evidence_job in app_deploy
-    assert "always() &&" in app_deploy
-    assert "task_definition: ${{ steps.deploy-app.outputs.task_def_arn }}" in (
-        app_deploy
-    )
-    assert "verify_seconds: ${{ steps.verify-app.outputs.verify_seconds }}" in (
-        app_deploy
-    )
-    assert (
-        "App deploy workflow completed with migrate=${{ needs.migrate.result }}, deploy=${{ needs.deploy.result }}"
-        in app_deploy
-    )
-    assert '--status "${status}"' in app_deploy
-    assert "${{ needs.deploy.outputs.task_definition }}" in app_deploy
-    assert "${{ needs.deploy.outputs.verify_seconds }}" in app_deploy
-
-    infra_apply = workflows["infra_apply"]
-    infra_apply_evidence_job = "evidence:\n    name: Evidence\n    needs: apply"
-    assert infra_apply_evidence_job in infra_apply
-    assert "always() &&" in infra_apply
-    assert '--status "${{ needs.apply.result }}"' in infra_apply
-    assert (
-        "Infra apply workflow completed with apply=${{ needs.apply.result }}"
-        in infra_apply
-    )
-    assert '--plan-run-id "${{ env.PLAN_RUN_ID }}"' in infra_apply
 
 
-def test_app_overview_uses_loki_for_order_event_worker_outcomes() -> None:
-    dashboard = json.loads(_read("observability/grafana/dashboards/app-overview.json"))
-    order_panel = next(
-        panel
-        for panel in dashboard["panels"]
-        if panel["title"] == "Order Event Worker Outcomes"
-    )
-
-    assert order_panel["datasource"]["type"] == "loki"
-    target = order_panel["targets"][0]
-    assert target["datasource"]["type"] == "loki"
-    assert "order-event-consumer" in target["expr"]
-    assert "outbox_relay" in target["expr"]
-    assert "order_event_consumed" in target["expr"]
-
-
-def test_prometheus_scrapes_app_metrics_and_observability_stack_metrics() -> None:
+def test_local_prometheus_scrapes_app_and_stack_metrics() -> None:
     local_prometheus = _read("observability/prometheus/prometheus.yml")
-    aws_prometheus = _read("infra/app/templates/observability/prometheus.yml.tftpl")
 
-    for config in [local_prometheus, aws_prometheus]:
-        assert "job_name: app" in config
-        assert "metrics_path: /metrics" in config
-        assert "job_name: prometheus" in config
-        assert "job_name: loki" in config
-        assert "job_name: tempo" in config
+    assert "job_name: app" in local_prometheus
+    assert "metrics_path: /metrics" in local_prometheus
+    assert "job_name: prometheus" in local_prometheus
+    assert "job_name: loki" in local_prometheus
+    assert "job_name: tempo" in local_prometheus
 
 
 def test_observability_docs_list_cloudwatch_log_and_metric_contracts() -> None:

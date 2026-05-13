@@ -200,16 +200,16 @@ fragments.
 
 ## Observability
 
-`observability/` contains portable local/AWS assets:
+`observability/` contains portable local analysis assets:
 
 - Prometheus scrape config and alert rules.
 - Loki config.
 - Promtail config.
 - Grafana datasources, dashboards, and provisioning.
 
-AWS-specific rendering templates live under
-`infra/app/templates/observability/` because ECS storage/service discovery can
-differ from local Compose.
+AWS runtime telemetry wiring lives in `infra/app/observability.tf` as the ADOT
+sidecar container contract. Do not add AWS-specific dashboard rendering
+templates unless a hosted visualization layer is intentionally reintroduced.
 
 Critical rule: dashboards and alerts should answer operator questions:
 

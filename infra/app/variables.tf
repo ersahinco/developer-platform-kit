@@ -125,113 +125,47 @@ variable "dapr_image" {
 # ── CloudWatch app-level reduction toggles ───────────────────────────────────
 
 variable "enable_app_symptom_cloudwatch_alarms" {
-  description = "Keep CloudWatch alarms for app target 5xx and latency symptoms. Defaults true; set false only after deployed Grafana-stack alerts have dual-run successfully."
+  description = "Keep CloudWatch alarms for app target 5xx and latency symptoms. Defaults true because ECS rollback uses AWS-native alarms."
   type        = bool
   default     = true
 }
 
 variable "enable_data_export_success_cloudwatch_alarm" {
-  description = "Keep the CloudWatch Logs metric filter and freshness alarm for successful data exports. Defaults true; set false only after a Grafana-stack data export freshness signal has dual-run successfully."
+  description = "Keep the CloudWatch Logs metric filter and freshness alarm for successful data exports. Defaults true until a deliberate metrics or ruler path replaces it."
   type        = bool
   default     = true
 }
 
-# ── Optional ECS Grafana stack ────────────────────────────────────────────────
+# ── Cloud runtime telemetry ──────────────────────────────────────────────────
 
-variable "enable_observability_stack" {
-  description = "Deploy the optional ECS/Fargate Grafana, Loki, and Prometheus stack. Defaults to false so the base plan remains unchanged."
-  type        = bool
-  default     = false
-}
-
-variable "grafana_admin_secret_name" {
-  description = "Secrets Manager secret name holding the Grafana admin password. Create this out of band before enabling the observability stack."
-  type        = string
-  default     = "aws-sdlc-containers/grafana-admin"
-}
-
-variable "observability_config_loader_image" {
-  description = "Upstream AWS CLI image used as an init sidecar to copy observability config from S3 into task-local volumes."
+variable "runtime_config_loader_image" {
+  description = "Upstream AWS CLI image used as an init sidecar to copy runtime config from S3 into task-local volumes."
   type        = string
   default     = "public.ecr.aws/aws-cli/aws-cli:2.32.3"
 }
 
-variable "grafana_image" {
-  description = "Upstream Grafana image for the optional observability stack."
+variable "enable_adot_sidecar" {
+  description = "Run the AWS Distro for OpenTelemetry Collector as an app-task sidecar. The app sends OTLP traces to localhost:4318 when enabled."
+  type        = bool
+  default     = true
+}
+
+variable "adot_collector_image" {
+  description = "Pinned ADOT Collector sidecar image. Override during normal dependency refreshes."
   type        = string
-  default     = "grafana/grafana:13.0.1"
+  default     = "public.ecr.aws/aws-observability/aws-otel-collector:v0.47.0"
 }
 
-variable "loki_image" {
-  description = "Upstream Loki image for the optional observability stack."
+variable "adot_collector_config" {
+  description = "Optional full ADOT Collector config. Defaults to local app metrics/traces receivers with debug export to CloudWatch logs."
   type        = string
-  default     = "grafana/loki:3.6.10"
+  default     = null
 }
 
-variable "prometheus_image" {
-  description = "Upstream Prometheus image for the optional observability stack."
+variable "otel_exporter_otlp_traces_endpoint" {
+  description = "External OTLP/HTTP traces endpoint used only when enable_adot_sidecar is false. Prefer the ADOT sidecar for ECS tasks."
   type        = string
-  default     = "prom/prometheus:v3.11.2"
-}
-
-variable "tempo_image" {
-  description = "Upstream Tempo image for the optional self-hosted traces stack."
-  type        = string
-  default     = "grafana/tempo:2.9.0"
-}
-
-variable "firelens_image_tag" {
-  description = "FireLens image tag built from observability/firelens and pushed to ECR."
-  type        = string
-  default     = "sha-23f61d05d3a0e2f55def6fcdd2b64ce761817963"
-}
-
-variable "grafana_cpu" {
-  description = "Fargate task CPU units for the optional Grafana service."
-  type        = number
-  default     = 256
-}
-
-variable "grafana_memory" {
-  description = "Fargate task memory (MiB) for the optional Grafana service."
-  type        = number
-  default     = 512
-}
-
-variable "loki_cpu" {
-  description = "Fargate task CPU units for the optional Loki service."
-  type        = number
-  default     = 512
-}
-
-variable "loki_memory" {
-  description = "Fargate task memory (MiB) for the optional Loki service."
-  type        = number
-  default     = 1024
-}
-
-variable "prometheus_cpu" {
-  description = "Fargate task CPU units for the optional Prometheus service."
-  type        = number
-  default     = 512
-}
-
-variable "prometheus_memory" {
-  description = "Fargate task memory (MiB) for the optional Prometheus service."
-  type        = number
-  default     = 1024
-}
-
-variable "tempo_cpu" {
-  description = "Fargate task CPU units for the optional Tempo service."
-  type        = number
-  default     = 512
-}
-
-variable "tempo_memory" {
-  description = "Fargate task memory (MiB) for the optional Tempo service."
-  type        = number
-  default     = 1024
+  default     = null
 }
 
 # ── RDS ───────────────────────────────────────────────────────────────────────

@@ -37,7 +37,7 @@ def test_delivery_verifier_checks_expected_inventory_and_rejects_stale_streams(
             return {
                 "logStreams": [
                     {
-                        "logStreamName": "firelens/app",
+                        "logStreamName": "app/app",
                         "lastEventTimestamp": 1_800_000_000_000,
                     }
                 ]

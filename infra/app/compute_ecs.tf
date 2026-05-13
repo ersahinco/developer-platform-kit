@@ -95,46 +95,6 @@ module "ecr_pgbouncer" {
   tags = local.tags
 }
 
-module "ecr_firelens" {
-  source  = "terraform-aws-modules/ecr/aws"
-  version = "~> 3.0"
-
-  repository_name                 = "${local.name}/firelens"
-  repository_image_tag_mutability = "IMMUTABLE"
-  repository_image_scan_on_push   = true
-
-  repository_read_write_access_arns = [local.github_actions_role_arn]
-
-  repository_lifecycle_policy = jsonencode({
-    rules = [
-      {
-        rulePriority = 1
-        description  = "Expire untagged images after 1 day"
-        selection = {
-          tagStatus   = "untagged"
-          countType   = "sinceImagePushed"
-          countUnit   = "days"
-          countNumber = 1
-        }
-        action = { type = "expire" }
-      },
-      {
-        rulePriority = 2
-        description  = "Keep last 10 sha- tagged images"
-        selection = {
-          tagStatus     = "tagged"
-          tagPrefixList = ["sha-"]
-          countType     = "imageCountMoreThan"
-          countNumber   = 10
-        }
-        action = { type = "expire" }
-      }
-    ]
-  })
-
-  tags = local.tags
-}
-
 ################################################################################
 # ECS — terraform-aws-modules/ecs/aws ~> 7.0
 # v7: cluster_capacity_providers must be explicit — no longer inferred.
@@ -215,12 +175,7 @@ module "ecs" {
       # the stack self-contained.
       family = local.name
 
-      container_definitions = merge(var.enable_observability_stack ? {
-        "log-router" = merge(local.firelens_router_container[0], {
-          enable_cloudwatch_logging   = false
-          create_cloudwatch_log_group = false
-        })
-        } : {}, {
+      container_definitions = merge(local.adot_collector_container, {
         # PgBouncer sidecar — runs in the same task network namespace as the app.
         # The app's DATABASE_URL points to localhost:5432 (pgbouncer), not RDS directly.
         # transaction mode: server connections are returned to the pool after each
@@ -262,10 +217,6 @@ module "ecs" {
             { name = "STATS_PERIOD", value = "3600" },
           ]
 
-          dependsOn = var.enable_observability_stack ? [{ containerName = "log-router", condition = "START" }] : null
-
-          logConfiguration = var.enable_observability_stack ? local.firelens_log_configuration : null
-
           enable_cloudwatch_logging              = true
           cloudwatch_log_group_retention_in_days = 14
           cloudwatch_log_group_kms_key_id        = aws_kms_key.cloudwatch_logs.arn
@@ -297,9 +248,14 @@ module "ecs" {
             { name = "ROLLOUT_DRILL_FAULT_PATHS", value = "/ready" },
             { name = "ROLLOUT_DRILL_FAULT_DELAY_SECONDS", value = "3" },
             { name = "ROLLOUT_DRILL_FAULT_STATUS_CODE", value = "503" },
-            ], var.enable_observability_stack ? [
+            ], var.enable_adot_sidecar ? [
             { name = "OTEL_TRACES_ENABLED", value = "true" },
-            { name = "OTEL_EXPORTER_OTLP_TRACES_ENDPOINT", value = "http://tempo.${local.observability_dns_namespace}:4318/v1/traces" },
+            { name = "OTEL_EXPORTER_OTLP_TRACES_ENDPOINT", value = "http://127.0.0.1:4318/v1/traces" },
+            { name = "OTEL_SERVICE_NAME", value = "aws-sdlc-containers-api" },
+            { name = "OTEL_DEPLOYMENT_ENVIRONMENT", value = "aws" },
+            ] : [], (!var.enable_adot_sidecar && var.otel_exporter_otlp_traces_endpoint != null) ? [
+            { name = "OTEL_TRACES_ENABLED", value = "true" },
+            { name = "OTEL_EXPORTER_OTLP_TRACES_ENDPOINT", value = var.otel_exporter_otlp_traces_endpoint },
             { name = "OTEL_SERVICE_NAME", value = "aws-sdlc-containers-api" },
             { name = "OTEL_DEPLOYMENT_ENVIRONMENT", value = "aws" },
           ] : [])
@@ -307,7 +263,7 @@ module "ecs" {
           # pgbouncer must be accepting connections before the app starts.
           dependsOn = concat(
             [{ containerName = "pgbouncer", condition = "START" }],
-            var.enable_observability_stack ? [{ containerName = "log-router", condition = "START" }] : []
+            var.enable_adot_sidecar ? [{ containerName = "adot", condition = "START" }] : []
           )
 
           healthCheck = {
@@ -326,8 +282,6 @@ module "ecs" {
           # we explicitly opt out. The meaningful security boundary here is IAM + network
           # (private subnet, security groups), not filesystem immutability.
           readonlyRootFilesystem = false
-
-          logConfiguration = var.enable_observability_stack ? local.firelens_log_configuration : null
 
           enable_cloudwatch_logging              = true
           cloudwatch_log_group_retention_in_days = 30
@@ -354,9 +308,7 @@ module "ecs" {
       create_security_group = false
       security_group_ids    = [aws_security_group.app.id]
 
-      service_registries = var.enable_observability_stack ? {
-        registry_arn = aws_service_discovery_service.app[0].arn
-      } : null
+      service_registries = null
     }
   }
 

@@ -38,7 +38,7 @@ Every long-running app workload must provide this surface:
 | Readiness | `/ready` checks required runtime dependencies and returns `503` with a structured failed check when the workload should be removed from rotation. |
 | Metrics | `/metrics` exposes Prometheus text with request count, request latency, readiness/error status, and workload-specific outcome counters where useful. |
 | Logs | Logs are JSON or parseable structured lines and preserve stable labels/correlation fields: `stack`, `environment`, `service`, `container`, `request_id`, and workload identifiers such as `event_id` or `job_name`. |
-| Traces | OTLP/HTTP traces to Tempo are optional per workload; add them when request or job spans materially help debugging. Do not add an OpenTelemetry Collector until routing, filtering, or multi-backend export is actually needed. |
+| Traces | OTLP/HTTP traces are optional per workload; add them when request or job spans materially help debugging. ECS routes API traces through the ADOT sidecar on localhost so the backend can change without changing app code. |
 | Config | Runtime behavior is controlled by environment variables, mounted configuration, or application ports. Names should describe app intent, not provider plumbing, unless the value is owned by the platform edge. |
 | Secrets | Sensitive values are injected by the runtime secret mechanism and consumed as environment variables or mounted files. They are not committed, logged, or baked into images. |
 
@@ -80,9 +80,9 @@ belong at platform/delivery edges, not in domain or application code.
 
 ## Observability
 
-The portable observability baseline is Prometheus, Loki, Tempo, and Grafana.
-Workloads should make these signals useful without a Grafana Cloud dependency or
-a Grafana CloudWatch datasource:
+The portable observability baseline is Prometheus, Loki, Tempo, Grafana, and
+OpenTelemetry. Workloads should make these signals useful without a Grafana
+Cloud dependency or a Grafana CloudWatch datasource:
 
 - Metrics: request count, request latency, 5xx/error counts, readiness failures,
   and workload-specific outcomes.

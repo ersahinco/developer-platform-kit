@@ -40,26 +40,3 @@ resource "aws_iam_role_policy" "task_exec_secrets" {
   role   = aws_iam_role.task_exec.id
   policy = data.aws_iam_policy_document.task_exec_secrets.json
 }
-
-data "aws_iam_policy_document" "firelens_cloudwatch_logs" {
-  statement {
-    sid = "WriteFireLensCloudWatchLogs"
-    actions = [
-      "logs:CreateLogStream",
-      "logs:DescribeLogStreams",
-      "logs:PutLogEvents",
-    ]
-    resources = ["arn:aws:logs:${local.region}:${local.account_id}:log-group:/ecs/${local.name}/*:*"]
-  }
-}
-
-resource "aws_iam_policy" "firelens_cloudwatch_logs" {
-  name   = "${local.name}-firelens-cloudwatch-logs"
-  policy = data.aws_iam_policy_document.firelens_cloudwatch_logs.json
-  tags   = local.tags
-}
-
-resource "aws_iam_role_policy_attachment" "app_firelens_cloudwatch_logs" {
-  role       = aws_iam_role.app_task.name
-  policy_arn = aws_iam_policy.firelens_cloudwatch_logs.arn
-}

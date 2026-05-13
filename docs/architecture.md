@@ -338,8 +338,8 @@ the ECS service module with `create_tasks_iam_role = false` and
 Terraform while allowing the app task-definition resource itself to leave
 Terraform state after bootstrap.
 
-`aws_iam_role_policy.task_ssm_exec` and FireLens CloudWatch permissions attach
-directly to `aws_iam_role.app_task.name`. Worker task definitions also reference
+`aws_iam_role_policy.task_ssm_exec` attaches directly to
+`aws_iam_role.app_task.name`. Worker task definitions also reference
 `aws_iam_role.app_task.arn` so support jobs keep the same runtime permissions
 without depending on ECS module task-role outputs.
 

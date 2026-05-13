@@ -45,9 +45,6 @@ resource "aws_security_group" "app" {
 
   lifecycle {
     create_before_destroy = true
-    # Optional observability scrape ingress is managed as a standalone rule to
-    # avoid an app SG <-> observability SG dependency cycle.
-    ignore_changes = [ingress]
   }
 
   ingress {
@@ -80,22 +77,6 @@ resource "aws_security_group" "app" {
     cidr_blocks = [local.vpc_cidr]
   }
 
-  egress {
-    description = "Loki log delivery in private observability stack"
-    from_port   = 3100
-    to_port     = 3100
-    protocol    = "tcp"
-    cidr_blocks = [local.vpc_cidr]
-  }
-
-  egress {
-    description = "Tempo OTLP trace delivery in private observability stack"
-    from_port   = 4318
-    to_port     = 4318
-    protocol    = "tcp"
-    cidr_blocks = [local.vpc_cidr]
-  }
-
   tags = local.tags
 }
 
@@ -107,7 +88,7 @@ resource "aws_lb" "this" {
   subnets            = local.platform.public_subnet_ids
 
   access_logs {
-    bucket  = local.observability_bucket_name
+    bucket  = local.alb_access_logs_bucket_name
     prefix  = "alb-access-logs"
     enabled = true
   }
@@ -116,7 +97,7 @@ resource "aws_lb" "this" {
   drop_invalid_header_fields = true
   tags                       = local.tags
 
-  depends_on = [aws_s3_bucket_policy.observability_alb_access_logs]
+  depends_on = [aws_s3_bucket_policy.alb_access_logs]
 }
 
 resource "aws_wafv2_web_acl" "edge" {

@@ -59,11 +59,11 @@ aws logs tail /ecs/aws-sdlc-containers/app \
   --region eu-central-1
 ```
 
-## Grafana-Stack Checks
+## Grafana Checks
 
-When the optional Grafana stack is enabled and reachable, check the provisioned
-`App Overview` dashboard for `/health` and `/ready` request symptoms, then use
-Loki to inspect app and PgBouncer logs from the same time window:
+When a local or external Grafana/Loki path is reachable, check the `App
+Overview` dashboard for `/health` and `/ready` request symptoms, then use Loki
+to inspect app and PgBouncer logs from the same time window:
 
 ```logql
 {stack="aws-sdlc-containers", service="app"} |= "ERROR"

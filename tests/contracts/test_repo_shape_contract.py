@@ -100,6 +100,7 @@ def test_tracked_scripts_are_referenced_outside_themselves() -> None:
         path
         for path in tracked_files
         if path.startswith("scripts/")
+        and (ROOT / path).exists()
         and Path(path).suffix in {".py", ".sh"}
         and Path(path).name != "__init__.py"
     ]

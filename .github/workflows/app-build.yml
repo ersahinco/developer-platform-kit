@@ -16,7 +16,6 @@ on:
       - "apps/order_event_consumer/**"
       - "compose.yaml"
       - "dapr/**"
-      - "observability/firelens/**"
       - "platform/**"
       - "packages/**"
       - "pyproject.toml"
@@ -34,7 +33,6 @@ on:
       - "apps/order_event_consumer/**"
       - "compose.yaml"
       - "dapr/**"
-      - "observability/firelens/**"
       - "platform/**"
       - "packages/**"
       - "pyproject.toml"
@@ -208,7 +206,6 @@ jobs:
           docker build -f apps/data_export_job/Dockerfile -t "${{ env.ECR_REGISTRY }}/${{ env.STACK_NAME }}/data-export-job:${TAG}" . &
           docker build -f apps/order_event_consumer/Dockerfile -t "${{ env.ECR_REGISTRY }}/${{ env.STACK_NAME }}/order-event-consumer:${TAG}" . &
           docker build -t "${{ env.ECR_REGISTRY }}/${{ env.STACK_NAME }}/liquibase:${TAG}" db/ &
-          docker build -f observability/firelens/Dockerfile -t "${{ env.ECR_REGISTRY }}/${{ env.STACK_NAME }}/firelens:${TAG}" observability/firelens &
           docker build -f db/pgbouncer/Dockerfile --build-arg "PGBOUNCER_TAG=${PGBOUNCER_TAG}" -t "${{ env.ECR_REGISTRY }}/${{ env.STACK_NAME }}/pgbouncer:${PGBOUNCER_TAG}" db/pgbouncer &
           wait
 
@@ -226,7 +223,6 @@ jobs:
           scan "${{ env.ECR_REGISTRY }}/${{ env.STACK_NAME }}/data-export-job:sha-${{ github.sha }}" &
           scan "${{ env.ECR_REGISTRY }}/${{ env.STACK_NAME }}/order-event-consumer:sha-${{ github.sha }}" &
           scan "${{ env.ECR_REGISTRY }}/${{ env.STACK_NAME }}/liquibase:sha-${{ github.sha }}" &
-          scan "${{ env.ECR_REGISTRY }}/${{ env.STACK_NAME }}/firelens:sha-${{ github.sha }}" &
           scan "${{ env.ECR_REGISTRY }}/${{ env.STACK_NAME }}/pgbouncer:${PGBOUNCER_TAG}" &
           wait
 
@@ -234,7 +230,7 @@ jobs:
         env:
           TAG: sha-${{ github.sha }}
         run: |
-          for repo in app worker data-export-job order-event-consumer liquibase firelens; do
+          for repo in app worker data-export-job order-event-consumer liquibase; do
             docker push "${{ env.ECR_REGISTRY }}/${{ env.STACK_NAME }}/${repo}:${TAG}" &
           done
           docker push "${{ env.ECR_REGISTRY }}/${{ env.STACK_NAME }}/pgbouncer:${PGBOUNCER_TAG}" &
@@ -260,7 +256,6 @@ jobs:
           resolve_digest data_export_job "${{ env.ECR_REGISTRY }}/${{ env.STACK_NAME }}/data-export-job:${TAG}"
           resolve_digest order_event_consumer "${{ env.ECR_REGISTRY }}/${{ env.STACK_NAME }}/order-event-consumer:${TAG}"
           resolve_digest liquibase "${{ env.ECR_REGISTRY }}/${{ env.STACK_NAME }}/liquibase:${TAG}"
-          resolve_digest firelens "${{ env.ECR_REGISTRY }}/${{ env.STACK_NAME }}/firelens:${TAG}"
           resolve_digest pgbouncer "${{ env.ECR_REGISTRY }}/${{ env.STACK_NAME }}/pgbouncer:${PGBOUNCER_TAG}"
 
       - name: Attest app image provenance
@@ -301,14 +296,6 @@ jobs:
         with:
           subject-name: ${{ env.ECR_REGISTRY }}/${{ env.STACK_NAME }}/liquibase
           subject-digest: ${{ steps.image-digests.outputs.liquibase }}
-          push-to-registry: true
-
-      - name: Attest FireLens image provenance
-        if: ${{ !github.event.repository.private }}
-        uses: actions/attest-build-provenance@43d14bc2b83dec42d39ecae14e916627a18bb661 # v3
-        with:
-          subject-name: ${{ env.ECR_REGISTRY }}/${{ env.STACK_NAME }}/firelens
-          subject-digest: ${{ steps.image-digests.outputs.firelens }}
           push-to-registry: true
 
       - name: Attest PgBouncer image provenance

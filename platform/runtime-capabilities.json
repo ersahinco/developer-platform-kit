@@ -44,159 +44,128 @@
         "container_runtime": {
           "description": "Runs committed OCI images as ECS/Fargate tasks and services.",
           "provides": [],
-          "owned_by": ["infra/app/compute_ecs.tf", "infra/app/workload_jobs.tf"],
-          "evidence_paths": ["infra/app/compute_ecs.tf", "infra/app/workload_jobs.tf"],
-          "proof_files": ["infra/app/compute_ecs.tf", "infra/app/workload_jobs.tf"],
-          "required_tokens": [
-            "requires_compatibilities = [\"FARGATE\"]",
-            "network_mode             = \"awsvpc\""
+          "owned_by": [
+            "infra/app/compute_ecs.tf",
+            "infra/app/workload_jobs.tf"
+          ],
+          "evidence_paths": [
+            "infra/app/compute_ecs.tf",
+            "infra/app/workload_jobs.tf"
           ]
         },
         "networking": {
           "description": "Provides isolated VPC networking, private workload subnets, and runtime subnet ownership from the platform root.",
           "provides": [],
-          "owned_by": ["infra/platform/network.tf", "infra/app/providers.tf"],
+          "owned_by": [
+            "infra/platform/network.tf",
+            "infra/app/providers.tf"
+          ],
           "evidence_paths": [
             "infra/platform/network.tf",
             "infra/platform/outputs.tf",
             "infra/app/providers.tf"
-          ],
-          "proof_files": [
-            "infra/platform/network.tf",
-            "infra/platform/outputs.tf",
-            "infra/app/providers.tf"
-          ],
-          "required_tokens": [
-            "module \"vpc\"",
-            "private_subnet_ids",
-            "intra_subnet_ids",
-            "data \"terraform_remote_state\" \"platform\""
           ]
         },
         "identity": {
           "description": "Uses GitHub OIDC for delivery identity and least-privilege task roles for runtime identity.",
-          "provides": ["workload_identity"],
-          "owned_by": ["infra/platform/github_actions.tf", "infra/app/app_task_identity.tf"],
+          "provides": [
+            "workload_identity"
+          ],
+          "owned_by": [
+            "infra/platform/github_actions.tf",
+            "infra/app/app_task_identity.tf"
+          ],
           "evidence_paths": [
             "infra/platform/github_actions.tf",
             "infra/app/runtime_identity.tf",
             "infra/app/app_task_identity.tf"
-          ],
-          "proof_files": [
-            "infra/platform/github_actions.tf",
-            "infra/app/runtime_identity.tf",
-            "infra/app/app_task_identity.tf"
-          ],
-          "required_tokens": [
-            "token.actions.githubusercontent.com",
-            "aws_iam_role\" \"github_actions",
-            "aws_iam_role\" \"task_exec",
-            "aws_iam_role\" \"app_task"
           ]
         },
         "secrets": {
           "description": "Injects runtime secrets through AWS Secrets Manager and ECS task-definition secrets, not image layers or tfvars.",
-          "provides": ["secret_injection", "config_injection"],
-          "owned_by": ["infra/app/compute_ecs.tf", "infra/app/workload_jobs.tf"],
+          "provides": [
+            "secret_injection",
+            "config_injection"
+          ],
+          "owned_by": [
+            "infra/app/compute_ecs.tf",
+            "infra/app/workload_jobs.tf"
+          ],
           "evidence_paths": [
             "infra/app/providers.tf",
             "infra/app/compute_ecs.tf",
             "infra/app/workload_jobs.tf",
             "infra/app/variables.tf"
-          ],
-          "proof_files": [
-            "infra/app/providers.tf",
-            "infra/app/compute_ecs.tf",
-            "infra/app/workload_jobs.tf",
-            "infra/app/variables.tf"
-          ],
-          "required_tokens": [
-            "aws_secretsmanager_secret_version",
-            "secrets = [",
-            "DB_PASSWORD",
-            "api_token_secret_name"
           ]
         },
         "ingress": {
           "description": "Terminates public traffic at ALB/WAF/Route53 edge and routes health-checked traffic to the app service.",
-          "provides": ["ingress"],
-          "owned_by": ["infra/app/edge.tf"],
-          "evidence_paths": ["infra/app/edge.tf", "infra/app/compute_ecs.tf"],
-          "proof_files": ["infra/app/edge.tf", "infra/app/compute_ecs.tf"],
-          "required_tokens": [
-            "aws_lb",
-            "aws_lb_target_group",
-            "health_check",
-            "load_balancer"
+          "provides": [
+            "ingress"
+          ],
+          "owned_by": [
+            "infra/app/edge.tf"
+          ],
+          "evidence_paths": [
+            "infra/app/edge.tf",
+            "infra/app/compute_ecs.tf"
           ]
         },
         "observability": {
-          "description": "Runs the OSS Grafana stack and forwards workload logs/metrics/traces without requiring a CloudWatch Grafana datasource.",
-          "provides": ["logs", "metrics", "traces"],
-          "owned_by": ["infra/app/observability.tf", "observability/prometheus/prometheus.yml"],
+          "description": "Keeps cloud telemetry lean with CloudWatch logs, an ADOT sidecar for OTLP traces and app metrics, and local-first OSS Grafana stack assets.",
+          "provides": [
+            "logs",
+            "metrics",
+            "traces"
+          ],
+          "owned_by": [
+            "infra/app/observability.tf",
+            "infra/app/edge_access_logs.tf",
+            "observability/prometheus/prometheus.yml"
+          ],
           "evidence_paths": [
             "infra/app/observability.tf",
+            "infra/app/edge_access_logs.tf",
             "observability/prometheus/prometheus.yml",
             "observability/grafana/provisioning/datasources/datasources.yml"
-          ],
-          "proof_files": [
-            "infra/app/observability.tf",
-            "observability/prometheus/prometheus.yml",
-            "observability/grafana/provisioning/datasources/datasources.yml"
-          ],
-          "required_tokens": [
-            "aws_ecs_service\" \"prometheus",
-            "aws_ecs_service\" \"loki",
-            "aws_ecs_service\" \"tempo",
-            "prometheus",
-            "loki",
-            "tempo"
           ]
         },
         "jobs": {
           "description": "Runs one-off and scheduled workload images with the same logging, config, secret, and evidence expectations as services.",
-          "provides": ["one_off_jobs", "object_storage", "postgres_connectivity"],
-          "owned_by": ["infra/app/workload_jobs.tf", "infra/app/object_storage.tf"],
+          "provides": [
+            "one_off_jobs",
+            "object_storage",
+            "postgres_connectivity"
+          ],
+          "owned_by": [
+            "infra/app/workload_jobs.tf",
+            "infra/app/object_storage.tf"
+          ],
           "evidence_paths": [
             "infra/app/workload_jobs.tf",
             "infra/app/object_storage.tf",
             ".github/workflows/app-deploy.yml"
-          ],
-          "proof_files": [
-            "infra/app/workload_jobs.tf",
-            ".github/workflows/app-deploy.yml"
-          ],
-          "required_tokens": [
-            "aws_ecs_task_definition\" \"worker",
-            "aws_ecs_task_definition\" \"data_export_job",
-            "aws_scheduler_schedule\" \"data_export_job",
-            "ci_run_ecs_task.sh"
           ]
         },
         "rollout": {
           "description": "Deploys immutable image revisions through reviewed GitHub Actions and provider-native service rollout semantics.",
-          "provides": ["deploy"],
-          "owned_by": [".github/workflows/app-deploy.yml"],
+          "provides": [
+            "deploy"
+          ],
+          "owned_by": [
+            ".github/workflows/app-deploy.yml"
+          ],
           "evidence_paths": [
             ".github/workflows/app-build.yml",
             ".github/workflows/app-deploy.yml",
             "infra/app/compute_ecs.tf"
-          ],
-          "proof_files": [
-            ".github/workflows/app-build.yml",
-            ".github/workflows/app-deploy.yml",
-            "infra/app/compute_ecs.tf"
-          ],
-          "required_tokens": [
-            "sha-${{ github.sha }}",
-            "ci_deploy_ecs_service.sh",
-            "deployment_circuit_breaker",
-            "rollback = true"
           ]
         },
         "rollback": {
           "description": "Keeps app image rollback, runtime data rollback, and infra rollback as distinct reviewed paths.",
-          "provides": ["rollback"],
+          "provides": [
+            "rollback"
+          ],
           "owned_by": [
             ".github/workflows/app-rollback-drill.yml",
             ".github/workflows/data-runtime-rollback-drill.yml",
@@ -207,65 +176,33 @@
             ".github/workflows/data-runtime-rollback-drill.yml",
             ".github/workflows/infra-plan.yml",
             ".github/workflows/infra-apply.yml"
-          ],
-          "proof_files": [
-            ".github/workflows/app-rollback-drill.yml",
-            ".github/workflows/data-runtime-rollback-drill.yml",
-            ".github/workflows/infra-plan.yml",
-            ".github/workflows/infra-apply.yml"
-          ],
-          "required_tokens": [
-            "app_rollback_drill",
-            "data_runtime_rollback_drill",
-            "terraform plan",
-            "terraform apply"
           ]
         },
         "release_evidence": {
           "description": "Emits portable Markdown/JSON/JSONL release events with provider-neutral deployment, workflow, alarm, and SLO context.",
           "provides": [],
-          "owned_by": ["scripts/observability/release_event.py"],
+          "owned_by": [
+            "scripts/observability/release_event.py"
+          ],
           "evidence_paths": [
             "scripts/observability/release_event.py",
             ".github/workflows/app-deploy.yml",
             ".github/workflows/infra-apply.yml",
             ".github/workflows/app-rollback-drill.yml",
             ".github/workflows/data-runtime-rollback-drill.yml"
-          ],
-          "proof_files": [
-            "scripts/observability/release_event.py",
-            ".github/workflows/app-deploy.yml",
-            ".github/workflows/infra-apply.yml",
-            ".github/workflows/app-rollback-drill.yml",
-            ".github/workflows/data-runtime-rollback-drill.yml"
-          ],
-          "required_tokens": [
-            "release-event.json",
-            "release-event.jsonl",
-            "release-event.md",
-            "actions/upload-artifact"
           ]
         },
         "cost_controls": {
           "description": "Exposes explicit runtime sizing and cost levers instead of hiding cost choices inside app code.",
           "provides": [],
-          "owned_by": ["infra/platform/variables.tf", "infra/app/variables.tf"],
+          "owned_by": [
+            "infra/platform/variables.tf",
+            "infra/app/variables.tf"
+          ],
           "evidence_paths": [
             "infra/platform/variables.tf",
             "infra/app/variables.tf",
             "infra/app/compute_ecs.tf"
-          ],
-          "proof_files": [
-            "infra/platform/variables.tf",
-            "infra/app/variables.tf",
-            "infra/app/compute_ecs.tf"
-          ],
-          "required_tokens": [
-            "single_nat_gateway",
-            "app_desired_count",
-            "FARGATE_SPOT",
-            "worker_cpu",
-            "worker_memory"
           ]
         },
         "terraform_ownership": {
@@ -283,27 +220,15 @@
             "infra/app/providers.tf",
             "infra/app/compute_ecs.tf",
             "scripts/ci/ci_guard_infra_plan_blast_radius.sh"
-          ],
-          "proof_files": [
-            "infra/platform/README.md",
-            "infra/README.md",
-            "infra/app/README.md",
-            "infra/app/providers.tf",
-            "infra/app/compute_ecs.tf",
-            "scripts/ci/ci_guard_infra_plan_blast_radius.sh"
-          ],
-          "required_tokens": [
-            "data \"terraform_remote_state\" \"platform\"",
-            "ignore_task_definition_changes = true",
-            "ALLOW_ECS_TASK_DEFINITION_CHANGES",
-            "infra/platform",
-            "infra/app"
           ]
         },
         "local_ci_guardrails": {
           "description": "Validates app/runtime drift through local Compose, contract tests, runtime conformance, workflow linting, docs linting, Terraform formatting, and platform contract validation.",
           "provides": [],
-          "owned_by": ["Makefile", ".github/workflows/app-build.yml"],
+          "owned_by": [
+            "Makefile",
+            ".github/workflows/app-build.yml"
+          ],
           "evidence_paths": [
             "compose.yaml",
             ".github/workflows/app-build.yml",
@@ -311,21 +236,6 @@
             "docs/devops-toolchain.md",
             "tests/contracts/test_clean_architecture_contract.py",
             "tests/scripts/test_platform_contract_validator.py"
-          ],
-          "proof_files": [
-            "compose.yaml",
-            ".github/workflows/app-build.yml",
-            "Makefile",
-            "docs/devops-toolchain.md",
-            "tests/contracts/test_clean_architecture_contract.py",
-            "tests/scripts/test_platform_contract_validator.py"
-          ],
-          "required_tokens": [
-            "uv run python scripts/ci/validate_platform_contract.py",
-            "make lint-workflows",
-            "make lint-docs",
-            "terraform fmt -check -recursive infra",
-            "docker compose"
           ]
         }
       }

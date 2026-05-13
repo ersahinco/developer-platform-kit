@@ -169,6 +169,8 @@ def test_object_storage_provider_sdk_stays_in_infrastructure() -> None:
     offenders = []
     for tracked_file in tracked_files:
         path = ROOT / tracked_file
+        if not path.exists():
+            continue
         if path == Path(__file__):
             continue
         text = path.read_text(encoding="utf-8")

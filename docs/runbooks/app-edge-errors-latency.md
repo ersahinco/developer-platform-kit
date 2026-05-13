@@ -21,9 +21,9 @@ unhealthy instead, use [App Service Unhealthy](app-service-unhealthy.md).
 ## First Checks
 
 If `terraform -chdir=infra/app output -raw app_symptom_cloudwatch_alarms_enabled`
-returns `false`, these CloudWatch symptom alarms were intentionally disabled
-after Grafana-stack dual-run. Use the Grafana-stack checks below, then continue
-with ECS service and task inspection.
+returns `false`, these CloudWatch symptom alarms were intentionally disabled.
+Use the Grafana checks below, then continue with ECS service and task
+inspection.
 
 Confirm alarm state:
 
@@ -43,9 +43,9 @@ aws logs tail /ecs/aws-sdlc-containers/app \
   --region eu-central-1
 ```
 
-## Grafana-Stack Checks
+## Grafana Checks
 
-When the optional Grafana stack is enabled and reachable, check the provisioned
+When a local or external Grafana/Loki/Prometheus path is reachable, check the
 `App Overview` dashboard first for app route 5xxs and p95 request latency. The
 matching Prometheus alerts are:
 

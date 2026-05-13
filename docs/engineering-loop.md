@@ -46,7 +46,7 @@ words for ideation, architecture, implementation, delivery, and operations.
 2. Choose one slice.
    Prefer a complete vertical step over broad partial work. Keep AWS platform
    resources in `infra/platform`; keep app-owned RDS, ECS, ALB/API edge,
-   workload resources, and Grafana/Loki/Prometheus in `infra/app`.
+   workload resources, ALB access logs, and ADOT sidecar wiring in `infra/app`.
 
 3. Build and verify locally.
    Use the narrowest checks that prove the change, then widen when the blast
@@ -59,9 +59,10 @@ words for ideation, architecture, implementation, delivery, and operations.
    the dependency graph is understood and the recovery path is immediate.
 
 5. Observe before declaring done.
-   Check ECS service rollouts, task events, logs, public health, and the
-   Grafana-stack/CloudWatch signals that match the changed surface. CloudWatch
-   stays in place until matching Grafana-stack signals have dual-run.
+   Check ECS service rollouts, task events, logs, public health, CloudWatch
+   alarms, and local/external Grafana signals that match the changed surface.
+   CloudWatch stays in place for AWS-native rollback and managed-resource
+   signals.
 
 6. Fix the real failure.
    Use service events and logs to identify the owning layer. Patch the smallest

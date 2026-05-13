@@ -1,10 +1,9 @@
 """
 verify_observability_delivery.py — Check deployed log delivery contracts.
 
-The live checks focus on log delivery because CloudWatch and Loki are separate
-shipping paths. CloudWatch is checked through AWS CLI. Loki is checked only when
-LOKI_URL is set, so the same script works before and after opening the Grafana
-tunnel or another private-network path to Loki.
+The live checks focus on log delivery. CloudWatch is checked through AWS CLI.
+Loki is checked only when LOKI_URL is set, so the same script works with the
+local observability profile or any reachable Loki endpoint.
 
 Usage:
     python scripts/observability/verify_observability_delivery.py
@@ -35,31 +34,21 @@ import httpx
 
 EXPECTED_LOG_GROUP_SUFFIXES = [
     "app",
+    "adot",
     "data-export-job",
-    "firelens",
-    "grafana",
     "liquibase",
-    "loki",
     "order-event-consumer",
     "pgbouncer",
-    "prometheus",
-    "tempo",
     "worker",
 ]
 
-EXPECTED_LOKI_LOG_GROUP_SUFFIXES = [
-    suffix for suffix in EXPECTED_LOG_GROUP_SUFFIXES if suffix != "firelens"
-]
+EXPECTED_LOKI_LOG_GROUP_SUFFIXES = EXPECTED_LOG_GROUP_SUFFIXES
 
 DEFAULT_FRESH_LOG_GROUP_SUFFIXES = [
     "app",
-    "firelens",
-    "grafana",
-    "loki",
+    "adot",
     "order-event-consumer",
     "pgbouncer",
-    "prometheus",
-    "tempo",
 ]
 
 DEFAULT_FRESH_LOKI_LOG_GROUP_SUFFIXES = [
@@ -303,7 +292,7 @@ def _check_loki_log_group_inventory(
             bool(actual),
             f"Loki observed log_group labels: {', '.join(observed)}"
             if actual
-            else "Loki has no observed log_group labels. Rebuild and deploy the FireLens image, then force-roll every FireLens-using ECS service.",
+            else "Loki has no observed log_group labels. Point LOKI_URL at a reachable local or hosted Loki endpoint after logs have been shipped there.",
         ),
         CheckResult(
             True,

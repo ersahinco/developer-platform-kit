@@ -13,7 +13,7 @@ developer request
   -> ECS app task
      -> app container
      -> pgbouncer sidecar
-     -> log-router sidecar when observability stack is enabled
+     -> ADOT sidecar for OTLP traces and app metric scraping
   -> RDS Postgres
      -> transactional order data
      -> runtime rollout switches
@@ -58,12 +58,12 @@ Critical notes:
 - Versioning is enabled, but noncurrent versions expire after 7 days. Do not use
   this bucket as an audit log.
 
-### Observability Bucket
+### ALB Access Logs Bucket
 
 Bucket: `arn:aws:s3:::aws-sdlc-containers-observability-691627364817`
 
-This bucket mixes human-readable config, ALB access logs, and internal storage
-for the Grafana stack.
+This bucket is now owned by the ALB access-log path. The name is retained from
+the retired observability stack to avoid replacing deployed log storage.
 
 | Prefix/object class | Format | Writer | Meaning | How to read |
 |---|---|---|---|---|
@@ -240,16 +240,15 @@ at service, task, and container levels.
 
 | Runtime | Containers | Default log surface |
 |---|---|---|
-| App service task | `app`, `pgbouncer`, optional `log-router` | CloudWatch `/ecs/aws-sdlc-containers/app`, `/ecs/aws-sdlc-containers/pgbouncer`, `/ecs/aws-sdlc-containers/firelens`; Loki labels mirror service/container/log group when observability is enabled. |
-| Order event consumer task | `order-event-consumer`, `daprd`, `dapr-config-loader`, optional `log-router` | CloudWatch `/ecs/aws-sdlc-containers/order-event-consumer`; Loki labels by container when observability is enabled. |
-| Data export job task | `data-export-job`, optional `log-router` | CloudWatch `/ecs/aws-sdlc-containers/data-export-job`; Loki label `service=data-export-job`. |
-| Worker task | `worker`, optional `log-router` | CloudWatch `/ecs/aws-sdlc-containers/worker`; Loki label `service=worker`. |
-| Liquibase task | `liquibase`, optional `log-router` | CloudWatch `/ecs/aws-sdlc-containers/liquibase`; Loki label `service=liquibase`. |
-| Observability tasks | `grafana`, `loki`, `prometheus`, `tempo`, config-loader containers | CloudWatch `/ecs/aws-sdlc-containers/{grafana,loki,prometheus,tempo}`; Loki labels for process containers. |
+| App service task | `app`, `pgbouncer`, optional `adot` | CloudWatch `/ecs/aws-sdlc-containers/app`, `/ecs/aws-sdlc-containers/pgbouncer`, `/ecs/aws-sdlc-containers/adot`; ADOT receives OTLP traces on localhost and scrapes `/metrics`. |
+| Order event consumer task | `order-event-consumer`, `daprd`, `dapr-config-loader` | CloudWatch `/ecs/aws-sdlc-containers/order-event-consumer`. |
+| Data export job task | `data-export-job` | CloudWatch `/ecs/aws-sdlc-containers/data-export-job`. |
+| Worker task | `worker` | CloudWatch `/ecs/aws-sdlc-containers/worker`. |
+| Liquibase task | `liquibase` | CloudWatch `/ecs/aws-sdlc-containers/liquibase`. |
 
-Desired default: every essential workload container should emit to CloudWatch
-and Loki from the first deploy when the observability stack is enabled. The
-existing contract tests cover the expected log groups and FireLens outputs.
+Desired default: every essential workload container emits to CloudWatch from the
+first deploy. Loki remains a local or external analysis destination when logs
+are shipped there outside Terraform.
 
 ### Metrics
 
@@ -259,15 +258,15 @@ existing contract tests cover the expected log groups and FireLens outputs.
 | Readiness/liveness | ALB/ECS health checks plus app `/ready` and `/health` | Good for app dependency symptoms. | Health check success logs are intentionally suppressed. |
 | App/container CPU and memory | ECS/ContainerInsights in CloudWatch | Not first-class in Grafana because there is no CloudWatch datasource by default. | Need Prometheus ECS/container exporter or Grafana CloudWatch datasource if per-task CPU/memory must be in Grafana. |
 | ALB/WAF/RDS/SQS/Scheduler | CloudWatch metrics and alarms | Not in Grafana by default. | This is deliberate today; add a metrics bridge only when the operator path needs it. |
-| Grafana stack components | Prometheus scrapes Prometheus, Loki, and Tempo runtime metrics | Good for observability-stack health. | Grafana process metrics are not listed as a guaranteed scrape target today. |
+| Local Grafana stack components | Prometheus scrapes Prometheus, Loki, and Tempo runtime metrics | Good for local observability health. | Cloud resource metrics stay CloudWatch-native until a metrics bridge is needed. |
 | Data export freshness | CloudWatch Logs metric filter and alarm | Partial through logs. | Durable Grafana freshness needs a job metric or Loki ruler path. |
 
 Critical evaluation:
 
-- Logs are close to the desired baseline. The model is clear: CloudWatch is the
-  AWS-native fallback, Loki/Grafana is the portable operator view.
+- Logs are deliberately simple. CloudWatch is the AWS runtime surface;
+  Loki/Grafana is the portable local or external operator view.
 - Metrics are intentionally split. Prometheus covers app-owned and
-  observability-owned metrics; CloudWatch covers managed AWS services and ECS
+  local observability metrics; CloudWatch covers managed AWS services and ECS
   resource metrics. This is pragmatic, but it means Grafana is not yet a single
   pane for service/task/container resource usage.
 - The next highest-value metric improvement is not a giant dashboard. It is a
@@ -286,7 +285,8 @@ Use this shortest useful loop:
 5. Build/push immutable SHA image through CI.
 6. Deploy the app task definition revision.
 7. Send the same kind of request to the AWS ALB.
-8. Check AWS app logs, Loki logs, Tempo trace, and DB rows.
+8. Check AWS app logs, local or external Loki logs when configured, Tempo trace,
+   and DB rows.
 9. Check outbox relay and consumer receipt.
 10. Run or wait for export, then read manifest and raw object from S3.
 
@@ -295,7 +295,6 @@ Fast verification commands:
 ```bash
 make observability-delivery-verify
 
-make loki-tunnel
 LOKI_URL=http://127.0.0.1:3100 make observability-delivery-verify
 
 make observability-cloud-traffic
@@ -307,8 +306,8 @@ No-data rollback practice:
   only the app ECS service revision with `/ready` fault injection enabled.
   ECS circuit breaker and deployment CloudWatch alarms must roll it back
   automatically to the captured previous task definition.
-- Other ECS services: order-event-consumer and Grafana-stack services use ECS
-  deployment circuit breaker rollback for deployments that cannot stabilize.
+- Other ECS services: order-event-consumer uses ECS deployment circuit breaker
+  rollback for deployments that cannot stabilize.
   One-off tasks such as Liquibase, backfill, and data export are not ECS service
   rollouts, so practice their recovery with rerun/stop/restore runbooks instead
   of service rollback.

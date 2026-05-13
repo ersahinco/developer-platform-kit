@@ -23,8 +23,6 @@
 #   make app-deploy          — force new ECS deployment
 #
 #   make db-tunnel           — SSM port-forward localhost:LOCAL_PORT → RDS:5432
-#   make grafana-tunnel      — SSM port-forward localhost:GRAFANA_LOCAL_PORT → Grafana:3000
-#   make loki-tunnel         — SSM port-forward localhost:LOKI_LOCAL_PORT → Loki:3100
 #   make db-exec             — open psql inside a running app task
 #   make db-seed             — seed DB via SSM tunnel (idempotent)
 #   make api-get-order ORDER_ID=1 FIELD=billing_email
@@ -128,7 +126,7 @@ lint-workflows: ## Lint GitHub workflows
 
 .PHONY: lint-dockerfiles
 lint-dockerfiles: ## Lint Dockerfiles
-	hadolint db/Dockerfile db/pgbouncer/Dockerfile observability/firelens/Dockerfile apps/*/Dockerfile
+	hadolint db/Dockerfile db/pgbouncer/Dockerfile apps/*/Dockerfile
 
 .PHONY: secret-scan
 secret-scan: ## Scan repository for committed secrets
@@ -280,19 +278,6 @@ incident-evidence: ## Build portable Markdown/JSON incident evidence bundle
 	ROOT_DOMAIN="$(ROOT_DOMAIN)" \
 	uv run python scripts/observability/incident_evidence_bundle.py
 
-.PHONY: observability-stack-deploy
-observability-stack-deploy: ## Force new deployment of Grafana, Loki, Prometheus, and Tempo services
-	@for service in grafana loki prometheus tempo; do \
-		echo "Forcing deployment for $$service"; \
-		aws ecs update-service \
-			--cluster aws-sdlc-containers \
-			--service "$$service" \
-			--force-new-deployment \
-			--region $(AWS_REGION) \
-			--query 'service.taskDefinition' \
-			--output text; \
-	done
-
 # ── DB access — no bastion needed ─────────────────────────────────────────────
 #
 # All three targets delegate to shell scripts under scripts/ to avoid Make's
@@ -303,22 +288,12 @@ observability-stack-deploy: ## Force new deployment of Grafana, Loki, Prometheus
 # ─────────────────────────────────────────────────────────────────────────────
 
 LOCAL_PORT         ?= 15432
-GRAFANA_LOCAL_PORT ?= 3000
-LOKI_LOCAL_PORT    ?= 3100
 SEED_NUM_CUSTOMERS ?= 1000
 SEED_NUM_ORDERS    ?= 10000
 
 .PHONY: db-tunnel
 db-tunnel: ## SSM port-forward localhost:$(LOCAL_PORT) → RDS:5432
 	@bash scripts/operator/db_tunnel.sh $(LOCAL_PORT) $(AWS_REGION)
-
-.PHONY: grafana-tunnel
-grafana-tunnel: ## SSM port-forward localhost:$(GRAFANA_LOCAL_PORT) → private Grafana:3000
-	@bash scripts/operator/grafana_tunnel.sh $(GRAFANA_LOCAL_PORT) $(AWS_REGION)
-
-.PHONY: loki-tunnel
-loki-tunnel: ## SSM port-forward localhost:$(LOKI_LOCAL_PORT) → private Loki:3100
-	@bash scripts/operator/loki_tunnel.sh $(LOKI_LOCAL_PORT) $(AWS_REGION)
 
 .PHONY: db-exec
 db-exec: ## Open psql inside a running app task

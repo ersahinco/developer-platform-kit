@@ -21,7 +21,7 @@ Actions for orchestration.
 | CI quality gates | Portable delivery shape | `docs/ci-quality-contract.md` defines the reusable gate shape around ruff, pyright, pytest, contract validation, docs/workflow/Dockerfile checks, security scans, image scans, and Terraform checks. |
 | Runtime adapters | Mostly portable | `packages/infrastructure` owns SQL, Dapr, storage, and runtime adapters behind application ports. |
 | Local runtime | Portable | `compose.yaml`, Dockerfiles, Liquibase, PgBouncer, Dapr local assets, and the Grafana OSS stack run without AWS. |
-| Observability | Mostly OSS-portable | Grafana uses Prometheus, Loki, and Tempo. No Grafana CloudWatch datasource is part of the baseline. |
+| Observability | Mostly OSS-portable | Grafana uses Prometheus, Loki, and Tempo locally; ECS uses ADOT as the sidecar collector path. No Grafana CloudWatch datasource is part of the baseline. |
 | Incident evidence | Portable | Evidence bundles are Markdown/JSON and include query hints, release events, alarms, task definitions, image tags, and GitHub run IDs. |
 | Rollback drills | Mostly portable | App and data rollback drills are GitHub Actions workflows plus app/runtime checks. Infra rollback remains reviewed Terraform plan/apply. |
 | Delivery evidence | Portable shape, environment-dependent transport | Release events are artifacts everywhere and can be pushed to Loki when a reachable `LOKI_PUSH_URL` or `LOKI_URL` exists. |
@@ -42,7 +42,7 @@ Actions for orchestration.
 |---|---|---|
 | CI-to-Loki release-event publishing | Ready but not active | Configure a real `LOKI_PUSH_URL` on the GitHub `aws` environment through a private runner/network path or reviewed authenticated endpoint, then run `make release-event-delivery-verify`. |
 | Metrics parity for AWS-managed resources | Partial | Keep CloudWatch alarms for ALB, RDS, SQS, Scheduler, WAF, and data-export freshness at the AWS platform edge until a deliberate exporter/ruler path exists. Do not make CloudWatch the application observability contract. |
-| Trace routing abstraction | Partial | The API emits OTLP/HTTP directly to Tempo. Add an OpenTelemetry Collector only when there is a real need for routing, filtering, or multi-backend export. |
+| Trace routing abstraction | Current | The API emits OTLP/HTTP to the same-task ADOT collector on ECS and directly to Tempo locally. Override the collector config when routing, filtering, or multi-backend export is needed. |
 | Alternate runtime platform | Deferred but appendable | The app and runtime capability contracts are explicit, but no Kubernetes, Nomad, or second-cloud Terraform root exists. Add one only when there is a real operating requirement and it satisfies `platform/runtime-capabilities.json`. |
 | Infra rollback drill workflow | Intentionally absent | Infra rollback stays reviewed `Infra Plan` plus `Infra Apply`; do not add a permanent infra rollback drill workflow. |
 

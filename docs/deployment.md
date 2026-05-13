@@ -6,8 +6,8 @@ lifecycle.
 - `infra/platform`: VPC networking, VPC endpoints, account/domain lookups, and
   GitHub Actions OIDC/CI IAM.
 - `infra/app`: RDS, ECS compute, ECR repositories, WAF-protected ALB/API edge,
-  S3 data hub, workload jobs/queues, app IAM, CloudWatch app alarms, and optional
-  Grafana/Loki/Prometheus observability.
+  S3 data hub, workload jobs/queues, app IAM, CloudWatch app alarms, ALB access
+  logs, and optional ADOT sidecar telemetry.
 
 Safe rollout does not come from duplicating infrastructure. It comes from additive schema changes, separate task definitions, runtime read/write switches, and one-off worker tasks running against the same database.
 
@@ -221,7 +221,7 @@ Resources use the project prefix `aws-sdlc-containers`.
 - Worker task family: `aws-sdlc-containers-worker`
 - Liquibase task family: `aws-sdlc-containers-liquibase`
 - ECR repos:
-  `aws-sdlc-containers/{app,worker,data-export-job,order-event-consumer,liquibase,pgbouncer,firelens}`
+  `aws-sdlc-containers/{app,worker,data-export-job,order-event-consumer,liquibase,pgbouncer}`
 - API hostname: `api.<root_domain>`
 
 ## Rollout model
@@ -283,10 +283,9 @@ Terraform should provision the ability to run migrations and data jobs, but it
 should not perform application data migration itself. Liquibase should own DDL
 history; resumable workers or jobs should own large data movement.
 
-The FireLens image is app-owned and built by the same app build workflow as the
-workload images. On a fresh account, create the ECR repositories with the app
-infra apply, run `app-build.yml` to push the selected `sha-...` tag, then deploy
-or restart ECS services so every task can pull the matching `firelens` image.
+The ADOT collector sidecar uses the upstream public ECR image pinned in
+`infra/app/variables.tf`; app-owned ECR repositories are only for workload
+images and the mirrored PgBouncer image.
 
 ## No multi-AZ by default
 
@@ -304,8 +303,7 @@ make infra-apply
 make app-deploy
 make post-deploy-verify
 make db-tunnel
-make grafana-tunnel
-make loki-tunnel
+make observability
 make db-exec
 make db-seed
 make api-get-order ORDER_ID=1
@@ -327,16 +325,16 @@ Then connect with:
 
 ## Grafana access
 
-The ECS Grafana stack remains private. Access it through SSM port forwarding:
+Grafana runs locally through Docker Compose:
 
 ```bash
-make grafana-tunnel
+make observability
 ```
 
-Then open `http://localhost:3000` and use the Grafana admin secret configured
-for the stack.
+Then open `http://localhost:3000` and use the local `admin` / `admin`
+credentials unless overridden.
 
-To smoke-test app-layer observability, keep the Grafana tunnel running, then in
+To smoke-test app-layer observability, keep the local stack running, then in
 another terminal run:
 
 ```bash
@@ -345,12 +343,12 @@ make observability-cloud-traffic
 
 Use the `AWS SDLC Containers / App Overview` dashboard for Prometheus metrics,
 `AWS SDLC Containers / Log Groups` for Loki logs, and the `Tempo` datasource in
-Explore for traces from service `aws-sdlc-containers-api`.
+Explore for traces from service `aws-sdlc-containers-api` when telemetry is
+shipped to the local endpoints.
 
 For live Loki delivery verification from a developer machine:
 
 ```bash
-make loki-tunnel
 LOKI_URL=http://127.0.0.1:3100 make observability-delivery-verify
 ```
 

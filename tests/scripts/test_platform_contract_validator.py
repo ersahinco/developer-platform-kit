@@ -111,7 +111,7 @@ def test_platform_contract_validator_rejects_missing_runtime_capability(
     )
 
 
-def test_platform_contract_validator_rejects_runtime_proof_drift(
+def test_platform_contract_validator_rejects_unsupported_runtime_capability_fields(
     tmp_path: Path,
 ) -> None:
     contract_path = tmp_path / "runtime-capabilities.json"
@@ -120,14 +120,14 @@ def test_platform_contract_validator_rejects_runtime_proof_drift(
     )
     contract["runtime_targets"][0]["capabilities"]["terraform_ownership"][
         "required_tokens"
-    ].append("future_runtime_without_ownership_boundary")
+    ] = ["future_runtime_without_ownership_boundary"]
     contract_path.write_text(json.dumps(contract), encoding="utf-8")
 
     errors = validator.collect_errors(runtime_contract_path=contract_path)
 
-    assert any(
-        "capability terraform_ownership proof is missing token" in error
-        for error in errors
+    assert (
+        "aws-ecs: capability terraform_ownership has unsupported fields ['required_tokens']"
+        in errors
     )
 
 

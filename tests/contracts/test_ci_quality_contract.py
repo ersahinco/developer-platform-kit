@@ -47,7 +47,7 @@ def test_makefile_exposes_local_ci_quality_gates() -> None:
         "find scripts -name '*.sh' -print0 | xargs -0 bash -n",
         "lychee README.md 'docs/**/*.md'",
         "actionlint",
-        "hadolint db/Dockerfile db/pgbouncer/Dockerfile observability/firelens/Dockerfile apps/*/Dockerfile",
+        "hadolint db/Dockerfile db/pgbouncer/Dockerfile apps/*/Dockerfile",
         "gitleaks dir . --redact --no-banner",
         "uv run pip-audit",
         "runtime-conformance:",

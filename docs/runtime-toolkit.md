@@ -21,8 +21,8 @@ runtime contract lives in `platform/runtime-capabilities.json`.
 - Provider-native observability is allowed for provider-managed infrastructure
   such as load balancers, databases, queues, schedulers, firewalls, and control
   planes. The app baseline remains Prometheus metrics, Loki-compatible logs,
-  optional OTLP/HTTP traces to Tempo, and Grafana dashboards without a
-  provider-locked datasource requirement.
+  optional OTLP/HTTP traces through OpenTelemetry/ADOT, and Grafana dashboards
+  without a provider-locked datasource requirement.
 
 Do not add EKS, Azure, GCP, Nomad, or another target just to prove portability.
 The target becomes useful when it can host real workloads cheaper, safer, or
@@ -30,8 +30,9 @@ with operational capabilities the current runtime cannot provide.
 
 ## Required Capabilities
 
-Before a runtime is documented as supported, prove every capability in
-`platform/runtime-capabilities.json`:
+Before a runtime is documented as supported, declare every capability in
+`platform/runtime-capabilities.json` and keep the listed owner/evidence paths
+real:
 
 | Capability | Runtime must provide |
 | --- | --- |
@@ -40,7 +41,7 @@ Before a runtime is documented as supported, prove every capability in
 | Identity | Short-lived delivery identity plus least-privilege runtime identity for services and jobs. |
 | Secrets | Runtime secret injection into environment variables or mounted files, with no secret values in images, tfvars, logs, or release artifacts. |
 | Ingress | External/internal routing, health and readiness semantics, TLS/WAF or equivalent edge controls, and failure behavior. |
-| Observability | Prometheus-compatible metrics, Loki-compatible logs, Tempo-compatible OTLP/HTTP traces when enabled, and Grafana dashboards without provider-locked dashboards as the app baseline. |
+| Observability | Prometheus-compatible metrics, Loki-compatible logs, OpenTelemetry-compatible OTLP/HTTP traces when enabled, and Grafana dashboards without provider-locked dashboards as the app baseline. |
 | Jobs | One-off and scheduled job execution using the same image, config, secrets, structured events, idempotency, and evidence conventions. |
 | Rollout | Immutable revision rollout with verification before declaring success. Provider-native rollout semantics are allowed, but evidence shape must stay portable. |
 | Rollback | Separate app image rollback, runtime data rollback, infra rollback, and one-off job recovery categories. |
@@ -54,10 +55,10 @@ Before a runtime is documented as supported, prove every capability in
 `platform/runtime-capabilities.json` declares the current `aws-ecs` target and
 points each capability at owner and evidence paths in `infra/`,
 `.github/workflows/`, `scripts/`, `tests/`, docs, and `compose.yaml`. The
-validator checks that each capability has `owned_by`, `evidence_paths`, and
-structured provider-neutral `provides` coverage for ingress, workload identity,
-secret injection, config injection, logs, metrics, traces, deploy, rollback,
-one-off jobs, object storage, and PostgreSQL connectivity.
+validator checks the runtime schema, current-target ownership, path existence,
+and structured provider-neutral `provides` coverage for ingress, workload
+identity, secret injection, config injection, logs, metrics, traces, deploy,
+rollback, one-off jobs, object storage, and PostgreSQL connectivity.
 
 This is deliberately not a cloud-neutral abstraction layer. AWS details remain
 inside `infra/platform`, `infra/app`, AWS-facing scripts, and GitHub workflow

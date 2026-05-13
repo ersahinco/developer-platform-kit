@@ -37,7 +37,7 @@ Short form: standardize the delivery workflow, do not replace the tools.
 | Conformance | Proof that an implementation satisfies a contract from the outside, preferably in local/CI checks. |
 | Release evidence | Markdown/JSON/JSONL records that describe what changed, what revision ran, what verification happened, and what alarms or checks were observed. |
 | Operator evidence | Logs, metrics, traces, release events, runbook outputs, and incident bundles that help someone understand runtime behavior. |
-| Portable observability baseline | Prometheus metrics, Loki-compatible logs, optional OTLP/HTTP traces to Tempo, and Grafana dashboards without a provider-locked datasource. |
+| Portable observability baseline | Prometheus metrics, Loki-compatible logs, optional OTLP/HTTP traces through OpenTelemetry/ADOT, and Grafana dashboards without a provider-locked datasource. |
 | PostgreSQL-compatible contract | The database contract: PostgreSQL semantics, Liquibase migrations, PgBouncer expectations, runtime secret injection, and restore/forward-fix recovery rules. |
 
 ## Use These Phrases
@@ -49,7 +49,7 @@ Short form: standardize the delivery workflow, do not replace the tools.
   component leakage into app/domain/application code.
 - "Satisfy the workload contract" when checking images, config, health,
   telemetry, rollback, and evidence.
-- "Prove runtime capabilities" when validating a hosting target.
+- "Declare and validate runtime capabilities" when validating a hosting target.
 - "Portable shape, provider-specific implementation" when explaining why ECS,
   RDS, S3, SNS/SQS, and GitHub Actions are allowed but not the app contract.
 - Say "platform toolkit", not "custom framework".

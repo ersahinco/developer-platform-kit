@@ -14,7 +14,7 @@ def _write_task_definition(path: Path, containers: list[dict[str, object]]) -> N
     )
 
 
-def test_prepare_liquibase_task_definition_sets_command_and_firelens_image(
+def test_prepare_liquibase_task_definition_sets_command(
     tmp_path: Path,
 ) -> None:
     task_definition = tmp_path / "liquibase.json"
@@ -22,7 +22,6 @@ def test_prepare_liquibase_task_definition_sets_command_and_firelens_image(
         task_definition,
         [
             {"name": "liquibase", "image": "old-liquibase"},
-            {"name": "log-router", "image": "old-firelens"},
         ],
     )
 
@@ -31,7 +30,6 @@ def test_prepare_liquibase_task_definition_sets_command_and_firelens_image(
             "python3",
             "scripts/ci/ci_prepare_liquibase_task_definition.py",
             str(task_definition),
-            "example.com/firelens:sha-test",
         ],
         check=False,
         cwd=ROOT,
@@ -48,21 +46,20 @@ def test_prepare_liquibase_task_definition_sets_command_and_firelens_image(
         "--changelog-file=changelog/db.changelog-master.yaml",
         "update",
     ]
-    assert containers["log-router"]["image"] == "example.com/firelens:sha-test"
+    assert set(containers) == {"liquibase"}
 
 
-def test_prepare_liquibase_task_definition_requires_expected_containers(
+def test_prepare_liquibase_task_definition_requires_liquibase_container(
     tmp_path: Path,
 ) -> None:
     task_definition = tmp_path / "liquibase.json"
-    _write_task_definition(task_definition, [{"name": "liquibase"}])
+    _write_task_definition(task_definition, [{"name": "worker"}])
 
     result = subprocess.run(
         [
             "python3",
             "scripts/ci/ci_prepare_liquibase_task_definition.py",
             str(task_definition),
-            "example.com/firelens:sha-test",
         ],
         check=False,
         cwd=ROOT,
@@ -71,7 +68,7 @@ def test_prepare_liquibase_task_definition_requires_expected_containers(
     )
 
     assert result.returncode == 1
-    assert "log-router container not found" in result.stderr
+    assert "liquibase container not found" in result.stderr
 
 
 def test_set_app_drill_fault_merges_sorted_fault_environment(tmp_path: Path) -> None:

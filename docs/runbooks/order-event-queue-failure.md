@@ -65,10 +65,10 @@ aws logs tail /ecs/aws-sdlc-containers/order-event-consumer \
   --region eu-central-1
 ```
 
-## Grafana-Stack Checks
+## Grafana Checks
 
-When the optional Grafana stack is enabled and reachable, check the provisioned
-`App Overview` dashboard for order event worker outcomes from
+When a local or external Grafana/Loki path is reachable, check the `App
+Overview` dashboard for order event worker outcomes from
 `order-event-consumer` logs.
 
 Use Loki for app and consumer log context during the same window:

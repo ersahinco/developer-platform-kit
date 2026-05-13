@@ -186,7 +186,7 @@ resource "aws_ecs_task_definition" "worker" {
   execution_role_arn       = aws_iam_role.task_exec.arn
   task_role_arn            = aws_iam_role.app_task.arn
 
-  container_definitions = jsonencode(concat(local.firelens_router_container, [
+  container_definitions = jsonencode([
     merge(local.ecs_container_defaults, {
       name = "worker"
       # var.initial_image_tag is used only on the first apply (bootstrap).
@@ -206,8 +206,7 @@ resource "aws_ecs_task_definition" "worker" {
         { name = "BACKFILL_BATCH_SIZE", value = tostring(var.backfill_batch_size) },
         { name = "BACKFILL_SLEEP_MS", value = "100" },
       ]
-      dependsOn = var.enable_observability_stack ? [{ containerName = "log-router", condition = "START" }] : []
-      logConfiguration = var.enable_observability_stack ? local.firelens_log_configuration : {
+      logConfiguration = {
         logDriver = "awslogs"
         options = {
           "awslogs-group"         = "/ecs/${local.name}/worker"
@@ -216,7 +215,7 @@ resource "aws_ecs_task_definition" "worker" {
         }
       }
     })
-  ]))
+  ])
 
   tags = local.tags
 }
@@ -257,11 +256,6 @@ resource "aws_iam_role_policy" "data_export_job_s3" {
   policy = data.aws_iam_policy_document.data_export_job_s3.json
 }
 
-resource "aws_iam_role_policy_attachment" "data_export_job_firelens_cloudwatch_logs" {
-  role       = aws_iam_role.data_export_job.name
-  policy_arn = aws_iam_policy.firelens_cloudwatch_logs.arn
-}
-
 resource "aws_ecs_task_definition" "data_export_job" {
   family                   = "${local.name}-data-export-job"
   requires_compatibilities = ["FARGATE"]
@@ -271,7 +265,7 @@ resource "aws_ecs_task_definition" "data_export_job" {
   execution_role_arn       = aws_iam_role.task_exec.arn
   task_role_arn            = aws_iam_role.data_export_job.arn
 
-  container_definitions = jsonencode(concat(local.firelens_router_container, [
+  container_definitions = jsonencode([
     merge(local.ecs_container_defaults, {
       name = "data-export-job"
       # var.initial_image_tag is used only on the first apply (bootstrap).
@@ -290,8 +284,7 @@ resource "aws_ecs_task_definition" "data_export_job" {
         { name = "DATA_EXPORT_OUTPUT_DIR", value = "/tmp/aws-sdlc-containers-data-hub" },
         { name = "DATA_EXPORT_S3_BUCKET", value = aws_s3_bucket.data_hub.bucket },
       ]
-      dependsOn = var.enable_observability_stack ? [{ containerName = "log-router", condition = "START" }] : []
-      logConfiguration = var.enable_observability_stack ? local.firelens_log_configuration : {
+      logConfiguration = {
         logDriver = "awslogs"
         options = {
           "awslogs-group"         = "/ecs/${local.name}/data-export-job"
@@ -300,7 +293,7 @@ resource "aws_ecs_task_definition" "data_export_job" {
         }
       }
     })
-  ]))
+  ])
 
   tags = local.tags
 }
@@ -518,11 +511,6 @@ resource "aws_iam_role_policy" "order_event_consumer_sqs" {
   policy = data.aws_iam_policy_document.order_event_consumer_sqs.json
 }
 
-resource "aws_iam_role_policy_attachment" "order_event_consumer_firelens_cloudwatch_logs" {
-  role       = aws_iam_role.order_event_consumer.name
-  policy_arn = aws_iam_policy.firelens_cloudwatch_logs.arn
-}
-
 resource "aws_ecs_task_definition" "order_event_consumer" {
   family                   = "${local.name}-order-event-consumer"
   requires_compatibilities = ["FARGATE"]
@@ -536,10 +524,10 @@ resource "aws_ecs_task_definition" "order_event_consumer" {
     name = "dapr-config"
   }
 
-  container_definitions = jsonencode(concat(local.firelens_router_container, [
+  container_definitions = jsonencode([
     merge(local.ecs_container_defaults, {
       name      = "dapr-config-loader"
-      image     = var.observability_config_loader_image
+      image     = var.runtime_config_loader_image
       essential = false
       command = [
         "sh",
@@ -549,7 +537,7 @@ resource "aws_ecs_task_definition" "order_event_consumer" {
       mountPoints = [
         { sourceVolume = "dapr-config", containerPath = "/dapr", readOnly = false },
       ]
-      logConfiguration = var.enable_observability_stack ? local.firelens_log_configuration : {
+      logConfiguration = {
         logDriver = "awslogs"
         options = {
           "awslogs-group"         = "/ecs/${local.name}/order-event-consumer"
@@ -578,11 +566,8 @@ resource "aws_ecs_task_definition" "order_event_consumer" {
       mountPoints = [
         { sourceVolume = "dapr-config", containerPath = "/dapr", readOnly = true },
       ]
-      dependsOn = concat(
-        [{ containerName = "dapr-config-loader", condition = "SUCCESS" }],
-        var.enable_observability_stack ? [{ containerName = "log-router", condition = "START" }] : []
-      )
-      logConfiguration = var.enable_observability_stack ? local.firelens_log_configuration : {
+      dependsOn = [{ containerName = "dapr-config-loader", condition = "SUCCESS" }]
+      logConfiguration = {
         logDriver = "awslogs"
         options = {
           "awslogs-group"         = "/ecs/${local.name}/order-event-consumer"
@@ -609,10 +594,7 @@ resource "aws_ecs_task_definition" "order_event_consumer" {
         { name = "ORDER_EVENTS_PUBSUB_NAME", value = "order-events-pubsub" },
         { name = "ORDER_EVENTS_TOPIC", value = local.order_events_topic_name },
       ]
-      dependsOn = concat(
-        [{ containerName = "dapr-config-loader", condition = "SUCCESS" }],
-        var.enable_observability_stack ? [{ containerName = "log-router", condition = "START" }] : []
-      )
+      dependsOn = [{ containerName = "dapr-config-loader", condition = "SUCCESS" }]
       healthCheck = {
         command     = ["CMD-SHELL", "python -c \"import urllib.request; urllib.request.urlopen('http://localhost:8081/health')\""]
         interval    = 10
@@ -620,7 +602,7 @@ resource "aws_ecs_task_definition" "order_event_consumer" {
         retries     = 3
         startPeriod = 20
       }
-      logConfiguration = var.enable_observability_stack ? local.firelens_log_configuration : {
+      logConfiguration = {
         logDriver = "awslogs"
         options = {
           "awslogs-group"         = "/ecs/${local.name}/order-event-consumer"
@@ -629,7 +611,7 @@ resource "aws_ecs_task_definition" "order_event_consumer" {
         }
       }
     })
-  ]))
+  ])
 
   tags = local.tags
 }
@@ -683,11 +665,6 @@ resource "aws_iam_role" "liquibase" {
   tags               = local.tags
 }
 
-resource "aws_iam_role_policy_attachment" "liquibase_firelens_cloudwatch_logs" {
-  role       = aws_iam_role.liquibase.name
-  policy_arn = aws_iam_policy.firelens_cloudwatch_logs.arn
-}
-
 resource "aws_ecs_task_definition" "liquibase" {
   family                   = "${local.name}-liquibase"
   requires_compatibilities = ["FARGATE"]
@@ -700,7 +677,7 @@ resource "aws_ecs_task_definition" "liquibase" {
   execution_role_arn = aws_iam_role.task_exec.arn
   task_role_arn      = aws_iam_role.liquibase.arn
 
-  container_definitions = jsonencode(concat(local.firelens_router_container, [
+  container_definitions = jsonencode([
     merge(local.ecs_container_defaults, {
       name = "liquibase"
       # Changelogs are baked into this image at build time (see db/Dockerfile).
@@ -729,8 +706,7 @@ resource "aws_ecs_task_definition" "liquibase" {
         { name = "LIQUIBASE_COMMAND_URL", value = "jdbc:postgresql://${module.rds.db_instance_address}:${module.rds.db_instance_port}/aws_sdlc_containers" },
       ]
 
-      dependsOn = var.enable_observability_stack ? [{ containerName = "log-router", condition = "START" }] : []
-      logConfiguration = var.enable_observability_stack ? local.firelens_log_configuration : {
+      logConfiguration = {
         logDriver = "awslogs"
         options = {
           "awslogs-group"         = "/ecs/${local.name}/liquibase"
@@ -739,7 +715,7 @@ resource "aws_ecs_task_definition" "liquibase" {
         }
       }
     })
-  ]))
+  ])
 
   tags = local.tags
 }
