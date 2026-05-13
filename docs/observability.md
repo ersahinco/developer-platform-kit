@@ -1,4 +1,4 @@
-# Observability Plan
+# Observability
 
 Prometheus, Loki, Tempo, and Grafana are the preferred observability target for
 this project. CloudWatch remains active for AWS-native logs and alarms while
@@ -14,15 +14,10 @@ the CloudWatch datasource by default. Parity means app-owned signals are emitted
 or shipped to both AWS-native and portable Grafana-stack backends where
 practical; Grafana should not depend on CloudWatch queries to be useful.
 
-The Grafana Assistant
-[query/debug workflow](https://grafana.com/blog/debug-query-and-build-faster-with-grafana-assistant/)
-and Assistant Investigations
-[incident workflow](https://grafana.com/blog/a-tale-of-two-incident-responses-how-our-ai-assist-helped-us-find-the-cause-3-5x-faster/)
-are useful design inspiration: incident response is faster when telemetry is
-queryable, cross-correlated, and backed by deploy context. The baseline here
-stays OSS-portable. Assistant-style workflows should consume the same labels,
-query hints, and evidence bundles that a human operator can read without
-depending on Grafana Cloud AI.
+Incident response is faster when telemetry is queryable, cross-correlated, and
+backed by deploy context. The baseline here stays OSS-portable: the same labels,
+query hints, and evidence bundles must be readable by a human operator without
+a cloud-only Grafana feature.
 
 ## Current State
 
@@ -89,18 +84,17 @@ make incident-evidence
 The bundle captures current ECS service/task-definition context, CloudWatch
 alarm states, recent delivery events, GitHub run hints, and Grafana-stack query
 hints for Loki, Prometheus, and Tempo. It is deliberately evidence, not
-diagnosis: it should be safe to paste into an incident note or feed to future
-assistant-style tooling without changing runtime state.
+diagnosis: it should be safe to paste into an incident note without changing
+runtime state.
 
 Delivery workflows also emit release evidence events. `App Deploy`,
 `App No-Data Rollback Drill`, `Data Runtime Rollback Drill`, and `Infra Apply`
 write a small `release-event.json`, `release-event.jsonl`, and
 `release-event.md` artifact with the GitHub run ID, image tag or plan run,
 task definition, rollback timing, verification timing, CloudWatch alarm
-snapshot, and stable labels. These events close the main Assistant-style gap
-between deploy context and telemetry: operators can line up a symptom window
-with the exact workflow run, revision, and alarm state without scraping GitHub
-summaries by hand.
+snapshot, and stable labels. These events keep deploy context next to
+telemetry: operators can line up a symptom window with the exact workflow run,
+revision, and alarm state without scraping GitHub summaries by hand.
 `App Deploy` writes this evidence from a final job after both migration and
 deployment, so migration failures still leave a portable timeline artifact.
 `Infra Apply` also writes evidence from a final job after the reviewed apply
@@ -317,7 +311,7 @@ and checks:
 - Prometheus scrapes the app plus Prometheus, Loki, and Tempo runtime metrics.
 - Release evidence events are produced by GitHub Actions as Markdown, JSON, and
   JSONL artifacts and can be pushed to Loki without adding a CloudWatch
-  datasource or managed AI dependency.
+  datasource.
 
 Helper-script behavior is covered in
 `tests/scripts/test_observability_scripts.py`, keeping AWS/Loki client fakes and

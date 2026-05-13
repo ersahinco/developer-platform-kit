@@ -11,6 +11,7 @@ Terraform checks should run before code reaches deployable artifacts.
 | --- | --- |
 | App and scripts | Ruff format check, Ruff lint, Pyright, pytest. |
 | Platform contracts | `uv run python scripts/ci/validate_platform_contract.py`. |
+| Runtime conformance | `make runtime-conformance` builds and runs declared workload containers. |
 | Workflows | actionlint through `make lint-workflows`. |
 | Docs | lychee through `make lint-docs`. |
 | Dockerfiles | hadolint through `make lint-dockerfiles`. |
@@ -23,8 +24,8 @@ Terraform checks should run before code reaches deployable artifacts.
 ## Delivery Shape
 
 - Pull requests run validation before any cloud change.
-- App build runs tests, contract validation, image build, and image scan before
-  push.
+- App build runs tests, contract validation, runtime conformance, image build,
+  and image scan before push.
 - App deploy is manual and emits release evidence.
 - Infra plan is reviewed before infra apply.
 - Runtime-specific workflow steps may differ later, but the gate shape should

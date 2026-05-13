@@ -39,7 +39,7 @@ def test_platform_contract_validator_rejects_release_evidence_drift(
 ) -> None:
     contract_path = tmp_path / "workloads.json"
     contract = json.loads(validator.DEFAULT_CONTRACT.read_text(encoding="utf-8"))
-    contract["release_evidence"]["required_fields"].remove("github.run_id")
+    contract["release_evidence"]["required_fields"].remove("source_workflow")
     contract_path.write_text(json.dumps(contract), encoding="utf-8")
 
     errors = validator.collect_errors(contract_path=contract_path)
@@ -129,6 +129,50 @@ def test_platform_contract_validator_rejects_runtime_proof_drift(
         "capability terraform_ownership proof is missing token" in error
         for error in errors
     )
+
+
+def test_platform_contract_validator_rejects_missing_conformance_env(
+    tmp_path: Path,
+) -> None:
+    contract_path = tmp_path / "workloads.json"
+    contract = json.loads(validator.DEFAULT_CONTRACT.read_text(encoding="utf-8"))
+    del contract["workloads"][0]["conformance"]["env"]["DATABASE_URL"]
+    contract_path.write_text(json.dumps(contract), encoding="utf-8")
+
+    errors = validator.collect_errors(contract_path=contract_path)
+
+    assert any(
+        "conformance.env must match config.env exactly" in error for error in errors
+    )
+
+
+def test_platform_contract_validator_rejects_unowned_runtime_provides(
+    tmp_path: Path,
+) -> None:
+    contract_path = tmp_path / "runtime-capabilities.json"
+    contract = json.loads(
+        validator.DEFAULT_RUNTIME_CONTRACT.read_text(encoding="utf-8")
+    )
+    contract["runtime_targets"][0]["capabilities"]["identity"]["owned_by"] = []
+    contract_path.write_text(json.dumps(contract), encoding="utf-8")
+
+    errors = validator.collect_errors(runtime_contract_path=contract_path)
+
+    assert "aws-ecs: capability identity needs owned_by" in errors
+
+
+def test_platform_contract_validator_rejects_provider_named_workload_config(
+    tmp_path: Path,
+) -> None:
+    contract_path = tmp_path / "workloads.json"
+    contract = json.loads(validator.DEFAULT_CONTRACT.read_text(encoding="utf-8"))
+    contract["workloads"][0]["config"]["env"].append("AWS_REGION")
+    contract["workloads"][0]["conformance"]["env"]["AWS_REGION"] = "eu-central-1"
+    contract_path.write_text(json.dumps(contract), encoding="utf-8")
+
+    errors = validator.collect_errors(contract_path=contract_path)
+
+    assert "api: config name AWS_REGION must stay provider-neutral" in errors
 
 
 def test_platform_contract_validator_allows_future_runtime_specific_roots(

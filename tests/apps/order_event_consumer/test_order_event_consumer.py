@@ -263,12 +263,17 @@ def test_consumer_callback_logs_request_id(committed_db_session, capsys):
     )
 
     assert response.status_code == 200
-    assert json.loads(capsys.readouterr().out) == {
+    log_events = [
+        json.loads(line)
+        for line in capsys.readouterr().out.splitlines()
+        if line.strip()
+    ]
+    assert {
         "event": "order_event_consumed",
         "event_id": "order.created.v1:callback-request-id",
         "request_id": "consumer-trace-123",
         "status": "processed",
-    }
+    } in log_events
 
 
 def test_consumer_callback_retries_malformed_message(committed_db_session):

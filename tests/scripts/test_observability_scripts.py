@@ -472,8 +472,13 @@ def test_release_event_writes_markdown_json_and_jsonl(tmp_path: Path) -> None:
     assert "Release Evidence Event" in markdown
     assert "app_deploy" in markdown
     assert "25704755534" in markdown
+    assert "aws-ecs" in markdown
     assert "Alarm Snapshot" in markdown
     assert "aws-sdlc-containers-app-target-5xx: OK" in markdown
+    assert event["runtime_id"] == "aws-ecs"
+    assert event["workload_id"] == "app"
+    assert event["deployment_id"] == "arn:aws:ecs:task-definition/aws-sdlc-containers:9"
+    assert event["source_workflow"] == "App Deploy"
     assert event["correlation"]["github_run_id"] == "25704755534"
     assert event["revision"]["image_tag"].startswith("sha-")
     assert event["alarm_snapshot"]["alarms"][0]["state"] == "OK"
@@ -508,9 +513,9 @@ def test_release_event_contract_requires_portable_fields() -> None:
 
     release_event.validate_event_contract(event)
 
-    broken_event = {**event, "github": {**event["github"]}}
-    del broken_event["github"]["run_id"]
-    with pytest.raises(ValueError, match="github.run_id"):
+    broken_event = {**event}
+    del broken_event["source_workflow"]
+    with pytest.raises(ValueError, match="source_workflow"):
         release_event.validate_event_contract(broken_event)
 
 

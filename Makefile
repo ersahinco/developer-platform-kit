@@ -11,6 +11,7 @@
 #   make local-up            — build/start app + local observability
 #   make dapr-up             — build/start local Dapr order event runtime
 #   make test                — run test suite
+#   make runtime-conformance — build/run workload images against platform contract
 #   make lint                — run all linters (app + infra)
 #   make fmt                 — auto-format everything
 #
@@ -98,6 +99,10 @@ data-export: ## Run local data export job into the data_exports Docker volume
 .PHONY: test
 test: ## Run test suite (requires local services and app running)
 	uv run pytest tests/ -v
+
+.PHONY: runtime-conformance
+runtime-conformance: ## Build/run workload containers against the portable runtime contract
+	uv run pytest tests/runtime -v --run-runtime-conformance
 
 # ── Lint & format ─────────────────────────────────────────────────────────────
 

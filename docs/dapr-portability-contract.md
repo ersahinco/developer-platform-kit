@@ -40,7 +40,10 @@ Before changing the broker implementation or adding a runtime:
 - Keep retry, dead-letter, and idempotency behavior documented.
 - Preserve incident evidence query hints for relay success, consume success,
   failures, and parked messages.
-- Add contract tests before calling the new component supported.
+- Add contract tests before calling the new component supported. The
+  `tests/fixtures/dapr/alternate-order-events-pubsub.yaml` fixture proves that
+  a non-AWS Dapr component can keep the same `order-events-pubsub` application
+  contract without changing app code.
 
 Do not broaden Dapr into secrets, config, workflow, state, or service invocation
 until a concrete workload needs that capability.

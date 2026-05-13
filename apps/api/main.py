@@ -1,4 +1,5 @@
 import asyncio
+import json
 import logging
 import os
 import re
@@ -166,10 +167,23 @@ async def observe_requests(request: Request, call_next) -> Response:
 
     route = _route_label(request)
     REQUEST_COUNT.labels(request.method, route, str(response.status_code)).inc()
-    REQUEST_LATENCY.labels(request.method, route).observe(
-        time.perf_counter() - started_at
-    )
+    elapsed_seconds = time.perf_counter() - started_at
+    REQUEST_LATENCY.labels(request.method, route).observe(elapsed_seconds)
     response.headers["X-Request-ID"] = request_id
+    print(
+        json.dumps(
+            {
+                "event": "http_request",
+                "request_id": request_id,
+                "method": request.method,
+                "route": route,
+                "status_code": response.status_code,
+                "duration_ms": round(elapsed_seconds * 1000, 3),
+            },
+            sort_keys=True,
+        ),
+        flush=True,
+    )
     return response
 
 

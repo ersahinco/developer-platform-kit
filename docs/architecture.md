@@ -1,8 +1,14 @@
 # Architecture
 
-`aws-sdlc-containers` keeps the current platform deliberately small: one AWS
+`aws-sdlc-containers` is a delivery toolkit first and an AWS/ECS implementation
+second. The architecture keeps the current runtime deliberately small: one AWS
 account/region, one ECS cluster, one PostgreSQL database, and one reference
 workload that proves safe in-place rollout.
+
+The reusable architecture is the contract around proven tools: OCI images,
+explicit app hosts, inward-facing domain/application packages, SQL/Dapr/storage
+adapters at infrastructure edges, Terraform-owned runtime resources, GitHub
+Actions delivery gates, and portable observability/evidence.
 
 ## Current architecture contract
 

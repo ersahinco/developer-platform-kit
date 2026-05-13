@@ -2,9 +2,9 @@
 incident_evidence_bundle.py - Build portable incident context bundles.
 
 The bundle is intentionally evidence, not diagnosis. It collects bounded AWS
-state and emits query hints for Grafana-stack tools so a human operator, or a
-future assistant-style workflow, can correlate logs, metrics, traces, deploys,
-and rollback state without depending on a managed AI product.
+state and emits query hints for Grafana-stack tools so a human operator can
+correlate logs, metrics, traces, deploys, and rollback state without depending
+on a cloud-only observability feature.
 
 Usage:
     python scripts/observability/incident_evidence_bundle.py --output-dir /tmp/incident

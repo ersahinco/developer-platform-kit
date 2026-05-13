@@ -21,6 +21,14 @@ class Settings(BaseSettings):
     db_host: str = "localhost"
     db_port: int = 5432
     db_name: str = "aws_sdlc_containers"
+    otel_traces_enabled: bool = False
+    otel_exporter_otlp_traces_endpoint: str | None = None
+    otel_service_name: str = "aws-sdlc-containers-api"
+    otel_deployment_environment: str = "local"
+    rollout_drill_fault_mode: str = "off"
+    rollout_drill_fault_paths: str = "/ready"
+    rollout_drill_fault_status_code: int = 503
+    rollout_drill_fault_delay_seconds: float = 3.0
 
     @model_validator(mode="after")
     def compose_database_url(self) -> "Settings":

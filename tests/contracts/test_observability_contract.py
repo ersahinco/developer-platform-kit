@@ -81,7 +81,7 @@ def test_grafana_stack_uses_prometheus_loki_tempo_without_cloudwatch_or_xray() -
     assert "xray" not in combined.lower()
 
 
-def test_portable_incident_evidence_is_assistant_ready_without_cloud_dependency() -> (
+def test_portable_incident_evidence_is_operator_readable_without_cloud_dependency() -> (
     None
 ):
     observability_doc = _read("docs/observability.md")
@@ -95,7 +95,8 @@ def test_portable_incident_evidence_is_assistant_ready_without_cloud_dependency(
 
     assert "make incident-evidence" in observability_doc
     assert "OSS-portable" in observability_doc
-    assert "Grafana Cloud AI" in observability_doc
+    assert "cloud-only Grafana feature" in observability_doc
+    assert "Grafana Cloud AI" not in observability_doc
     assert "incident-evidence" in makefile
     assert "incident_evidence_bundle.py" in makefile
     assert "release-event-delivery-verify" in makefile

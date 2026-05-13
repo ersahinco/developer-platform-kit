@@ -1,6 +1,8 @@
 # DevOps Toolchain
 
-This project should demonstrate a complete but lean DevOps toolchain around ECS.
+This project standardizes the delivery toolchain for portable application
+workloads. The current runtime is ECS Fargate, but the reusable part is the
+build, check, scan, evidence, and review shape.
 
 ## Current Toolchain
 
@@ -53,7 +55,6 @@ releases and avoid preview or release-candidate builds for project tooling.
 - Keep all quality gates runnable locally and in CI.
 - Keep AWS-changing workflows split so humans review Terraform plan output or
   build/scan results before triggering apply or deploy.
-- Document Bitbucket Pipelines equivalents without maintaining duplicate pipelines.
 - Keep scripts small, explicit, and easy to inspect.
 
 ## Local Quality Commands
@@ -127,22 +128,6 @@ Keep names boring and ownership-oriented:
 | Local tool entrypoints | Keep conventional root files at root: `compose.yaml`, `pyproject.toml`, `uv.lock`, `Makefile`, and `.dockerignore`. |
 | Local support assets | Put owned support config under the domain folder, for example `observability/`, `db/`, or `.devcontainer/`. |
 
-Do not add empty top-level folders from the inspired architecture. Create
-`docs/runbooks/`, `docs/drills/`, `security/`, or extra `packages/*` only when
-there is real content and
-a clear owner.
-
-## Bitbucket Pipelines Equivalence
-
-For interview and documentation purposes, the GitHub Actions workflow maps to
-Bitbucket Pipelines as follows:
-
-- `pull_request` workflows map to pull request pipelines.
-- `workflow_dispatch` maps to manually triggered custom pipelines.
-- Separate plan/build and apply/deploy workflows map to manual approval steps
-  without requiring paid environment reviewer features.
-- GitHub Environments map to deployment environments.
-- GitHub OIDC role assumption maps to Bitbucket OIDC federation with AWS STS.
-- Reusable workflow steps map to YAML anchors or shared pipe definitions.
-
-Do not add Bitbucket configuration unless this repo needs to run in Bitbucket.
+Do not add empty top-level folders from an inspired architecture. Create a new
+folder only when there is real content, a clear owner, and a local or CI check
+that keeps it alive.

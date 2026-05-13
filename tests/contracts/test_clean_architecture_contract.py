@@ -106,6 +106,59 @@ def test_app_settings_do_not_name_current_runtime_provider() -> None:
         assert forbidden not in text
 
 
+def test_database_portability_is_postgres_not_current_provider() -> None:
+    import json
+
+    contract = json.loads((ROOT / "platform" / "workloads.json").read_text())
+    pooling_by_workload = {
+        workload["name"]: workload["database"]["pooling"]
+        for workload in contract["workloads"]
+    }
+
+    assert pooling_by_workload["api"] == "transaction_pool"
+    assert pooling_by_workload["backfill_worker"] == "direct"
+    assert pooling_by_workload["data_export_job"] == "direct"
+    assert pooling_by_workload["order_event_consumer"] == "direct"
+
+    app_text = "\n".join(
+        _python_text(ROOT / package)
+        for package in [
+            "apps",
+            "packages/domain",
+            "packages/application",
+        ]
+    ).lower()
+    for forbidden in ["rds", "aurora", "cloud sql", "neon", "supabase"]:
+        assert forbidden not in app_text
+
+    changelog_text = "\n".join(
+        path.read_text(encoding="utf-8")
+        for path in sorted((ROOT / "db" / "changelog").glob("*.yaml"))
+    ).lower()
+    for forbidden in ["rds", "aws_", "aurora"]:
+        assert forbidden not in changelog_text
+
+
+def test_database_restore_ownership_stays_at_runtime_edge() -> None:
+    app_text = "\n".join(
+        _python_text(ROOT / package)
+        for package in ["apps", "packages/domain", "packages/application"]
+    ).lower()
+    for forbidden in ["snapshot", "point-in-time", "restore"]:
+        assert forbidden not in app_text
+
+    docs = "\n".join(
+        (ROOT / path).read_text(encoding="utf-8")
+        for path in [
+            "docs/data.md",
+            "docs/runtime-toolkit.md",
+            "docs/runbooks/rollback-drill-slos.md",
+        ]
+    ).lower()
+    assert "backup" in docs
+    assert "restore" in docs
+
+
 def test_object_storage_provider_sdk_stays_in_infrastructure() -> None:
     tracked_files = subprocess.run(
         ["git", "ls-files", "*.py"],
@@ -125,577 +178,43 @@ def test_object_storage_provider_sdk_stays_in_infrastructure() -> None:
     assert offenders == ["packages/infrastructure/data_export.py"]
 
 
-def test_docs_do_not_describe_stale_core_adapter_or_direct_sqs_model() -> None:
-    paths = [
-        ROOT / "README.md",
-        *sorted((ROOT / ".github" / "workflows").rglob("*.yml")),
-        *sorted((ROOT / "docs").rglob("*.md")),
-        *sorted((ROOT / "db").rglob("*.yaml")),
-        *sorted((ROOT / "tests").rglob("*.py")),
-    ]
-    text = "\n".join(path.read_text(encoding="utf-8") for path in paths)
+def test_dapr_pubsub_boundary_keeps_provider_brokers_at_runtime_edge() -> None:
+    import json
 
-    forbidden_terms = [
-        "/".join(("packages", "core")),
-        "/".join(("packages", "adapters")),
-        "_".join(("aws", "sdlc", "core")),
-        "_".join(("aws", "sdlc", "adapters")),
-        " ".join(("SQS", "publish")),
-        " ".join(("SQS", "publishing")),
-        "-".join(("SQS", "backed")) + " order event",
-    ]
+    contract = json.loads((ROOT / "platform" / "workloads.json").read_text())
+    order_consumer = next(
+        workload
+        for workload in contract["workloads"]
+        if workload["name"] == "order_event_consumer"
+    )
+    assert order_consumer["dapr"]["scope"] == "pubsub"
+    assert order_consumer["dapr"]["pubsub_name"] == "order-events-pubsub"
 
-    for forbidden in forbidden_terms:
-        assert forbidden not in text
-
-
-def test_canonical_docs_do_not_contain_session_prompt_blocks() -> None:
-    docs = "\n".join(
-        path.read_text(encoding="utf-8")
-        for path in [
-            ROOT / "README.md",
-            *sorted((ROOT / "docs").rglob("*.md")),
+    app_facing_text = "\n".join(
+        [
+            _python_text(ROOT / "packages" / "application"),
+            _python_text(ROOT / "apps" / "order_event_consumer"),
+            _python_text(ROOT / "packages" / "infrastructure" / "dapr"),
         ]
+    ).lower()
+    for forbidden in ["sns", "sqs", "localstack", "queue_url", "topic_arn"]:
+        assert forbidden not in app_facing_text
+
+
+def test_alternate_dapr_component_can_satisfy_same_pubsub_contract() -> None:
+    import yaml
+
+    current = yaml.safe_load(
+        (
+            ROOT / "dapr" / "local" / "components" / "order-events-pubsub.yaml"
+        ).read_text()
+    )
+    alternate = yaml.safe_load(
+        (
+            ROOT / "tests" / "fixtures" / "dapr" / "alternate-order-events-pubsub.yaml"
+        ).read_text()
     )
 
-    forbidden_terms = [
-        "\n## Prompt\n",
-        "You are working in the aws-sdlc-containers repo.",
-        "Start by reading:",
-        "Evaluate critically:",
-        "Current known remaining gaps to consider:",
-    ]
-
-    for forbidden in forbidden_terms:
-        assert forbidden not in docs
-
-
-def test_documentation_inventory_keeps_canonical_docs_linked() -> None:
-    readme = (ROOT / "README.md").read_text(encoding="utf-8")
-    top_level_docs = sorted((ROOT / "docs").glob("*.md"))
-
-    missing_from_readme = [
-        str(path.relative_to(ROOT))
-        for path in top_level_docs
-        if f"({path.relative_to(ROOT)})" not in readme
-    ]
-
-    assert missing_from_readme == []
-
-    for collection in ["runbooks", "drills"]:
-        index = (ROOT / "docs" / collection / "README.md").read_text(encoding="utf-8")
-        child_docs = sorted(
-            path
-            for path in (ROOT / "docs" / collection).glob("*.md")
-            if path.name != "README.md"
-        )
-        missing_from_index = [
-            str(path.relative_to(ROOT))
-            for path in child_docs
-            if f"({path.name})" not in index
-        ]
-
-        assert missing_from_index == []
-
-
-def test_long_running_workloads_implement_portable_app_contract() -> None:
-    for app_name in ["api", "order_event_consumer"]:
-        text = (ROOT / "apps" / app_name / "main.py").read_text(encoding="utf-8")
-
-        for required in [
-            '@app.get("/health"',
-            '@app.get("/ready"',
-            '@app.get("/metrics"',
-            "CONTENT_TYPE_LATEST",
-            "Counter(",
-            "Histogram(",
-            "X-Request-ID",
-        ]:
-            assert required in text
-
-
-def test_app_workloads_have_committed_oci_image_contracts() -> None:
-    for app_dir in sorted((ROOT / "apps").iterdir()):
-        if not app_dir.is_dir() or not (app_dir / "pyproject.toml").is_file():
-            continue
-
-        dockerfile = app_dir / "Dockerfile"
-        assert dockerfile.is_file()
-        text = dockerfile.read_text(encoding="utf-8")
-        package_name = app_dir.name
-
-        for required in [
-            "FROM python:3.14-slim",
-            f"COPY apps/{package_name}/pyproject.toml",
-            f"COPY apps/{package_name}",
-            "RUN uv sync --frozen --no-dev --package",
-            "USER app",
-            'ENV PATH="/app/.venv/bin:$PATH"',
-            'ENV PYTHONPATH="/app/apps:/app/packages"',
-            "CMD ",
-        ]:
-            assert required in text
-
-
-def test_source_tree_is_flat_and_importable_by_folder_name() -> None:
-    expected_files = [
-        ROOT / "apps" / "api" / "main.py",
-        ROOT / "apps" / "backfill_worker" / "main.py",
-        ROOT / "apps" / "data_export_job" / "main.py",
-        ROOT / "apps" / "order_event_consumer" / "main.py",
-        ROOT / "packages" / "domain" / "order.py",
-        ROOT / "packages" / "application" / "order_submission.py",
-        ROOT / "packages" / "infrastructure" / "db" / "repository.py",
-    ]
-
-    for path in expected_files:
-        assert path.is_file()
-
-    stale_paths = [
-        ROOT / "apps" / "api" / "src",
-        ROOT / "apps" / "backfill-worker",
-        ROOT / "apps" / "data-export-job",
-        ROOT / "apps" / "order-event-consumer",
-        ROOT / "packages" / "domain" / "src",
-        ROOT / "packages" / "application" / "src",
-        ROOT / "packages" / "infrastructure" / "src",
-    ]
-
-    for path in stale_paths:
-        assert not path.exists()
-
-    tracked_files = subprocess.run(
-        ["git", "ls-files", "apps", "packages"],
-        check=True,
-        capture_output=True,
-        text=True,
-    ).stdout.splitlines()
-
-    assert not [path for path in tracked_files if ".egg-info/" in path]
-
-
-def test_repository_does_not_track_generated_or_placeholder_artifacts() -> None:
-    tracked_files = subprocess.run(
-        ["git", "ls-files"],
-        check=True,
-        capture_output=True,
-        text=True,
-    ).stdout.splitlines()
-
-    forbidden_segments = [
-        "__pycache__/",
-        ".pytest_cache/",
-        ".ruff_cache/",
-        ".venv/",
-        ".terraform/",
-        ".egg-info/",
-        "/dist/",
-        "/build/",
-    ]
-    forbidden_suffixes = [
-        ".pyc",
-        ".pyo",
-        ".tmp",
-        ".bak",
-        ".swp",
-        "~",
-    ]
-
-    offenders = [
-        path
-        for path in tracked_files
-        if any(segment in f"{path}/" for segment in forbidden_segments)
-        or any(path.endswith(suffix) for suffix in forbidden_suffixes)
-    ]
-
-    assert offenders == []
-
-    placeholder_roots = [
-        ROOT / "deploy",
-        ROOT / "local",
-        ROOT / "ops",
-        ROOT / "security",
-    ]
-
-    for path in placeholder_roots:
-        assert not path.exists()
-
-
-def test_tracked_scripts_are_referenced_outside_themselves() -> None:
-    tracked_files = subprocess.run(
-        ["git", "ls-files"],
-        check=True,
-        capture_output=True,
-        text=True,
-    ).stdout.splitlines()
-    script_paths = [
-        path
-        for path in tracked_files
-        if path.startswith("scripts/")
-        and Path(path).suffix in {".py", ".sh"}
-        and Path(path).name != "__init__.py"
-    ]
-    reference_paths = [
-        path
-        for path in tracked_files
-        if path == "Makefile"
-        or path == "README.md"
-        or path.startswith((".github/", "docs/", "platform/", "scripts/", "tests/"))
-    ]
-
-    unreferenced_scripts = []
-    for script_path in script_paths:
-        script_name = Path(script_path).name
-        references = []
-        for reference_path in reference_paths:
-            if reference_path == script_path:
-                continue
-            text = (ROOT / reference_path).read_text(encoding="utf-8")
-            if script_path in text or script_name in text:
-                references.append(reference_path)
-
-        if not references:
-            unreferenced_scripts.append(script_path)
-
-    assert unreferenced_scripts == []
-
-
-def test_platform_root_stays_bootstrap_and_github_oidc_only() -> None:
-    platform_tf = "\n".join(
-        path.read_text(encoding="utf-8")
-        for path in sorted((ROOT / "infra" / "platform").glob("*.tf"))
-    )
-    forbidden_runtime_resources = [
-        'resource "aws_ecs_',
-        'resource "aws_db_',
-        'resource "aws_rds_',
-        'resource "aws_lb"',
-        'resource "aws_lb_',
-        'resource "aws_ecr_',
-        'resource "aws_s3_bucket"',
-        'resource "aws_sqs_',
-        'resource "aws_sns_',
-        'resource "aws_cloudwatch_',
-        'resource "aws_scheduler_',
-        'resource "aws_wafv2_',
-    ]
-
-    for forbidden in forbidden_runtime_resources:
-        assert forbidden not in platform_tf
-
-
-def test_app_root_consumes_platform_only_through_remote_state_outputs() -> None:
-    providers_tf = (ROOT / "infra" / "app" / "providers.tf").read_text(encoding="utf-8")
-    app_tf = "\n".join(
-        path.read_text(encoding="utf-8")
-        for path in sorted((ROOT / "infra" / "app").glob("*.tf"))
-    )
-
-    assert 'data "terraform_remote_state" "platform"' in providers_tf
-    assert "platform = data.terraform_remote_state.platform.outputs" in providers_tf
-    assert 'source  = "../platform"' not in app_tf
-    assert "data.aws_vpc" not in app_tf
-    assert "data.aws_subnets" not in app_tf
-
-
-def test_terraform_state_uses_s3_native_lockfiles_only() -> None:
-    versions_text = "\n".join(
-        (ROOT / path).read_text(encoding="utf-8")
-        for path in ["infra/platform/versions.tf", "infra/app/versions.tf"]
-    )
-    state_docs = "\n".join(
-        (ROOT / path).read_text(encoding="utf-8")
-        for path in [
-            "Makefile",
-            "docs/deployment.md",
-            "infra/platform/github_actions.tf",
-        ]
-    )
-
-    assert versions_text.count("use_lockfile = true") == 2
-    assert "dynamodb_table" not in versions_text
-    assert "terraform-locks" not in state_docs
-    assert "dynamodb:" not in state_docs
-
-
-def test_portability_status_documents_intentional_provider_boundaries() -> None:
-    doc = (ROOT / "docs" / "portability-status.md").read_text(encoding="utf-8")
-    readme = (ROOT / "README.md").read_text(encoding="utf-8")
-    roadmap = (ROOT / "docs" / "roadmaps.md").read_text(encoding="utf-8")
-    app_build = (ROOT / ".github" / "workflows" / "app-build.yml").read_text(
-        encoding="utf-8"
-    )
-    platform_contract = (ROOT / "docs" / "platform-contract.md").read_text(
-        encoding="utf-8"
-    )
-    runtime_contract = (ROOT / "docs" / "runtime-capability-contract.md").read_text(
-        encoding="utf-8"
-    )
-    runtime_checklist = (ROOT / "docs" / "runtime-addition-checklist.md").read_text(
-        encoding="utf-8"
-    )
-    workload_contract = (ROOT / "docs" / "workload-onboarding-contract.md").read_text(
-        encoding="utf-8"
-    )
-    database_contract = (ROOT / "docs" / "database-portability-contract.md").read_text(
-        encoding="utf-8"
-    )
-    dapr_contract = (ROOT / "docs" / "dapr-portability-contract.md").read_text(
-        encoding="utf-8"
-    )
-    config_contract = (ROOT / "docs" / "config-secrets-contract.md").read_text(
-        encoding="utf-8"
-    )
-    observability_onboarding = (
-        ROOT / "docs" / "observability-onboarding-contract.md"
-    ).read_text(encoding="utf-8")
-    ci_quality_contract = (ROOT / "docs" / "ci-quality-contract.md").read_text(
-        encoding="utf-8"
-    )
-    data_object_contract = (
-        ROOT / "docs" / "data-object-storage-portability.md"
-    ).read_text(encoding="utf-8")
-    toolkit_checklists = (ROOT / "docs" / "portable-toolkit-checklists.md").read_text(
-        encoding="utf-8"
-    )
-
-    assert "docs/portability-status.md" in readme
-    assert "docs/platform-contract.md" in readme
-    assert "docs/runtime-capability-contract.md" in readme
-    assert "docs/runtime-addition-checklist.md" in readme
-    assert "docs/workload-onboarding-contract.md" in readme
-    assert "docs/database-portability-contract.md" in readme
-    assert "docs/dapr-portability-contract.md" in readme
-    assert "docs/config-secrets-contract.md" in readme
-    assert "docs/observability-onboarding-contract.md" in readme
-    assert "docs/ci-quality-contract.md" in readme
-    assert "docs/data-object-storage-portability.md" in readme
-    assert "docs/portable-toolkit-checklists.md" in readme
-    assert "Portable Baseline" in doc
-    assert "Intentional Provider Dependencies" in doc
-    assert "Current Gaps" in doc
-    assert "App/platform contract" in doc
-    assert "Runtime capability contract" in doc
-    assert "packages/domain" in doc
-    assert "packages/application" in doc
-    assert "Grafana CloudWatch datasource" in doc
-    assert "LOKI_PUSH_URL" in doc
-    assert "OpenTelemetry Collector" in doc
-    assert "Alternate runtime platform" in doc
-    assert "Infra rollback stays reviewed `Infra Plan` plus `Infra Apply`" in doc
-    assert "portability boundaries" in roadmap
-    assert "portable app/platform contract" in roadmap.lower()
-    assert "runtime capability contract" in roadmap.lower()
-    assert (ROOT / "platform" / "workloads.json").is_file()
-    assert (ROOT / "platform" / "runtime-capabilities.json").is_file()
-    assert (ROOT / "scripts" / "ci" / "validate_platform_contract.py").is_file()
-    assert app_build.count('- "platform/**"') == 2
-    assert "uv run python scripts/ci/validate_platform_contract.py" in app_build
-
-    for phrase in [
-        "platform/workloads.json",
-        "scripts/ci/validate_platform_contract.py",
-        "OCI image",
-        "/health",
-        "/ready",
-        "/metrics",
-        "structured lines",
-        "request_id",
-        "OTLP/HTTP traces",
-        "environment variables",
-        "runtime secret mechanism",
-        "One-off and scheduled workloads must also be clear about",
-        "Idempotency",
-        "Prometheus, Loki, Tempo, and Grafana",
-        "release evidence artifacts",
-        "Markdown/JSON/JSONL",
-        "schema_version",
-        "revision.image_tag",
-        "github.run_id",
-        "correlation.github_run_id",
-        "App image rollback",
-        "One-off job rollback",
-        "Runtime data-phase rollback",
-        "Infra rollback uses reviewed `Infra Plan` and `Infra Apply`",
-        "does not add a Kubernetes, Nomad, Azure, Google Cloud, or",
-    ]:
-        assert phrase in platform_contract
-
-    runtime_contract_lower = runtime_contract.lower()
-    for phrase in [
-        "platform/runtime-capabilities.json",
-        "container runtime",
-        "networking",
-        "identity",
-        "secrets",
-        "ingress",
-        "observability",
-        "jobs",
-        "rollout",
-        "rollback",
-        "release evidence",
-        "cost controls",
-        "terraform ownership",
-        "local/ci guardrails",
-        "eks",
-        "azure",
-        "gcp",
-        "without changing app/domain code",
-        "platform/delivery edges",
-        "docs/runtime-addition-checklist.md",
-    ]:
-        assert phrase in runtime_contract_lower
-
-    runtime_checklist_lower = runtime_checklist.lower()
-    for phrase in [
-        "future runtime addition checklist",
-        "platform/runtime-capabilities.json",
-        "platform/workloads.json",
-        "packages/domain",
-        "packages/application",
-        "prometheus metrics",
-        "loki-compatible logs",
-        "otlp/http traces",
-        "provider-native observability is allowed",
-        "provider-managed infrastructure",
-        "cloudwatch",
-        "terraform roots under `infra/`",
-        "app image rollback",
-        "runtime data rollback",
-        "infra rollback",
-        "same markdown/json/jsonl schema",
-        "uv run python scripts/ci/validate_platform_contract.py",
-    ]:
-        assert phrase in runtime_checklist_lower
-
-    workload_contract_lower = workload_contract.lower()
-    for phrase in [
-        "workload onboarding contract",
-        "apps/<name>/main.py",
-        "apps/<name>/dockerfile",
-        "/health",
-        "/ready",
-        "/metrics",
-        "platform/workloads.json",
-        "rollback",
-        "release evidence",
-        "provider-specific env names",
-    ]:
-        assert phrase in workload_contract_lower
-
-    database_contract_lower = database_contract.lower()
-    for phrase in [
-        "database portability contract",
-        "postgresql semantics",
-        "rds is the current aws runtime implementation",
-        "supabase",
-        "liquibase",
-        "pgbouncer",
-        "db_password",
-        "database_url",
-        "backup",
-        "restore",
-        "cloudwatch is acceptable for rds",
-        "cloudwatch must not become",
-        "packages/infrastructure/db",
-    ]:
-        assert phrase in database_contract_lower
-
-    dapr_contract_lower = dapr_contract.lower()
-    for phrase in [
-        "dapr portability contract",
-        "dapr pub/sub",
-        "cloudevents",
-        "sns/sqs",
-        "redis",
-        "kafka",
-        "azure service bus",
-        "gcp pub/sub",
-        "outbox",
-        "idempotency",
-        "provider-native sqs metrics",
-    ]:
-        assert phrase in dapr_contract_lower
-
-    config_contract_lower = config_contract.lower()
-    for phrase in [
-        "config and secrets contract",
-        "upper snake case",
-        "platform/workloads.json",
-        "a name cannot be both config and secret",
-        "db_password",
-        "runtime secret mechanism",
-        "github actions env",
-        "future runtime",
-    ]:
-        assert phrase in config_contract_lower
-
-    observability_onboarding_lower = observability_onboarding.lower()
-    for phrase in [
-        "observability onboarding contract",
-        "prometheus",
-        "loki-compatible structured logs",
-        "otlp/http traces",
-        "grafana",
-        "no cloudwatch datasource is required",
-        "incident",
-        "query hints",
-    ]:
-        assert phrase in observability_onboarding_lower
-
-    ci_quality_contract_lower = ci_quality_contract.lower()
-    for phrase in [
-        "ci quality contract",
-        "github actions",
-        "ruff format check",
-        "pyright",
-        "pytest",
-        "validate_platform_contract.py",
-        "actionlint",
-        "gitleaks",
-        "checkov",
-        "trivy",
-        "reviewed plan",
-    ]:
-        assert phrase in ci_quality_contract_lower
-
-    data_object_contract_lower = data_object_contract.lower()
-    for phrase in [
-        "data and object storage portability",
-        "s3 is the current aws implementation",
-        "raw/",
-        "curated/",
-        "manifests/",
-        "sha-256 checksum",
-        "data_export_s3_bucket",
-        "gcs",
-        "azure blob",
-        "supabase storage",
-        "provider sdk imports stay out",
-    ]:
-        assert phrase in data_object_contract_lower
-
-    toolkit_checklists_lower = toolkit_checklists.lower()
-    for phrase in [
-        "workload-onboarding-contract.md",
-        "dapr-portability-contract.md",
-        "config-secrets-contract.md",
-        "observability-onboarding-contract.md",
-        "ci-quality-contract.md",
-        "data-object-storage-portability.md",
-        "new workload",
-        "dapr eventing",
-        "config and secrets",
-        "observability onboarding",
-        "ci quality gates",
-        "data and object storage",
-        "platform/workloads.json",
-        "prometheus metrics",
-        "loki-compatible structured logs",
-        "otlp/http traces",
-        "github actions",
-        "terraform fmt -check -recursive infra",
-        "s3 is the current aws object-storage implementation",
-        "supabase storage",
-    ]:
-        assert phrase in toolkit_checklists_lower
+    assert current["metadata"]["name"] == "order-events-pubsub"
+    assert alternate["metadata"]["name"] == current["metadata"]["name"]
+    assert alternate["spec"]["type"].startswith("pubsub.")

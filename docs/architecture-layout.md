@@ -10,6 +10,8 @@ read `docs/engineering-loop.md`.
 
 ## Layout Principles
 
+- Treat the repo as a delivery toolkit: standardize how proven tools are wired
+  together, not as a place to invent replacement frameworks.
 - Keep standard tool entrypoints at the repo root: `pyproject.toml`, `uv.lock`,
   `compose.yaml`, `Makefile`, `.dockerignore`, and `.pre-commit-config.yaml`.
 - Group files by control boundary, not by generic technology buckets.
@@ -41,7 +43,7 @@ aws-sdlc-containers/
 |-- platform/                # Machine-readable portable workload and runtime contracts
 |-- observability/           # Portable Prometheus, Loki, Promtail, Grafana assets
 |-- scripts/                 # Grouped CI, release, operator, data, and observability helpers
-|-- tests/                   # Pytest behavior, contract, and script checks
+|-- tests/                   # Pytest behavior, contract, script, and runtime checks
 |-- docs/                    # Canonical docs, runbooks, and drills
 |-- compose.yaml
 |-- Makefile
@@ -236,6 +238,10 @@ Critical rule: scripts should hide awkward shell quoting or AWS CLI plumbing,
 not business policy. If a behavior is important enough to test, put the policy
 in Python or Terraform where it can be checked directly.
 
+Scripts should also avoid becoming a shadow deployment framework. Prefer small
+helpers around standard tools and keep the durable contract in workflows,
+Terraform, workload metadata, or tested Python.
+
 ## Tests
 
 `tests/` is integration-heavy by design because the project demonstrates
@@ -255,6 +261,9 @@ than mirrored source-file names:
   dashboards, schemas, and docs.
 - `tests/scripts/`: pragmatic script behavior tests for release and
   observability helpers.
+- `tests/runtime/`: opt-in container conformance tests that build declared
+  workload images and prove health, readiness, metrics, logs, config, secrets,
+  and job success from the outside.
 
 Critical rule: tests should preserve rollout confidence, not mirror
 implementation files one-to-one. Add tests around contracts, failure modes, and
@@ -285,19 +294,9 @@ one-off shell commands to docs when a Make target already owns the workflow.
 
 ## Documentation
 
-`docs/` owns canonical project knowledge:
-
-- `engineering-loop.md`: how to continue work safely.
-- `roadmaps.md`: current state, decisions, continuation guide.
-- `architecture.md`: design rationale and intentionally omitted work.
-- `architecture-layout.md`: repository/control-boundary map.
-- `deployment.md`: AWS operator runbook.
-- `local-development.md`: local safe-rollout walkthrough.
-- `devops-toolchain.md`: quality gates and CI/CD conventions.
-- `data-flow.md`: migration and data export flow.
-- `observability.md`: metrics/logging/dashboard direction.
-- `runbooks/`: operator actions for real incidents.
-- `drills/`: practice scenarios.
+`docs/` owns canonical project knowledge. The grouped documentation map lives
+in `docs/README.md`; keep detailed ownership there so this architecture layout
+can focus on repo boundaries.
 
 Critical rule: do not add a new doc for every thought. Add or edit the one doc
 that owns the topic, and delete stale notes when their content becomes

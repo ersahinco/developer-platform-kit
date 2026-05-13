@@ -1,7 +1,7 @@
 # Roadmap
 
 This file is the current continuation guide for platform, infrastructure,
-DevOps, observability, data-flow, incident, rollout, async, and operator work.
+DevOps, observability, data, incident, rollout, async, and operator work.
 Keep it short and current; retire session notes once their durable facts have
 landed in canonical docs or code.
 
@@ -10,8 +10,8 @@ roadmap is the tracker; the engineering loop is the operating method.
 
 ## Current Status
 
-The repository is a lean AWS delivery sandbox around one intentionally simple
-order/customer workload:
+The repository is an opinionated cloud-native delivery toolkit with a lean
+AWS/ECS implementation around one intentionally simple order/customer workload:
 
 - FastAPI API with `/health`, `/ready`, `/metrics`, request ID propagation,
   runtime `READ_MODE` and `WRITE_MODE` switches, and optional
@@ -28,7 +28,7 @@ order/customer workload:
   alarms, and optional observability.
 - Local Prometheus, Loki, Promtail, and Grafana observability profile.
 - Portable incident evidence bundles that collect ECS, alarm, deploy, and
-  Grafana-stack query context without depending on managed Grafana AI features.
+  Grafana-stack query context without depending on cloud-only Grafana features.
 - A documented portable app/platform contract for workload images, health,
   readiness, metrics, logs, traces, config, release evidence, and rollback
   categories before adding another runtime target.
@@ -56,17 +56,27 @@ The reference workload remains the zero-downtime schema evolution from
 `orders.billing_email` to `order_contact_email`: expand, dual-write, backfill,
 switch reads, new writes, and contract.
 
+## What Is Left
+
+| Area | Remaining work | Why it is not done now |
+|---|---|---|
+| Build and containerize | Keep runtime conformance and image/security gates fast enough for normal PRs as more workloads are added. | The current Python workloads are covered; the next proof should come with a real new workload, not synthetic scaffolding. |
+| Observe | Decide CloudWatch reduction only after the Grafana-stack signals have dual-run long enough. | CloudWatch still owns AWS-native rollback alarms and managed-resource signals. |
+| Deploy evidence | Turn on CI-to-Loki release-event publishing when a private or authenticated runner path exists. | Release artifacts already exist; Loki publishing needs a real network/security path. |
+| Runtime portability | Add a second runtime target only when it has a concrete cost, reliability, or capability benefit. | The contract is ready; adding a runtime only as a demo would add noise. |
+| Dapr scope | Decide whether secrets/configuration, service invocation, or workflows belong in Dapr. | Pub/sub is proven; broader adoption should wait for a workload that needs it. |
+
 ## Work Tracker
 
 | Status | Step | Notes |
 |---|---|---|
-| Current | Harden the app-owned Grafana/Loki/Tempo/Prometheus contract. | Keep the baseline OSS-portable: app-owned logs, metrics, traces, dashboards, and incident evidence should work without Grafana Cloud AI or a CloudWatch Grafana datasource. |
+| Current | Harden the app-owned Grafana/Loki/Tempo/Prometheus contract. | Keep the baseline OSS-portable: app-owned logs, metrics, traces, dashboards, and incident evidence should work without a CloudWatch Grafana datasource. |
 | Current | Keep the portability boundary explicit. | See `docs/portability-status.md`: the app and observability evidence should travel, while AWS runtime infrastructure and GitHub Actions orchestration stay isolated provider edges. |
 | Current | Keep the portable app/platform contract explicit. | See `docs/platform-contract.md`: future apps and runtime targets should satisfy the workload contract before adding EKS, another cloud, or cheaper compute. |
-| Current | Keep the runtime capability contract explicit. | See `docs/runtime-capability-contract.md` and `platform/runtime-capabilities.json`: future runtime targets must satisfy the same capability set before being documented as supported. |
-| Current | Keep database portability explicit. | See `docs/database-portability-contract.md`: workloads depend on PostgreSQL semantics, Liquibase, PgBouncer expectations, backup/restore, and secret injection; RDS is only the current AWS implementation. |
-| Current | Keep the portable toolkit checklists current. | See `docs/portable-toolkit-checklists.md`: new workloads and runtime edges should reuse the same app, Dapr, config, observability, CI, and data-object-storage expectations. |
-| Current | Keep dedicated toolkit contracts current. | See `docs/workload-onboarding-contract.md`, `docs/dapr-portability-contract.md`, `docs/config-secrets-contract.md`, `docs/observability-onboarding-contract.md`, `docs/ci-quality-contract.md`, and `docs/data-object-storage-portability.md`. |
+| Current | Keep the runtime toolkit explicit. | See `docs/runtime-toolkit.md` and `platform/runtime-capabilities.json`: future runtime targets must satisfy the same capability set before being documented as supported. |
+| Current | Keep data and database portability explicit. | See `docs/data.md`: workloads depend on PostgreSQL semantics, Liquibase, PgBouncer expectations, backup/restore, secret injection, stable dataset paths, manifest integrity, and provider SDK isolation. RDS and S3 are only current AWS implementations. |
+| Current | Keep workload toolkit guidance current. | See `docs/workload-toolkit.md`: new workloads should reuse the same app, config, observability, CI, and data expectations without adding a private framework. |
+| Current | Keep dedicated edge contracts current. | See `docs/dapr-portability-contract.md`, `docs/config-secrets-contract.md`, `docs/observability-onboarding-contract.md`, and `docs/ci-quality-contract.md`. |
 | Current | Keep delivery rollback boundaries explicit. | App and data rollback drills are workflows; infra rollback uses reviewed `Infra Plan`/`Infra Apply`; completed one-off migration workflows are removed after execution. |
 | Done | Clean Architecture package shape. | The repo now uses `apps/*` hosts with `packages/domain`, `packages/application`, and `packages/infrastructure`, plus ownership-aligned tests and docs. |
 | Next | Revisit CloudWatch reduction toggles after dual-run. | Do not disable CloudWatch yet. Only app symptom and data-export success alarms have reduction toggles. |
@@ -93,35 +103,11 @@ switch reads, new writes, and contract.
 
 ## Documentation Ownership
 
-- `README.md` is the short project index.
-- `docs/engineering-loop.md` explains how to continue work cleanly.
-- `docs/architecture.md` keeps long-form design rationale.
-- `docs/architecture-layout.md` explains the current repo/control-boundary
-  layout from GitHub automation through app, infra, scripts, tests, and docs.
-- `docs/platform-contract.md` defines the portable workload contract for future
-  apps and runtime targets.
-- `docs/runtime-capability-contract.md` defines the runtime capability contract
-  for future hosting targets.
-- `docs/runtime-addition-checklist.md` turns that contract into the operator
-  checklist for appending a future runtime.
-- `docs/database-portability-contract.md` defines the PostgreSQL-compatible
-  database contract and keeps RDS at the provider edge.
-- `docs/portable-toolkit-checklists.md` captures the lean reusable checklist for
-  future workloads and provider edges.
-- The dedicated toolkit contracts split the checklist into stable operator
-  references for workload onboarding, Dapr, config/secrets, observability, CI,
-  and data/object storage.
-- `docs/portability-status.md` states what is portable, what is intentionally
-  provider-specific, and which portability gaps remain.
-- `docs/deployment.md` is the detailed AWS operator runbook.
-- `docs/local-development.md` is the local migration walkthrough.
-- `docs/devops-toolchain.md` explains quality gates and CI/CD conventions.
-- `docs/observability.md` explains Prometheus, Loki, Grafana, and CloudWatch
-  signals.
-- `docs/data-flow.md` explains the migration and data export flow.
-- `docs/runbooks/` contains concrete incident runbooks.
-- `docs/drills/` contains rehearsal procedures.
-- `infra/README.md` explains the Terraform platform/app roots.
+- `README.md` is the short public project entrypoint.
+- `docs/README.md` is the canonical grouped documentation map.
+- `docs/roadmaps.md` tracks state, current work, decisions, and deferred work.
+- Keep detailed ownership in `docs/README.md`; do not duplicate the full doc
+  tree here.
 
 ## Decisions
 
@@ -129,13 +115,13 @@ switch reads, new writes, and contract.
 |---|---|---|
 | 2026-05-05 | Use Dapr pub/sub as the order event transport boundary. | The app keeps modular monolith domain and outbox semantics, while Dapr absorbs broker integration and leaves room for future service extraction. |
 | 2026-05-05 | Keep Dapr adoption foundational but lean. | Dapr should create portable application-layer foundations for future complexity, but each building block should enter when it clarifies a real boundary or operation. |
-| 2026-05-12 | Keep incident evidence portable and assistant-ready. | Grafana Assistant-style workflows need clean labels, query hints, and deploy context, but the baseline should remain Prometheus/Loki/Tempo/Grafana plus Markdown/JSON evidence bundles. |
+| 2026-05-12 | Keep incident evidence portable and operator-readable. | Incident response needs clean labels, query hints, and deploy context; the baseline remains Prometheus/Loki/Tempo/Grafana plus Markdown/JSON evidence bundles. |
 | 2026-05-02 | Make the local workflow devcontainer-first and keep Compose at the root. | The dev container is the reproducible dependency environment, while `compose.yaml` is the standard local runtime contract that Docker tooling discovers automatically. |
 | 2026-05-02 | Complete the Terraform split and remove the legacy root. | Platform and app now deploy from separate state keys; keeping the old root would invite accidental duplicate ownership. |
 | 2026-05-02 | Keep docs canonical instead of session-shaped. | Roadmap sessions are useful while working, but permanent docs should be short, current, and operator-owned. |
 | 2026-05-01 | Split Terraform into platform/bootstrap and app roots before ECS Grafana-stack deployment. | VPC and GitHub OIDC have a different lifecycle from RDS, ECS compute, ALB/API edge, workload resources, and observability; the app-owned stack needs a clean deployment root before observability can be runtime-validated. |
 | 2026-04-29 | Keep one Terraform root until lifecycle boundaries become real. | Multiple stacks add naming, state, workflow, and documentation overhead before the project has repeated infrastructure shape. |
-| 2026-04-29 | Use an evolutionary monorepo structure. | The safe-rollout demo should remain usable while the repo shape improves. |
+| 2026-04-29 | Use an evolutionary monorepo structure. | The reference workload should remain usable while the repo shape improves. |
 | 2026-04-29 | Keep the application domain simple. | The value is in ECS delivery, data safety, DevOps practices, and operator maturity, not broad business features. |
 | 2026-04-29 | Prefer Prometheus, Loki, and Grafana locally while using CloudWatch for AWS alarms. | The repo demonstrates local open-source observability and AWS-native operator signals. |
 | 2026-04-29 | Add folders only with real content. | Empty top-level `ops/`, `security/`, `deploy/`, or package placeholders create ownership noise. |

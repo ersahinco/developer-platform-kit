@@ -34,39 +34,14 @@ REQUIRED_EVENT_FIELDS = [
     ("status",),
     ("summary",),
     ("timestamp",),
-    ("stack", "name"),
-    ("stack", "environment"),
-    ("stack", "region"),
-    ("stack", "root_domain"),
-    ("service",),
-    ("revision", "image_tag"),
-    ("revision", "task_definition"),
-    ("revision", "previous_task_definition"),
-    ("revision", "drill_task_definition"),
-    ("revision", "plan_run_id"),
-    ("runtime", "fault_mode"),
-    ("runtime", "read_mode"),
-    ("runtime", "write_mode"),
-    ("slo", "rollback_seconds"),
-    ("slo", "rollback_slo_seconds"),
-    ("slo", "verify_seconds"),
-    ("slo", "verify_slo_seconds"),
+    ("runtime_id",),
+    ("workload_id",),
+    ("deployment_id",),
+    ("image_digest",),
+    ("rollback_category",),
+    ("source_workflow",),
+    ("evidence_links",),
     ("alarm_snapshot",),
-    ("github", "repository"),
-    ("github", "run_id"),
-    ("github", "run_attempt"),
-    ("github", "run_url"),
-    ("github", "workflow"),
-    ("github", "job"),
-    ("github", "sha"),
-    ("github", "ref_name"),
-    ("github", "actor"),
-    ("correlation", "stack"),
-    ("correlation", "environment"),
-    ("correlation", "service"),
-    ("correlation", "image_tag"),
-    ("correlation", "task_definition"),
-    ("correlation", "github_run_id"),
 ]
 
 
@@ -187,6 +162,13 @@ def build_event(
     rollback_slo_seconds: int | None,
     verify_seconds: int | None,
     verify_slo_seconds: int | None,
+    runtime_id: str | None = None,
+    workload_id: str | None = None,
+    deployment_id: str | None = None,
+    image_digest: str | None = None,
+    rollback_category: str | None = None,
+    source_workflow: str | None = None,
+    evidence_links: list[str] | None = None,
     alarm_snapshot: dict[str, Any] | None = None,
     env: dict[str, str] | None = None,
     now: datetime | None = None,
@@ -195,6 +177,21 @@ def build_event(
     now = datetime.now(UTC) if now is None else now
     stack_name = env.get("STACK_NAME", "aws-sdlc-containers")
     environment = env.get("DEPLOYMENT_ENVIRONMENT", "aws")
+    github = _github_context(env)
+    resolved_runtime_id = runtime_id or env.get("RUNTIME_ID", "aws-ecs")
+    resolved_workload_id = workload_id or service_name
+    resolved_source_workflow = source_workflow or github.get("workflow")
+    resolved_deployment_id = (
+        deployment_id
+        or task_definition
+        or plan_run_id
+        or github.get("run_id")
+        or image_tag
+    )
+    resolved_evidence_links = list(evidence_links or [])
+    github_run_url = github.get("run_url")
+    if github_run_url and github_run_url not in resolved_evidence_links:
+        resolved_evidence_links.append(github_run_url)
 
     return {
         "schema_version": "1",
@@ -202,6 +199,13 @@ def build_event(
         "status": status,
         "summary": summary,
         "timestamp": now.isoformat(),
+        "runtime_id": resolved_runtime_id,
+        "workload_id": resolved_workload_id,
+        "deployment_id": resolved_deployment_id,
+        "image_digest": image_digest or env.get("IMAGE_DIGEST"),
+        "rollback_category": rollback_category,
+        "source_workflow": resolved_source_workflow,
+        "evidence_links": resolved_evidence_links,
         "stack": {
             "name": stack_name,
             "environment": environment,
@@ -235,11 +239,15 @@ def build_event(
             "alarms": [],
             "errors": [],
         },
-        "github": _github_context(env),
+        "github": github,
         "correlation": {
             "stack": stack_name,
             "environment": environment,
             "service": service_name,
+            "runtime_id": resolved_runtime_id,
+            "workload_id": resolved_workload_id,
+            "deployment_id": resolved_deployment_id,
+            "image_digest": image_digest or env.get("IMAGE_DIGEST"),
             "image_tag": image_tag,
             "task_definition": task_definition,
             "github_run_id": env.get("GITHUB_RUN_ID"),
@@ -275,9 +283,16 @@ def render_markdown(event: dict[str, Any]) -> str:
         f"- Type: {event['event_type']}",
         f"- Status: {event['status']}",
         f"- Time: {event['timestamp']}",
+        f"- Runtime: {event['runtime_id']}",
+        f"- Workload: {event['workload_id']}",
+        f"- Deployment: `{event['deployment_id']}`",
         f"- Stack: {event['stack']['name']} ({event['stack']['environment']})",
         f"- Service: {event['service']}",
     ]
+    if event.get("image_digest"):
+        lines.append(f"- Image digest: `{event['image_digest']}`")
+    if event.get("source_workflow"):
+        lines.append(f"- Source workflow: {event['source_workflow']}")
     if event.get("summary"):
         lines.append(f"- Summary: {event['summary']}")
     if github.get("run_url"):
@@ -429,6 +444,13 @@ def main() -> int:
     parser.add_argument("--rollback-slo-seconds")
     parser.add_argument("--verify-seconds")
     parser.add_argument("--verify-slo-seconds")
+    parser.add_argument("--runtime-id")
+    parser.add_argument("--workload-id")
+    parser.add_argument("--deployment-id")
+    parser.add_argument("--image-digest")
+    parser.add_argument("--rollback-category")
+    parser.add_argument("--source-workflow")
+    parser.add_argument("--evidence-link", action="append", default=[])
     parser.add_argument(
         "--output-dir",
         type=Path,
@@ -489,6 +511,13 @@ def main() -> int:
         rollback_slo_seconds=_int_optional(args.rollback_slo_seconds),
         verify_seconds=_int_optional(args.verify_seconds),
         verify_slo_seconds=_int_optional(args.verify_slo_seconds),
+        runtime_id=_clean_optional(args.runtime_id),
+        workload_id=_clean_optional(args.workload_id),
+        deployment_id=_clean_optional(args.deployment_id),
+        image_digest=_clean_optional(args.image_digest),
+        rollback_category=_clean_optional(args.rollback_category),
+        source_workflow=_clean_optional(args.source_workflow),
+        evidence_links=args.evidence_link,
         alarm_snapshot=alarm_snapshot,
         env=env,
     )

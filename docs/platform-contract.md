@@ -4,13 +4,21 @@ This is the portable application contract for this repository. It describes
 what a workload must provide to run on the project platform shape today, without
 claiming that the current runtime is cloud-neutral.
 
+The project goal is an opinionated platform toolkit, not a private framework.
+The contract standardizes how proven tools are assembled: Docker/OCI images,
+FastAPI service hosts, Python packages, SQLAlchemy adapters, Liquibase
+migrations, Dapr pub/sub, OpenTelemetry, Prometheus/Loki/Tempo/Grafana,
+Terraform, GitHub Actions, and security/quality scanners. Do not hide those
+tools behind custom abstractions unless the abstraction is already a stable
+application port or removes real duplication across workloads.
+
 The machine-readable workload inventory lives in `platform/workloads.json` and
 is enforced by `scripts/ci/validate_platform_contract.py`. Add future apps there
 before adding runtime-specific infrastructure for them.
 
-Database expectations live in `docs/database-portability-contract.md`. The app
-contract is PostgreSQL-compatible behavior, Liquibase migrations, PgBouncer
-pooling expectations, and runtime secret injection. RDS is the current AWS
+Database expectations live in `docs/data.md`. The app contract is
+PostgreSQL-compatible behavior, Liquibase migrations, PgBouncer pooling
+expectations, and runtime secret injection. RDS is the current AWS
 implementation, not the portable application contract.
 
 The current implementation target is ECS, Terraform, AWS-managed dependencies,
@@ -81,8 +89,9 @@ a Grafana CloudWatch datasource:
 - Logs: JSON or parseable structured lines with `stack`, `environment`,
   `service`, `container`, and relevant workload identifiers.
 - Correlation: preserve `request_id` and emit `trace_id` when tracing is active.
-- Delivery context: release events should include `github_run_id`, `image_tag`,
-  task definition or equivalent runtime revision, status, and SLO timings.
+- Delivery context: release events should include `runtime_id`, `workload_id`,
+  `deployment_id`, `image_digest`, `source_workflow`, evidence links, status,
+  and SLO timings.
 
 CloudWatch remains the AWS-native alarm and managed-resource signal for the ECS
 sandbox. Portable dashboards and app-owned telemetry should not require
@@ -103,20 +112,18 @@ today, but the durable record is the release event: what changed, which revision
 ran, which workflow or plan applied it, what verification happened, and which
 alarms were observed.
 
-Release evidence events must preserve these fields, even when a future runtime
-maps them to different names:
+Release evidence events must preserve a provider-neutral core, even when a
+future runtime keeps provider-specific details in optional nested fields:
 
 | Group | Required fields |
 | --- | --- |
 | Event | `schema_version`, `event_type`, `status`, `summary`, `timestamp`. |
-| Stack | `stack.name`, `stack.environment`, `stack.region`, `stack.root_domain`. |
-| Service | `service`. |
-| Revision | `revision.image_tag`, `revision.task_definition`, `revision.previous_task_definition`, `revision.drill_task_definition`, `revision.plan_run_id`. A non-ECS runtime should use the closest immutable runtime revision in the task definition fields until a real second runtime exists. |
-| Runtime | `runtime.fault_mode`, `runtime.read_mode`, `runtime.write_mode`. |
-| SLO | `slo.rollback_seconds`, `slo.rollback_slo_seconds`, `slo.verify_seconds`, `slo.verify_slo_seconds`. |
+| Runtime core | `runtime_id`, `workload_id`, `deployment_id`, `image_digest`, `rollback_category`, `source_workflow`, `evidence_links`. |
 | Alarms | `alarm_snapshot` with alarm states or collection errors. |
-| Delivery | `github.repository`, `github.run_id`, `github.run_attempt`, `github.run_url`, `github.workflow`, `github.job`, `github.sha`, `github.ref_name`, `github.actor`. |
-| Correlation | `correlation.stack`, `correlation.environment`, `correlation.service`, `correlation.image_tag`, `correlation.task_definition`, `correlation.github_run_id`. |
+
+Current AWS/GitHub details still appear under `stack`, `service`, `revision`,
+`runtime`, `slo`, `github`, and `correlation`, but future runtimes should treat
+those as details around the stable core rather than the cross-runtime schema.
 
 ## Rollback
 
@@ -133,6 +140,22 @@ Rollback paths stay separated by ownership:
 
 Future runtimes should preserve these rollback categories even if their
 implementation details differ.
+
+## Toolkit Boundaries
+
+The reusable value is the workflow and contract shape:
+
+- workload folders under `apps/`
+- shared domain/application/infrastructure packages under `packages/`
+- provider-neutral config, secrets, telemetry, rollback, and evidence metadata
+- runtime capabilities declared in `platform/runtime-capabilities.json`
+- current AWS/ECS implementation at delivery and infrastructure edges
+
+The repo should not grow a generic scheduler, custom deployment engine,
+homegrown observability backend, private ORM, custom event broker API, or a
+second runtime abstraction layer. Add a wrapper only when app code needs a
+stable port; otherwise prefer the standard tool's native interface at the
+owning edge.
 
 ## Current Non-Goals
 

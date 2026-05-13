@@ -24,6 +24,11 @@ become part of images, logs, release artifacts, or plaintext Terraform values.
 | AWS runtime | ECS env, Secrets Manager injection, runtime config table, and Terraform-owned resource names. |
 | Future runtime | Equivalent env/config/secret injection that satisfies the same workload contract. |
 
+`platform/workloads.json` is the source of truth for local, CI, and runtime
+shape. Each workload declares conformance env values for local container proof,
+while secrets use `runtime-secret://` placeholders so the contract can prove the
+name and injection edge without committing a secret value.
+
 ## Guardrails
 
 - Prefer full URLs for local and test ergonomics.
@@ -33,5 +38,9 @@ become part of images, logs, release artifacts, or plaintext Terraform values.
 - Do not log secret values or generated URLs containing secret values.
 - Do not add provider-specific config to `packages/domain` or
   `packages/application`.
+- Keep workload `Settings` fields aligned with every env and secret declared in
+  `platform/workloads.json`.
+- Secret names may appear in runtime-edge wiring, but must not be assigned in
+  Dockerfiles or committed env examples.
 - Update `platform/workloads.json` and run
   `scripts/ci/validate_platform_contract.py` when config changes.

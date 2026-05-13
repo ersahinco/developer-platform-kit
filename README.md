@@ -1,50 +1,57 @@
 # aws-sdlc-containers
 
-`aws-sdlc-containers` is a lean AWS delivery sandbox for practicing the
-software development lifecycle around ECS: local development, CI/CD, immutable
-container images, reproducible Terraform, database migration safety, and
-workload operations.
+`aws-sdlc-containers` is an opinionated cloud-native delivery toolkit for
+building, running, observing, and shipping portable application workloads. It
+does not try to replace proven tools; it assembles industry-standard building
+blocks into one repeatable workflow for APIs, workers, event consumers, data
+jobs, infrastructure, and operations.
 
-The project is intentionally small today: one ECS cluster, one FastAPI app, one
-backfill worker, one scheduled data export job, one Dapr-enabled order event
-runtime, PgBouncer, Liquibase, one PostgreSQL database, one app-owned S3 object
-storage bucket, and split platform/app Terraform roots. It is being shaped
-gradually into a modular monolith monorepo for app, infra, data, and DevOps
-work.
+The current runtime implementation is deliberately small: one AWS/ECS stack,
+one FastAPI app, one backfill worker, one scheduled data export job, one
+Dapr-enabled order event runtime, PgBouncer, Liquibase, one PostgreSQL
+database, one app-owned S3 object storage bucket, and split platform/app
+Terraform roots. The reusable part is the delivery contract: workload shape,
+package boundaries, config/secrets, observability, CI gates, runtime
+capabilities, and operator evidence.
+
+## Toolkit Charter
+
+This repo should be a platform toolkit, not a private application framework.
+
+- Use established tools directly: Docker/OCI, FastAPI, SQLAlchemy, Liquibase,
+  Dapr, OpenTelemetry, Prometheus, Loki, Tempo, Grafana, Terraform, GitHub
+  Actions, Trivy, Semgrep, Gitleaks, Checkov, TFLint, Ruff, Pyright, pytest,
+  and `uv`.
+- Standardize how those tools fit together: repo layout, shared packages,
+  workload contracts, local Compose, container builds, deployment evidence,
+  rollback categories, and observability onboarding.
+- Keep provider-specific implementation at platform edges: AWS/ECS/RDS/S3/SNS
+  details live in Terraform, Dapr components, scripts, workflows, and
+  infrastructure adapters, not in domain or application logic.
+- Add runtime targets only when a real workload needs them and can satisfy the
+  same portable contract.
+- Prefer small, explicit conventions over custom abstractions that hide the
+  underlying tool.
 
 ## Start Here
 
-| Need | Go to |
-|---|---|
-| How to continue work cleanly | [docs/engineering-loop.md](docs/engineering-loop.md) |
-| Roadmaps and continuation rules | [docs/roadmaps.md](docs/roadmaps.md) |
-| Architecture direction | [docs/architecture.md](docs/architecture.md) |
-| Repository/control-boundary layout | [docs/architecture-layout.md](docs/architecture-layout.md) |
-| Portable app/platform contract | [docs/platform-contract.md](docs/platform-contract.md) |
-| Runtime capability contract | [docs/runtime-capability-contract.md](docs/runtime-capability-contract.md) |
-| Future runtime addition checklist | [docs/runtime-addition-checklist.md](docs/runtime-addition-checklist.md) |
-| Workload onboarding contract | [docs/workload-onboarding-contract.md](docs/workload-onboarding-contract.md) |
-| Database portability contract | [docs/database-portability-contract.md](docs/database-portability-contract.md) |
-| Dapr portability contract | [docs/dapr-portability-contract.md](docs/dapr-portability-contract.md) |
-| Config and secrets contract | [docs/config-secrets-contract.md](docs/config-secrets-contract.md) |
-| Observability onboarding contract | [docs/observability-onboarding-contract.md](docs/observability-onboarding-contract.md) |
-| CI quality contract | [docs/ci-quality-contract.md](docs/ci-quality-contract.md) |
-| Data/object storage portability | [docs/data-object-storage-portability.md](docs/data-object-storage-portability.md) |
-| Portable toolkit checklists | [docs/portable-toolkit-checklists.md](docs/portable-toolkit-checklists.md) |
-| Portability status | [docs/portability-status.md](docs/portability-status.md) |
-| Local development runbook | [docs/local-development.md](docs/local-development.md) |
-| AWS deployment/runbook | [docs/deployment.md](docs/deployment.md) |
-| Incident runbooks and drills | [docs/runbooks/README.md](docs/runbooks/README.md) and [docs/drills/README.md](docs/drills/README.md) |
-| No-data rollback practice | [docs/runbooks/ecs-deploy-rollback.md](docs/runbooks/ecs-deploy-rollback.md) and [docs/runbooks/infra-rollback-drill.md](docs/runbooks/infra-rollback-drill.md) |
-| Terraform root guide | [infra/README.md](infra/README.md) |
-| DevOps toolchain | [docs/devops-toolchain.md](docs/devops-toolchain.md) |
-| Data flow plan | [docs/data-flow.md](docs/data-flow.md) |
-| Observability plan | [docs/observability.md](docs/observability.md) |
-| Follow one change across AWS and persistence | [docs/operator-observability-map.md](docs/operator-observability-map.md) |
+For a first pass, read this README, then
+[docs/architecture-layout.md](docs/architecture-layout.md) for the repo map,
+[docs/engineering-loop.md](docs/engineering-loop.md) for the working method,
+and [docs/roadmaps.md](docs/roadmaps.md) before changing DevOps,
+infrastructure, data, observability, security, incident, rollout, async, or
+operator workflow behavior.
 
-Read [docs/roadmaps.md](docs/roadmaps.md) before making DevOps,
-infrastructure, data-flow, observability, security, incident, rollout, async, or
-operator workflow changes.
+For local work, use [docs/local-development.md](docs/local-development.md). For
+AWS operations, use [docs/deployment.md](docs/deployment.md),
+[infra/README.md](infra/README.md), [docs/runbooks/README.md](docs/runbooks/README.md),
+and [docs/drills/README.md](docs/drills/README.md). The fastest no-data
+rollback practice is [docs/runbooks/ecs-deploy-rollback.md](docs/runbooks/ecs-deploy-rollback.md)
+plus [docs/runbooks/infra-rollback-drill.md](docs/runbooks/infra-rollback-drill.md).
+
+For the grouped documentation map, use [docs/README.md](docs/README.md). It is
+the canonical index for platform contracts, portability docs, delivery docs,
+runbooks, and drills.
 
 ## What This Demonstrates
 
@@ -55,7 +62,7 @@ operator workflow changes.
 | Data export flow | Local and scheduled ECS export job with raw output, manifest, and S3 object storage writes | `apps/data_export_job/main.py`, `infra/app/object_storage.tf`, `infra/app/workload_jobs.tf` |
 | Runtime config | DB-backed `WRITE_MODE` and `READ_MODE` switches | `packages/infrastructure/db/repository.py` |
 | Connection pooling | PgBouncer in transaction mode | `compose.yaml`, `db/pgbouncer/pgbouncer.ini` |
-| Database portability | PostgreSQL contract with RDS as the current runtime implementation | `docs/database-portability-contract.md`, `db/`, `packages/infrastructure/db/` |
+| Database portability | PostgreSQL contract with RDS as the current runtime implementation | `docs/data.md`, `db/`, `packages/infrastructure/db/` |
 | Dapr event transport | Durable order outbox relayed through Dapr pub/sub on ECS with AWS SNS/SQS underneath | `apps/order_event_consumer/main.py`, `dapr/`, `infra/app/messaging.tf` |
 | ECS deployment | Build/scan approval followed by rolling app deploy plus one-off Liquibase and worker tasks | `.github/workflows/app-build.yml`, `.github/workflows/app-deploy.yml`, `infra/app/workload_jobs.tf` |
 | Infrastructure delivery | Terraform validate, reviewed plan, and separate manual apply | `.github/workflows/infra-plan.yml`, `.github/workflows/infra-apply.yml`, `infra/` |

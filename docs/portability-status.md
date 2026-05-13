@@ -12,18 +12,16 @@ Actions for orchestration.
 |---|---|---|
 | Application core | Portable | `packages/domain` and `packages/application` stay free of AWS, Terraform, GitHub Actions, Grafana, Loki, Prometheus, Tempo, and OpenTelemetry imports. |
 | App/platform contract | Portable shape | `docs/platform-contract.md` defines the workload contract for images, health/readiness/metrics, logs, traces, config, evidence, and rollback before adding another runtime target. |
-| Runtime capability contract | Appendable shape | `docs/runtime-capability-contract.md`, `docs/runtime-addition-checklist.md`, and `platform/runtime-capabilities.json` define what a runtime target must provide for networking, identity, secrets, ingress, observability, jobs, rollout, rollback, evidence, cost controls, and Terraform ownership. |
-| Workload onboarding | Portable shape | `docs/workload-onboarding-contract.md` defines the service/job files, health/readiness/metrics, logs, config/secrets, rollback, evidence, and tests required before runtime wiring. |
-| Database portability | PostgreSQL-compatible shape | `docs/database-portability-contract.md` defines PostgreSQL, Liquibase, PgBouncer, backup/restore, and secret-injection expectations. RDS is the current AWS implementation, not the app contract. |
+| Runtime toolkit | Appendable shape | `docs/runtime-toolkit.md` and `platform/runtime-capabilities.json` define what a runtime target must provide for networking, identity, secrets, ingress, observability, jobs, rollout, rollback, evidence, cost controls, and Terraform ownership. |
+| Workload toolkit | Portable shape | `docs/workload-toolkit.md` defines the service/job files, health/readiness/metrics, logs, config/secrets, rollback, evidence, conformance, and tests required before runtime wiring. |
+| Data and database | PostgreSQL-compatible shape | `docs/data.md` defines PostgreSQL, Liquibase, PgBouncer, backup/restore, secret-injection, dataset path, manifest integrity, idempotent run ID, write ordering, and provider SDK isolation expectations. RDS and S3 are current AWS implementations, not app contracts. |
 | Dapr eventing | Portable app boundary | `docs/dapr-portability-contract.md` keeps app eventing on Dapr pub/sub, CloudEvents, outbox, and idempotency semantics while SNS/SQS remains the current AWS component implementation. |
 | Config and secrets | Portable shape | `docs/config-secrets-contract.md` defines env naming, secret separation, source by environment, and provider-edge config rules. |
 | Observability onboarding | OSS app baseline | `docs/observability-onboarding-contract.md` defines Prometheus, Loki, Tempo, Grafana, release evidence, and incident query-hint expectations for new workloads. |
 | CI quality gates | Portable delivery shape | `docs/ci-quality-contract.md` defines the reusable gate shape around ruff, pyright, pytest, contract validation, docs/workflow/Dockerfile checks, security scans, image scans, and Terraform checks. |
-| Data/object storage | Portable data shape | `docs/data-object-storage-portability.md` defines dataset paths, manifest integrity, idempotent run IDs, write ordering, and provider SDK isolation. |
-| Toolkit checklists | Portable shape | `docs/portable-toolkit-checklists.md` gives small onboarding checks for workloads, Dapr eventing, config/secrets, observability, CI quality gates, and object-storage/data hub behavior. |
 | Runtime adapters | Mostly portable | `packages/infrastructure` owns SQL, Dapr, storage, and runtime adapters behind application ports. |
 | Local runtime | Portable | `compose.yaml`, Dockerfiles, Liquibase, PgBouncer, Dapr local assets, and the Grafana OSS stack run without AWS. |
-| Observability | Mostly OSS-portable | Grafana uses Prometheus, Loki, and Tempo. No Grafana Cloud AI or Grafana CloudWatch datasource is part of the baseline. |
+| Observability | Mostly OSS-portable | Grafana uses Prometheus, Loki, and Tempo. No Grafana CloudWatch datasource is part of the baseline. |
 | Incident evidence | Portable | Evidence bundles are Markdown/JSON and include query hints, release events, alarms, task definitions, image tags, and GitHub run IDs. |
 | Rollback drills | Mostly portable | App and data rollback drills are GitHub Actions workflows plus app/runtime checks. Infra rollback remains reviewed Terraform plan/apply. |
 | Delivery evidence | Portable shape, environment-dependent transport | Release events are artifacts everywhere and can be pushed to Loki when a reachable `LOKI_PUSH_URL` or `LOKI_URL` exists. |

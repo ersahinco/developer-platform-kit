@@ -5,6 +5,10 @@ operator-engineer: inspect what exists, change the smallest useful slice,
 deploy deliberately, observe the real system, repair drift, and leave the repo
 clearer than you found it.
 
+Use [Ubiquitous Language](ubiquitous-language.md) for names and boundaries
+before adding new terms. The docs should give coding agents and humans the same
+words for ideation, architecture, implementation, delivery, and operations.
+
 ## Principles
 
 - Lean: solve the real next problem and remove stale paths instead of adding

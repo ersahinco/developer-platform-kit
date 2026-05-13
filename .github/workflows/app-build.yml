@@ -161,6 +161,9 @@ jobs:
       - name: Run tests
         run: uv run pytest tests/ -v
 
+      - name: Run runtime conformance
+        run: make runtime-conformance
+
       - name: Stop app
         if: always()
         run: pkill -f "uvicorn" || true
