@@ -45,10 +45,12 @@
           "description": "Runs committed OCI images as ECS/Fargate tasks and services.",
           "provides": [],
           "owned_by": [
+            "infra/app/ecr.tf",
             "infra/app/compute_ecs.tf",
             "infra/app/workload_jobs.tf"
           ],
           "evidence_paths": [
+            "infra/app/ecr.tf",
             "infra/app/compute_ecs.tf",
             "infra/app/workload_jobs.tf"
           ]

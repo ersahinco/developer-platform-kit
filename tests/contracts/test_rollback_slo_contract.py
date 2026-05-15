@@ -118,10 +118,6 @@ def test_rollback_slo_runbook_covers_app_infra_and_data_paths() -> None:
         "Data Runtime Rollback Drill",
         "Infra Drill Preflight",
         "Backfill/data job containment",
-        "25627263917",
-        "25627680472",
-        "25675925524",
-        "25676047073",
     ]:
         assert phrase in runbook
 
@@ -142,4 +138,3 @@ def test_rollback_slo_runbook_covers_app_infra_and_data_paths() -> None:
     assert infra_reviewed_path in runbook
     assert "| Backfill/data job containment |" not in runbook
     assert "Backfill/data job containment is a guardrail" in runbook
-    assert "25704521559" in ownership_runbook

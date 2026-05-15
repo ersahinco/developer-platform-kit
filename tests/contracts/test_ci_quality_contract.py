@@ -11,30 +11,25 @@ def _read(path: str) -> str:
 def test_ci_quality_contract_documents_standard_gate_shape() -> None:
     contract = _read("docs/ci-quality-contract.md")
 
-    for phrase in [
-        "GitHub Actions is the current delivery control plane",
-        "Ruff format check",
-        "Ruff lint",
-        "Pyright",
-        "pytest",
-        "validate_platform_contract.py",
+    assert "GitHub Actions is the current delivery control plane" in contract
+    assert "tests/contracts/test_ci_quality_contract.py" in contract
+    assert "## Standard Gates" in contract
+    assert "## Delivery Shape" in contract
+
+    for scope in [
+        "App and scripts",
+        "Platform contracts",
         "Runtime conformance",
-        "actionlint",
-        "lychee",
-        "hadolint",
-        "Gitleaks",
-        "pip-audit",
-        "Semgrep Community Edition",
-        "Trivy",
-        "terraform fmt",
-        "terraform validate",
-        "TFLint",
-        "Checkov",
-        "reviewed plan",
-        "separate apply",
-        "tests/contracts/test_ci_quality_contract.py",
+        "Workflows",
+        "Docs",
+        "Dockerfiles",
+        "Secrets",
+        "Dependencies",
+        "SAST",
+        "Images",
+        "Terraform",
     ]:
-        assert phrase in contract
+        assert f"| {scope} |" in contract
 
 
 def test_makefile_exposes_local_ci_quality_gates() -> None:

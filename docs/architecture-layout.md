@@ -186,6 +186,7 @@ Terraform file naming is capability-oriented:
 
 - `compute_ecs.tf`
 - `database.tf`
+- `ecr.tf`
 - `edge.tf`
 - `messaging.tf`
 - `object_storage.tf`
@@ -230,8 +231,8 @@ Avoid decorative dashboards and metrics that do not drive an action.
 - `scripts/operator/`: local/operator tunnels and database access helpers.
 - `scripts/release/`: post-deploy verification used by the reviewed App Deploy
   workflow and local smoke checks.
-- `scripts/observability/`: cloud traffic, quiet log-group probes, and delivery
-  verification.
+- `scripts/observability/`: cloud traffic, release/incident evidence, and
+  delivery verification.
 - `scripts/data/`: local and remote data setup helpers.
 
 Critical rule: scripts should hide awkward shell quoting or AWS CLI plumbing,

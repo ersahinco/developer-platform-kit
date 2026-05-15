@@ -1,99 +1,6 @@
 ################################################################################
-# App compute — ECR repositories and ECS service
+# App compute — ECS service
 ################################################################################
-
-################################################################################
-# ECR — terraform-aws-modules/ecr/aws ~> 3.0
-# IMMUTABLE tags prevent silent overwrites of a deployed SHA.
-# scan_on_push enables free basic CVE scanning on every push.
-# Lifecycle: expire untagged after 1 day, keep last 10 sha- tagged images.
-################################################################################
-
-module "ecr_app" {
-  source  = "terraform-aws-modules/ecr/aws"
-  version = "~> 3.0"
-
-  repository_name                 = "${local.name}/app"
-  repository_image_tag_mutability = "IMMUTABLE"
-  repository_image_scan_on_push   = true
-
-  repository_read_write_access_arns = [local.github_actions_role_arn]
-
-  repository_lifecycle_policy = jsonencode({
-    rules = [
-      {
-        rulePriority = 1
-        description  = "Expire untagged images after 1 day "
-        selection = {
-          tagStatus   = "untagged"
-          countType   = "sinceImagePushed"
-          countUnit   = "days"
-          countNumber = 1
-        }
-        action = { type = "expire" }
-      },
-      {
-        rulePriority = 2
-        description  = "Keep last 10 sha- tagged images"
-        selection = {
-          tagStatus     = "tagged"
-          tagPrefixList = ["sha-"]
-          countType     = "imageCountMoreThan"
-          countNumber   = 10
-        }
-        action = { type = "expire" }
-      }
-    ]
-  })
-
-  tags = local.tags
-}
-
-################################################################################
-# ECR — pgbouncer sidecar image (mirrored from Docker Hub)
-# Avoids Docker Hub unauthenticated pull rate limits (100 pulls/6h per NAT IP).
-# CI mirrors the upstream tag once; ECS pulls from ECR with no rate limit.
-################################################################################
-
-module "ecr_pgbouncer" {
-  source  = "terraform-aws-modules/ecr/aws"
-  version = "~> 3.0"
-
-  repository_name                 = "${local.name}/pgbouncer"
-  repository_image_tag_mutability = "IMMUTABLE"
-  repository_image_scan_on_push   = true
-
-  repository_read_write_access_arns = [local.github_actions_role_arn]
-
-  repository_lifecycle_policy = jsonencode({
-    rules = [
-      {
-        rulePriority = 1
-        description  = "Expire untagged images after 1 day"
-        selection = {
-          tagStatus   = "untagged"
-          countType   = "sinceImagePushed"
-          countUnit   = "days"
-          countNumber = 1
-        }
-        action = { type = "expire" }
-      },
-      {
-        rulePriority = 2
-        description  = "Keep last 5 tagged images"
-        selection = {
-          tagStatus     = "tagged"
-          tagPrefixList = ["v"]
-          countType     = "imageCountMoreThan"
-          countNumber   = 5
-        }
-        action = { type = "expire" }
-      }
-    ]
-  })
-
-  tags = local.tags
-}
 
 ################################################################################
 # ECS — terraform-aws-modules/ecs/aws ~> 7.0
@@ -185,7 +92,7 @@ module "ecs" {
         pgbouncer = {
           # Built from edoburu/pgbouncer:v1.25.1-p0 with Alpine security updates,
           # then pushed to ECR by CI to avoid Docker Hub pull rate limits.
-          image          = "${module.ecr_pgbouncer.repository_url}:v1.25.1-p0"
+          image          = format("%s:%s", module.ecr["pgbouncer"].repository_url, "v1.25.1-p0")
           essential      = true
           systemControls = []
           volumesFrom    = []
@@ -229,7 +136,7 @@ module "ecs" {
           # Documentation-only container shape after the ownership migration:
           # GitHub Actions renders and registers real app task-definition
           # revisions. See docs/runbooks/app-infra-ownership.md.
-          image     = "${module.ecr_app.repository_url}:${coalesce(var.app_image_tag, var.initial_image_tag)}"
+          image     = format("%s:%s", module.ecr["app"].repository_url, coalesce(var.app_image_tag, var.initial_image_tag))
           essential = true
 
           # ECS container definition keys are camelCase — they map directly to the ECS API

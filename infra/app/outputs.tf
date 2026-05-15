@@ -45,27 +45,27 @@ output "app_target_latency_alarm_name" {
 
 output "ecr_app_repository_url" {
   description = "ECR URL for the app image."
-  value       = module.ecr_app.repository_url
+  value       = module.ecr["app"].repository_url
 }
 
 output "ecr_worker_repository_url" {
   description = "ECR URL for the worker image."
-  value       = module.ecr_worker.repository_url
+  value       = module.ecr["worker"].repository_url
 }
 
 output "ecr_liquibase_repository_url" {
   description = "ECR URL for the Liquibase migrations image."
-  value       = module.ecr_liquibase.repository_url
+  value       = module.ecr["liquibase"].repository_url
 }
 
 output "ecr_data_export_job_repository_url" {
   description = "ECR URL for the data export job image."
-  value       = module.ecr_data_export_job.repository_url
+  value       = module.ecr["data_export_job"].repository_url
 }
 
 output "ecr_order_event_consumer_repository_url" {
   description = "ECR URL for the order event consumer image."
-  value       = module.ecr_order_event_consumer.repository_url
+  value       = module.ecr["order_event_consumer"].repository_url
 }
 
 output "worker_task_definition_arn" {

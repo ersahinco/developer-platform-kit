@@ -7,170 +7,6 @@
 ################################################################################
 
 ################################################################################
-# ECR — support workload images
-################################################################################
-
-module "ecr_liquibase" {
-  source  = "terraform-aws-modules/ecr/aws"
-  version = "~> 3.0"
-
-  repository_name                 = "${local.name}/liquibase"
-  repository_image_tag_mutability = "IMMUTABLE"
-  repository_image_scan_on_push   = true
-
-  repository_read_write_access_arns = [local.github_actions_role_arn]
-
-  repository_lifecycle_policy = jsonencode({
-    rules = [
-      {
-        rulePriority = 1
-        description  = "Expire untagged images after 1 day"
-        selection = {
-          tagStatus   = "untagged"
-          countType   = "sinceImagePushed"
-          countUnit   = "days"
-          countNumber = 1
-        }
-        action = { type = "expire" }
-      },
-      {
-        rulePriority = 2
-        description  = "Keep last 10 sha- tagged images"
-        selection = {
-          tagStatus     = "tagged"
-          tagPrefixList = ["sha-"]
-          countType     = "imageCountMoreThan"
-          countNumber   = 10
-        }
-        action = { type = "expire" }
-      }
-    ]
-  })
-
-  tags = local.tags
-}
-
-module "ecr_worker" {
-  source  = "terraform-aws-modules/ecr/aws"
-  version = "~> 3.0"
-
-  repository_name                 = "${local.name}/worker"
-  repository_image_tag_mutability = "IMMUTABLE"
-  repository_image_scan_on_push   = true
-
-  repository_read_write_access_arns = [local.github_actions_role_arn]
-
-  repository_lifecycle_policy = jsonencode({
-    rules = [
-      {
-        rulePriority = 1
-        description  = "Expire untagged images after 1 day"
-        selection = {
-          tagStatus   = "untagged"
-          countType   = "sinceImagePushed"
-          countUnit   = "days"
-          countNumber = 1
-        }
-        action = { type = "expire" }
-      },
-      {
-        rulePriority = 2
-        description  = "Keep last 10 sha- tagged images"
-        selection = {
-          tagStatus     = "tagged"
-          tagPrefixList = ["sha-"]
-          countType     = "imageCountMoreThan"
-          countNumber   = 10
-        }
-        action = { type = "expire" }
-      }
-    ]
-  })
-
-  tags = local.tags
-}
-
-module "ecr_data_export_job" {
-  source  = "terraform-aws-modules/ecr/aws"
-  version = "~> 3.0"
-
-  repository_name                 = "${local.name}/data-export-job"
-  repository_image_tag_mutability = "IMMUTABLE"
-  repository_image_scan_on_push   = true
-
-  repository_read_write_access_arns = [local.github_actions_role_arn]
-
-  repository_lifecycle_policy = jsonencode({
-    rules = [
-      {
-        rulePriority = 1
-        description  = "Expire untagged images after 1 day"
-        selection = {
-          tagStatus   = "untagged"
-          countType   = "sinceImagePushed"
-          countUnit   = "days"
-          countNumber = 1
-        }
-        action = { type = "expire" }
-      },
-      {
-        rulePriority = 2
-        description  = "Keep last 10 sha- tagged images"
-        selection = {
-          tagStatus     = "tagged"
-          tagPrefixList = ["sha-"]
-          countType     = "imageCountMoreThan"
-          countNumber   = 10
-        }
-        action = { type = "expire" }
-      }
-    ]
-  })
-
-  tags = local.tags
-}
-
-module "ecr_order_event_consumer" {
-  source  = "terraform-aws-modules/ecr/aws"
-  version = "~> 3.0"
-
-  repository_name                 = "${local.name}/order-event-consumer"
-  repository_image_tag_mutability = "IMMUTABLE"
-  repository_image_scan_on_push   = true
-
-  repository_read_write_access_arns = [local.github_actions_role_arn]
-
-  repository_lifecycle_policy = jsonencode({
-    rules = [
-      {
-        rulePriority = 1
-        description  = "Expire untagged images after 1 day"
-        selection = {
-          tagStatus   = "untagged"
-          countType   = "sinceImagePushed"
-          countUnit   = "days"
-          countNumber = 1
-        }
-        action = { type = "expire" }
-      },
-      {
-        rulePriority = 2
-        description  = "Keep last 10 sha- tagged images"
-        selection = {
-          tagStatus     = "tagged"
-          tagPrefixList = ["sha-"]
-          countType     = "imageCountMoreThan"
-          countNumber   = 10
-        }
-        action = { type = "expire" }
-      }
-    ]
-  })
-
-  tags = local.tags
-}
-
-################################################################################
 # Worker task definition — one-off Fargate task triggered by CI for backfill.
 # Connects directly to RDS (not via pgbouncer) — backfill transactions are
 # long-running and incompatible with pgbouncer's transaction-mode pool.
@@ -193,7 +29,7 @@ resource "aws_ecs_task_definition" "worker" {
       # CI always calls render-task-definition + register-task-definition
       # with the real SHA before running this one-off task — Terraform's
       # registered revision is never used directly after bootstrap.
-      image     = "${module.ecr_worker.repository_url}:${var.initial_image_tag}"
+      image     = format("%s:%s", module.ecr["worker"].repository_url, var.initial_image_tag)
       essential = true
       secrets = [
         # ECS does not interpolate $(VAR) in environment values. DB_PASSWORD is
@@ -271,7 +107,7 @@ resource "aws_ecs_task_definition" "data_export_job" {
       # var.initial_image_tag is used only on the first apply (bootstrap).
       # CI registers a SHA-tagged revision before the scheduler uses the task
       # family for recurring exports.
-      image     = "${module.ecr_data_export_job.repository_url}:${var.initial_image_tag}"
+      image     = format("%s:%s", module.ecr["data_export_job"].repository_url, var.initial_image_tag)
       essential = true
       secrets = [
         { name = "DB_USER", valueFrom = "${module.rds.db_instance_master_user_secret_arn}:username::" },
@@ -578,7 +414,7 @@ resource "aws_ecs_task_definition" "order_event_consumer" {
     }),
     merge(local.ecs_container_defaults, {
       name         = "order-event-consumer"
-      image        = "${module.ecr_order_event_consumer.repository_url}:${var.initial_image_tag}"
+      image        = format("%s:%s", module.ecr["order_event_consumer"].repository_url, var.initial_image_tag)
       essential    = true
       portMappings = [{ containerPort = 8081, hostPort = 8081, protocol = "tcp" }]
       secrets = [
@@ -685,7 +521,7 @@ resource "aws_ecs_task_definition" "liquibase" {
       # CI always calls render-task-definition + register-task-definition
       # with the real SHA before running this one-off task — Terraform's
       # registered revision is never used directly after bootstrap.
-      image            = "${module.ecr_liquibase.repository_url}:${var.initial_image_tag}"
+      image            = format("%s:%s", module.ecr["liquibase"].repository_url, var.initial_image_tag)
       essential        = true
       workingDirectory = "/liquibase"
       command = [

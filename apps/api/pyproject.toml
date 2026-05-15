@@ -6,7 +6,6 @@ dependencies = [
     "aws-sdlc-containers-application",
     "aws-sdlc-containers-infrastructure",
     "aws-sdlc-containers-domain",
-    "email-validator>=2.2.0",
     "fastapi>=0.111.0",
     "uvicorn>=0.29.0",
     "sqlalchemy>=2.0.30",
