@@ -9,7 +9,7 @@ the README, roadmap, and architecture docs can stay short.
 |---|---|
 | Learn the shared vocabulary | [Ubiquitous Language](ubiquitous-language.md) |
 | Understand the project shape | [Architecture](architecture.md), [Architecture Layout](architecture-layout.md), [Roadmap](roadmaps.md) |
-| Continue work cleanly | [Engineering Loop](engineering-loop.md), [Roadmap](roadmaps.md) |
+| Continue work cleanly | [Engineering Loop](engineering-loop.md), [Lean Profile](lean-profile.md), [Roadmap](roadmaps.md) |
 | Develop locally | [Local Development](local-development.md) |
 | Deploy or operate AWS | [Deployment](deployment.md), [Infrastructure](../infra/README.md), [Runbooks](runbooks/README.md), [Drills](drills/README.md) |
 

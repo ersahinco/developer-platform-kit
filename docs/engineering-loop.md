@@ -8,6 +8,8 @@ clearer than you found it.
 Use [Ubiquitous Language](ubiquitous-language.md) for names and boundaries
 before adding new terms. The docs should give coding agents and humans the same
 words for ideation, architecture, implementation, delivery, and operations.
+Use [Lean Profile](lean-profile.md) when the slice is mostly about reducing
+code, dependency, documentation, or platform surface while preserving capability.
 
 ## Principles
 
@@ -70,7 +72,9 @@ words for ideation, architecture, implementation, delivery, and operations.
 
 7. Leave less confusion.
    Update only canonical docs. Move or delete stale paths instead of preserving
-   aliases that future work can accidentally follow.
+   aliases that future work can accidentally follow. Keep code that encodes
+   product/runtime truth; delete code that only compensates for unclear
+   ownership.
 
 ## Documentation Rules
 

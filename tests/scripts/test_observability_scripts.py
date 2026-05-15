@@ -15,8 +15,48 @@ import scripts.observability.verify_observability_delivery as delivery  # noqa: 
 import scripts.observability.generate_cloud_traffic as cloud_traffic  # noqa: E402
 import scripts.observability.incident_evidence_bundle as evidence  # noqa: E402
 import scripts.observability.release_event as release_event  # noqa: E402
-import scripts.observability.run_observability_cloud_jobs as cloud_jobs  # noqa: E402
 import scripts.observability.verify_release_event_loki_delivery as release_verify  # noqa: E402
+
+
+TEST_RUN_ID = "1234567890"
+TEST_PLAN_RUN_ID = "2345678901"
+TEST_IMAGE_TAG = "sha-1234567890abcdef1234567890abcdef12345678"
+TEST_TASK_DEFINITION = "arn:aws:ecs:task-definition/aws-sdlc-containers:9"
+
+
+def _release_event(**overrides: Any) -> dict[str, Any]:
+    env = {
+        "STACK_NAME": "aws-sdlc-containers",
+        "AWS_REGION": "eu-central-1",
+        "GITHUB_REPOSITORY": "ersahinco/aws-sdlc-containers",
+        "GITHUB_RUN_ID": TEST_RUN_ID,
+        "GITHUB_WORKFLOW": "App Deploy",
+    }
+    extra_env = overrides.pop("env", None)
+    if extra_env:
+        env.update(extra_env)
+
+    values: dict[str, Any] = {
+        "event_type": "app_deploy",
+        "status": "success",
+        "summary": "App deploy verification passed",
+        "service_name": "app",
+        "image_tag": TEST_IMAGE_TAG,
+        "task_definition": TEST_TASK_DEFINITION,
+        "previous_task_definition": None,
+        "drill_task_definition": None,
+        "plan_run_id": None,
+        "fault_mode": None,
+        "read_mode": "legacy",
+        "write_mode": "legacy",
+        "rollback_seconds": None,
+        "rollback_slo_seconds": None,
+        "verify_seconds": 12,
+        "verify_slo_seconds": 120,
+        "env": env,
+    }
+    values.update(overrides)
+    return release_event.build_event(**values)
 
 
 def test_delivery_verifier_checks_expected_inventory_and_rejects_stale_streams(
@@ -113,7 +153,7 @@ def test_delivery_verifier_checks_loki_log_group_labels_and_fresh_logs(
     assert all(result.ok for result in results)
 
 
-def test_delivery_verifier_default_loki_freshness_skips_quiet_grafana(
+def test_delivery_verifier_default_loki_freshness_checks_app_only(
     monkeypatch,
 ) -> None:
     expected_groups = delivery._expected_loki_log_group_names("aws-sdlc-containers")
@@ -149,10 +189,7 @@ def test_delivery_verifier_default_loki_freshness_skips_quiet_grafana(
 
     assert all(result.ok for result in results)
     assert any("/ecs/aws-sdlc-containers/app" in item for item in queried_log_groups)
-    assert any("/ecs/aws-sdlc-containers/loki" in item for item in queried_log_groups)
-    assert not any(
-        "/ecs/aws-sdlc-containers/grafana" in item for item in queried_log_groups
-    )
+    assert len(queried_log_groups) == 1
 
 
 def test_delivery_verifier_flags_old_loki_schema_without_log_group(
@@ -255,7 +292,7 @@ def test_incident_evidence_bundle_collects_portable_context(
         raise AssertionError(f"unexpected AWS call: {args}")
 
     monkeypatch.setattr(evidence, "_aws_json", fake_aws_json)
-    monkeypatch.setenv("GITHUB_RUN_ID", "25701944031")
+    monkeypatch.setenv("GITHUB_RUN_ID", TEST_RUN_ID)
 
     bundle = evidence.build_bundle(
         stack_name="aws-sdlc-containers",
@@ -270,7 +307,7 @@ def test_incident_evidence_bundle_collects_portable_context(
     assert json_path.is_file()
     assert bundle["ecs"]["primary_rollout_state"] == "COMPLETED"
     assert bundle["ecs"]["containers"][0]["image_tag"].startswith("sha-")
-    assert bundle["github"]["github_run_id"] == "25701944031"
+    assert bundle["github"]["github_run_id"] == TEST_RUN_ID
     assert "request_id" in bundle["correlation_fields"]
     assert "trace_id" in bundle["correlation_fields"]
     assert "task_definition" in bundle["correlation_fields"]
@@ -284,30 +321,7 @@ def test_incident_evidence_bundle_includes_recent_release_events(
     now = datetime.now(UTC)
     release_events_dir = tmp_path / "release-events"
     release_events_dir.mkdir()
-    recent_event = release_event.build_event(
-        event_type="app_deploy",
-        status="success",
-        summary="App deploy verification passed",
-        service_name="app",
-        image_tag="sha-1234567890abcdef1234567890abcdef12345678",
-        task_definition="arn:aws:ecs:task-definition/aws-sdlc-containers:9",
-        previous_task_definition=None,
-        drill_task_definition=None,
-        plan_run_id=None,
-        fault_mode=None,
-        read_mode="legacy",
-        write_mode="legacy",
-        rollback_seconds=None,
-        rollback_slo_seconds=None,
-        verify_seconds=12,
-        verify_slo_seconds=120,
-        env={
-            "STACK_NAME": "aws-sdlc-containers",
-            "GITHUB_RUN_ID": "25705755619",
-            "GITHUB_WORKFLOW": "App Deploy",
-        },
-        now=now,
-    )
+    recent_event = _release_event(now=now)
     old_event = {
         **recent_event,
         "timestamp": (now - timedelta(hours=3)).isoformat(),
@@ -339,12 +353,12 @@ def test_incident_evidence_bundle_includes_recent_release_events(
 
     assert bundle["release_event_sources"]["loaded_count"] == 1
     assert bundle["release_events"][0]["event_type"] == "app_deploy"
-    assert bundle["release_events"][0]["github_run_id"] == "25705755619"
+    assert bundle["release_events"][0]["github_run_id"] == TEST_RUN_ID
     assert bundle["release_events"][0]["image_tag"].startswith("sha-")
     markdown = markdown_path.read_text(encoding="utf-8")
     assert "Recent Delivery Events" in markdown
     assert "App deploy verification passed" in markdown
-    assert "25705755619" in markdown
+    assert TEST_RUN_ID in markdown
     assert "release-evidence-*" in markdown
 
 
@@ -352,26 +366,19 @@ def test_incident_evidence_bundle_queries_loki_release_events(
     monkeypatch, tmp_path: Path
 ) -> None:
     now = datetime.now(UTC)
-    event = release_event.build_event(
+    event = _release_event(
         event_type="infra_apply",
-        status="success",
         summary="Infra apply completed",
         service_name="infra",
         image_tag=None,
         task_definition=None,
-        previous_task_definition=None,
-        drill_task_definition=None,
-        plan_run_id="25706433611",
-        fault_mode=None,
+        plan_run_id=TEST_PLAN_RUN_ID,
         read_mode=None,
         write_mode=None,
-        rollback_seconds=None,
-        rollback_slo_seconds=None,
         verify_seconds=None,
         verify_slo_seconds=None,
         env={
-            "STACK_NAME": "aws-sdlc-containers",
-            "GITHUB_RUN_ID": "25706433611",
+            "GITHUB_RUN_ID": TEST_PLAN_RUN_ID,
             "GITHUB_WORKFLOW": "Infra Apply",
         },
         now=now,
@@ -417,7 +424,7 @@ def test_incident_evidence_bundle_queries_loki_release_events(
     assert bundle["release_event_sources"]["artifact_count"] == 0
     assert bundle["release_events"][0]["event_type"] == "infra_apply"
     assert bundle["release_events"][0]["source"] == "loki"
-    assert bundle["release_events"][0]["plan_run_id"] == "25706433611"
+    assert bundle["release_events"][0]["plan_run_id"] == TEST_PLAN_RUN_ID
     markdown = markdown_path.read_text(encoding="utf-8")
     assert "Infra apply completed" in markdown
     assert "loki" in markdown
@@ -437,32 +444,7 @@ def test_release_event_writes_markdown_json_and_jsonl(tmp_path: Path) -> None:
         ],
         "errors": [],
     }
-    event = release_event.build_event(
-        event_type="app_deploy",
-        status="success",
-        summary="App deploy verification passed",
-        service_name="app",
-        image_tag="sha-1234567890abcdef1234567890abcdef12345678",
-        task_definition="arn:aws:ecs:task-definition/aws-sdlc-containers:9",
-        previous_task_definition=None,
-        drill_task_definition=None,
-        plan_run_id=None,
-        fault_mode=None,
-        read_mode="legacy",
-        write_mode="legacy",
-        rollback_seconds=None,
-        rollback_slo_seconds=None,
-        verify_seconds=12,
-        verify_slo_seconds=120,
-        alarm_snapshot=alarm_snapshot,
-        env={
-            "STACK_NAME": "aws-sdlc-containers",
-            "AWS_REGION": "eu-central-1",
-            "GITHUB_REPOSITORY": "ersahinco/aws-sdlc-containers",
-            "GITHUB_RUN_ID": "25704755534",
-            "GITHUB_WORKFLOW": "App Deploy",
-        },
-    )
+    event = _release_event(alarm_snapshot=alarm_snapshot)
 
     json_path, jsonl_path, markdown_path = release_event.write_event(event, tmp_path)
 
@@ -471,45 +453,21 @@ def test_release_event_writes_markdown_json_and_jsonl(tmp_path: Path) -> None:
     markdown = markdown_path.read_text(encoding="utf-8")
     assert "Release Evidence Event" in markdown
     assert "app_deploy" in markdown
-    assert "25704755534" in markdown
+    assert TEST_RUN_ID in markdown
     assert "aws-ecs" in markdown
     assert "Alarm Snapshot" in markdown
     assert "aws-sdlc-containers-app-target-5xx: OK" in markdown
     assert event["runtime_id"] == "aws-ecs"
     assert event["workload_id"] == "app"
-    assert event["deployment_id"] == "arn:aws:ecs:task-definition/aws-sdlc-containers:9"
+    assert event["deployment_id"] == TEST_TASK_DEFINITION
     assert event["source_workflow"] == "App Deploy"
-    assert event["correlation"]["github_run_id"] == "25704755534"
+    assert event["correlation"]["github_run_id"] == TEST_RUN_ID
     assert event["revision"]["image_tag"].startswith("sha-")
     assert event["alarm_snapshot"]["alarms"][0]["state"] == "OK"
 
 
 def test_release_event_contract_requires_portable_fields() -> None:
-    event = release_event.build_event(
-        event_type="app_deploy",
-        status="success",
-        summary="App deploy verification passed",
-        service_name="app",
-        image_tag="sha-1234567890abcdef1234567890abcdef12345678",
-        task_definition="arn:aws:ecs:task-definition/aws-sdlc-containers:9",
-        previous_task_definition=None,
-        drill_task_definition=None,
-        plan_run_id=None,
-        fault_mode=None,
-        read_mode="legacy",
-        write_mode="dual",
-        rollback_seconds=None,
-        rollback_slo_seconds=None,
-        verify_seconds=12,
-        verify_slo_seconds=120,
-        env={
-            "STACK_NAME": "aws-sdlc-containers",
-            "AWS_REGION": "eu-central-1",
-            "GITHUB_REPOSITORY": "ersahinco/aws-sdlc-containers",
-            "GITHUB_RUN_ID": "25704755534",
-            "GITHUB_WORKFLOW": "App Deploy",
-        },
-    )
+    event = _release_event(write_mode="dual")
 
     release_event.validate_event_contract(event)
 
@@ -613,28 +571,20 @@ def test_release_event_pushes_loki_stream(monkeypatch) -> None:
         return FakeResponse()
 
     monkeypatch.setattr(release_event.request, "urlopen", fake_urlopen)
-    event = release_event.build_event(
+    event = _release_event(
         event_type="app_rollback_drill",
-        status="success",
         summary=None,
-        service_name="app",
         image_tag="sha-test",
         task_definition="restored",
         previous_task_definition="restored",
         drill_task_definition="bad",
-        plan_run_id=None,
         fault_mode="latency",
         read_mode=None,
         write_mode=None,
         rollback_seconds=120,
         rollback_slo_seconds=900,
         verify_seconds=20,
-        verify_slo_seconds=120,
-        env={
-            "STACK_NAME": "aws-sdlc-containers",
-            "GITHUB_WORKFLOW": "App No-Data Rollback Drill",
-            "GITHUB_RUN_ID": "25705755619",
-        },
+        env={"GITHUB_WORKFLOW": "App No-Data Rollback Drill"},
     )
 
     release_event.push_loki(event, "http://loki:3100/loki/api/v1/push")
@@ -644,7 +594,7 @@ def test_release_event_pushes_loki_stream(monkeypatch) -> None:
     stream = payload["streams"][0]
     assert stream["stream"]["event_type"] == "app_rollback_drill"
     assert stream["stream"]["status"] == "success"
-    assert stream["stream"]["github_run_id"] == "25705755619"
+    assert stream["stream"]["github_run_id"] == TEST_RUN_ID
     assert stream["stream"]["workflow"] == "App_No-Data_Rollback_Drill"
     assert "app_rollback_drill" in stream["values"][0][1]
 
@@ -866,99 +816,3 @@ def test_cloud_traffic_generator_creates_fixture_customer_when_seed_data_is_abse
     assert all(result.ok for result in results)
     assert ("POST", "/admin/observability-fixture") in calls
     assert ("POST", "/orders") in calls
-
-
-def test_cloud_job_probe_overrides_keep_batch_work_small(monkeypatch) -> None:
-    monkeypatch.delenv("BACKFILL_MAX_BATCHES", raising=False)
-
-    worker_override = cloud_jobs._worker_overrides()
-    worker_env = worker_override["containerOverrides"][0]["environment"]
-    assert {"name": "BACKFILL_MAX_BATCHES", "value": "1"} in worker_env
-    assert {"name": "BACKFILL_SLEEP_MS", "value": "0"} in worker_env
-
-    data_export_override = cloud_jobs._data_export_overrides()
-    data_export_env = data_export_override["containerOverrides"][0]["environment"]
-    assert any(item["name"] == "DATA_EXPORT_RUN_ID" for item in data_export_env)
-
-    liquibase_override = cloud_jobs._liquibase_overrides()
-    command = liquibase_override["containerOverrides"][0]["command"]
-    assert "status" in command
-    assert "update" not in command
-
-
-def test_cloud_job_probe_runs_selected_targets(monkeypatch) -> None:
-    calls: list[tuple[str, str]] = []
-
-    monkeypatch.setenv("OBSERVABILITY_CLOUD_JOB_TARGETS", "worker,prometheus")
-    monkeypatch.setenv("OBSERVABILITY_RESTART_QUIET_DAEMONS", "true")
-    monkeypatch.setattr(
-        cloud_jobs,
-        "_resolve_network",
-        lambda stack_name, region: cloud_jobs.NetworkConfig(
-            subnet_id="subnet-123",
-            security_group_id="sg-123",
-        ),
-    )
-
-    def fake_run_batch_target(**kwargs: object) -> cloud_jobs.ProbeResult:
-        calls.append(("batch", str(kwargs["target"])))
-        return cloud_jobs.ProbeResult(True, "batch", "ok")
-
-    def fake_restart_service(
-        cluster: str, service: str, region: str
-    ) -> cloud_jobs.ProbeResult:
-        calls.append(("service", service))
-        return cloud_jobs.ProbeResult(True, "service", "ok")
-
-    monkeypatch.setattr(cloud_jobs, "_run_batch_target", fake_run_batch_target)
-    monkeypatch.setattr(cloud_jobs, "_restart_service", fake_restart_service)
-
-    results = cloud_jobs.run()
-
-    assert all(result.ok for result in results)
-    assert calls == [("batch", "worker"), ("service", "prometheus")]
-
-
-def test_cloud_job_waiter_finishes_when_container_exit_code_is_available(
-    monkeypatch,
-) -> None:
-    calls = 0
-
-    def fake_aws_json(args: list[str], region: str) -> dict[str, Any]:
-        nonlocal calls
-        calls += 1
-        assert args[:2] == ["ecs", "describe-tasks"]
-        return {
-            "tasks": [
-                {
-                    "lastStatus": "DEPROVISIONING",
-                    "desiredStatus": "STOPPED",
-                    "containers": [
-                        {
-                            "name": "liquibase",
-                            "lastStatus": "STOPPED",
-                            "exitCode": 0,
-                        }
-                    ],
-                }
-            ]
-        }
-
-    monkeypatch.setattr(cloud_jobs, "_aws_json", fake_aws_json)
-    monkeypatch.setattr(
-        cloud_jobs.time,
-        "sleep",
-        lambda seconds: (_ for _ in ()).throw(
-            AssertionError("waiter slept after exit code was available")
-        ),
-    )
-
-    cloud_jobs._wait_task_finished(
-        "cluster",
-        "arn:aws:ecs:region:acct:task/cluster/123",
-        "liquibase",
-        "eu-central-1",
-        "liquibase",
-    )
-
-    assert calls == 1

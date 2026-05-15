@@ -269,19 +269,10 @@ release-event-delivery-verify: ## Verify release-event push/query round-trip thr
 	uv run python scripts/observability/verify_release_event_loki_delivery.py
 
 .PHONY: observability-cloud-traffic
-observability-cloud-traffic: ## Generate live API traffic and small cloud probes for Grafana/CloudWatch observation
+observability-cloud-traffic: ## Generate live API traffic for Grafana/CloudWatch observation
 	@AWS_REGION="$(AWS_REGION)" \
-	BASE_URL="$${BASE_URL:-https://api.$(ROOT_DOMAIN)}" \
+	ROOT_DOMAIN="$(ROOT_DOMAIN)" \
 	uv run python scripts/observability/generate_cloud_traffic.py
-	@AWS_REGION="$(AWS_REGION)" \
-	STACK_NAME="$(STACK_NAME)" \
-	uv run python scripts/observability/run_observability_cloud_jobs.py
-
-.PHONY: observability-cloud-jobs
-observability-cloud-jobs: ## Run only the small cloud probes for quiet observability log groups
-	@AWS_REGION="$(AWS_REGION)" \
-	STACK_NAME="$(STACK_NAME)" \
-	uv run python scripts/observability/run_observability_cloud_jobs.py
 
 .PHONY: incident-evidence
 incident-evidence: ## Build portable Markdown/JSON incident evidence bundle

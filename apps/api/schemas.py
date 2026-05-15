@@ -1,9 +1,12 @@
 import datetime
 from decimal import Decimal
+import re
 
-from pydantic import BaseModel, ConfigDict, EmailStr, Field
+from pydantic import BaseModel, ConfigDict, Field, field_validator
 
 from domain.order import OrderStatus, ReadModeValue, WriteModeValue
+
+EMAIL_RE = re.compile(r"^[^@\s]+@[^@\s]+\.[^@\s]+$")
 
 
 class CreateOrderRequest(BaseModel):
@@ -11,7 +14,16 @@ class CreateOrderRequest(BaseModel):
 
     customer_id: int = Field(gt=0)
     total_amount: Decimal = Field(gt=0, max_digits=12, decimal_places=2)
-    billing_email: EmailStr | None = None
+    billing_email: str | None = None
+
+    @field_validator("billing_email")
+    @classmethod
+    def validate_billing_email(cls, value: str | None) -> str | None:
+        if value is None:
+            return None
+        if len(value) > 255 or EMAIL_RE.fullmatch(value) is None:
+            raise ValueError("billing_email must be a valid email address")
+        return value
 
 
 class OrderResponse(BaseModel):

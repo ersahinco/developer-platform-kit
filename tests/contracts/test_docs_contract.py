@@ -66,25 +66,31 @@ def test_docs_define_ubiquitous_language_for_agents_and_humans() -> None:
         encoding="utf-8"
     )
 
-    for phrase in [
-        "opinionated cloud-native delivery toolkit",
+    for heading in [
+        "## Project Sentence",
+        "## Core Terms",
+        "## Use These Phrases",
+        "## Avoid These Phrases",
+        "## Coding Rules Of Thumb",
+    ]:
+        assert heading in language
+
+    for term in [
         "Platform toolkit",
         "Workload",
         "Runtime target",
         "Provider edge",
-        "Contract",
-        "Conformance",
         "Release evidence",
-        "`apps/*`",
-        "`packages/domain`",
-        "`packages/application`",
-        "`packages/infrastructure`",
-        "Portable observability baseline",
-        "PostgreSQL-compatible contract",
-        'platform toolkit", not "custom framework',
-        'runtime target", not "cloud abstraction',
     ]:
-        assert phrase in language
+        assert f"| {term} |" in language
+
+    assert "opinionated cloud-native delivery toolkit" in language
+    assert "`apps/*`" in language
+    assert "`packages/domain`" in language
+    assert "`packages/application`" in language
+    assert "`packages/infrastructure`" in language
+    assert '"Framework"' in language
+    assert '"Cloud-neutral"' in language
 
     assert "Use [Ubiquitous Language](ubiquitous-language.md)" in engineering_loop
 
