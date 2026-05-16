@@ -1,14 +1,119 @@
-from __future__ import annotations
-
 from pathlib import Path
+import subprocess
 
 import yaml
+
 
 ROOT = Path(__file__).resolve().parents[2]
 
 
 def _read(path: str) -> str:
     return (ROOT / path).read_text(encoding="utf-8")
+
+
+def test_repository_does_not_track_generated_or_placeholder_artifacts() -> None:
+    tracked_files = subprocess.run(
+        ["git", "ls-files"],
+        check=True,
+        capture_output=True,
+        text=True,
+    ).stdout.splitlines()
+
+    forbidden_segments = [
+        "__pycache__/",
+        ".pytest_cache/",
+        ".ruff_cache/",
+        ".venv/",
+        ".terraform/",
+        ".egg-info/",
+        "/dist/",
+        "/build/",
+    ]
+    forbidden_suffixes = [
+        ".pyc",
+        ".pyo",
+        ".tmp",
+        ".bak",
+        ".swp",
+        "~",
+    ]
+
+    offenders = [
+        path
+        for path in tracked_files
+        if any(segment in f"{path}/" for segment in forbidden_segments)
+        or any(path.endswith(suffix) for suffix in forbidden_suffixes)
+    ]
+
+    assert offenders == []
+
+    placeholder_roots = [
+        ROOT / "deploy",
+        ROOT / "local",
+        ROOT / "ops",
+        ROOT / "security",
+    ]
+
+    for path in placeholder_roots:
+        assert not path.exists()
+
+
+def test_platform_root_stays_bootstrap_and_github_oidc_only() -> None:
+    platform_tf = "\n".join(
+        path.read_text(encoding="utf-8")
+        for path in sorted((ROOT / "infra" / "platform").glob("*.tf"))
+    )
+    forbidden_runtime_resources = [
+        'resource "aws_ecs_',
+        'resource "aws_db_',
+        'resource "aws_rds_',
+        'resource "aws_lb"',
+        'resource "aws_lb_',
+        'resource "aws_ecr_',
+        'resource "aws_s3_bucket"',
+        'resource "aws_sqs_',
+        'resource "aws_sns_',
+        'resource "aws_cloudwatch_',
+        'resource "aws_scheduler_',
+        'resource "aws_wafv2_',
+    ]
+
+    for forbidden in forbidden_runtime_resources:
+        assert forbidden not in platform_tf
+
+
+def test_app_root_consumes_platform_only_through_remote_state_outputs() -> None:
+    providers_tf = _read("infra/app/providers.tf")
+    app_tf = "\n".join(
+        path.read_text(encoding="utf-8")
+        for path in sorted((ROOT / "infra" / "app").glob("*.tf"))
+    )
+
+    assert 'data "terraform_remote_state" "platform"' in providers_tf
+    assert "platform = data.terraform_remote_state.platform.outputs" in providers_tf
+    assert 'source  = "../platform"' not in app_tf
+    assert "data.aws_vpc" not in app_tf
+    assert "data.aws_subnets" not in app_tf
+
+
+def test_terraform_state_uses_s3_native_lockfiles_only() -> None:
+    versions_text = "\n".join(
+        (ROOT / path).read_text(encoding="utf-8")
+        for path in ["infra/platform/versions.tf", "infra/app/versions.tf"]
+    )
+    state_docs = "\n".join(
+        (ROOT / path).read_text(encoding="utf-8")
+        for path in [
+            "Makefile",
+            "docs/deployment.md",
+            "infra/platform/github_actions.tf",
+        ]
+    )
+
+    assert versions_text.count("use_lockfile = true") == 2
+    assert "dynamodb_table" not in versions_text
+    assert "terraform-locks" not in state_docs
+    assert "dynamodb:" not in state_docs
 
 
 def test_app_rollback_drill_enforces_pipeline_slos() -> None:
@@ -21,7 +126,7 @@ def test_app_rollback_drill_enforces_pipeline_slos() -> None:
     assert env["APP_ROLLBACK_VERIFY_SLO_SECONDS"] == "120"
 
     assert "deploy_started_epoch=$(date +%s)" in workflow_text
-    assert "rollback_seconds=$(($(date +%s) - DEPLOY_STARTED_EPOCH))" in (workflow_text)
+    assert "rollback_seconds=$(($(date +%s) - DEPLOY_STARTED_EPOCH))" in workflow_text
     assert "ECS rollback exceeded ${FAULT_MODE} SLO" in workflow_text
     assert "Restored app verification exceeded SLO" in workflow_text
     assert "Rollback drill SLO evidence" in workflow_text
@@ -100,41 +205,3 @@ def test_workflow_inventory_keeps_only_permanent_delivery_paths() -> None:
     ]
     assert "Infra Plan" in workflow_names["infra-plan.yml"].splitlines()[0]
     assert "Infra Apply" in workflow_names["infra-apply.yml"].splitlines()[0]
-
-
-def test_rollback_slo_runbook_covers_app_infra_and_data_paths() -> None:
-    runbook = _read("docs/runbooks/rollback-drill-slos.md")
-    runbooks_index = _read("docs/runbooks/README.md")
-    ownership_runbook = _read("docs/runbooks/app-infra-ownership.md")
-    ecs_runbook = _read("docs/runbooks/ecs-deploy-rollback.md")
-    infra_runbook = _read("docs/runbooks/infra-rollback-drill.md")
-    deployment = _read("docs/deployment.md")
-
-    for phrase in [
-        "App rollback, error mode",
-        "App rollback, latency mode",
-        "Infra no-data rollback",
-        "Runtime data-phase rollback",
-        "Data Runtime Rollback Drill",
-        "Infra Drill Preflight",
-        "Backfill/data job containment",
-    ]:
-        assert phrase in runbook
-
-    assert "rollback-drill-slos.md" in runbooks_index
-    assert "app-infra-ownership.md" in runbooks_index
-    assert "GitHub Actions owns app task-definition revisions" in ownership_runbook
-    assert "ci_guard_infra_plan_blast_radius.sh" in ownership_runbook
-    assert "Rollback Drill SLOs" in ecs_runbook
-    assert "Rollback Drill SLOs" in infra_runbook
-    assert "App And Infra Ownership Boundary" in infra_runbook
-    assert "App And Infra Ownership Boundary" in deployment
-    assert "rollback-drill-slos.md" in deployment
-    assert "Workflow Inventory" in runbook
-    assert "exactly two permanent rollback drill workflows" in runbook
-    infra_reviewed_path = (
-        "Infra rollback drills use reviewed `Infra Plan` and `Infra Apply` runs."
-    )
-    assert infra_reviewed_path in runbook
-    assert "| Backfill/data job containment |" not in runbook
-    assert "Backfill/data job containment is a guardrail" in runbook

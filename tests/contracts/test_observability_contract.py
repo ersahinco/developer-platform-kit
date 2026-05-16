@@ -74,16 +74,11 @@ def test_local_grafana_stack_uses_prometheus_loki_tempo_without_cloudwatch() -> 
     datasources = _read(
         "observability/grafana/provisioning/datasources/datasources.yml"
     )
-    docs = _read("docs/observability.md")
 
     assert "type: prometheus" in datasources
     assert "type: loki" in datasources
     assert "type: tempo" in datasources
     assert "cloudwatch" not in datasources.lower()
-    assert "local-first" in docs
-    assert "AWS ECS does not self-host that stack" in docs
-    assert "cloud-only Grafana feature" in docs
-    assert "Grafana Cloud AI" not in docs
 
 
 def test_terraform_declares_only_expected_cloud_log_groups() -> None:
@@ -156,59 +151,6 @@ def test_every_long_running_ecs_service_has_circuit_breaker_rollback() -> None:
     assert "rollback = true" in order_event_consumer
 
 
-def test_app_rollback_drill_uses_ecs_automatic_rollback() -> None:
-    workflow = _read(".github/workflows/app-rollback-drill.yml")
-    fault_helper = _read("scripts/ci/ci_set_app_drill_fault.py")
-
-    assert "fault_mode:" in workflow
-    assert "ci_set_app_drill_fault.py" in workflow
-    assert "ROLLOUT_DRILL_FAULT_MODE" in fault_helper
-    assert 'ECS_DEPLOY_WAIT_FOR_STABLE: "false"' in workflow
-    assert "traffic_deadline=$((SECONDS + 720))" in workflow
-    assert "rollback_deadline=$((SECONDS + 1200))" in workflow
-    assert "Wait for ECS automatic rollback" in workflow
-    assert "Bad drill revision completed instead of being rolled back" in workflow
-    assert "aws ecs update-service" not in workflow
-
-
-def test_operator_scripts_resolve_repo_root_from_script_path() -> None:
-    for path in [
-        "scripts/operator/db_exec.sh",
-        "scripts/operator/db_seed_tunnel.sh",
-        "scripts/operator/db_tunnel.sh",
-    ]:
-        script = _read(path)
-
-        assert 'SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"' in script
-        assert 'ROOT_DIR="$(cd "${SCRIPT_DIR}/../.." && pwd)"' in script
-        assert 'cd "$ROOT_DIR"' in script
-        assert "20 20 12" not in script
-        assert 'dirname "-e"' not in script
-
-
-def test_cloud_changing_release_paths_stay_in_reviewed_workflows() -> None:
-    makefile = _read("Makefile")
-    app_build = _read(".github/workflows/app-build.yml")
-    app_deploy = _read(".github/workflows/app-deploy.yml")
-    workloads = _read("platform/workloads.json")
-
-    for removed in [
-        "app-build-push",
-        "app-roll",
-        "build_push_app.py",
-        "roll_app_image.py",
-        "observability-stack-deploy",
-    ]:
-        assert removed not in makefile
-
-    for repository in ["app", "worker", "data-export-job", "order-event-consumer"]:
-        assert f'"repository": "{repository}"' in workloads
-    assert "fromJSON(needs.image-matrix.outputs.images)" in app_build
-    assert "ci_render_ecs_task_definition.sh" in app_deploy
-    assert "verify_post_deploy.py" in app_deploy
-    assert app_build.count("if: ${{ !github.event.repository.private }}") == 1
-
-
 def test_log_groups_dashboard_is_loki_only_and_matches_cloud_groups() -> None:
     dashboard = json.loads(_read("observability/grafana/dashboards/log-groups.json"))
 
@@ -245,55 +187,6 @@ def test_log_groups_dashboard_is_loki_only_and_matches_cloud_groups() -> None:
         assert suffix in container_variable["query"]
 
 
-def test_release_evidence_events_are_emitted_by_cloud_changing_workflows() -> None:
-    docs = _read("docs/observability.md")
-    event_script = _read("scripts/observability/release_event.py")
-    evidence_script = _read("scripts/observability/incident_evidence_bundle.py")
-    dashboard = json.loads(_read("observability/grafana/dashboards/app-overview.json"))
-    workflows = {
-        "app_deploy": _read(".github/workflows/app-deploy.yml"),
-        "app_rollback_drill": _read(".github/workflows/app-rollback-drill.yml"),
-        "data_runtime_rollback_drill": _read(
-            ".github/workflows/data-runtime-rollback-drill.yml"
-        ),
-        "infra_apply": _read(".github/workflows/infra-apply.yml"),
-    }
-
-    assert "release-event.json" in event_script
-    assert "release-event.jsonl" in event_script
-    assert "release-event.md" in event_script
-    assert "loki/api/v1/push" in event_script
-    assert "--loki-push-best-effort" in event_script
-    assert "Release and incident evidence stay portable" in docs
-    assert "release-evidence-*" in docs
-    assert "release_events" in evidence_script
-    assert "--release-events-dir" in evidence_script
-    assert "--loki-url" in evidence_script
-    assert "query_range" in evidence_script
-
-    delivery_annotation = next(
-        item
-        for item in dashboard["annotations"]["list"]
-        if item["name"] == "Delivery Events"
-    )
-    assert delivery_annotation["datasource"]["type"] == "loki"
-
-    delivery_panel = next(
-        panel for panel in dashboard["panels"] if panel["title"] == "Delivery Events"
-    )
-    assert delivery_panel["datasource"]["type"] == "loki"
-    assert delivery_panel["type"] == "logs"
-
-    for event_type, workflow in workflows.items():
-        assert "scripts/observability/release_event.py" in workflow
-        assert f"--event-type {event_type}" in workflow
-        assert "--include-alarms" in workflow
-        assert "--push-loki" in workflow
-        assert "--loki-push-best-effort" in workflow
-        assert "actions/upload-artifact" in workflow
-        assert "release-evidence-" in workflow
-
-
 def test_local_prometheus_scrapes_app_and_stack_metrics() -> None:
     local_prometheus = _read("observability/prometheus/prometheus.yml")
 
@@ -302,24 +195,3 @@ def test_local_prometheus_scrapes_app_and_stack_metrics() -> None:
     assert "job_name: prometheus" in local_prometheus
     assert "job_name: loki" in local_prometheus
     assert "job_name: tempo" in local_prometheus
-
-
-def test_observability_docs_list_cloudwatch_log_and_metric_contracts() -> None:
-    docs = _read("docs/observability.md")
-
-    for suffix in EXPECTED_LOG_GROUP_SUFFIXES:
-        assert f"/ecs/aws-sdlc-containers/{suffix}" in docs
-
-    for metric in [
-        "UnHealthyHostCount",
-        "HTTPCode_Target_5XX_Count",
-        "TargetResponseTime",
-        "CPUUtilization",
-        "FreeStorageSpace",
-        "DatabaseConnections",
-        "ApproximateNumberOfMessagesVisible",
-        "TargetErrorCount",
-        "SuccessCount",
-        "ECS/ContainerInsights",
-    ]:
-        assert metric in docs

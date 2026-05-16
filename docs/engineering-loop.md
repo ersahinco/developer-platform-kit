@@ -8,8 +8,8 @@ clearer than you found it.
 Use [Ubiquitous Language](ubiquitous-language.md) for names and boundaries
 before adding new terms. The docs should give coding agents and humans the same
 words for ideation, architecture, implementation, delivery, and operations.
-Use [Lean Profile](lean-profile.md) when the slice is mostly about reducing
-code, dependency, documentation, or platform surface while preserving capability.
+Use the lean review below when the slice is mostly about reducing code,
+dependency, documentation, or platform surface while preserving capability.
 
 ## Principles
 
@@ -85,6 +85,51 @@ code, dependency, documentation, or platform surface while preserving capability
 - Add a new runbook only when it describes an operator action someone can run.
 - Keep examples executable and tied to current Terraform outputs or local
   Compose services.
+
+## Lean Review
+
+The rule is simple: keep code and docs that encode product/runtime truth; delete
+code and docs that only compensate for unclear ownership.
+
+Ask these before adding or keeping surface area:
+
+1. Does this encode a durable product or runtime fact?
+2. Is this the canonical owner, or is it repeating another file?
+3. Can a proven standard tool own this behavior instead?
+4. Does a workload, operator, or platform maintainer actually call this path?
+5. Does the dependency belong in every image, or only in a specific job or
+   optional extra?
+6. Does the code make ownership clearer, or does it compensate for unclear
+   ownership?
+7. Can the rule be expressed as schema, tests, or a small contract instead of
+   prose scanning or bespoke orchestration?
+
+Treat these as prompts for review, not hard quotas:
+
+| Signal | Review When |
+|---|---|
+| New runtime dependency | It is inherited by more than one image or duplicates a standard platform capability. |
+| New workflow job | It repeats build, deploy, scan, or evidence logic already driven by metadata. |
+| New Make target | It is an alias for a command with no ownership or operator value. |
+| New Terraform resource group | It hand-wires a standard service that a module, sidecar, or managed service can own. |
+| New top-level doc | It overlaps an existing canonical doc or restates project state. |
+| New contract test | It protects machine-readable ownership, runtime behavior, or repo shape instead of exact prose. |
+| Script over 200 lines | It orchestrates a tool that already has a CLI, module, or workflow primitive. |
+| Doc over 300 lines | It mixes terms, current state, runbook actions, and architecture rationale. |
+
+Run the narrowest checks that answer the question, then widen when the change
+touches shared contracts or release paths:
+
+```shell
+git status --short
+rg --files | wc -l
+rg --files | xargs wc -l | sort -n | tail -30
+rg --files | rg '(^docs/.*\.md$|^README\.md$)' | xargs wc -l | sort -n
+rg -n "TODO|FIXME|deprecated|retired|legacy|temporary|workaround" README.md docs .github infra scripts tests
+uv run python scripts/ci/validate_platform_contract.py
+make lint-docs
+uv run pytest tests/contracts -q
+```
 
 ## Recovery Pattern
 

@@ -6,7 +6,7 @@ object contract in one place.
 
 For a compact operator map across AWS edge, ECS tasks, Postgres tables, S3
 objects, logs, metrics, and downstream order events, use
-[Operator Observability Map](operator-observability-map.md).
+[Observability](observability.md#operator-debug-map).
 
 ## Current Flow
 

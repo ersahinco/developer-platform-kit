@@ -236,7 +236,7 @@
             ".github/workflows/app-build.yml",
             "Makefile",
             "docs/devops-toolchain.md",
-            "tests/contracts/test_clean_architecture_contract.py",
+            "tests/contracts/test_architecture_boundaries.py",
             "tests/scripts/test_platform_contract_validator.py"
           ]
         }

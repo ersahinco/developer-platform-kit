@@ -6,8 +6,20 @@ These run at every migration phase — they describe the invariants that must ho
 throughout the entire lifecycle, not just at one point in time.
 """
 
+import os
+
 import pytest
 from sqlalchemy import inspect, text
+
+_TEST_DATABASE_URL = "postgresql://postgres:postgres@localhost:5432/aws_sdlc_containers"
+os.environ.setdefault("DATABASE_URL", _TEST_DATABASE_URL)
+os.environ.setdefault("BACKFILL_DATABASE_URL", _TEST_DATABASE_URL)
+os.environ.setdefault("DATA_EXPORT_DATABASE_URL", _TEST_DATABASE_URL)
+
+from api.config import Settings as ApiSettings  # noqa: E402
+from backfill_worker.config import Settings as BackfillSettings  # noqa: E402
+from data_export_job.config import Settings as DataExportSettings  # noqa: E402
+from order_event_consumer.config import Settings as ConsumerSettings  # noqa: E402
 
 # Columns that must survive the full migration sequence unchanged.
 _ORDERS_STABLE_COLUMNS = {
@@ -164,3 +176,30 @@ def test_billing_email_column_dropped_after_contract(db_engine):
     """orders.billing_email is absent after the contract phase completes."""
     cols = {c["name"] for c in inspect(db_engine).get_columns("orders")}
     assert "billing_email" not in cols
+
+
+def test_database_url_composition_escapes_secret_passwords(monkeypatch) -> None:
+    monkeypatch.delenv("DATABASE_URL", raising=False)
+    monkeypatch.delenv("BACKFILL_DATABASE_URL", raising=False)
+    monkeypatch.delenv("DATA_EXPORT_DATABASE_URL", raising=False)
+
+    password = "pa:ss/word#with@reserved"
+    expected_password = "pa%3Ass%2Fword%23with%40reserved"
+
+    api = ApiSettings(database_url=None, db_password=password)
+    consumer = ConsumerSettings(database_url=None, db_password=password)
+    backfill = BackfillSettings(
+        backfill_database_url=None,
+        db_host="db.internal",
+        db_password=password,
+    )
+    data_export = DataExportSettings(
+        data_export_database_url=None,
+        db_host="db.internal",
+        db_password=password,
+    )
+
+    assert expected_password in str(api.database_url)
+    assert expected_password in str(consumer.database_url)
+    assert expected_password in backfill.required_backfill_database_url
+    assert expected_password in data_export.required_data_export_database_url

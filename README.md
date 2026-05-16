@@ -50,7 +50,7 @@ rollback practice is [docs/runbooks/ecs-deploy-rollback.md](docs/runbooks/ecs-de
 plus [docs/runbooks/infra-rollback-drill.md](docs/runbooks/infra-rollback-drill.md).
 
 For the grouped documentation map, use [docs/README.md](docs/README.md). It is
-the canonical index for platform contracts, portability docs, delivery docs,
+the canonical index for platform contracts, runtime docs, delivery docs,
 runbooks, and drills.
 
 ## What This Demonstrates

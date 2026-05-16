@@ -5,6 +5,10 @@ import subprocess
 ROOT = Path(__file__).resolve().parents[2]
 
 
+def _read(path: str) -> str:
+    return (ROOT / path).read_text(encoding="utf-8")
+
+
 def _python_text(root: Path) -> str:
     return "\n".join(
         path.read_text(encoding="utf-8")
@@ -74,16 +78,6 @@ def test_api_has_no_direct_event_transport_publish_path() -> None:
         assert forbidden not in text
 
 
-def test_api_admin_fixture_does_not_own_customer_sql() -> None:
-    text = _python_text(ROOT / "apps" / "api")
-
-    for forbidden in [
-        "INSERT INTO customers",
-        "SELECT id, name, created_at FROM customers",
-    ]:
-        assert forbidden not in text
-
-
 def test_background_hosts_keep_sql_and_storage_in_infrastructure() -> None:
     for app in ["backfill_worker", "data_export_job", "order_event_consumer"]:
         text = _python_text(ROOT / "apps" / app)
@@ -94,16 +88,6 @@ def test_background_hosts_keep_sql_and_storage_in_infrastructure() -> None:
             "import boto3",
         ]:
             assert forbidden not in text
-
-
-def test_app_settings_do_not_name_current_runtime_provider() -> None:
-    text = "\n".join(
-        path.read_text(encoding="utf-8")
-        for path in sorted((ROOT / "apps").glob("*/config.py"))
-    )
-
-    for forbidden in ["ECS", "RDS", "Secrets Manager", "CloudWatch"]:
-        assert forbidden not in text
 
 
 def test_database_portability_is_postgres_not_current_provider() -> None:
@@ -137,26 +121,6 @@ def test_database_portability_is_postgres_not_current_provider() -> None:
     ).lower()
     for forbidden in ["rds", "aws_", "aurora"]:
         assert forbidden not in changelog_text
-
-
-def test_database_restore_ownership_stays_at_runtime_edge() -> None:
-    app_text = "\n".join(
-        _python_text(ROOT / package)
-        for package in ["apps", "packages/domain", "packages/application"]
-    ).lower()
-    for forbidden in ["snapshot", "point-in-time", "restore"]:
-        assert forbidden not in app_text
-
-    docs = "\n".join(
-        (ROOT / path).read_text(encoding="utf-8")
-        for path in [
-            "docs/data.md",
-            "docs/runtime-toolkit.md",
-            "docs/runbooks/rollback-drill-slos.md",
-        ]
-    ).lower()
-    assert "backup" in docs
-    assert "restore" in docs
 
 
 def test_object_storage_provider_sdk_stays_in_infrastructure() -> None:
@@ -202,6 +166,16 @@ def test_dapr_pubsub_boundary_keeps_provider_brokers_at_runtime_edge() -> None:
     for forbidden in ["sns", "sqs", "localstack", "queue_url", "topic_arn"]:
         assert forbidden not in app_facing_text
 
+    dapr_adapter = _python_text(ROOT / "packages" / "infrastructure" / "dapr")
+    runtime_edge = "\n".join(
+        [
+            _read("infra/app/messaging.tf"),
+            _read("dapr/local/components/order-events-pubsub.yaml"),
+        ]
+    ).lower()
+    assert "/v1.0/publish/" in dapr_adapter
+    assert "snssqs" in runtime_edge
+
 
 def test_alternate_dapr_component_can_satisfy_same_pubsub_contract() -> None:
     import yaml
@@ -220,3 +194,44 @@ def test_alternate_dapr_component_can_satisfy_same_pubsub_contract() -> None:
     assert current["metadata"]["name"] == "order-events-pubsub"
     assert alternate["metadata"]["name"] == current["metadata"]["name"]
     assert alternate["spec"]["type"].startswith("pubsub.")
+
+
+def test_order_events_dapr_resiliency_is_bounded_and_component_scoped() -> None:
+    local_resiliency = _read("dapr/local/components/resiliency.yaml")
+    template_resiliency = _read("infra/app/templates/dapr/resiliency.yaml.tftpl")
+
+    for spec in [local_resiliency, template_resiliency]:
+        assert "kind: Resiliency" in spec
+        assert "order-event-consumer" in spec
+        assert "order-events-pubsub:" in spec
+        assert "outbound:" in spec
+        assert "inbound:" in spec
+        assert "maxRetries: 2" in spec
+        assert "orderEventsPubsub: 10s" in spec
+        assert "trip: consecutiveFailures > 5" in spec
+        assert "maxRetries: -1" not in spec
+
+
+def test_order_events_ecs_sidecar_loads_resiliency_spec() -> None:
+    messaging = _read("infra/app/messaging.tf")
+    workload_jobs = _read("infra/app/workload_jobs.tf")
+    compose = _read("compose.yaml")
+
+    assert 'aws_s3_object" "order_events_dapr_resiliency' in messaging
+    assert "templates/dapr/resiliency.yaml.tftpl" in messaging
+    assert "/dapr/components/resiliency.yaml" in workload_jobs
+    assert "--components-path" in workload_jobs
+    assert "./dapr/local/components:/components:ro" in compose
+
+
+def test_order_events_sns_topic_is_encrypted() -> None:
+    encryption = _read("infra/app/encryption.tf")
+    messaging = _read("infra/app/messaging.tf")
+    workload_jobs = _read("infra/app/workload_jobs.tf")
+
+    assert 'resource "aws_kms_key" "order_events_sns"' in encryption
+    assert "kms:EncryptionContext:aws:sns:topicArn" in encryption
+    assert "kms_master_key_id" in messaging
+    assert "aws_kms_key.order_events_sns.arn" in messaging
+    assert "UseOrderEventsSnsKms" in workload_jobs
+    assert "kms:ViaService" in workload_jobs

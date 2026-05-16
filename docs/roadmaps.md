@@ -7,9 +7,8 @@ work only. Durable project shape belongs in canonical docs:
   and code generation.
 - [Architecture](architecture.md) explains the current system.
 - [Platform Contract](platform-contract.md), [Runtime Toolkit](runtime-toolkit.md),
-  and `platform/*.json` define portable workload/runtime expectations.
-- [Portability Status](portability-status.md) names what is portable and what is
-  intentionally provider-specific.
+  and `platform/*.json` define portable workload/runtime expectations,
+  portability status, and intentional provider dependencies.
 
 For working style, use [Engineering Loop](engineering-loop.md).
 
