@@ -7,8 +7,6 @@ dependencies = [
     "aws-sdlc-containers-infrastructure",
     "fastapi>=0.111.0",
     "prometheus-client>=0.20.0",
-    "pydantic>=2.7.1",
-    "pydantic-settings>=2.3.0",
     "uvicorn>=0.29.0",
 ]
 

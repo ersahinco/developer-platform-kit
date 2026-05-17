@@ -35,7 +35,6 @@ from typing import Any
 
 import httpx
 import pytest
-from dotenv import load_dotenv
 from sqlalchemy import create_engine, text
 from sqlalchemy.engine import Engine
 from sqlalchemy.orm import Session, sessionmaker
@@ -48,7 +47,9 @@ for path in (
 ):
     sys.path.insert(0, str(path))
 
-load_dotenv(Path(__file__).parent.parent / ".env", override=False)
+from infrastructure.config import load_env_file  # noqa: E402
+
+load_env_file(Path(__file__).parent.parent / ".env")
 os.environ.setdefault(
     "DATABASE_URL",
     "postgresql://postgres:postgres@localhost:6432/aws_sdlc_containers",

@@ -1,50 +1,85 @@
-from pydantic import PostgresDsn, model_validator
-from pydantic_settings import BaseSettings, SettingsConfigDict
+from dataclasses import dataclass
+from dataclasses import field
 
 from infrastructure.config import compose_postgres_url
+from infrastructure.config import env_bool
+from infrastructure.config import env_float
+from infrastructure.config import env_int
+from infrastructure.config import env_str
+from infrastructure.config import load_env_file
+from infrastructure.config import require_value
+from infrastructure.config import validate_postgres_url
 
 
-class Settings(BaseSettings):
-    model_config = SettingsConfigDict(
-        env_file=".env", env_file_encoding="utf-8", extra="ignore"
+load_env_file()
+
+
+@dataclass
+class Settings:
+    database_url: str | None = field(default_factory=lambda: env_str("DATABASE_URL"))
+    db_password: str | None = field(default_factory=lambda: env_str("DB_PASSWORD"))
+    db_user: str = field(
+        default_factory=lambda: require_value(env_str("DB_USER", "app"), "DB_USER")
+    )
+    db_host: str = field(
+        default_factory=lambda: require_value(
+            env_str("DB_HOST", "localhost"), "DB_HOST"
+        )
+    )
+    db_port: int = field(default_factory=lambda: env_int("DB_PORT", 5432))
+    db_name: str = field(
+        default_factory=lambda: require_value(
+            env_str("DB_NAME", "aws_sdlc_containers"), "DB_NAME"
+        )
+    )
+    otel_traces_enabled: bool = field(
+        default_factory=lambda: env_bool("OTEL_TRACES_ENABLED")
+    )
+    otel_exporter_otlp_traces_endpoint: str | None = field(
+        default_factory=lambda: env_str("OTEL_EXPORTER_OTLP_TRACES_ENDPOINT")
+    )
+    otel_service_name: str = field(
+        default_factory=lambda: require_value(
+            env_str("OTEL_SERVICE_NAME", "aws-sdlc-containers-api"),
+            "OTEL_SERVICE_NAME",
+        )
+    )
+    otel_deployment_environment: str = field(
+        default_factory=lambda: require_value(
+            env_str("OTEL_DEPLOYMENT_ENVIRONMENT", "local"),
+            "OTEL_DEPLOYMENT_ENVIRONMENT",
+        )
+    )
+    rollout_drill_fault_mode: str = field(
+        default_factory=lambda: require_value(
+            env_str("ROLLOUT_DRILL_FAULT_MODE", "off"), "ROLLOUT_DRILL_FAULT_MODE"
+        )
+    )
+    rollout_drill_fault_paths: str = field(
+        default_factory=lambda: require_value(
+            env_str("ROLLOUT_DRILL_FAULT_PATHS", "/ready"),
+            "ROLLOUT_DRILL_FAULT_PATHS",
+        )
+    )
+    rollout_drill_fault_status_code: int = field(
+        default_factory=lambda: env_int("ROLLOUT_DRILL_FAULT_STATUS_CODE", 503)
+    )
+    rollout_drill_fault_delay_seconds: float = field(
+        default_factory=lambda: env_float("ROLLOUT_DRILL_FAULT_DELAY_SECONDS", 3.0)
     )
 
-    # PostgresDsn validates scheme, host, and path at startup — misconfigured
-    # URLs fail immediately rather than at the first DB call.
-    database_url: PostgresDsn | None = None
-
-    # Runtime secret injection provides DB_PASSWORD. The full URL is composed
-    # below so the password is never stored in plaintext deployment config.
-    # db_host defaults to localhost for the colocated pgbouncer process.
-    db_password: str | None = None
-    db_user: str = "app"
-    db_host: str = "localhost"
-    db_port: int = 5432
-    db_name: str = "aws_sdlc_containers"
-    otel_traces_enabled: bool = False
-    otel_exporter_otlp_traces_endpoint: str | None = None
-    otel_service_name: str = "aws-sdlc-containers-api"
-    otel_deployment_environment: str = "local"
-    rollout_drill_fault_mode: str = "off"
-    rollout_drill_fault_paths: str = "/ready"
-    rollout_drill_fault_status_code: int = 503
-    rollout_drill_fault_delay_seconds: float = 3.0
-
-    @model_validator(mode="after")
-    def compose_database_url(self) -> "Settings":
+    def __post_init__(self) -> None:
         if self.database_url is None:
             if self.db_password is None:
                 raise ValueError("Either DATABASE_URL or DB_PASSWORD must be set")
-            self.database_url = PostgresDsn(
-                compose_postgres_url(
-                    db_user=self.db_user,
-                    db_password=self.db_password,
-                    db_host=self.db_host,
-                    db_port=self.db_port,
-                    db_name=self.db_name,
-                )
+            self.database_url = compose_postgres_url(
+                db_user=self.db_user,
+                db_password=self.db_password,
+                db_host=self.db_host,
+                db_port=self.db_port,
+                db_name=self.db_name,
             )
-        return self
+        self.database_url = validate_postgres_url(self.database_url)
 
 
 settings = Settings()
