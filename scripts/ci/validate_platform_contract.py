@@ -405,7 +405,20 @@ def _check_conformance_contract(workload: dict[str, Any], errors: list[str]) -> 
 
 
 def _check_release_evidence(contract: dict[str, Any], errors: list[str]) -> None:
-    from scripts.observability.release_event import REQUIRED_EVENT_FIELDS
+    import importlib.util
+
+    _spec = importlib.util.spec_from_file_location(
+        "release_event",
+        ROOT / "scripts" / "observability" / "release_event.py",
+    )
+    if _spec is None or _spec.loader is None:
+        raise ImportError(
+            "Cannot locate scripts/observability/release_event.py — "
+            "ensure the file exists relative to the repository root."
+        )
+    _mod = importlib.util.module_from_spec(_spec)
+    _spec.loader.exec_module(_mod)  # type: ignore[union-attr]
+    REQUIRED_EVENT_FIELDS = _mod.REQUIRED_EVENT_FIELDS
 
     declared = set(
         _as_strings(contract.get("release_evidence", {}).get("required_fields"))

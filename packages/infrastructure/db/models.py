@@ -1,7 +1,16 @@
 import datetime
 from decimal import Decimal
 
-from sqlalchemy import BigInteger, ForeignKey, Index, Integer, Numeric, String, Text
+from sqlalchemy import (
+    BigInteger,
+    CHAR,
+    ForeignKey,
+    Index,
+    Integer,
+    Numeric,
+    String,
+    Text,
+)
 from sqlalchemy import TIMESTAMP, UniqueConstraint
 from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.orm import Mapped, mapped_column
@@ -111,7 +120,7 @@ class IdempotencyKeyModel(Base):
     )
 
     key: Mapped[str] = mapped_column(String(200), primary_key=True)
-    request_hash: Mapped[str] = mapped_column(String(64), nullable=False)
+    request_hash: Mapped[str] = mapped_column(CHAR(64), nullable=False)
     status: Mapped[str] = mapped_column(String(32), nullable=False)
     response_status_code: Mapped[int | None] = mapped_column(Integer)
     response_payload: Mapped[dict[str, object] | None] = mapped_column(JSONB)

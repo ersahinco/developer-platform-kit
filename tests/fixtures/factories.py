@@ -12,6 +12,15 @@ def make_customer(
     name: str = "Test Customer",
 ) -> int:
     """Insert a customers row and return its id."""
+    # Advance the sequence past any rows already in the table so the INSERT
+    # does not collide with seeded data that was inserted with explicit ids.
+    session.execute(
+        text(
+            "SELECT setval('customers_id_seq', "
+            "GREATEST(nextval('customers_id_seq'), "
+            "(SELECT COALESCE(MAX(id), 0) + 1 FROM customers)))"
+        )
+    )
     row = session.execute(
         text(
             "INSERT INTO customers (name, created_at) "

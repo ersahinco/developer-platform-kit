@@ -377,25 +377,42 @@ class SQLAlchemyIdempotencyRepository:
         if cast(Any, result).rowcount == 1:
             return IdempotencyBeginResult(status="started")
 
-        row = self._session.get(IdempotencyKeyModel, key)
-        if row is None:
+        # Use a raw Core SELECT to read the committed row — avoids any stale
+        # ORM identity-map state that may have been populated by the attempted
+        # insert before on_conflict_do_nothing resolved.
+        from sqlalchemy import select as _select  # noqa: PLC0415
+
+        row_data = self._session.execute(
+            _select(
+                IdempotencyKeyModel.request_hash,
+                IdempotencyKeyModel.status,
+                IdempotencyKeyModel.processing_expires_at,
+                IdempotencyKeyModel.response_status_code,
+                IdempotencyKeyModel.response_payload,
+            ).where(IdempotencyKeyModel.key == key)
+        ).fetchone()
+        if row_data is None:
             return IdempotencyBeginResult(status="processing")
-        if row.request_hash != request_hash:
+        if row_data.request_hash.strip() != request_hash:
             return IdempotencyBeginResult(status="conflict")
-        if row.status == "completed":
+        if row_data.status == "completed":
             return IdempotencyBeginResult(
                 status="replay",
-                response_status_code=row.response_status_code,
-                response_payload=row.response_payload,
+                response_status_code=row_data.response_status_code,
+                response_payload=row_data.response_payload,
             )
-        if row.processing_expires_at <= now:
-            row.status = "processing"
-            row.response_status_code = None
-            row.response_payload = None
-            row.processing_expires_at = processing_expires_at
-            row.last_error = None
-            row.updated_at = now
-            self._session.commit()
+        if row_data.processing_expires_at <= now:
+            # Lock expired — reset the row and allow a fresh attempt.
+            self._session.expire_all()
+            row = self._session.get(IdempotencyKeyModel, key)
+            if row is not None:
+                row.status = "processing"
+                row.response_status_code = None
+                row.response_payload = None
+                row.processing_expires_at = processing_expires_at
+                row.last_error = None
+                row.updated_at = now
+                self._session.commit()
             return IdempotencyBeginResult(status="started")
         return IdempotencyBeginResult(status="processing")
 

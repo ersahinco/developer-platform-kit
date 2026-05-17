@@ -303,8 +303,9 @@ db-exec: ## Open psql inside a running app task
 	@bash scripts/operator/db_exec.sh $(AWS_REGION)
 
 .PHONY: db-seed
-db-seed: ## Seed DB via SSM tunnel  (SEED_NUM_CUSTOMERS=1000, SEED_NUM_ORDERS=10000)
-	@bash scripts/operator/db_seed_tunnel.sh $(SEED_NUM_CUSTOMERS) $(SEED_NUM_ORDERS) $(AWS_REGION)
+db-seed: ## Seed DB — run make db-tunnel first for remote DBs  (SEED_NUM_CUSTOMERS=1000, SEED_NUM_ORDERS=10000)
+	SEED_NUM_CUSTOMERS=$(SEED_NUM_CUSTOMERS) SEED_NUM_ORDERS=$(SEED_NUM_ORDERS) \
+		uv run python scripts/data/seed_data.py
 
 # ── API smoke query ───────────────────────────────────────────────────────────
 #

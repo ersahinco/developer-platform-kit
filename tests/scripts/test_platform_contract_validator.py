@@ -1,8 +1,14 @@
 from __future__ import annotations
 
+import importlib.util
 import json
 import shutil
+import sys
 from pathlib import Path
+from unittest.mock import patch
+
+import hypothesis.strategies as st
+from hypothesis import given, settings
 
 from scripts.ci import validate_platform_contract as validator
 
@@ -217,3 +223,109 @@ def test_platform_contract_validator_allows_future_runtime_specific_roots(
     )
 
     assert errors == []
+
+
+# ---------------------------------------------------------------------------
+# Task 5.2 — unit tests for _check_release_evidence (importlib import fix)
+# ---------------------------------------------------------------------------
+
+
+def test_check_release_evidence_no_errors_for_valid_contract() -> None:
+    """_check_release_evidence returns no errors when required_fields matches REQUIRED_EVENT_FIELDS."""
+    # Build the expected required_fields list from the actual release_event module
+    # (same derivation used inside _check_release_evidence)
+    import importlib.util
+
+    _spec = importlib.util.spec_from_file_location(
+        "release_event",
+        validator.ROOT / "scripts" / "observability" / "release_event.py",
+    )
+    assert _spec is not None and _spec.loader is not None
+    _mod = importlib.util.module_from_spec(_spec)
+    _spec.loader.exec_module(_mod)  # type: ignore[union-attr]
+    required_fields = [".".join(path) for path in _mod.REQUIRED_EVENT_FIELDS]
+
+    contract = {
+        "release_evidence": {
+            "required_fields": required_fields,
+        }
+    }
+    errors: list[str] = []
+    validator._check_release_evidence(contract, errors)
+
+    assert errors == []
+
+
+def test_check_release_evidence_raises_import_error_for_missing_file() -> None:
+    """_check_release_evidence raises ImportError when spec_from_file_location returns None."""
+    contract = {
+        "release_evidence": {
+            "required_fields": [],
+        }
+    }
+    errors: list[str] = []
+
+    # Patch spec_from_file_location to return None, simulating a missing/unresolvable file.
+    # This exercises the explicit ImportError guard inside _check_release_evidence.
+    with patch("importlib.util.spec_from_file_location", return_value=None):
+        try:
+            validator._check_release_evidence(contract, errors)
+        except ImportError as exc:
+            assert "release_event.py" in str(exc) or "Cannot locate" in str(exc)
+        else:
+            raise AssertionError("Expected ImportError was not raised")
+
+
+@settings(max_examples=1)
+@given(st.just(None))
+def test_importlib_and_direct_import_yield_same_required_event_fields(_: None) -> None:
+    """**Validates: Requirements 5.1**
+
+    Property 4: Loading REQUIRED_EVENT_FIELDS via importlib.util.spec_from_file_location
+    must produce a value equal to the one obtained by directly importing
+    scripts.observability.release_event — the import mechanism must not alter the value.
+    """
+    # --- Load via importlib (the mechanism used by validate_platform_contract.py) ---
+    release_event_path = (
+        validator.ROOT / "scripts" / "observability" / "release_event.py"
+    )
+    _spec = importlib.util.spec_from_file_location(
+        "release_event_importlib", release_event_path
+    )
+    assert _spec is not None and _spec.loader is not None, (
+        f"spec_from_file_location returned None for {release_event_path}"
+    )
+    _mod_importlib = importlib.util.module_from_spec(_spec)
+    _spec.loader.exec_module(_mod_importlib)  # type: ignore[union-attr]
+    fields_via_importlib = _mod_importlib.REQUIRED_EVENT_FIELDS
+
+    # --- Load via direct import (sys.path manipulation, test-only) ---
+    repo_root = str(validator.ROOT)
+    inserted = False
+    if repo_root not in sys.path:
+        sys.path.insert(0, repo_root)
+        inserted = True
+    try:
+        # Remove any cached version so we get a fresh load
+        module_key = "scripts.observability.release_event"
+        was_cached = module_key in sys.modules
+        cached_module = sys.modules.pop(module_key, None)
+        try:
+            import scripts.observability.release_event as release_event_direct  # noqa: PLC0415
+
+            fields_via_direct = release_event_direct.REQUIRED_EVENT_FIELDS
+        finally:
+            # Restore the module cache to its original state
+            if was_cached and cached_module is not None:
+                sys.modules[module_key] = cached_module
+            elif not was_cached:
+                sys.modules.pop(module_key, None)
+    finally:
+        if inserted:
+            sys.path.remove(repo_root)
+
+    # --- Assert equivalence ---
+    assert fields_via_importlib == fields_via_direct, (
+        f"importlib load produced {fields_via_importlib!r} "
+        f"but direct import produced {fields_via_direct!r}"
+    )

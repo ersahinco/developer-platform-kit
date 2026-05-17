@@ -66,6 +66,7 @@ dependencies = [
 
 [package.dev-dependencies]
 dev = [
+    { name = "hypothesis" },
     { name = "pip-audit" },
     { name = "pyright" },
     { name = "ruff" },
@@ -84,6 +85,7 @@ requires-dist = [
 
 [package.metadata.requires-dev]
 dev = [
+    { name = "hypothesis", specifier = ">=6.152.7" },
     { name = "pip-audit", specifier = ">=2.7.0" },
     { name = "pyright", specifier = ">=1.1.409" },
     { name = "ruff", specifier = ">=0.4.4" },
@@ -472,6 +474,18 @@ dependencies = [
 sdist = { url = "https://files.pythonhosted.org/packages/b1/df/48c586a5fe32a0f01324ee087459e112ebb7224f646c0b5023f5e79e9956/httpx-0.28.1.tar.gz", hash = "sha256:75e98c5f16b0f35b567856f597f06ff2270a374470a5c2392242528e3e3e42fc", size = 141406, upload-time = "2024-12-06T15:37:23.222Z" }
 wheels = [
     { url = "https://files.pythonhosted.org/packages/2a/39/e50c7c3a983047577ee07d2a9e53faf5a69493943ec3f6a384bdc792deb2/httpx-0.28.1-py3-none-any.whl", hash = "sha256:d909fcccc110f8c7faf814ca82a9a4d816bc5a6dbfea25d6591d6985b8ba59ad", size = 73517, upload-time = "2024-12-06T15:37:21.509Z" },
+]
+
+[[package]]
+name = "hypothesis"
+version = "6.152.7"
+source = { registry = "https://pypi.org/simple" }
+dependencies = [
+    { name = "sortedcontainers" },
+]
+sdist = { url = "https://files.pythonhosted.org/packages/91/dd/19d273652eb20dac15f32bbc484f2f6d51ccd8fe51fdb27da3f85f9017e8/hypothesis-6.152.7.tar.gz", hash = "sha256:741dedcede2ae0f32c32929a5992804b61f2b0400403b6a51a881a2b58482782", size = 468147, upload-time = "2026-05-13T04:19:34.124Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/0a/1e/8222edaee03c37350eaa726213614e343a62f1e56396dd000ad9277bfa3d/hypothesis-6.152.7-py3-none-any.whl", hash = "sha256:c0b17dd428fcb6e962f60315f6f4a77816c72fbb281ce9ba73699dabead5ec82", size = 533802, upload-time = "2026-05-13T04:19:30.635Z" },
 ]
 
 [[package]]

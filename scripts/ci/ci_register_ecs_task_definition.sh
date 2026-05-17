@@ -4,19 +4,7 @@ set -euo pipefail
 TASK_DEFINITION_PATH=${1:?"usage: ci_register_ecs_task_definition.sh <task-definition-json>"}
 OUTPUT_FILE=${GITHUB_OUTPUT:-}
 
-python3 - "$TASK_DEFINITION_PATH" <<'PY'
-import json
-import sys
-from pathlib import Path
-
-path = Path(sys.argv[1])
-task_definition = json.loads(path.read_text(encoding="utf-8"))
-
-if task_definition.get("tags") == []:
-    del task_definition["tags"]
-
-path.write_text(json.dumps(task_definition, indent=2) + "\n", encoding="utf-8")
-PY
+python3 scripts/ci/ci_strip_empty_tags.py "$TASK_DEFINITION_PATH"
 
 TASK_DEF_ARN=$(aws ecs register-task-definition \
   --cli-input-json "file://${TASK_DEFINITION_PATH}" \
