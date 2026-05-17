@@ -72,7 +72,7 @@ services:
   app:
     build:
       context: .
-      dockerfile: docker/workload.Dockerfile
+      dockerfile: platform/workload.Dockerfile
       args:
         APP_PATH: apps/api
         UV_PACKAGE: aws-sdlc-containers-api
@@ -94,7 +94,7 @@ services:
   worker:
     build:
       context: .
-      dockerfile: docker/workload.Dockerfile
+      dockerfile: platform/workload.Dockerfile
       args:
         APP_PATH: apps/backfill_worker
         UV_PACKAGE: aws-sdlc-containers-backfill-worker
@@ -111,7 +111,7 @@ services:
   data-export-job:
     build:
       context: .
-      dockerfile: docker/workload.Dockerfile
+      dockerfile: platform/workload.Dockerfile
       args:
         APP_PATH: apps/data_export_job
         UV_PACKAGE: aws-sdlc-containers-data-export-job
@@ -141,7 +141,7 @@ services:
   order-event-consumer:
     build:
       context: .
-      dockerfile: docker/workload.Dockerfile
+      dockerfile: platform/workload.Dockerfile
       args:
         APP_PATH: apps/order_event_consumer
         UV_PACKAGE: aws-sdlc-containers-order-event-consumer
@@ -182,8 +182,8 @@ services:
       - --config
       - /config/config.yaml
     volumes:
-      - ./dapr/local/components:/components:ro
-      - ./dapr/local/config.yaml:/config/config.yaml:ro
+      - ./platform/dapr/local/components:/components:ro
+      - ./platform/dapr/local/config.yaml:/config/config.yaml:ro
     ports:
       - "${DAPR_HTTP_PORT:-3500}:3500"
     depends_on:

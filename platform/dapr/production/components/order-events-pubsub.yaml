@@ -1,0 +1,27 @@
+apiVersion: dapr.io/v1alpha1
+kind: Component
+metadata:
+  name: order-events-pubsub
+spec:
+  type: pubsub.aws.snssqs
+  version: v1
+  metadata:
+    # SNS topic and SQS queue names are injected at deploy time from Terraform
+    # outputs via the S3 runtime config bucket (infra/app/messaging.tf).
+    # This file is a reference template — the authoritative rendered version
+    # is infra/app/templates/dapr/order-events-pubsub.yaml.tftpl.
+    - name: region
+      value: "${aws_region}"
+    - name: consumerID
+      value: "${consumer_id}"
+    - name: fifo
+      value: "true"
+    - name: fifoMessageGroupID
+      value: "order-events"
+    - name: concurrencyMode
+      value: "single"
+    - name: messageReceiveLimit
+      value: "5"
+    - name: sqsDeadLettersQueueName
+      value: "${dlq_name}"
+    # Credentials are provided via ECS task IAM role — no static keys.

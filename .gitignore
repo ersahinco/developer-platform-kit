@@ -45,3 +45,6 @@ terraform.tfvars
 *.swp
 *~
 .logs.txt
+.ruff_cache
+.kiro
+.hypothesis

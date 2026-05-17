@@ -23,7 +23,6 @@ COMPOSED_DATABASE_ENV = {"DB_HOST", "DB_PORT", "DB_USER", "DB_NAME"}
 ALLOWED_PROVIDER_EDGE_PREFIXES = (
     ".github/",
     "compose.yaml",
-    "dapr/",
     "docs/",
     "infra/",
     "observability/",

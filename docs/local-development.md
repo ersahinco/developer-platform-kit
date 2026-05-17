@@ -20,7 +20,7 @@ that does not already have a clearer owner.
 | `.devcontainer/` | Primary reproducible development shell and pinned non-app tooling. |
 | `observability/` | Local Prometheus, Loki, Promtail, Tempo, and Grafana config that remains portable outside AWS. |
 | `db/` | Database-owned local assets: Liquibase changelog, Postgres bootstrap SQL, and PgBouncer config/images. |
-| `docker/workload.Dockerfile` | Shared workload image build definition. Workload-specific build args live in `platform/workloads.json` and `compose.yaml`. |
+| `platform/workload.Dockerfile` | Shared workload image build definition. Workload-specific build args live in `platform/workloads.json` and `compose.yaml`. |
 | `.dockerignore` | Root Docker build-context hygiene for all workload images. |
 
 ## Local/Prod Parity
@@ -330,7 +330,7 @@ LocalStack-backed SNS/SQS:
 make dapr-up
 ```
 
-The sidecar reads component and resiliency config from `dapr/local/`. The API
+The sidecar reads component and resiliency config from `platform/dapr/local/`. The API
 still writes the durable outbox row during `POST /orders`; the Dapr-enabled
 `order-event-consumer` service relays that row as a CloudEvent and receives the
 subscription callback into `order_event_receipts`.

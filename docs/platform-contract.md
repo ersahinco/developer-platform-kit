@@ -164,7 +164,7 @@ another broker.
 The current runtime implements the `order-events-pubsub` Dapr component with
 AWS SNS/SQS FIFO resources. Terraform owns the topic, queue, DLQ, encryption,
 permissions, runtime component manifests, and SQS DLQ alarm. Those details stay
-in `infra/`, `dapr/`, runbooks, and delivery scripts.
+in `infra/`, `platform/dapr/`, runbooks, and delivery scripts.
 
 Provider-native SQS metrics are acceptable for the AWS platform edge. They must
 not replace the app-facing Dapr/outbox contract or make app code import AWS

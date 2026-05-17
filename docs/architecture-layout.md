@@ -102,7 +102,7 @@ unless the replacement still preserves a human review point before AWS changes.
 ## Applications
 
 Each folder under `apps/` is a runtime entrypoint with its own `pyproject.toml`.
-Workloads share `docker/workload.Dockerfile`, with build args declared in
+Workloads share `platform/workload.Dockerfile`, with build args declared in
 `platform/workloads.json`.
 
 | App | Purpose | Import package |

@@ -63,7 +63,7 @@ repos:
 
       - id: dockerfile-lint
         name: Dockerfile lint
-        entry: hadolint db/Dockerfile db/pgbouncer/Dockerfile docker/workload.Dockerfile
+        entry: hadolint db/Dockerfile db/pgbouncer/Dockerfile platform/workload.Dockerfile
         language: system
         pass_filenames: false
         stages: [pre-commit]

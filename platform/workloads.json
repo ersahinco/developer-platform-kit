@@ -8,7 +8,7 @@
       "package": "api",
       "image": {
         "repository": "app",
-        "dockerfile": "docker/workload.Dockerfile",
+        "dockerfile": "platform/workload.Dockerfile",
         "non_root_user": "app",
         "build_args": {
           "APP_PATH": "apps/api",
@@ -92,7 +92,7 @@
       "package": "order_event_consumer",
       "image": {
         "repository": "order-event-consumer",
-        "dockerfile": "docker/workload.Dockerfile",
+        "dockerfile": "platform/workload.Dockerfile",
         "non_root_user": "app",
         "build_args": {
           "APP_PATH": "apps/order_event_consumer",
@@ -181,7 +181,7 @@
       "package": "backfill_worker",
       "image": {
         "repository": "worker",
-        "dockerfile": "docker/workload.Dockerfile",
+        "dockerfile": "platform/workload.Dockerfile",
         "non_root_user": "app",
         "build_args": {
           "APP_PATH": "apps/backfill_worker",
@@ -248,7 +248,7 @@
       "package": "data_export_job",
       "image": {
         "repository": "data-export-job",
-        "dockerfile": "docker/workload.Dockerfile",
+        "dockerfile": "platform/workload.Dockerfile",
         "non_root_user": "app",
         "build_args": {
           "APP_PATH": "apps/data_export_job",
