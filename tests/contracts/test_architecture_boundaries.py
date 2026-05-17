@@ -170,7 +170,7 @@ def test_dapr_pubsub_boundary_keeps_provider_brokers_at_runtime_edge() -> None:
     runtime_edge = "\n".join(
         [
             _read("infra/app/messaging.tf"),
-            _read("dapr/local/components/order-events-pubsub.yaml"),
+            _read("platform/dapr/local/components/order-events-pubsub.yaml"),
         ]
     ).lower()
     assert "/v1.0/publish/" in dapr_adapter
@@ -197,7 +197,7 @@ def test_alternate_dapr_component_can_satisfy_same_pubsub_contract() -> None:
 
 
 def test_order_events_dapr_resiliency_is_bounded_and_component_scoped() -> None:
-    local_resiliency = _read("dapr/local/components/resiliency.yaml")
+    local_resiliency = _read("platform/dapr/local/components/resiliency.yaml")
     template_resiliency = _read("infra/app/templates/dapr/resiliency.yaml.tftpl")
 
     for spec in [local_resiliency, template_resiliency]:
@@ -221,7 +221,7 @@ def test_order_events_ecs_sidecar_loads_resiliency_spec() -> None:
     assert "templates/dapr/resiliency.yaml.tftpl" in messaging
     assert "/dapr/components/resiliency.yaml" in workload_jobs
     assert "--components-path" in workload_jobs
-    assert "./dapr/local/components:/components:ro" in compose
+    assert "./platform/dapr/local/components:/components:ro" in compose
 
 
 def test_order_events_sns_topic_is_encrypted() -> None:

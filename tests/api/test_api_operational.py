@@ -22,7 +22,6 @@ from api.main import (  # noqa: E402
     get_customer_repo,
     get_db,
     get_idempotency_repo,
-    get_observability_fixture_repo,
     get_order_repo,
 )
 from api.main import get_config_store  # noqa: E402
@@ -38,20 +37,6 @@ class _ReadySession:
 class _FailingSession:
     def execute(self, statement: Any) -> None:
         raise RuntimeError("database unavailable")
-
-
-class _ObservabilityFixtureRepo:
-    def __init__(self) -> None:
-        self.calls = 0
-
-    def ensure_customer(self, *, name: str) -> Customer:
-        self.calls += 1
-        assert name == "Observability Smoke Customer"
-        return Customer(
-            id=123,
-            name=name,
-            created_at=datetime.datetime(2026, 4, 29, 12, 0, tzinfo=datetime.UTC),
-        )
 
 
 class _ConfigStore:
@@ -166,15 +151,6 @@ def _override_idempotency_repo(repo: object) -> None:
     app.dependency_overrides[get_idempotency_repo] = get_test_idempotency_repo
 
 
-def _override_observability_fixture_repo(repo: object) -> None:
-    def get_test_observability_fixture_repo() -> object:
-        return repo
-
-    app.dependency_overrides[get_observability_fixture_repo] = (
-        get_test_observability_fixture_repo
-    )
-
-
 def test_ready_reports_database_ok_when_ping_succeeds() -> None:
     _override_db(_ReadySession())
     try:
@@ -266,24 +242,6 @@ def test_rollout_drill_invalid_fault_mode_behaves_as_off(monkeypatch) -> None:
 
     assert response.status_code == 200
     assert response.json() == {"status": "ready", "checks": {"database": "ok"}}
-
-
-def test_observability_fixture_endpoint_uses_application_fixture_port() -> None:
-    repo = _ObservabilityFixtureRepo()
-    _override_observability_fixture_repo(repo)
-    try:
-        with TestClient(app) as client:
-            first = client.post("/admin/observability-fixture")
-            second = client.post("/admin/observability-fixture")
-    finally:
-        app.dependency_overrides.clear()
-
-    assert first.status_code == 200
-    assert first.json()["id"] == 123
-    assert first.json()["name"] == "Observability Smoke Customer"
-    assert second.status_code == 200
-    assert second.json()["id"] == 123
-    assert repo.calls == 2
 
 
 def test_request_id_header_is_generated_when_absent() -> None:

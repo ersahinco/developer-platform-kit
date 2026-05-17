@@ -28,12 +28,10 @@ from datetime import datetime, timedelta, timezone
 from decimal import Decimal
 from pathlib import Path
 
-from dotenv import load_dotenv
+from infrastructure.config import load_env_file
 from sqlalchemy import create_engine, text
 
-# load_dotenv with override=False: env vars already set in the shell take
-# precedence over .env values, matching the behaviour of the app's pydantic-settings.
-load_dotenv(Path(__file__).parent.parent / ".env", override=False)
+load_env_file(Path(__file__).parent.parent / ".env")
 
 DATABASE_URL = os.environ["DATABASE_URL"]
 

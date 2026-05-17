@@ -63,10 +63,10 @@ runbooks, and drills.
 | Runtime config | DB-backed `WRITE_MODE` and `READ_MODE` switches | `packages/infrastructure/db/repository.py` |
 | Connection pooling | PgBouncer in transaction mode | `compose.yaml`, `db/pgbouncer/pgbouncer.ini` |
 | Database portability | PostgreSQL contract with RDS as the current runtime implementation | `docs/data.md`, `db/`, `packages/infrastructure/db/` |
-| Dapr event transport | Durable order outbox relayed through Dapr pub/sub on ECS with AWS SNS/SQS underneath | `apps/order_event_consumer/main.py`, `dapr/`, `infra/app/messaging.tf` |
+| Dapr event transport | Durable order outbox relayed through Dapr pub/sub on ECS with AWS SNS/SQS underneath | `apps/order_event_consumer/main.py`, `platform/dapr/`, `infra/app/messaging.tf` |
 | ECS deployment | Build/scan approval followed by rolling app deploy plus one-off Liquibase and worker tasks | `.github/workflows/app-build.yml`, `.github/workflows/app-deploy.yml`, `infra/app/workload_jobs.tf` |
 | Infrastructure delivery | Terraform validate, reviewed plan, and separate manual apply | `.github/workflows/infra-plan.yml`, `.github/workflows/infra-apply.yml`, `infra/` |
-| Runtime appendability | Portable workload and runtime capability contracts validated before build | `platform/`, `scripts/ci/validate_platform_contract.py` |
+| Runtime appendability | Portable workload contract validated before build; runtime guidance stays documented until a second target exists | `platform/workloads.json`, `docs/runtime-toolkit.md`, `scripts/ci/validate_platform_contract.py` |
 
 ## Reference Workload
 
@@ -102,7 +102,12 @@ aws-sdlc-containers/
 |-- infra/
 |   |-- platform/        # VPC, endpoints, Route 53 lookup, GitHub OIDC/CI IAM
 |   `-- app/             # ECS, RDS, ALB, ECR, S3, Dapr/SNS/SQS, jobs, observability
-|-- platform/            # Portable workload and runtime capability contracts
+|-- platform/            # Platform-owned workload contract and runtime configuration
+|   |-- workloads.json   # Workload registry
+|   |-- workload.Dockerfile  # Shared workload image build definition
+|   `-- dapr/            # Platform-owned Dapr component configuration
+|       |-- local/       # Local dev component manifests (LocalStack SNS/SQS)
+|       `-- production/  # Production component manifests (real SNS/SQS, secret refs)
 |-- scripts/             # CI, release, operator, observability, and data helpers
 |-- tests/               # API, application, app-host, data, infrastructure, contract, and script tests
 |-- docs/                # Roadmaps, guides, runbooks, and drills
@@ -184,7 +189,7 @@ make dapr-up
 ```
 
 This starts LocalStack SNS/SQS, the `order-event-consumer` app, and a Dapr
-sidecar using the local component manifests under `dapr/local/`.
+sidecar using the local component manifests under `platform/dapr/local/`.
 
 ## CI/CD Shape
 

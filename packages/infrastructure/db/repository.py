@@ -19,7 +19,6 @@ from infrastructure.db.models import (
 )
 from domain.customer import Customer
 from application.idempotency import IdempotencyBeginResult
-from application.observability import ObservabilityFixtureRepository
 from domain.order import Order, ReadModeValue, WriteModeValue
 from application.order_event_receipts import OrderEventReceiptResult
 from domain.order_events import OrderEventMessage, order_created_message
@@ -216,30 +215,6 @@ class SQLAlchemyCustomerRepository(CustomerRepository):
         row = self._session.get(CustomerModel, customer_id)
         if row is None:
             return None
-        return Customer(id=row.id, name=row.name, created_at=row.created_at)
-
-
-class SQLAlchemyObservabilityFixtureRepository(ObservabilityFixtureRepository):
-    def __init__(self, session: Session) -> None:
-        self._session = session
-
-    def ensure_customer(self, *, name: str) -> Customer:
-        row = (
-            self._session.execute(
-                select(CustomerModel)
-                .where(CustomerModel.name == name)
-                .order_by(CustomerModel.id)
-                .limit(1)
-            )
-            .scalars()
-            .first()
-        )
-        if row is None:
-            row = CustomerModel(name=name)
-            self._session.add(row)
-            self._session.commit()
-            self._session.refresh(row)
-
         return Customer(id=row.id, name=row.name, created_at=row.created_at)
 
 

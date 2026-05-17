@@ -1,51 +1,65 @@
-from urllib.parse import quote
+from dataclasses import dataclass
+from dataclasses import field
 
-from pydantic import model_validator
-from pydantic_settings import BaseSettings, SettingsConfigDict
+from infrastructure.config import compose_postgres_url
+from infrastructure.config import env_int
+from infrastructure.config import env_str
+from infrastructure.config import load_env_file
+from infrastructure.config import require_value
 
 
-class Settings(BaseSettings):
-    model_config = SettingsConfigDict(
-        env_file=".env", env_file_encoding="utf-8", extra="ignore"
+load_env_file()
+
+
+@dataclass
+class Settings:
+    data_export_database_url: str | None = field(
+        default_factory=lambda: env_str("DATA_EXPORT_DATABASE_URL")
+    )
+    db_password: str | None = field(default_factory=lambda: env_str("DB_PASSWORD"))
+    db_user: str = field(
+        default_factory=lambda: require_value(env_str("DB_USER", "app"), "DB_USER")
+    )
+    db_host: str | None = field(default_factory=lambda: env_str("DB_HOST"))
+    db_port: int = field(default_factory=lambda: env_int("DB_PORT", 5432))
+    db_name: str = field(
+        default_factory=lambda: require_value(
+            env_str("DB_NAME", "aws_sdlc_containers"), "DB_NAME"
+        )
+    )
+    data_export_output_dir: str = field(
+        default_factory=lambda: require_value(
+            env_str("DATA_EXPORT_OUTPUT_DIR", "/tmp/aws-sdlc-containers-data-hub"),
+            "DATA_EXPORT_OUTPUT_DIR",
+        )
+    )
+    data_export_run_id: str | None = field(
+        default_factory=lambda: env_str("DATA_EXPORT_RUN_ID")
+    )
+    data_export_date: str | None = field(
+        default_factory=lambda: env_str("DATA_EXPORT_DATE")
+    )
+    data_export_s3_bucket: str | None = field(
+        default_factory=lambda: env_str("DATA_EXPORT_S3_BUCKET")
     )
 
-    # Export jobs connect directly to Postgres. They can run longer reads than
-    # request traffic and should not occupy pgbouncer transaction-pool slots.
-    data_export_database_url: str | None = None
-
-    # Runtime secret injection provides DB_PASSWORD while host/user remain
-    # non-sensitive environment variables.
-    db_password: str | None = None
-    db_user: str = "app"
-    db_host: str | None = None
-    db_port: int = 5432
-    db_name: str = "aws_sdlc_containers"
-
-    data_export_output_dir: str = "/tmp/aws-sdlc-containers-data-hub"
-    data_export_run_id: str | None = None
-    data_export_date: str | None = None
-    data_export_s3_bucket: str | None = None
-
-    @model_validator(mode="after")
-    def compose_export_url(self) -> "Settings":
+    def __post_init__(self) -> None:
         if self.data_export_database_url is None:
             if self.db_password is None or self.db_host is None:
                 raise ValueError(
                     "Either DATA_EXPORT_DATABASE_URL or DB_PASSWORD+DB_HOST must be set"
                 )
-            db_user = quote(self.db_user, safe="")
-            db_password = quote(self.db_password, safe="")
-            self.data_export_database_url = (
-                f"postgresql://{db_user}:{db_password}"
-                f"@{self.db_host}:{self.db_port}/{self.db_name}"
+            self.data_export_database_url = compose_postgres_url(
+                db_user=self.db_user,
+                db_password=self.db_password,
+                db_host=self.db_host,
+                db_port=self.db_port,
+                db_name=self.db_name,
             )
-        return self
 
     @property
     def required_data_export_database_url(self) -> str:
-        if self.data_export_database_url is None:
-            raise RuntimeError("DATA_EXPORT_DATABASE_URL was not configured")
-        return self.data_export_database_url
+        return require_value(self.data_export_database_url, "DATA_EXPORT_DATABASE_URL")
 
 
 settings = Settings()

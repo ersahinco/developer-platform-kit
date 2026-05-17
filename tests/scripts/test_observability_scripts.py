@@ -739,7 +739,7 @@ def test_cloud_traffic_generator_exercises_representative_api_paths(
     ]
 
 
-def test_cloud_traffic_generator_creates_fixture_customer_when_seed_data_is_absent(
+def test_cloud_traffic_generator_reports_missing_seed_customer(
     monkeypatch,
 ) -> None:
     calls: list[tuple[str, str]] = []
@@ -794,11 +794,8 @@ def test_cloud_traffic_generator_creates_fixture_customer_when_seed_data_is_abse
             headers: dict[str, str] | None = None,
         ) -> FakeResponse:
             calls.append(("POST", path))
-            if path == "/admin/observability-fixture":
-                return FakeResponse(200, {"id": 123})
             if path == "/orders":
                 assert json is not None
-                assert json["customer_id"] == 123
                 assert headers is not None
                 return FakeResponse(201, {"id": 456})
             raise AssertionError(f"unexpected POST: {path}")
@@ -813,6 +810,8 @@ def test_cloud_traffic_generator_creates_fixture_customer_when_seed_data_is_abse
 
     results = cloud_traffic.run()
 
-    assert all(result.ok for result in results)
-    assert ("POST", "/admin/observability-fixture") in calls
-    assert ("POST", "/orders") in calls
+    assert not all(result.ok for result in results)
+    assert any(
+        result.label == "resolve customer" and not result.ok for result in results
+    )
+    assert ("POST", "/orders") not in calls

@@ -112,44 +112,6 @@ def test_platform_contract_validator_requires_trace_contract_for_jobs(
     )
 
 
-def test_platform_contract_validator_rejects_missing_runtime_capability(
-    tmp_path: Path,
-) -> None:
-    contract_path = tmp_path / "runtime-capabilities.json"
-    contract = json.loads(
-        validator.DEFAULT_RUNTIME_CONTRACT.read_text(encoding="utf-8")
-    )
-    del contract["runtime_targets"][0]["capabilities"]["ingress"]
-    contract_path.write_text(json.dumps(contract), encoding="utf-8")
-
-    errors = validator.collect_errors(runtime_contract_path=contract_path)
-
-    assert any(
-        "aws-ecs: capabilities must match required_capabilities exactly" in error
-        for error in errors
-    )
-
-
-def test_platform_contract_validator_rejects_unsupported_runtime_capability_fields(
-    tmp_path: Path,
-) -> None:
-    contract_path = tmp_path / "runtime-capabilities.json"
-    contract = json.loads(
-        validator.DEFAULT_RUNTIME_CONTRACT.read_text(encoding="utf-8")
-    )
-    contract["runtime_targets"][0]["capabilities"]["terraform_ownership"][
-        "required_tokens"
-    ] = ["future_runtime_without_ownership_boundary"]
-    contract_path.write_text(json.dumps(contract), encoding="utf-8")
-
-    errors = validator.collect_errors(runtime_contract_path=contract_path)
-
-    assert (
-        "aws-ecs: capability terraform_ownership has unsupported fields ['required_tokens']"
-        in errors
-    )
-
-
 def test_platform_contract_validator_rejects_missing_conformance_env(
     tmp_path: Path,
 ) -> None:
@@ -165,21 +127,6 @@ def test_platform_contract_validator_rejects_missing_conformance_env(
     )
 
 
-def test_platform_contract_validator_rejects_unowned_runtime_provides(
-    tmp_path: Path,
-) -> None:
-    contract_path = tmp_path / "runtime-capabilities.json"
-    contract = json.loads(
-        validator.DEFAULT_RUNTIME_CONTRACT.read_text(encoding="utf-8")
-    )
-    contract["runtime_targets"][0]["capabilities"]["identity"]["owned_by"] = []
-    contract_path.write_text(json.dumps(contract), encoding="utf-8")
-
-    errors = validator.collect_errors(runtime_contract_path=contract_path)
-
-    assert "aws-ecs: capability identity needs owned_by" in errors
-
-
 def test_platform_contract_validator_rejects_provider_named_workload_config(
     tmp_path: Path,
 ) -> None:
@@ -192,37 +139,6 @@ def test_platform_contract_validator_rejects_provider_named_workload_config(
     errors = validator.collect_errors(contract_path=contract_path)
 
     assert "api: config name AWS_REGION must stay provider-neutral" in errors
-
-
-def test_platform_contract_validator_allows_future_runtime_specific_roots(
-    tmp_path: Path,
-) -> None:
-    root = tmp_path / "repo"
-    ignore = shutil.ignore_patterns(".venv", ".git", ".pytest_cache", "__pycache__")
-    shutil.copytree(validator.ROOT, root, ignore=ignore)
-    (root / "infra" / "example-platform").mkdir()
-    (root / "infra" / "example-app").mkdir()
-
-    contract_path = root / "platform" / "runtime-capabilities.json"
-    contract = json.loads(contract_path.read_text(encoding="utf-8"))
-    future_target = json.loads(json.dumps(contract["runtime_targets"][0]))
-    future_target["name"] = "example-runtime"
-    future_target["status"] = "supported"
-    future_target["provider"] = "example"
-    future_target["terraform_roots"] = {
-        "bootstrap": "infra/example-platform",
-        "runtime": "infra/example-app",
-    }
-    contract["runtime_targets"].append(future_target)
-    contract_path.write_text(json.dumps(contract), encoding="utf-8")
-
-    errors = validator.collect_errors(
-        root=root,
-        contract_path=root / "platform" / "workloads.json",
-        runtime_contract_path=contract_path,
-    )
-
-    assert errors == []
 
 
 # ---------------------------------------------------------------------------

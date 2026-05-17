@@ -8,6 +8,7 @@ import uuid
 from collections.abc import Iterator
 from contextlib import contextmanager
 from pathlib import Path
+from typing import Any, cast
 from urllib import error, request
 
 import pytest
@@ -219,9 +220,15 @@ def runtime_network() -> Iterator[tuple[str, str]]:
 
 def _build_image(workload: dict[str, object], prefix: str) -> str:
     name = str(workload["name"])
-    dockerfile = str(workload["image"]["dockerfile"])  # type: ignore[index]
+    image_spec = cast(dict[str, Any], workload["image"])
+    dockerfile = str(image_spec["dockerfile"])
+    build_args = dict(image_spec.get("build_args", {}))
     image = f"{prefix}-{name}:local"
-    _run(["docker", "build", "-f", dockerfile, "-t", image, "."])
+    args = ["docker", "build", "-f", dockerfile, "-t", image]
+    for key, value in build_args.items():
+        args.extend(["--build-arg", f"{key}={value}"])
+    args.append(".")
+    _run(args)
     return image
 
 

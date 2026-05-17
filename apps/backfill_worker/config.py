@@ -1,51 +1,62 @@
-from urllib.parse import quote
+from dataclasses import dataclass
+from dataclasses import field
 
-from pydantic import model_validator
-from pydantic_settings import BaseSettings, SettingsConfigDict
+from infrastructure.config import compose_postgres_url
+from infrastructure.config import env_int
+from infrastructure.config import env_optional_int
+from infrastructure.config import env_str
+from infrastructure.config import load_env_file
+from infrastructure.config import require_value
 
 
-class Settings(BaseSettings):
-    model_config = SettingsConfigDict(
-        env_file=".env", env_file_encoding="utf-8", extra="ignore"
+load_env_file()
+
+
+@dataclass
+class Settings:
+    backfill_database_url: str | None = field(
+        default_factory=lambda: env_str("BACKFILL_DATABASE_URL")
+    )
+    db_password: str | None = field(default_factory=lambda: env_str("DB_PASSWORD"))
+    db_user: str = field(
+        default_factory=lambda: require_value(env_str("DB_USER", "app"), "DB_USER")
+    )
+    db_host: str | None = field(default_factory=lambda: env_str("DB_HOST"))
+    db_port: int = field(default_factory=lambda: env_int("DB_PORT", 5432))
+    db_name: str = field(
+        default_factory=lambda: require_value(
+            env_str("DB_NAME", "aws_sdlc_containers"), "DB_NAME"
+        )
+    )
+    backfill_batch_size: int = field(
+        default_factory=lambda: env_int("BACKFILL_BATCH_SIZE", 1000)
+    )
+    backfill_sleep_ms: int = field(
+        default_factory=lambda: env_int("BACKFILL_SLEEP_MS", 100)
+    )
+    backfill_max_batches: int | None = field(
+        default_factory=lambda: env_optional_int("BACKFILL_MAX_BATCHES")
     )
 
-    # Separate URL from the app's DATABASE_URL — worker connects directly to
-    # Postgres, bypassing pgbouncer. Backfill transactions are long-running and
-    # incompatible with pgbouncer's transaction-mode pool.
-    backfill_database_url: str | None = None
-
-    # Runtime secret injection provides DB_PASSWORD and runtime env provides DB_HOST.
-    # The full URL is composed below so the password is never stored in plaintext
-    # deployment config.
-    db_password: str | None = None
-    db_user: str = "app"
-    db_host: str | None = None
-    db_port: int = 5432
-    db_name: str = "aws_sdlc_containers"
-
-    backfill_batch_size: int = 1000
-    backfill_sleep_ms: int = 100
-    backfill_max_batches: int | None = None
-
-    @model_validator(mode="after")
-    def compose_backfill_url(self) -> "Settings":
+    def __post_init__(self) -> None:
         if self.backfill_database_url is None:
             if self.db_password is None or self.db_host is None:
                 raise ValueError(
                     "Either BACKFILL_DATABASE_URL or DB_PASSWORD+DB_HOST must be set"
                 )
-            db_user = quote(self.db_user, safe="")
-            db_password = quote(self.db_password, safe="")
-            self.backfill_database_url = f"postgresql://{db_user}:{db_password}@{self.db_host}:{self.db_port}/{self.db_name}"
+            self.backfill_database_url = compose_postgres_url(
+                db_user=self.db_user,
+                db_password=self.db_password,
+                db_host=self.db_host,
+                db_port=self.db_port,
+                db_name=self.db_name,
+            )
         if self.backfill_max_batches is not None and self.backfill_max_batches < 1:
             raise ValueError("BACKFILL_MAX_BATCHES must be at least 1 when set")
-        return self
 
     @property
     def required_backfill_database_url(self) -> str:
-        if self.backfill_database_url is None:
-            raise RuntimeError("BACKFILL_DATABASE_URL was not configured")
-        return self.backfill_database_url
+        return require_value(self.backfill_database_url, "BACKFILL_DATABASE_URL")
 
 
 settings = Settings()
