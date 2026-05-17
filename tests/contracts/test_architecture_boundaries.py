@@ -182,7 +182,12 @@ def test_alternate_dapr_component_can_satisfy_same_pubsub_contract() -> None:
 
     current = yaml.safe_load(
         (
-            ROOT / "dapr" / "local" / "components" / "order-events-pubsub.yaml"
+            ROOT
+            / "platform"
+            / "dapr"
+            / "local"
+            / "components"
+            / "order-events-pubsub.yaml"
         ).read_text()
     )
     alternate = yaml.safe_load(
