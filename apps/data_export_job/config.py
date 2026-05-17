@@ -1,7 +1,7 @@
-from urllib.parse import quote
-
 from pydantic import model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
+
+from infrastructure.config import compose_postgres_url, require_value
 
 
 class Settings(BaseSettings):
@@ -33,19 +33,18 @@ class Settings(BaseSettings):
                 raise ValueError(
                     "Either DATA_EXPORT_DATABASE_URL or DB_PASSWORD+DB_HOST must be set"
                 )
-            db_user = quote(self.db_user, safe="")
-            db_password = quote(self.db_password, safe="")
-            self.data_export_database_url = (
-                f"postgresql://{db_user}:{db_password}"
-                f"@{self.db_host}:{self.db_port}/{self.db_name}"
+            self.data_export_database_url = compose_postgres_url(
+                db_user=self.db_user,
+                db_password=self.db_password,
+                db_host=self.db_host,
+                db_port=self.db_port,
+                db_name=self.db_name,
             )
         return self
 
     @property
     def required_data_export_database_url(self) -> str:
-        if self.data_export_database_url is None:
-            raise RuntimeError("DATA_EXPORT_DATABASE_URL was not configured")
-        return self.data_export_database_url
+        return require_value(self.data_export_database_url, "DATA_EXPORT_DATABASE_URL")
 
 
 settings = Settings()

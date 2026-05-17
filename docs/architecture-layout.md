@@ -37,6 +37,7 @@ aws-sdlc-containers/
 |   |-- application/
 |   `-- infrastructure/
 |-- db/                      # Liquibase, bootstrap SQL, PgBouncer image/config
+|-- docker/                  # Shared workload image build definition
 |-- infra/                   # Terraform roots split by lifecycle
 |   |-- platform/
 |   `-- app/
@@ -100,8 +101,9 @@ unless the replacement still preserves a human review point before AWS changes.
 
 ## Applications
 
-Each folder under `apps/` is a runtime entrypoint with its own Dockerfile and
-`pyproject.toml`.
+Each folder under `apps/` is a runtime entrypoint with its own `pyproject.toml`.
+Workloads share `docker/workload.Dockerfile`, with build args declared in
+`platform/workloads.json`.
 
 | App | Purpose | Import package |
 |---|---|---|

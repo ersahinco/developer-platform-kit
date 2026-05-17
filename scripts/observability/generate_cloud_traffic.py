@@ -154,7 +154,9 @@ def _resolve_customer_id(client: httpx.Client) -> tuple[int | None, StepResult]:
     if not candidates:
         return None, StepResult(False, "resolve customer", "no candidate customer ids")
 
+    checked: list[int] = []
     for candidate in candidates:
+        checked.append(candidate)
         response = client.get(f"/customers/{candidate}")
         if response.status_code == 200:
             return candidate, _check_response(
@@ -163,27 +165,10 @@ def _resolve_customer_id(client: httpx.Client) -> tuple[int | None, StepResult]:
                 expected_status=200,
             )
 
-    response = client.post("/admin/observability-fixture")
-    if response.status_code != 200:
-        return None, StepResult(
-            False,
-            "POST /admin/observability-fixture",
-            f"status={response.status_code} expected=200 candidates={candidates}",
-        )
-
-    payload = response.json()
-    customer_id = payload.get("id")
-    if not isinstance(customer_id, int):
-        return None, StepResult(
-            False,
-            "POST /admin/observability-fixture",
-            f"response did not include integer id: {payload}",
-        )
-
-    return customer_id, _check_response(
-        response,
-        label="POST /admin/observability-fixture",
-        expected_status=200,
+    return None, StepResult(
+        False,
+        "resolve customer",
+        f"no existing customer found in candidates={checked}; run make seed or set CUSTOMER_ID",
     )
 
 

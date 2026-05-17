@@ -8,8 +8,13 @@
       "package": "api",
       "image": {
         "repository": "app",
-        "dockerfile": "apps/api/Dockerfile",
-        "non_root_user": "app"
+        "dockerfile": "docker/workload.Dockerfile",
+        "non_root_user": "app",
+        "build_args": {
+          "APP_PATH": "apps/api",
+          "UV_PACKAGE": "aws-sdlc-containers-api",
+          "WORKLOAD_CMD": "uvicorn api.main:app --host 0.0.0.0 --port 8000"
+        }
       },
       "http": {
         "health": "/health",
@@ -87,8 +92,13 @@
       "package": "order_event_consumer",
       "image": {
         "repository": "order-event-consumer",
-        "dockerfile": "apps/order_event_consumer/Dockerfile",
-        "non_root_user": "app"
+        "dockerfile": "docker/workload.Dockerfile",
+        "non_root_user": "app",
+        "build_args": {
+          "APP_PATH": "apps/order_event_consumer",
+          "UV_PACKAGE": "aws-sdlc-containers-order-event-consumer",
+          "WORKLOAD_CMD": "python -m order_event_consumer.main"
+        }
       },
       "http": {
         "health": "/health",
@@ -171,8 +181,13 @@
       "package": "backfill_worker",
       "image": {
         "repository": "worker",
-        "dockerfile": "apps/backfill_worker/Dockerfile",
-        "non_root_user": "app"
+        "dockerfile": "docker/workload.Dockerfile",
+        "non_root_user": "app",
+        "build_args": {
+          "APP_PATH": "apps/backfill_worker",
+          "UV_PACKAGE": "aws-sdlc-containers-backfill-worker",
+          "WORKLOAD_CMD": "python -m backfill_worker.main"
+        }
       },
       "logs": {
         "runtime_labels": ["stack", "environment", "service", "container"],
@@ -233,8 +248,13 @@
       "package": "data_export_job",
       "image": {
         "repository": "data-export-job",
-        "dockerfile": "apps/data_export_job/Dockerfile",
-        "non_root_user": "app"
+        "dockerfile": "docker/workload.Dockerfile",
+        "non_root_user": "app",
+        "build_args": {
+          "APP_PATH": "apps/data_export_job",
+          "UV_PACKAGE": "aws-sdlc-containers-data-export-job",
+          "WORKLOAD_CMD": "python -m data_export_job.main"
+        }
       },
       "logs": {
         "runtime_labels": ["stack", "environment", "service", "container"],

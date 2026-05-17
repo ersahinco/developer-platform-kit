@@ -20,14 +20,14 @@ that does not already have a clearer owner.
 | `.devcontainer/` | Primary reproducible development shell and pinned non-app tooling. |
 | `observability/` | Local Prometheus, Loki, Promtail, Tempo, and Grafana config that remains portable outside AWS. |
 | `db/` | Database-owned local assets: Liquibase changelog, Postgres bootstrap SQL, and PgBouncer config/images. |
-| `apps/*/Dockerfile` | Workload-owned container build definitions. Keep app Dockerfiles next to the workload they package. |
+| `docker/workload.Dockerfile` | Shared workload image build definition. Workload-specific build args live in `platform/workloads.json` and `compose.yaml`. |
 | `.dockerignore` | Root Docker build-context hygiene for all workload images. |
 
 ## Local/Prod Parity
 
 Local development should reflect production where it buys confidence:
 
-- Build the same workload Dockerfiles used for ECS images.
+- Build the same workload Dockerfile and build args used for ECS images.
 - Run Postgres, PgBouncer, Liquibase, the API, workers, and data export through
   Compose so schema, connection, and job behavior are visible locally.
 - Reuse Grafana dashboards, Prometheus rules, and Loki/Prometheus/Grafana

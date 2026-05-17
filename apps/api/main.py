@@ -30,10 +30,6 @@ from api.schemas import (
 )
 from api.telemetry import configure_tracing
 from application.idempotency import IdempotencyRepository, order_request_hash
-from application.observability import (
-    ObservabilityFixtureRepository,
-    ensure_observability_fixture_customer as ensure_fixture_customer,
-)
 from domain.order import ReadModeValue, WriteModeValue
 from application.order_submission import (
     CustomerNotFoundError,
@@ -214,14 +210,6 @@ def get_config_store(db: DbDep) -> ConfigStore:
     return SQLAlchemyConfigStore(session=db)
 
 
-def get_observability_fixture_repo(db: DbDep) -> ObservabilityFixtureRepository:
-    from infrastructure.db.repository import (
-        SQLAlchemyObservabilityFixtureRepository,
-    )
-
-    return SQLAlchemyObservabilityFixtureRepository(session=db)
-
-
 def _begin_idempotent_request(
     *,
     idempotency: IdempotencyRepository,
@@ -240,10 +228,6 @@ OrderRepoDep = Annotated[OrderRepository, Depends(get_order_repo)]
 CustomerRepoDep = Annotated[CustomerRepository, Depends(get_customer_repo)]
 IdempotencyRepoDep = Annotated[IdempotencyRepository, Depends(get_idempotency_repo)]
 ConfigStoreDep = Annotated[ConfigStore, Depends(get_config_store)]
-ObservabilityFixtureDep = Annotated[
-    ObservabilityFixtureRepository,
-    Depends(get_observability_fixture_repo),
-]
 
 
 @app.get("/health", response_model=HealthResponse)
@@ -274,18 +258,6 @@ def get_customer(customer_id: int, repo: CustomerRepoDep) -> CustomerResponse:
     customer = repo.get_customer(customer_id)
     if customer is None:
         raise HTTPException(status_code=404, detail=f"Customer {customer_id} not found")
-    return CustomerResponse(
-        id=customer.id,
-        name=customer.name,
-        created_at=customer.created_at,
-    )
-
-
-@app.post("/admin/observability-fixture", response_model=CustomerResponse)
-def ensure_observability_fixture_customer(
-    fixtures: ObservabilityFixtureDep,
-) -> CustomerResponse:
-    customer = ensure_fixture_customer(fixtures=fixtures)
     return CustomerResponse(
         id=customer.id,
         name=customer.name,

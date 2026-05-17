@@ -72,7 +72,11 @@ services:
   app:
     build:
       context: .
-      dockerfile: apps/api/Dockerfile
+      dockerfile: docker/workload.Dockerfile
+      args:
+        APP_PATH: apps/api
+        UV_PACKAGE: aws-sdlc-containers-api
+        WORKLOAD_CMD: uvicorn api.main:app --host 0.0.0.0 --port 8000
     environment:
       DATABASE_URL: ${DATABASE_URL:-postgresql://postgres:postgres@pgbouncer:5432/aws_sdlc_containers}
       OTEL_TRACES_ENABLED: ${OTEL_TRACES_ENABLED:-false}
@@ -90,7 +94,11 @@ services:
   worker:
     build:
       context: .
-      dockerfile: apps/backfill_worker/Dockerfile
+      dockerfile: docker/workload.Dockerfile
+      args:
+        APP_PATH: apps/backfill_worker
+        UV_PACKAGE: aws-sdlc-containers-backfill-worker
+        WORKLOAD_CMD: python -m backfill_worker.main
     environment:
       # Worker bypasses pgbouncer — connects directly to Postgres.
       BACKFILL_DATABASE_URL: postgresql://${POSTGRES_USER:-postgres}:${POSTGRES_PASSWORD:-postgres}@db:5432/${POSTGRES_DB:-aws_sdlc_containers}
@@ -103,7 +111,11 @@ services:
   data-export-job:
     build:
       context: .
-      dockerfile: apps/data_export_job/Dockerfile
+      dockerfile: docker/workload.Dockerfile
+      args:
+        APP_PATH: apps/data_export_job
+        UV_PACKAGE: aws-sdlc-containers-data-export-job
+        WORKLOAD_CMD: python -m data_export_job.main
     environment:
       # Export job bypasses pgbouncer, matching worker/DDL behavior.
       DATA_EXPORT_DATABASE_URL: postgresql://${POSTGRES_USER:-postgres}:${POSTGRES_PASSWORD:-postgres}@db:5432/${POSTGRES_DB:-aws_sdlc_containers}
@@ -129,7 +141,11 @@ services:
   order-event-consumer:
     build:
       context: .
-      dockerfile: apps/order_event_consumer/Dockerfile
+      dockerfile: docker/workload.Dockerfile
+      args:
+        APP_PATH: apps/order_event_consumer
+        UV_PACKAGE: aws-sdlc-containers-order-event-consumer
+        WORKLOAD_CMD: python -m order_event_consumer.main
     environment:
       DB_HOST: db
       DB_PORT: 5432

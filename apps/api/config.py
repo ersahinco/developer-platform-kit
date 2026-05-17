@@ -1,7 +1,7 @@
-from urllib.parse import quote
-
 from pydantic import PostgresDsn, model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
+
+from infrastructure.config import compose_postgres_url
 
 
 class Settings(BaseSettings):
@@ -35,10 +35,14 @@ class Settings(BaseSettings):
         if self.database_url is None:
             if self.db_password is None:
                 raise ValueError("Either DATABASE_URL or DB_PASSWORD must be set")
-            db_user = quote(self.db_user, safe="")
-            db_password = quote(self.db_password, safe="")
             self.database_url = PostgresDsn(
-                f"postgresql://{db_user}:{db_password}@{self.db_host}:{self.db_port}/{self.db_name}"
+                compose_postgres_url(
+                    db_user=self.db_user,
+                    db_password=self.db_password,
+                    db_host=self.db_host,
+                    db_port=self.db_port,
+                    db_name=self.db_name,
+                )
             )
         return self
 

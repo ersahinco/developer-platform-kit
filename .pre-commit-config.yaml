@@ -63,7 +63,7 @@ repos:
 
       - id: dockerfile-lint
         name: Dockerfile lint
-        entry: hadolint db/Dockerfile db/pgbouncer/Dockerfile apps/api/Dockerfile apps/backfill_worker/Dockerfile apps/data_export_job/Dockerfile apps/order_event_consumer/Dockerfile
+        entry: hadolint db/Dockerfile db/pgbouncer/Dockerfile docker/workload.Dockerfile
         language: system
         pass_filenames: false
         stages: [pre-commit]

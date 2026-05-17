@@ -10,29 +10,9 @@ from typing import Any
 
 ROOT = Path(__file__).resolve().parents[2]
 DEFAULT_CONTRACT = ROOT / "platform" / "workloads.json"
-DEFAULT_RUNTIME_CONTRACT = ROOT / "platform" / "runtime-capabilities.json"
 REQUIRED_RUNTIME_LOG_LABELS = {"stack", "environment", "service", "container"}
 ENV_NAME_RE = re.compile(r"^[A-Z][A-Z0-9_]*$")
 IMAGE_REPOSITORY_RE = re.compile(r"^[a-z0-9][a-z0-9/-]*[a-z0-9]$")
-REQUIRED_RUNTIME_CAPABILITIES = {
-    "container_runtime",
-    "networking",
-    "identity",
-    "secrets",
-    "ingress",
-    "observability",
-    "jobs",
-    "rollout",
-    "rollback",
-    "release_evidence",
-    "cost_controls",
-    "terraform_ownership",
-    "local_ci_guardrails",
-}
-CURRENT_RUNTIME_TERRAFORM_ROOTS = {
-    "bootstrap": "infra/platform",
-    "runtime": "infra/app",
-}
 DATABASE_URL_ENV_BY_WORKLOAD = {
     "api": "DATABASE_URL",
     "order_event_consumer": "DATABASE_URL",
@@ -40,20 +20,6 @@ DATABASE_URL_ENV_BY_WORKLOAD = {
     "data_export_job": "DATA_EXPORT_DATABASE_URL",
 }
 COMPOSED_DATABASE_ENV = {"DB_HOST", "DB_PORT", "DB_USER", "DB_NAME"}
-PROVIDER_NEUTRAL_RUNTIME_PROVIDES = {
-    "ingress",
-    "workload_identity",
-    "secret_injection",
-    "config_injection",
-    "logs",
-    "metrics",
-    "traces",
-    "deploy",
-    "rollback",
-    "one_off_jobs",
-    "object_storage",
-    "postgres_connectivity",
-}
 ALLOWED_PROVIDER_EDGE_PREFIXES = (
     ".github/",
     "compose.yaml",
@@ -66,12 +32,6 @@ ALLOWED_PROVIDER_EDGE_PREFIXES = (
     "tests/",
 )
 PROVIDER_CONFIG_TERMS = {"AWS", "ECS", "RDS", "GITHUB", "CLOUDWATCH"}
-CAPABILITY_SPEC_FIELDS = {
-    "description",
-    "provides",
-    "owned_by",
-    "evidence_paths",
-}
 
 sys.path.insert(0, str(ROOT))
 
@@ -176,6 +136,7 @@ def _check_common(root: Path, workload: dict[str, Any], errors: list[str]) -> No
     image = workload.get("image", {})
     repository = image.get("repository") if isinstance(image, dict) else None
     dockerfile_value = image.get("dockerfile", "") if isinstance(image, dict) else ""
+    build_args = image.get("build_args", {}) if isinstance(image, dict) else {}
     non_root_user = (
         image.get("non_root_user", "app") if isinstance(image, dict) else "app"
     )
@@ -216,6 +177,15 @@ def _check_common(root: Path, workload: dict[str, Any], errors: list[str]) -> No
                 errors.append(f"{name}: Dockerfile missing {required!r}")
         if "PASSWORD=" in dockerfile_text or "SECRET=" in dockerfile_text:
             errors.append(f"{name}: Dockerfile must not bake secret values")
+        if "ARG APP_PATH" in dockerfile_text:
+            if not isinstance(build_args, dict):
+                errors.append(f"{name}: image.build_args must be an object")
+            else:
+                missing_args = sorted(
+                    {"APP_PATH", "UV_PACKAGE", "WORKLOAD_CMD"} - set(build_args)
+                )
+                if missing_args:
+                    errors.append(f"{name}: image.build_args is missing {missing_args}")
 
     config = workload.get("config", {})
     env = _as_strings(config.get("env"))
@@ -435,9 +405,16 @@ def _check_runtime_wiring(
     root: Path, workloads: list[dict[str, Any]], errors: list[str]
 ) -> None:
     edge_text = _runtime_edge_text(root)
+    dockerfile_paths = {
+        root / str(image["dockerfile"])
+        for workload in workloads
+        if isinstance((image := workload.get("image")), dict)
+        and isinstance(image.get("dockerfile"), str)
+    }
     dockerfile_text = "\n".join(
         path.read_text(encoding="utf-8")
-        for path in sorted((root / "apps").glob("*/Dockerfile"))
+        for path in sorted(dockerfile_paths)
+        if path.is_file()
     )
     env_example = (root / ".env.example").read_text(encoding="utf-8")
     app_config_text = "\n".join(
@@ -470,147 +447,9 @@ def _check_runtime_wiring(
             errors.append(f"app config must not name provider concept {term}")
 
 
-def _check_runtime_contract(
-    *,
-    root: Path,
-    runtime_contract_path: Path,
-    errors: list[str],
-) -> None:
-    contract = _load_json(runtime_contract_path)
-    if contract.get("schema_version") != "1":
-        errors.append("runtime schema_version must be '1'")
-
-    required = set(_as_strings(contract.get("required_capabilities")))
-    if required != REQUIRED_RUNTIME_CAPABILITIES:
-        errors.append(
-            "runtime required_capabilities must match the portable runtime contract"
-        )
-    portable_provides = set(_as_strings(contract.get("required_portable_provides")))
-    if portable_provides != PROVIDER_NEUTRAL_RUNTIME_PROVIDES:
-        errors.append(
-            "runtime required_portable_provides must match the provider-neutral capability contract"
-        )
-
-    future_rules = _as_strings(contract.get("future_runtime_rules"))
-    if len(future_rules) < 3:
-        errors.append("runtime future_runtime_rules must document append-only rules")
-
-    targets = contract.get("runtime_targets")
-    if not isinstance(targets, list) or not targets:
-        errors.append("runtime_targets must be a non-empty list")
-        return
-
-    current_targets = [
-        target
-        for target in targets
-        if isinstance(target, dict) and target.get("status") == "current"
-    ]
-    if len(current_targets) != 1:
-        errors.append("exactly one current runtime target must be declared")
-
-    for target in targets:
-        if not isinstance(target, dict):
-            errors.append("each runtime target must be an object")
-            continue
-
-        name = str(target.get("name", "<unknown>"))
-        if target.get("workload_contract") != "platform/workloads.json":
-            errors.append(
-                f"{name}: workload_contract must reference platform/workloads.json"
-            )
-
-        if target.get("orchestrator") != "github_actions":
-            errors.append(
-                f"{name}: orchestrator must be declared as github_actions today"
-            )
-
-        roots = target.get("terraform_roots", {})
-        if not isinstance(roots, dict):
-            errors.append(f"{name}: terraform_roots must be an object")
-        else:
-            for owner in ["bootstrap", "runtime"]:
-                root_path = roots.get(owner)
-                if not isinstance(root_path, str):
-                    errors.append(f"{name}: terraform_roots.{owner} must be declared")
-                    continue
-                if not root_path.startswith("infra/"):
-                    errors.append(
-                        f"{name}: terraform_roots.{owner} must stay under infra/"
-                    )
-                    continue
-                if target.get("status") == "current":
-                    expected_path = CURRENT_RUNTIME_TERRAFORM_ROOTS[owner]
-                    if root_path != expected_path:
-                        errors.append(
-                            f"{name}: terraform_roots.{owner} must be {expected_path}"
-                        )
-                        continue
-                if not (root / root_path).is_dir():
-                    errors.append(f"{name}: terraform root is missing: {root_path}")
-        if target.get("status") != "current" and isinstance(roots, dict):
-            root_values = [value for value in roots.values() if isinstance(value, str)]
-            if len(set(root_values)) != len(root_values):
-                errors.append(f"{name}: terraform roots must have distinct ownership")
-            for root_path in root_values:
-                for forbidden in ["apps/", "packages/domain", "packages/application"]:
-                    root_text = _tracked_file_text(root, root_path)
-                    if forbidden in root_text:
-                        errors.append(
-                            f"{name}: runtime root {root_path} must not import app internals {forbidden}"
-                        )
-
-        capabilities = target.get("capabilities")
-        if not isinstance(capabilities, dict):
-            errors.append(f"{name}: capabilities must be an object")
-            continue
-        if set(capabilities) != REQUIRED_RUNTIME_CAPABILITIES:
-            errors.append(
-                f"{name}: capabilities must match required_capabilities exactly"
-            )
-
-        provided_contract: dict[str, list[str]] = {}
-        for capability in sorted(REQUIRED_RUNTIME_CAPABILITIES):
-            spec = capabilities.get(capability)
-            if not isinstance(spec, dict):
-                errors.append(f"{name}: capability {capability} must be an object")
-                continue
-
-            extra_fields = sorted(set(spec) - CAPABILITY_SPEC_FIELDS)
-            if extra_fields:
-                errors.append(
-                    f"{name}: capability {capability} has unsupported fields {extra_fields}"
-                )
-            owned_by = _as_strings(spec.get("owned_by"))
-            evidence_paths = _as_strings(spec.get("evidence_paths"))
-            provides = _as_strings(spec.get("provides"))
-            if not owned_by:
-                errors.append(f"{name}: capability {capability} needs owned_by")
-            if not evidence_paths:
-                errors.append(f"{name}: capability {capability} needs evidence_paths")
-            if not isinstance(spec.get("description"), str) or not spec["description"]:
-                errors.append(f"{name}: capability {capability} needs a description")
-            for provided in provides:
-                if provided not in PROVIDER_NEUTRAL_RUNTIME_PROVIDES:
-                    errors.append(
-                        f"{name}: capability {capability} provides unknown key {provided}"
-                    )
-                    continue
-                provided_contract.setdefault(provided, []).append(capability)
-            for owner_path in [*owned_by, *evidence_paths]:
-                if not (root / owner_path).exists():
-                    errors.append(
-                        f"{name}: capability {capability} owner/evidence path is missing: {owner_path}"
-                    )
-        if set(provided_contract) != PROVIDER_NEUTRAL_RUNTIME_PROVIDES:
-            errors.append(
-                f"{name}: portable provides must match required_portable_provides exactly"
-            )
-
-
 def collect_errors(
     root: Path = ROOT,
     contract_path: Path = DEFAULT_CONTRACT,
-    runtime_contract_path: Path = DEFAULT_RUNTIME_CONTRACT,
 ) -> list[str]:
     contract = _load_json(contract_path)
     errors: list[str] = []
@@ -654,11 +493,6 @@ def collect_errors(
 
     _check_runtime_wiring(root, workloads, errors)
     _check_release_evidence(contract, errors)
-    _check_runtime_contract(
-        root=root,
-        runtime_contract_path=runtime_contract_path,
-        errors=errors,
-    )
     return errors
 
 

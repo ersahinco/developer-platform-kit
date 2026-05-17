@@ -6,8 +6,9 @@ prove a real runtime can host the existing portable workloads without moving
 provider assumptions into app code.
 
 `docs/platform-contract.md` says what workloads must expose. This document says
-what a runtime target must supply to run those workloads. The machine-readable
-runtime contract lives in `platform/runtime-capabilities.json`.
+what a runtime target must supply to run those workloads. Runtime guidance is
+documentation-only while `aws-ecs` is the only target; add machine-readable
+runtime metadata only when a second target exists and needs automated checks.
 
 ## Entry Criteria
 
@@ -30,9 +31,8 @@ with operational capabilities the current runtime cannot provide.
 
 ## Required Capabilities
 
-Before a runtime is documented as supported, declare every capability in
-`platform/runtime-capabilities.json` and keep the listed owner/evidence paths
-real:
+Before a runtime is documented as supported, prove the following capabilities
+with real owner/evidence paths:
 
 | Capability | Runtime must provide |
 | --- | --- |
@@ -52,13 +52,11 @@ real:
 
 ## Current AWS ECS Target
 
-`platform/runtime-capabilities.json` declares the current `aws-ecs` target and
-points each capability at owner and evidence paths in `infra/`,
-`.github/workflows/`, `scripts/`, `tests/`, docs, and `compose.yaml`. The
-validator checks the runtime schema, current-target ownership, path existence,
-and structured provider-neutral `provides` coverage for ingress, workload
-identity, secret injection, config injection, logs, metrics, traces, deploy,
-rollback, one-off jobs, object storage, and PostgreSQL connectivity.
+The current `aws-ecs` target is documented here and implemented through
+`infra/`, `.github/workflows/`, `scripts/`, tests, docs, and `compose.yaml`.
+The automated validator intentionally checks only `platform/workloads.json`
+while there is one runtime; this avoids maintaining a second copy of the
+runtime design in JSON.
 
 This is deliberately not a cloud-neutral abstraction layer. AWS details remain
 inside `infra/platform`, `infra/app`, AWS-facing scripts, and GitHub workflow
@@ -76,7 +74,7 @@ Actions for orchestration.
 |---|---|---|
 | Application core | Portable | `packages/domain` and `packages/application` stay free of AWS, Terraform, GitHub Actions, Grafana, Loki, Prometheus, Tempo, and OpenTelemetry imports. |
 | App/platform contract | Portable shape | `docs/platform-contract.md` defines workload images, health/readiness/metrics, logs, traces, config, eventing, evidence, and rollback before another runtime target is added. |
-| Runtime toolkit | Appendable shape | This document and `platform/runtime-capabilities.json` define what a runtime target must provide for networking, identity, secrets, ingress, observability, jobs, rollout, rollback, evidence, cost controls, and Terraform ownership. |
+| Runtime toolkit | Appendable shape | This document defines what a runtime target must provide for networking, identity, secrets, ingress, observability, jobs, rollout, rollback, evidence, cost controls, and Terraform ownership. |
 | Data and database | PostgreSQL-compatible shape | `docs/data.md` defines PostgreSQL, Liquibase, PgBouncer, backup/restore, secret injection, dataset paths, manifest integrity, idempotent run IDs, write ordering, and provider SDK isolation expectations. |
 | Runtime adapters | Mostly portable | `packages/infrastructure` owns SQL, Dapr, storage, and runtime adapters behind application ports. |
 | Local runtime | Portable | `compose.yaml`, Dockerfiles, Liquibase, PgBouncer, Dapr local assets, and the Grafana OSS stack run without AWS. |
@@ -102,7 +100,7 @@ Actions for orchestration.
 | CI-to-Loki release-event publishing | Ready but not active | Configure a real `LOKI_PUSH_URL` on the GitHub `aws` environment through a private runner/network path or reviewed authenticated endpoint, then run `make release-event-delivery-verify`. |
 | Metrics parity for AWS-managed resources | Partial | Keep CloudWatch alarms for ALB, RDS, SQS, Scheduler, WAF, and data-export freshness at the AWS platform edge until a deliberate exporter/ruler path exists. Do not make CloudWatch the application observability contract. |
 | Trace routing abstraction | Current | The API emits OTLP/HTTP to the same-task ADOT collector on ECS and directly to Tempo locally. Override the collector config when routing, filtering, or multi-backend export is needed. |
-| Alternate runtime platform | Deferred but appendable | The app and runtime capability contracts are explicit, but no Kubernetes, Nomad, or second-cloud Terraform root exists. Add one only when there is a real operating requirement and it satisfies `platform/runtime-capabilities.json`. |
+| Alternate runtime platform | Deferred but appendable | The app and runtime expectations are explicit, but no Kubernetes, Nomad, or second-cloud Terraform root exists. Add one only when there is a real operating requirement and it satisfies this document and `platform/workloads.json`. |
 | Infra rollback drill workflow | Intentionally absent | Infra rollback stays reviewed `Infra Plan` plus `Infra Apply`; do not add a permanent infra rollback drill workflow. |
 
 ## Implementation Steps
@@ -120,15 +118,15 @@ Actions for orchestration.
 6. Run `make runtime-conformance` against the declared workload images.
 7. Emit the same release event artifacts from deploy, rollback, and infra apply
    paths.
-8. Add the target to `platform/runtime-capabilities.json` only after owner and
-   evidence paths exist for every provider-neutral capability.
+8. Add machine-readable runtime metadata only after a second target exists and
+   owner/evidence paths are real for every provider-neutral capability.
 9. Run `uv run python scripts/ci/validate_platform_contract.py` and the normal
    contract/script/workflow/docs/Terraform checks before calling the runtime
    supported.
 
 ## Exit Criteria
 
-- The runtime target passes `scripts/ci/validate_platform_contract.py`.
+- Declared workloads pass `scripts/ci/validate_platform_contract.py`.
 - The runtime target has distinct bootstrap/platform and app/runtime roots under
   `infra/`, and those roots do not import workload app internals.
 - Declared workload images pass `make runtime-conformance`.

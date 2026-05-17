@@ -33,7 +33,7 @@ Every long-running app workload must provide this surface:
 
 | Area | Contract |
 | --- | --- |
-| OCI image | A committed `apps/<name>/Dockerfile`, declared `image.repository` in `platform/workloads.json`, non-root runtime user, no secrets baked into layers, `PYTHONPATH`/entrypoint wiring that works from a clean image build. |
+| OCI image | A committed workload Dockerfile path declared in `platform/workloads.json`, declared `image.repository`, non-root runtime user, no secrets baked into layers, `PYTHONPATH`/entrypoint wiring that works from a clean image build. |
 | App package | A stable app folder and import package under `apps/`; runtime wiring stays in `apps/*`, not in `packages/domain` or `packages/application`. |
 | Liveness | `/health` returns `200` when the process can accept traffic, without requiring downstream dependencies. |
 | Readiness | `/ready` checks required runtime dependencies and returns `503` with a structured failed check when the workload should be removed from rotation. |
@@ -71,8 +71,8 @@ so `make runtime-conformance` can prove the image from outside the container.
 Use this compact checklist when adding a service, worker, scheduled job, or
 one-off job:
 
-- Add `apps/<name>/main.py`, `apps/<name>/pyproject.toml`, and
-  `apps/<name>/Dockerfile`.
+- Add `apps/<name>/main.py`, `apps/<name>/pyproject.toml`, and the workload's
+  image metadata in `platform/workloads.json`.
 - Add the workload to `platform/workloads.json` before adding runtime
   infrastructure for it.
 - Declare the image repository name there so build workflows do not need a
@@ -271,7 +271,8 @@ The reusable value is the workflow and contract shape:
 - workload folders under `apps/`
 - shared domain/application/infrastructure packages under `packages/`
 - provider-neutral config, secrets, telemetry, rollback, and evidence metadata
-- runtime capabilities declared in `platform/runtime-capabilities.json`
+- runtime guidance documented in `docs/runtime-toolkit.md` until a second
+  target has a real operating need
 - current AWS/ECS implementation at delivery and infrastructure edges
 
 The repo should not grow a generic scheduler, custom deployment engine,

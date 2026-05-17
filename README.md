@@ -66,7 +66,7 @@ runbooks, and drills.
 | Dapr event transport | Durable order outbox relayed through Dapr pub/sub on ECS with AWS SNS/SQS underneath | `apps/order_event_consumer/main.py`, `dapr/`, `infra/app/messaging.tf` |
 | ECS deployment | Build/scan approval followed by rolling app deploy plus one-off Liquibase and worker tasks | `.github/workflows/app-build.yml`, `.github/workflows/app-deploy.yml`, `infra/app/workload_jobs.tf` |
 | Infrastructure delivery | Terraform validate, reviewed plan, and separate manual apply | `.github/workflows/infra-plan.yml`, `.github/workflows/infra-apply.yml`, `infra/` |
-| Runtime appendability | Portable workload and runtime capability contracts validated before build | `platform/`, `scripts/ci/validate_platform_contract.py` |
+| Runtime appendability | Portable workload contract validated before build; runtime guidance stays documented until a second target exists | `platform/workloads.json`, `docs/runtime-toolkit.md`, `scripts/ci/validate_platform_contract.py` |
 
 ## Reference Workload
 
@@ -99,10 +99,11 @@ aws-sdlc-containers/
 |   |-- application/     # Use cases, ports, commands/results, outbox contracts
 |   `-- infrastructure/  # SQLAlchemy/Postgres and Dapr/S3 adapter implementations
 |-- db/                  # Liquibase changelog and Postgres assets
+|-- docker/              # Shared workload image build definition
 |-- infra/
 |   |-- platform/        # VPC, endpoints, Route 53 lookup, GitHub OIDC/CI IAM
 |   `-- app/             # ECS, RDS, ALB, ECR, S3, Dapr/SNS/SQS, jobs, observability
-|-- platform/            # Portable workload and runtime capability contracts
+|-- platform/            # Portable workload contract
 |-- scripts/             # CI, release, operator, observability, and data helpers
 |-- tests/               # API, application, app-host, data, infrastructure, contract, and script tests
 |-- docs/                # Roadmaps, guides, runbooks, and drills
