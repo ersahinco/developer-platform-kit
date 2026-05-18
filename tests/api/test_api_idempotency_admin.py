@@ -1,7 +1,4 @@
-"""API idempotency edge-case and admin write-path tests.
-
-Validates: Requirements 6.1, 6.2, 6.3, 7.1, 7.2
-"""
+"""API idempotency edge-case and admin write-path tests."""
 
 from __future__ import annotations
 
@@ -78,13 +75,7 @@ def _override_config_store(store: object) -> None:
     app.dependency_overrides[get_config_store] = get_test_config_store
 
 
-# ---------------------------------------------------------------------------
-# Tests — Requirement 6: Idempotency edge cases
-# ---------------------------------------------------------------------------
-
-
 def test_empty_idempotency_key_returns_400() -> None:
-    """Validates: Requirements 6.1 — whitespace-only key after strip → HTTP 400."""
     _override_idempotency_repo(_ProcessingIdempotencyRepo())
     try:
         with TestClient(app) as client:
@@ -104,7 +95,6 @@ def test_empty_idempotency_key_returns_400() -> None:
 
 
 def test_idempotency_key_over_200_chars_returns_400() -> None:
-    """Validates: Requirements 6.2 — key longer than 200 characters → HTTP 400."""
     long_key = "x" * 201
     _override_idempotency_repo(_ProcessingIdempotencyRepo())
     try:
@@ -125,7 +115,6 @@ def test_idempotency_key_over_200_chars_returns_400() -> None:
 
 
 def test_still_processing_key_returns_409() -> None:
-    """Validates: Requirements 6.3 — still-processing key → HTTP 409 with detail."""
     _override_idempotency_repo(_ProcessingIdempotencyRepo())
     try:
         with TestClient(app) as client:
@@ -145,13 +134,7 @@ def test_still_processing_key_returns_409() -> None:
     assert "still processing" in response.json()["detail"].lower()
 
 
-# ---------------------------------------------------------------------------
-# Tests — Requirement 7: Admin write paths
-# ---------------------------------------------------------------------------
-
-
 def test_post_write_mode_dual_persists_and_returns_200() -> None:
-    """Validates: Requirements 7.1 — POST /admin/write-mode with "dual" → 200, config stored."""
     config_store = _RecordingConfigStore()
     _override_config_store(config_store)
     try:
@@ -166,7 +149,6 @@ def test_post_write_mode_dual_persists_and_returns_200() -> None:
 
 
 def test_post_read_mode_new_persists_and_returns_200() -> None:
-    """Validates: Requirements 7.2 — POST /admin/read-mode with "new" → 200, config stored."""
     config_store = _RecordingConfigStore()
     _override_config_store(config_store)
     try:

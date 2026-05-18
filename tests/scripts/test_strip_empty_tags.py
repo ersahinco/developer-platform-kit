@@ -17,12 +17,6 @@ def _read_json(path: Path) -> object:
     return json.loads(path.read_text(encoding="utf-8"))
 
 
-# ---------------------------------------------------------------------------
-# Task 7.3 — unit tests for strip_empty_tags
-# Validates: Requirements 6.2
-# ---------------------------------------------------------------------------
-
-
 def test_strip_empty_tags_removes_key_when_tags_is_empty_list(tmp_path: Path) -> None:
     """tags: [] → key removed from output file."""
     task_def = tmp_path / "task.json"
@@ -64,14 +58,6 @@ def test_strip_empty_tags_writes_file_unchanged_when_no_tags_key(
     assert result == original
 
 
-# ---------------------------------------------------------------------------
-# Task 7.4 — property test: empty-tags stripping is idempotent (Property 1)
-# Validates: Requirements 6.2
-# ---------------------------------------------------------------------------
-
-# Strategy: generate arbitrary task-definition dicts with string keys and
-# JSON-serialisable values, with `tags` optionally set to [], a non-empty list,
-# or absent.
 _json_primitive = st.one_of(
     st.none(),
     st.booleans(),
@@ -103,31 +89,18 @@ _task_definition_strategy = st.fixed_dictionaries(
 @given(task_def=_task_definition_strategy)
 @settings(max_examples=25, suppress_health_check=[HealthCheck.function_scoped_fixture])
 def test_strip_empty_tags_is_idempotent(task_def: dict, tmp_path: Path) -> None:
-    """Property 1: Empty-tags stripping is idempotent.
-
-    For any task-definition JSON object, calling strip_empty_tags once and
-    twice must produce identical file contents.
-
-    **Validates: Requirements 6.2**
-    """
+    """Calling strip_empty_tags twice produces the same file content."""
     path = tmp_path / "task.json"
     path.write_text(json.dumps(task_def, indent=2) + "\n", encoding="utf-8")
 
-    # First call
     strip_empty_tags(path)
     contents_after_first = path.read_text(encoding="utf-8")
 
-    # Second call
     strip_empty_tags(path)
     contents_after_second = path.read_text(encoding="utf-8")
 
     assert contents_after_first == contents_after_second
 
-
-# ---------------------------------------------------------------------------
-# Task 7.5 — property test: non-empty or absent tags are preserved (Property 2)
-# Validates: Requirements 6.2
-# ---------------------------------------------------------------------------
 
 _non_empty_tags_strategy = st.lists(
     st.one_of(
@@ -158,14 +131,7 @@ _task_definition_no_empty_tags_strategy = st.fixed_dictionaries(
 def test_strip_empty_tags_preserves_non_empty_or_absent_tags(
     task_def: dict, tmp_path: Path
 ) -> None:
-    """Property 2: Non-empty or absent tags are preserved.
-
-    For any task-definition JSON where `tags` is absent or holds a non-empty
-    list, `strip_empty_tags` must leave the `tags` field unchanged — same value
-    as input, or still absent if it was absent.
-
-    **Validates: Requirements 6.2**
-    """
+    """Non-empty tags stay unchanged, and absent tags stay absent."""
     path = tmp_path / "task.json"
     path.write_text(json.dumps(task_def, indent=2) + "\n", encoding="utf-8")
 
@@ -176,26 +142,13 @@ def test_strip_empty_tags_preserves_non_empty_or_absent_tags(
     result = json.loads(path.read_text(encoding="utf-8"))
 
     if tags_before == "__ABSENT__":
-        # tags key was absent — must still be absent after stripping
         assert "tags" not in result
     else:
-        # tags key held a non-empty list — must be unchanged
         assert result["tags"] == tags_before
 
 
-# ---------------------------------------------------------------------------
-# Task 7.6 — property test: strip-then-parse round trip preserves all other
-#             fields (Property 3)
-# Validates: Requirements 6.2, 6.4
-# ---------------------------------------------------------------------------
-
-# Strategy: generate arbitrary task-definition dicts that may have any
-# combination of tags (absent, empty list, or non-empty list) plus arbitrary
-# extra fields.  After strip_empty_tags, every field OTHER than `tags` must
-# be present with an identical value.
-
 _any_tags_strategy = st.one_of(
-    st.just([]),  # empty list — the key case that triggers removal
+    st.just([]),
     st.lists(
         st.one_of(
             st.dictionaries(st.text(max_size=10), st.text(max_size=20), max_size=3),
@@ -228,16 +181,7 @@ _task_definition_any_tags_strategy = st.fixed_dictionaries(
 def test_strip_empty_tags_preserves_all_non_tags_fields(
     task_def: dict, tmp_path: Path
 ) -> None:
-    """Property 3: Strip-then-parse round trip preserves all other fields.
-
-    For any task-definition JSON object, after calling strip_empty_tags, all
-    fields other than `tags` must be present in the output with identical
-    values — the helper must not mutate any field except `tags`.
-
-    Covers cases where `tags` is absent, `tags: []`, and `tags: [non-empty]`.
-
-    **Validates: Requirements 6.2, 6.4**
-    """
+    """Only the tags field may change after stripping."""
     path = tmp_path / "task.json"
     path.write_text(json.dumps(task_def, indent=2) + "\n", encoding="utf-8")
 
@@ -245,8 +189,6 @@ def test_strip_empty_tags_preserves_all_non_tags_fields(
 
     result = json.loads(path.read_text(encoding="utf-8"))
 
-    # Every field that was in the input (other than `tags`) must be present
-    # in the output with the exact same value.
     for key, value in task_def.items():
         if key == "tags":
             continue
@@ -255,8 +197,6 @@ def test_strip_empty_tags_preserves_all_non_tags_fields(
             f"Field {key!r} was mutated: expected {value!r}, got {result[key]!r}"
         )
 
-    # No extra fields (other than possibly losing `tags`) should appear.
-    # `tags` is kept in the output only if it was present in the input AND non-empty.
     non_tags_keys = {k for k in task_def if k != "tags"}
     tags_in_input = "tags" in task_def
     tags_is_empty = task_def.get("tags") == []
