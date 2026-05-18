@@ -57,39 +57,41 @@ wheels = [
 name = "aws-sdlc-containers"
 version = "0.1.0"
 source = { virtual = "." }
-dependencies = [
-    { name = "httpx" },
-    { name = "psycopg2-binary" },
-    { name = "sqlalchemy" },
-]
 
 [package.dev-dependencies]
 dev = [
-    { name = "hypothesis" },
     { name = "pip-audit" },
     { name = "pyright" },
     { name = "ruff" },
 ]
+scripts = [
+    { name = "httpx" },
+    { name = "psycopg2-binary" },
+    { name = "sqlalchemy" },
+]
 test = [
+    { name = "httpx" },
+    { name = "hypothesis" },
     { name = "pytest" },
     { name = "pyyaml" },
 ]
 
 [package.metadata]
-requires-dist = [
-    { name = "httpx", specifier = ">=0.27.0" },
-    { name = "psycopg2-binary", specifier = ">=2.9.9" },
-    { name = "sqlalchemy", specifier = ">=2.0.30" },
-]
 
 [package.metadata.requires-dev]
 dev = [
-    { name = "hypothesis", specifier = ">=6.152.7" },
     { name = "pip-audit", specifier = ">=2.7.0" },
     { name = "pyright", specifier = ">=1.1.409" },
     { name = "ruff", specifier = ">=0.4.4" },
 ]
+scripts = [
+    { name = "httpx", specifier = ">=0.27.0" },
+    { name = "psycopg2-binary", specifier = ">=2.9.9" },
+    { name = "sqlalchemy", specifier = ">=2.0.30" },
+]
 test = [
+    { name = "httpx", specifier = ">=0.27.0" },
+    { name = "hypothesis", specifier = ">=6.152.7" },
     { name = "pytest", specifier = ">=9.0.3" },
     { name = "pyyaml", specifier = ">=6.0.3" },
 ]

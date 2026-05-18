@@ -44,6 +44,6 @@
       }
     }
   },
-  "postCreateCommand": "uv sync --all-packages --group dev --group test && pre-commit install --hook-type pre-commit --hook-type pre-push",
+  "postCreateCommand": "uv sync --all-packages --group dev --group scripts --group test && pre-commit install --hook-type pre-commit --hook-type pre-push",
   "remoteUser": "vscode"
 }

@@ -312,7 +312,7 @@ def test_incident_evidence_bundle_collects_portable_context(
     assert "trace_id" in bundle["correlation_fields"]
     assert "task_definition" in bundle["correlation_fields"]
     assert "App Overview" in markdown
-    assert "gh run list --workflow app-deploy.yml" in markdown
+    assert "make observability-delivery-verify" in markdown
 
 
 def test_incident_evidence_bundle_includes_recent_release_events(
@@ -359,7 +359,7 @@ def test_incident_evidence_bundle_includes_recent_release_events(
     assert "Recent Delivery Events" in markdown
     assert "App deploy verification passed" in markdown
     assert TEST_RUN_ID in markdown
-    assert "release-evidence-*" in markdown
+    assert "make observability-cloud-traffic" in markdown
 
 
 def test_incident_evidence_bundle_queries_loki_release_events(

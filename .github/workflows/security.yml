@@ -30,7 +30,7 @@ jobs:
           python-version: "3.14"
 
       - name: Install dependencies
-        run: uv sync --frozen --all-packages --group dev --group test
+        run: uv sync --frozen --all-packages --group dev --group scripts --group test
 
       - name: Run secret scan
         run: |

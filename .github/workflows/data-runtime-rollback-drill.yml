@@ -48,7 +48,7 @@ jobs:
           enable-cache: true
 
       - name: Install verification dependencies
-        run: uv sync --frozen
+        run: uv sync --frozen --group scripts
 
       - uses: aws-actions/configure-aws-credentials@a89a83ec143615402a01f672b6e172b7b1875000 # v6
         with:

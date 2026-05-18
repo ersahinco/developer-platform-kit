@@ -507,27 +507,6 @@ def build_bundle(
         },
         "correlation_fields": CORRELATION_FIELDS,
         "query_hints": _query_hints(stack_name, service_name, root_domain),
-        "workflow_hints": {
-            "rollback_drills": [
-                ".github/workflows/app-rollback-drill.yml",
-                ".github/workflows/data-runtime-rollback-drill.yml",
-            ],
-            "reviewed_infra": [
-                ".github/workflows/infra-plan.yml",
-                ".github/workflows/infra-apply.yml",
-            ],
-            "recent_runs": [
-                "gh run list --workflow app-deploy.yml --limit 5",
-                "gh run list --workflow app-rollback-drill.yml --limit 5",
-                "gh run list --workflow data-runtime-rollback-drill.yml --limit 5",
-                "gh run list --workflow infra-plan.yml --limit 5",
-                "gh run list --workflow infra-apply.yml --limit 5",
-            ],
-            "release_event_artifacts": [
-                "gh run download <run-id> -p 'release-evidence-*' -D /tmp/aws-sdlc-containers-release-events",
-                "RELEASE_EVENTS_DIR=/tmp/aws-sdlc-containers-release-events make incident-evidence",
-            ],
-        },
     }
 
 
@@ -601,10 +580,6 @@ def render_markdown(bundle: dict[str, Any]) -> str:
 
     lines.extend(["", "## Operator Commands"])
     for command in bundle["query_hints"]["operator_commands"]:
-        lines.append(f"- `{command}`")
-    for command in bundle["workflow_hints"]["recent_runs"]:
-        lines.append(f"- `{command}`")
-    for command in bundle["workflow_hints"]["release_event_artifacts"]:
         lines.append(f"- `{command}`")
 
     return "\n".join(lines) + "\n"

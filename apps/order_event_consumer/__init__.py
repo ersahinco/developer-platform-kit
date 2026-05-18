@@ -1,1 +1,1 @@
-"""Order event relay and consumer runtime."""
+"""Order event workload host."""

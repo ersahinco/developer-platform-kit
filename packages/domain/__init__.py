@@ -1,1 +1,1 @@
-"""Core domain contracts for the ECS DevOps monorepo template."""
+"""Core domain contracts for the delivery toolkit."""

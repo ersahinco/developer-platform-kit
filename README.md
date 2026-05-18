@@ -157,7 +157,7 @@ curl --fail --show-error http://localhost:8000/health
 Run tests:
 
 ```bash
-uv sync --all-packages --group dev --group test
+uv sync --all-packages --group dev --group scripts --group test
 make secret-scan
 make dependency-audit
 make lint-app

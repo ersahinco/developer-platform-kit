@@ -1,1 +1,1 @@
-"""Infrastructure adapters for the ECS DevOps monorepo template."""
+"""Infrastructure adapters for the delivery toolkit."""

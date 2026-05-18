@@ -77,7 +77,7 @@ In VS Code, run **Dev Containers: Reopen in Container**. On first create, the
 container runs:
 
 ```bash
-uv sync --all-packages --group dev --group test
+uv sync --all-packages --group dev --group scripts --group test
 pre-commit install --hook-type pre-commit --hook-type pre-push
 ```
 
@@ -162,7 +162,7 @@ This creates the bootstrap schema, the runtime config table, and the expanded
 ### 3. Seed data
 
 ```bash
-uv sync --all-packages
+uv sync --all-packages --group scripts
 export DATABASE_URL=postgresql://postgres:postgres@localhost:5432/aws_sdlc_containers
 uv run python scripts/data/seed_data.py
 ```
