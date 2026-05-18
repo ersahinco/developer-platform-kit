@@ -5,12 +5,33 @@ import json
 import shutil
 import sys
 from pathlib import Path
+from typing import Any
 from unittest.mock import patch
 
-import hypothesis.strategies as st
-from hypothesis import given, settings
-
 from scripts.ci import validate_platform_contract as validator
+
+
+def _contract_copy() -> dict[str, Any]:
+    return json.loads(validator.DEFAULT_CONTRACT.read_text(encoding="utf-8"))
+
+
+def _write_contract(path: Path, contract: dict[str, Any]) -> None:
+    path.write_text(json.dumps(contract), encoding="utf-8")
+
+
+def _load_release_event_fields_via_importlib() -> list[tuple[str, ...]]:
+    release_event_path = (
+        validator.ROOT / "scripts" / "observability" / "release_event.py"
+    )
+    spec = importlib.util.spec_from_file_location(
+        "release_event_importlib", release_event_path
+    )
+    assert spec is not None and spec.loader is not None, (
+        f"spec_from_file_location returned None for {release_event_path}"
+    )
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)  # type: ignore[union-attr]
+    return module.REQUIRED_EVENT_FIELDS
 
 
 def test_platform_contract_validator_accepts_current_workloads() -> None:
@@ -44,9 +65,9 @@ def test_platform_contract_validator_rejects_release_evidence_drift(
     tmp_path: Path,
 ) -> None:
     contract_path = tmp_path / "workloads.json"
-    contract = json.loads(validator.DEFAULT_CONTRACT.read_text(encoding="utf-8"))
+    contract = _contract_copy()
     contract["release_evidence"]["required_fields"].remove("source_workflow")
-    contract_path.write_text(json.dumps(contract), encoding="utf-8")
+    _write_contract(contract_path, contract)
 
     errors = validator.collect_errors(contract_path=contract_path)
 
@@ -57,9 +78,9 @@ def test_platform_contract_validator_rejects_secret_env_overlap(
     tmp_path: Path,
 ) -> None:
     contract_path = tmp_path / "workloads.json"
-    contract = json.loads(validator.DEFAULT_CONTRACT.read_text(encoding="utf-8"))
+    contract = _contract_copy()
     contract["workloads"][0]["config"]["env"].append("DB_PASSWORD")
-    contract_path.write_text(json.dumps(contract), encoding="utf-8")
+    _write_contract(contract_path, contract)
 
     errors = validator.collect_errors(contract_path=contract_path)
 
@@ -72,9 +93,9 @@ def test_platform_contract_validator_rejects_missing_image_repository(
     tmp_path: Path,
 ) -> None:
     contract_path = tmp_path / "workloads.json"
-    contract = json.loads(validator.DEFAULT_CONTRACT.read_text(encoding="utf-8"))
+    contract = _contract_copy()
     del contract["workloads"][0]["image"]["repository"]
-    contract_path.write_text(json.dumps(contract), encoding="utf-8")
+    _write_contract(contract_path, contract)
 
     errors = validator.collect_errors(contract_path=contract_path)
 
@@ -85,10 +106,10 @@ def test_platform_contract_validator_rejects_database_config_drift(
     tmp_path: Path,
 ) -> None:
     contract_path = tmp_path / "workloads.json"
-    contract = json.loads(validator.DEFAULT_CONTRACT.read_text(encoding="utf-8"))
+    contract = _contract_copy()
     contract["workloads"][0]["config"]["env"].remove("DB_HOST")
     contract["workloads"][0]["config"]["secrets"].remove("DB_PASSWORD")
-    contract_path.write_text(json.dumps(contract), encoding="utf-8")
+    _write_contract(contract_path, contract)
 
     errors = validator.collect_errors(contract_path=contract_path)
 
@@ -100,9 +121,9 @@ def test_platform_contract_validator_requires_trace_contract_for_jobs(
     tmp_path: Path,
 ) -> None:
     contract_path = tmp_path / "workloads.json"
-    contract = json.loads(validator.DEFAULT_CONTRACT.read_text(encoding="utf-8"))
+    contract = _contract_copy()
     del contract["workloads"][2]["traces"]
-    contract_path.write_text(json.dumps(contract), encoding="utf-8")
+    _write_contract(contract_path, contract)
 
     errors = validator.collect_errors(contract_path=contract_path)
 
@@ -116,9 +137,9 @@ def test_platform_contract_validator_rejects_missing_conformance_env(
     tmp_path: Path,
 ) -> None:
     contract_path = tmp_path / "workloads.json"
-    contract = json.loads(validator.DEFAULT_CONTRACT.read_text(encoding="utf-8"))
+    contract = _contract_copy()
     del contract["workloads"][0]["conformance"]["env"]["DATABASE_URL"]
-    contract_path.write_text(json.dumps(contract), encoding="utf-8")
+    _write_contract(contract_path, contract)
 
     errors = validator.collect_errors(contract_path=contract_path)
 
@@ -131,35 +152,20 @@ def test_platform_contract_validator_rejects_provider_named_workload_config(
     tmp_path: Path,
 ) -> None:
     contract_path = tmp_path / "workloads.json"
-    contract = json.loads(validator.DEFAULT_CONTRACT.read_text(encoding="utf-8"))
+    contract = _contract_copy()
     contract["workloads"][0]["config"]["env"].append("AWS_REGION")
     contract["workloads"][0]["conformance"]["env"]["AWS_REGION"] = "eu-central-1"
-    contract_path.write_text(json.dumps(contract), encoding="utf-8")
+    _write_contract(contract_path, contract)
 
     errors = validator.collect_errors(contract_path=contract_path)
 
     assert "api: config name AWS_REGION must stay provider-neutral" in errors
 
 
-# ---------------------------------------------------------------------------
-# Task 5.2 — unit tests for _check_release_evidence (importlib import fix)
-# ---------------------------------------------------------------------------
-
-
 def test_check_release_evidence_no_errors_for_valid_contract() -> None:
-    """_check_release_evidence returns no errors when required_fields matches REQUIRED_EVENT_FIELDS."""
-    # Build the expected required_fields list from the actual release_event module
-    # (same derivation used inside _check_release_evidence)
-    import importlib.util
-
-    _spec = importlib.util.spec_from_file_location(
-        "release_event",
-        validator.ROOT / "scripts" / "observability" / "release_event.py",
-    )
-    assert _spec is not None and _spec.loader is not None
-    _mod = importlib.util.module_from_spec(_spec)
-    _spec.loader.exec_module(_mod)  # type: ignore[union-attr]
-    required_fields = [".".join(path) for path in _mod.REQUIRED_EVENT_FIELDS]
+    required_fields = [
+        ".".join(path) for path in _load_release_event_fields_via_importlib()
+    ]
 
     contract = {
         "release_evidence": {
@@ -173,7 +179,6 @@ def test_check_release_evidence_no_errors_for_valid_contract() -> None:
 
 
 def test_check_release_evidence_raises_import_error_for_missing_file() -> None:
-    """_check_release_evidence raises ImportError when spec_from_file_location returns None."""
     contract = {
         "release_evidence": {
             "required_fields": [],
@@ -181,8 +186,6 @@ def test_check_release_evidence_raises_import_error_for_missing_file() -> None:
     }
     errors: list[str] = []
 
-    # Patch spec_from_file_location to return None, simulating a missing/unresolvable file.
-    # This exercises the explicit ImportError guard inside _check_release_evidence.
     with patch("importlib.util.spec_from_file_location", return_value=None):
         try:
             validator._check_release_evidence(contract, errors)
@@ -192,30 +195,9 @@ def test_check_release_evidence_raises_import_error_for_missing_file() -> None:
             raise AssertionError("Expected ImportError was not raised")
 
 
-@settings(max_examples=1)
-@given(st.just(None))
-def test_importlib_and_direct_import_yield_same_required_event_fields(_: None) -> None:
-    """**Validates: Requirements 5.1**
+def test_importlib_and_direct_import_yield_same_required_event_fields() -> None:
+    fields_via_importlib = _load_release_event_fields_via_importlib()
 
-    Property 4: Loading REQUIRED_EVENT_FIELDS via importlib.util.spec_from_file_location
-    must produce a value equal to the one obtained by directly importing
-    scripts.observability.release_event — the import mechanism must not alter the value.
-    """
-    # --- Load via importlib (the mechanism used by validate_platform_contract.py) ---
-    release_event_path = (
-        validator.ROOT / "scripts" / "observability" / "release_event.py"
-    )
-    _spec = importlib.util.spec_from_file_location(
-        "release_event_importlib", release_event_path
-    )
-    assert _spec is not None and _spec.loader is not None, (
-        f"spec_from_file_location returned None for {release_event_path}"
-    )
-    _mod_importlib = importlib.util.module_from_spec(_spec)
-    _spec.loader.exec_module(_mod_importlib)  # type: ignore[union-attr]
-    fields_via_importlib = _mod_importlib.REQUIRED_EVENT_FIELDS
-
-    # --- Load via direct import (sys.path manipulation, test-only) ---
     repo_root = str(validator.ROOT)
     inserted = False
     if repo_root not in sys.path:
@@ -240,8 +222,4 @@ def test_importlib_and_direct_import_yield_same_required_event_fields(_: None) -
         if inserted:
             sys.path.remove(repo_root)
 
-    # --- Assert equivalence ---
-    assert fields_via_importlib == fields_via_direct, (
-        f"importlib load produced {fields_via_importlib!r} "
-        f"but direct import produced {fields_via_direct!r}"
-    )
+    assert fields_via_importlib == fields_via_direct

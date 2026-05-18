@@ -10,9 +10,10 @@ execution path used in production (one-off ECS task).
 import json
 import os
 import subprocess
-from urllib.parse import urlparse, urlunparse
 
 from sqlalchemy import text
+
+from tests.helpers.runtime_env import direct_postgres_url
 
 _WORKER_SRC = os.path.join(
     os.path.dirname(__file__), "..", "..", "apps", "backfill_worker"
@@ -22,23 +23,8 @@ _JOB = "order_contact_email_backfill"
 
 def _run_worker(**extra_env):
     env = {**os.environ, **extra_env}
-    # Always derive BACKFILL_DATABASE_URL from DATABASE_URL so the worker
-    # subprocess reaches the same Postgres host as the tests, but bypasses
-    # PgBouncer on the direct Postgres port.
     if not env.get("BACKFILL_DATABASE_URL"):
-        db_url = env.get(
-            "DATABASE_URL",
-            "postgresql://postgres:postgres@localhost:6432/aws_sdlc_containers",
-        )
-        parsed = urlparse(db_url)
-        host = parsed.hostname or "localhost"
-        if host in {"db", "pgbouncer"}:
-            host = "localhost"
-        auth = f"{parsed.username}:{parsed.password}@" if parsed.username else ""
-        direct = parsed._replace(netloc=f"{auth}{host}:5432")
-        env["BACKFILL_DATABASE_URL"] = urlunparse(direct)
-    # uv run --package resolves the worker's deps from the workspace without
-    # hardcoding a venv path. The module entrypoint matches the Docker container.
+        env["BACKFILL_DATABASE_URL"] = direct_postgres_url(env)
     return subprocess.run(
         [
             "uv",

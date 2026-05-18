@@ -5,33 +5,20 @@ import json
 import os
 import subprocess
 from pathlib import Path
-from urllib.parse import urlparse, urlunparse
 
 import pytest
 from sqlalchemy import text
+
+from tests.helpers.runtime_env import direct_postgres_url
 
 _EXPORT_SRC = os.path.join(
     os.path.dirname(__file__), "..", "..", "apps", "data_export_job"
 )
 
 
-def _direct_database_url(env: dict[str, str]) -> str:
-    db_url = env.get(
-        "DATABASE_URL",
-        "postgresql://postgres:postgres@localhost:6432/aws_sdlc_containers",
-    )
-    parsed = urlparse(db_url)
-    host = parsed.hostname or "localhost"
-    if host in {"db", "pgbouncer"}:
-        host = "localhost"
-    auth = f"{parsed.username}:{parsed.password}@" if parsed.username else ""
-    direct = parsed._replace(netloc=f"{auth}{host}:5432")
-    return urlunparse(direct)
-
-
 def _run_export(output_dir: Path, run_id: str, export_date: str):
     env = {**os.environ}
-    env.setdefault("DATA_EXPORT_DATABASE_URL", _direct_database_url(env))
+    env.setdefault("DATA_EXPORT_DATABASE_URL", direct_postgres_url(env))
     env["DATA_EXPORT_OUTPUT_DIR"] = str(output_dir)
     env["DATA_EXPORT_RUN_ID"] = run_id
     env["DATA_EXPORT_DATE"] = export_date

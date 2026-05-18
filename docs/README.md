@@ -1,11 +1,11 @@
 # Documentation
 
-This is the canonical map for project docs. Keep this file grouped by job so
+This is the canonical map for project docs. Keep this file grouped by task so
 the README, roadmap, and architecture docs can stay short.
 
 ## Start Here
 
-| Job | Read |
+| Task | Read |
 |---|---|
 | Learn the shared vocabulary | [Ubiquitous Language](ubiquitous-language.md) |
 | Understand the project shape | [Architecture](architecture.md), [Architecture Layout](architecture-layout.md), [Roadmap](roadmaps.md) |
@@ -15,7 +15,7 @@ the README, roadmap, and architecture docs can stay short.
 
 ## Platform Toolkit Contracts
 
-| Job | Read |
+| Task | Read |
 |---|---|
 | Understand the portable workload contract | [Platform Contract](platform-contract.md) |
 | Add a workload | [Platform Contract](platform-contract.md#workload-checklist) |
@@ -24,7 +24,7 @@ the README, roadmap, and architecture docs can stay short.
 
 ## Delivery And Operations
 
-| Job | Read |
+| Task | Read |
 |---|---|
 | Understand CI and quality gates | [DevOps Toolchain](devops-toolchain.md) |
 | Understand data movement | [Data](data.md) |

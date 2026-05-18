@@ -4,11 +4,11 @@
 building, running, observing, and shipping portable application workloads. It
 does not try to replace proven tools; it assembles industry-standard building
 blocks into one repeatable workflow for APIs, workers, event consumers, data
-jobs, infrastructure, and operations.
+workloads, infrastructure, and operations.
 
 The current runtime implementation is deliberately small: one AWS/ECS stack,
-one FastAPI app, one backfill worker, one scheduled data export job, one
-Dapr-enabled order event runtime, PgBouncer, Liquibase, one PostgreSQL
+one FastAPI API workload, one backfill workload, one scheduled data export
+workload, one Dapr-enabled order event workload host, PgBouncer, Liquibase, one PostgreSQL
 database, one app-owned S3 object storage bucket, and split platform/app
 Terraform roots. The reusable part is the delivery contract: workload shape,
 package boundaries, config/secrets, observability, CI gates, runtime
@@ -82,7 +82,7 @@ The migration follows this lifecycle:
 5. Contract: the old column is dropped after the new path is verified.
 
 This stays in the repo because it exercises app delivery, database change
-management, background jobs, rollback-safe sequencing, and ECS one-off tasks
+management, background workloads, rollback-safe sequencing, and ECS one-off tasks
 without adding unnecessary business complexity.
 
 ## Current Project Layout
@@ -198,7 +198,7 @@ GitHub Actions workflows keep security, app, and infrastructure concerns separat
 - `security.yml`: standard secret scanning, docs/workflow/Dockerfile checks, and Python dependency audit on pull requests and `main`.
 - `semgrep.yml`: Semgrep Community Edition SAST on pull requests and `main`.
 - `infra-plan.yml` / `infra-apply.yml`: Terraform fmt, validate, tflint, checkov, reviewed plan artifact, and separate manual apply of the reviewed plan.
-- `app-build.yml` / `app-deploy.yml`: local workload validation, image build, Trivy scan, ECR push, then separate manual migration, ECS service deploy, verification, worker task run, and data export task registration.
+- `app-build.yml` / `app-deploy.yml`: local workload validation, image build, Trivy scan, ECR push, then separate manual migration, ECS service deploy, verification, support workload task run, and data export task registration.
 
 Cloud-changing jobs are split so review happens between plan/build-scan and
 apply/deploy, without requiring paid environment reviewer gates. AWS

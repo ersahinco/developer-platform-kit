@@ -2,8 +2,8 @@
 
 This page is the local development runbook for the current repository shape.
 Deployable workloads live under `apps/`: the API in `apps/api/`, the backfill
-worker in `apps/backfill_worker/`, the local data export job in
-`apps/data_export_job/`, and the Dapr-enabled order event runtime in
+workload in `apps/backfill_worker/`, the local data export workload in
+`apps/data_export_job/`, and the Dapr-enabled order event workload host in
 `apps/order_event_consumer/`.
 
 ## Local Tooling Ownership

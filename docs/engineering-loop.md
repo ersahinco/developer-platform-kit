@@ -97,7 +97,7 @@ Ask these before adding or keeping surface area:
 2. Is this the canonical owner, or is it repeating another file?
 3. Can a proven standard tool own this behavior instead?
 4. Does a workload, operator, or platform maintainer actually call this path?
-5. Does the dependency belong in every image, or only in a specific job or
+5. Does the dependency belong in every image, or only in a specific workload or
    optional extra?
 6. Does the code make ownership clearer, or does it compensate for unclear
    ownership?
@@ -109,7 +109,7 @@ Treat these as prompts for review, not hard quotas:
 | Signal | Review When |
 |---|---|
 | New runtime dependency | It is inherited by more than one image or duplicates a standard platform capability. |
-| New workflow job | It repeats build, deploy, scan, or evidence logic already driven by metadata. |
+| New workflow step | It repeats build, deploy, scan, or evidence logic already driven by metadata. |
 | New Make target | It is an alias for a command with no ownership or operator value. |
 | New Terraform resource group | It hand-wires a standard service that a module, sidecar, or managed service can own. |
 | New top-level doc | It overlaps an existing canonical doc or restates project state. |
