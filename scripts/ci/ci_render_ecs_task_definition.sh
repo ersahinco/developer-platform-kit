@@ -22,6 +22,7 @@ aws ecs describe-task-definition \
       .registeredAt,
       .registeredBy
     )
+    | if .tags == [] then del(.tags) else . end
     | (.containerDefinitions[] | select(.name == $container) | .image) = $image' \
     > "$OUTPUT_JSON"
 

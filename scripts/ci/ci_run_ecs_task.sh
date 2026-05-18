@@ -7,6 +7,9 @@ SUBNET_ID=${3:?"usage: ci_run_ecs_task.sh <cluster> <task-definition> <subnet-id
 SG_ID=${4:?"usage: ci_run_ecs_task.sh <cluster> <task-definition> <subnet-id> <security-group-id>"}
 LAUNCH_TYPE=${ECS_RUN_TASK_LAUNCH_TYPE:-FARGATE}
 ASSIGN_PUBLIC_IP=${ECS_RUN_TASK_ASSIGN_PUBLIC_IP:-DISABLED}
+WAIT_FOR_STOPPED=${ECS_RUN_TASK_WAIT_FOR_STOPPED:-false}
+ASSERT_SUCCESS=${ECS_RUN_TASK_ASSERT_SUCCESS:-false}
+LABEL=${ECS_RUN_TASK_LABEL:-Task}
 
 TASK_ARN=$(aws ecs run-task \
   --cluster "$CLUSTER" \
@@ -22,4 +25,27 @@ if [ -z "$TASK_ARN" ] || [ "$TASK_ARN" = "None" ]; then
 fi
 
 echo "Started task: ${TASK_ARN}" >&2
+
+if [[ "$WAIT_FOR_STOPPED" == "true" ]]; then
+  aws ecs wait tasks-stopped --cluster "$CLUSTER" --tasks "$TASK_ARN"
+fi
+
+if [[ "$ASSERT_SUCCESS" == "true" ]]; then
+  EXIT_CODE=$(aws ecs describe-tasks \
+    --cluster "$CLUSTER" \
+    --tasks "$TASK_ARN" \
+    --query 'tasks[0].containers[0].exitCode' \
+    --output text)
+
+  if [[ "$EXIT_CODE" == "None" || "$EXIT_CODE" != "0" ]]; then
+    REASON=$(aws ecs describe-tasks \
+      --cluster "$CLUSTER" \
+      --tasks "$TASK_ARN" \
+      --query 'tasks[0].stoppedReason' \
+      --output text)
+    echo "${LABEL} failed (exit ${EXIT_CODE}) - stoppedReason: ${REASON}" >&2
+    exit 1
+  fi
+fi
+
 printf '%s\n' "$TASK_ARN"

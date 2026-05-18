@@ -106,8 +106,8 @@ aws rds describe-db-instances --region eu-central-1
 
 Then choose the owning runbook:
 
-- If ALB targets are unhealthy or the app cannot serve `/health`, use
-  [App Service Unhealthy](../runbooks/app-service-unhealthy.md).
+- If ALB targets are unhealthy, the app cannot serve `/health`, or edge alarms
+  are firing, use [App Service Incident](../runbooks/app-service-incident.md).
 - If the app serves `/health` but database-backed readiness or requests fail,
   use [RDS Pressure](../runbooks/rds-pressure.md).
 - If the symptom started immediately after a deploy, use

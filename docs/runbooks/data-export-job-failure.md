@@ -93,28 +93,22 @@ alarm remain authoritative.
 ## Recovery
 
 After fixing the underlying issue, run the current task definition once from a
-private subnet using the existing helper scripts:
+private subnet:
 
 ```bash
 GITHUB_OUTPUT=/tmp/data-export-network.env \
   scripts/ci/ci_resolve_ecs_network.sh aws-sdlc-containers
 source /tmp/data-export-network.env
 
+export ECS_RUN_TASK_WAIT_FOR_STOPPED=true
+export ECS_RUN_TASK_ASSERT_SUCCESS=true
+export ECS_RUN_TASK_LABEL="Data export job"
+
 TASK_ARN=$(scripts/ci/ci_run_ecs_task.sh \
   "$(terraform -chdir=infra/app output -raw ecs_cluster_name)" \
   "aws-sdlc-containers-data-export-job" \
   "$subnet_id" \
   "$sg_id")
-
-aws ecs wait tasks-stopped \
-  --cluster "$(terraform -chdir=infra/app output -raw ecs_cluster_name)" \
-  --tasks "$TASK_ARN" \
-  --region eu-central-1
-
-scripts/ci/ci_assert_ecs_task_succeeded.sh \
-  "$(terraform -chdir=infra/app output -raw ecs_cluster_name)" \
-  "$TASK_ARN" \
-  "Data export job"
 ```
 
 Confirm that the expected S3 objects exist:

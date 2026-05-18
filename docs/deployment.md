@@ -1,106 +1,50 @@
 # Deployment
 
-This project uses one AWS account/region and two Terraform roots split by
-lifecycle.
+This project uses one AWS account and region with two Terraform roots split by
+lifecycle:
 
-- `infra/platform`: VPC networking, VPC endpoints, account/domain lookups, and
-  GitHub Actions OIDC/CI IAM.
-- `infra/app`: RDS, ECS compute, ECR repositories, WAF-protected ALB/API edge,
-  S3 data hub, workload jobs/queues, app IAM, CloudWatch app alarms, ALB access
-  logs, and optional ADOT sidecar telemetry.
+- `infra/platform`: shared platform and bootstrap concerns
+- `infra/app`: runtime resources such as RDS, ECS, ALB edge, jobs, messaging,
+  storage, and alarms
 
-Safe rollout does not come from duplicating infrastructure. It comes from additive schema changes, separate task definitions, runtime read/write switches, and one-off worker tasks running against the same database.
+Safe rollout comes from additive schema change, runtime switches, and one-off
+tasks, not from duplicating infrastructure.
 
-## Current platform contract
+## Pipeline Shape
 
-- Base stack: one VPC, one public WAF-protected ALB/TLS/DNS entrypoint, one ECS cluster, one long-running app service with PgBouncer, one PostgreSQL database, and split platform/app Terraform state.
-- Reference workload: the app, order event consumer, Liquibase task, and backfill worker all operate inside that same stack. Rollout stays in place through additive schema changes, task definition updates, runtime switches, and one-off tasks.
-- ECS service deployments use the native deployment circuit breaker with rollback enabled. The public app service also uses ALB target 5xx and latency CloudWatch deployment alarms for symptom-based rollback, with a short bake window so latency alarms can trip before ECS accepts the revision.
-- Public-edge rule: any public-facing ALB must be associated with WAF. VPC endpoints, ECS Exec/SSM access, and similar operator conveniences can remain separate capabilities.
-- Future additions: observability, extra operator tooling, and workload-specific jobs should stay as extensions unless they become mandatory for every workload that uses this repo.
+- `infra-plan.yml`: lint, validate, and publish reviewed Terraform plans
+- `infra-apply.yml`: manually apply reviewed plan artifacts
+- `app-build.yml`: validate, test, build, scan, and push images
+- `app-deploy.yml`: migrate, deploy, verify, register support task definitions,
+  and run the backfill worker
 
-## Pipeline shape
+Terraform owns infrastructure shape. GitHub Actions owns app image rollout
+after bootstrap. Keep that boundary explicit.
 
-GitHub Actions workflows are split by review boundary. Cloud-changing steps
-only run after a separate manual trigger:
+## GitHub Setup
 
-- `infra-plan.yml`
-  PR, push, manual: lint + validate + platform plan + app plan, then publish plan output.
-- `infra-apply.yml`
-  Manual: apply reviewed platform and app plan artifacts by workflow run ID.
-- `app-build.yml`
-  PR and push: validate and test. Manual: validate → build → scan → push images.
-- `app-deploy.yml`
-  Manual: migrate → deploy → verify → register support task definitions → run backfill worker.
-
-Terraform owns ECS service shape, deployment alarms, IAM, networking, and other
-infra resources. After bootstrap, GitHub Actions owns app image changes and app
-task-definition revisions. Keep that boundary explicit when reviewing plans; see
-[App And Infra Ownership Boundary](runbooks/app-infra-ownership.md).
-
-## GitHub setup
-
-Create one GitHub Environment named `aws` and store:
+Create one GitHub environment named `aws` with:
 
 - `AWS_ROLE_ARN`
 
-That is the only AWS secret the workflows need. Other runtime values are resolved from the stack at deploy time.
+Useful variables:
 
-Cloud-changing workflow jobs do not run automatically on merge. Review the
-`Infra Plan` output before running `Infra Apply`, and review the `App Build`
-logs and image tag before running `App Deploy`. This does not rely on paid
-GitHub Environment required reviewer gates.
+- `AWS_REGION`
+- `STACK_NAME`
+- `ROOT_DOMAIN`
+- `TF_STATE_BUCKET`
+- `TF_PLATFORM_STATE_KEY`
+- `TF_APP_STATE_KEY`
 
 ## Bootstrap
 
-Run this sequence once per fresh AWS account before the first full split-root
-apply. The bootstrap path exists because Terraform cannot create the remote
-state bucket or the GitHub Actions role before it can initialize and
-authenticate.
-
 Prerequisites:
 
-- AWS credentials for the target account, with permissions to create S3,
-  DynamoDB, IAM, ECR, Secrets Manager, ACM, Route 53, VPC, RDS, ECS, and
-  CloudWatch resources.
-- Choose the target region and expose it as `AWS_REGION` locally or as the
-  GitHub `AWS_REGION` variable. The checked-in tfvars use the current sandbox
-  region as a starter value.
-- A public Route 53 hosted zone already exists for `root_domain` in
-  `infra/platform/stack.tfvars`.
-- The GitHub repository has an Environment named `aws`.
-- GitHub CLI access can set environment secrets for the repository.
+- AWS credentials with permissions to create the stack
+- A public Route 53 hosted zone for `root_domain`
+- A GitHub environment named `aws`
 
-Set the operator-owned values first:
-
-```bash
-$EDITOR infra/platform/stack.tfvars
-$EDITOR infra/app/stack.tfvars
-```
-
-At minimum, confirm:
-
-- `root_domain` in `infra/platform/stack.tfvars` matches the public hosted zone.
-- `api_token_secret_name` is the Secrets Manager name the ALB auth rule should
-  read, if overridden in `infra/app/stack.tfvars`.
-
-For a different account, set these operator values instead of editing Terraform
-backend blocks:
-
-```bash
-export STACK_NAME=<stack-name>
-export AWS_REGION=<aws-region>
-export TF_STATE_BUCKET=<stack-name>-tfstate-<account-id>
-export TF_PLATFORM_STATE_KEY=<stack-name>/platform.tfstate
-export TF_APP_STATE_KEY=<stack-name>/app.tfstate
-```
-
-Terraform backend blocks cannot read normal Terraform variables, so backend
-bucket, key, and region are passed through `terraform init -backend-config` by
-the Makefile and workflows.
-
-Create the API token secret out of band so the token value never lands in
-Terraform state or tfvars:
+Create the API token secret out of band:
 
 ```bash
 aws secretsmanager create-secret \
@@ -109,211 +53,33 @@ aws secretsmanager create-secret \
   --secret-string "$(openssl rand -hex 32)"
 ```
 
-If the secret already exists, leave it in place. To check:
-
-```bash
-aws secretsmanager describe-secret \
-  --secret-id "${STACK_NAME:-aws-sdlc-containers}/api-token" \
-  --region "${AWS_REGION:-eu-central-1}"
-```
-
-Create the Terraform backend bootstrap resources:
+Create the backend bucket and OIDC provider:
 
 ```bash
 make bootstrap
 ```
 
-This target is idempotent. It creates or confirms:
-
-- S3 state bucket: `<stack-name>-tfstate-<account-id>`
-- S3 bucket versioning
-- IAM OIDC provider: `token.actions.githubusercontent.com`
-
-Terraform uses two state objects:
-
-```bash
-<stack-name>/platform.tfstate
-<stack-name>/app.tfstate
-```
-
-The active backend lock is Terraform's S3 native lockfile through
-`use_lockfile = true` in each root's `versions.tf`.
-
-Confirm the Route 53 zone can be found before applying the stack:
-
-```bash
-ROOT_DOMAIN=<your-domain.example>
-aws route53 list-hosted-zones-by-name \
-  --dns-name "$ROOT_DOMAIN" \
-  --max-items 1
-```
-
-The full Terraform stack creates the ACM certificate for
-`api.<root_domain>`, the DNS validation records, and the final Route 53 alias to
-the public load balancer. The hosted zone itself is intentionally a
-pre-existing account/domain prerequisite.
-
-Create platform first from local credentials:
+Apply platform first, then app:
 
 ```bash
 make infra-platform-plan
 make infra-platform-apply
-```
-
-This creates the GitHub Actions IAM role and policies that
-`.github/workflows/infra-plan.yml`, `.github/workflows/infra-apply.yml`,
-`.github/workflows/app-build.yml`, and `.github/workflows/app-deploy.yml`
-assume through OIDC, along with VPC networking and shared platform outputs.
-
-Store the role ARN in the GitHub Environment named `aws`:
-
-```bash
-gh secret set AWS_ROLE_ARN \
-  --env aws \
-  --repo <owner>/<repo> \
-  --body arn:aws:iam::<account-id>:role/<stack-name>-github-actions
-```
-
-Check it with:
-
-```bash
-gh secret list \
-  --env aws \
-  --repo <owner>/<repo>
-```
-
-Set the reusable workflow variables in GitHub as well:
-
-```bash
-gh variable set AWS_REGION --body "$AWS_REGION"
-gh variable set STACK_NAME --body "$STACK_NAME"
-gh variable set ROOT_DOMAIN --body "$ROOT_DOMAIN"
-gh variable set TF_STATE_BUCKET --body "$TF_STATE_BUCKET"
-gh variable set TF_PLATFORM_STATE_KEY --body "$TF_PLATFORM_STATE_KEY"
-gh variable set TF_APP_STATE_KEY --body "$TF_APP_STATE_KEY"
-```
-
-After that, deploy the app root:
-
-```bash
 make infra-app-plan
 make infra-app-apply
 ```
 
-The full split apply creates live infrastructure and cost-bearing resources
-including VPC networking, NAT, RDS, ALB, ECS, CloudWatch logs, DNS, and
-certificates.
+## Rollout Model
 
-Useful bootstrap checks:
-
-```bash
-aws s3api get-bucket-versioning \
-  --bucket "$TF_STATE_BUCKET"
-
-aws s3api head-object \
-  --bucket "$TF_STATE_BUCKET" \
-  --key "$TF_PLATFORM_STATE_KEY"
-
-aws s3api head-object \
-  --bucket "$TF_STATE_BUCKET" \
-  --key "$TF_APP_STATE_KEY"
-
-aws iam list-open-id-connect-providers
-
-aws iam get-role \
-  --role-name aws-sdlc-containers-github-actions
-
-make infra-plan
-```
-
-Operator-set values live in `infra/platform/stack.tfvars` and
-`infra/app/stack.tfvars`.
-
-## Naming
-
-Resources use the project prefix `aws-sdlc-containers`.
-
-- ECS cluster: `<stack-name>`
-- ECS service: `app`
-- App task family: `<stack-name>`
-- Worker task family: `<stack-name>-worker`
-- Liquibase task family: `<stack-name>-liquibase`
-- ECR repos:
-  `<stack-name>/{app,worker,data-export-job,order-event-consumer,liquibase,pgbouncer}`
-- API hostname: `api.<root_domain>`
-
-## Rollout model
-
-Rollout stays inside the same cluster and the same database:
-
-1. Build and push new images.
+1. Build and push images.
 2. Run Liquibase against the current database.
-3. Deploy the new app task definition to the existing ECS service.
-4. Verify the deployed app with `/ready`, `/metrics`, runtime mode, and ECS
-   task/image checks.
-5. Run the backfill worker as a one-off task if the migration requires it.
-6. Advance `WRITE_MODE` and `READ_MODE` through the runbook.
+3. Deploy the new ECS task definition.
+4. Verify health, metrics, runtime modes, and image/task identity.
+5. Run the backfill worker if the migration requires it.
+6. Advance `WRITE_MODE` and `READ_MODE` through the rollout path.
 
 This keeps the project lean while still supporting safe schema evolution.
 
-## Planning Mixed Releases
-
-A release can include infrastructure, app, schema, and data changes, but the
-execution should stay split by blast radius. Treat the release as one reviewed
-change set with one immutable image SHA, then advance it through separate
-operator gates.
-
-Recommended sequence:
-
-1. Review and apply infrastructure first when the release needs new platform
-   capability: IAM, ECS task definitions, queues, buckets, alarms, secrets, or
-   database capacity/settings.
-2. Build and scan the app, worker, data job, Liquibase, and sidecar images from
-   the same commit SHA.
-3. Run additive Liquibase migrations before the app version that may depend on
-   them. Expand changes should be idempotent and safe to rerun.
-4. Deploy an app version that is compatible with both the old and new schema.
-   It should be safe before, during, and after the backfill window.
-5. Run data migration/backfill as a separate one-off workflow or operator task
-   unless it is tiny. It must be checkpointed, idempotent, observable, and safe
-   to rerun.
-6. Verify reconciliation, app health, logs, metrics, and phase-specific tests.
-7. Advance runtime switches such as `WRITE_MODE` and `READ_MODE` only after the
-   prerequisite data state is proven.
-8. Apply destructive contract migrations in a later explicit release, after a
-   snapshot exists and no deployed app version needs the old schema.
-
-Do not make a normal app deployment wait on a long-running backfill. Long data
-movement should not be hidden inside the app deploy job because it changes the
-failure mode from "deploy failed" to "production data may be half-moved." The
-safer design is to deploy a compatibility version first, run the backfill under
-its own controls, then switch reads/writes after verification.
-
-If an app version cannot run until a data migration is complete, split the
-release into two compatible app versions instead:
-
-1. Version A understands both schemas and enables migration.
-2. Backfill completes and reconciliation passes.
-3. Version B uses only the new path.
-4. A later contract release removes the old path.
-
-Terraform should provision the ability to run migrations and data jobs, but it
-should not perform application data migration itself. Liquibase should own DDL
-history; resumable workers or jobs should own large data movement.
-
-The ADOT collector sidecar uses the upstream public ECR image pinned in
-`infra/app/variables.tf`; app-owned ECR repositories are only for workload
-images and the mirrored PgBouncer image.
-
-## No multi-AZ by default
-
-This stack is deliberately not Multi-AZ for either ECS or RDS.
-
-- ECS runs with a single desired app task by default.
-- RDS stays single-AZ.
-- The VPC still spans two AZs because RDS subnet groups require that shape, but the data layer itself is not deployed in Multi-AZ mode.
-
-## Common commands
+## Common Commands
 
 ```bash
 make infra-plan
@@ -321,109 +87,20 @@ make infra-apply
 make app-deploy
 make post-deploy-verify
 make db-tunnel
-make observability
 make db-exec
 make db-seed
-make api-get-order ORDER_ID=1
 ```
 
-## DB access
+## Access Patterns
 
-RDS remains private. Access is through SSM port forwarding via the running ECS task:
+RDS stays private. Use SSM port forwarding:
 
 ```bash
 make db-tunnel
 ```
 
-Then connect with:
-
-- Host: `localhost`
-- Port: `15432`
-- Database: `aws_sdlc_containers`
-
-## Grafana access
-
-Grafana runs locally through Docker Compose:
+Local Grafana access:
 
 ```bash
 make observability
 ```
-
-Then open `http://localhost:3000` and use the local `admin` / `admin`
-credentials unless overridden.
-
-To smoke-test app-layer observability, keep the local stack running, then in
-another terminal run:
-
-```bash
-make observability-cloud-traffic
-```
-
-Use the `AWS SDLC Containers / App Overview` dashboard for Prometheus metrics,
-`AWS SDLC Containers / Log Groups` for Loki logs, and the `Tempo` datasource in
-Explore for traces from service `aws-sdlc-containers-api` when telemetry is
-shipped to the local endpoints.
-
-For live Loki delivery verification from a developer machine:
-
-```bash
-LOKI_URL=http://127.0.0.1:3100 make observability-delivery-verify
-```
-
-## Failure recovery
-
-Because rollout is additive and in-place:
-
-- A failed app deploy does not invalidate the current database schema.
-- Re-running Liquibase is safe because changesets are tracked.
-- Re-running the worker is safe because it is checkpointed and idempotent.
-- For throttled repair or replay, run the worker with `BACKFILL_MAX_BATCHES` set
-  to a small positive integer. The worker exits 0 after that many committed
-  batches and resumes from the checkpoint on the next run.
-- The irreversible step is still the contract migration that removes the old column.
-
-Use these checkpoints during the migration rollout:
-
-| Phase | Before advancing | If the step fails | Rollback path |
-|---|---|---|---|
-| Expand | `terraform plan` is reviewed, app is healthy, and a DB snapshot policy exists for the stack. | Stop before changing runtime modes. Re-run Liquibase after fixing the failed changeset or connectivity issue. | No app rollback is needed because the old schema is still intact. |
-| Dual-write | `order_contact_email` exists and the currently deployed app version supports `WRITE_MODE=dual`. | Set `WRITE_MODE=legacy` through the admin API if writes behave unexpectedly. | Reads still use the old column, so returning to `legacy` writes restores the old behavior. |
-| Backfill | `WRITE_MODE=dual` is active and the worker task definition points at the intended image tag. | Re-run the worker task. It is checkpointed and uses idempotent inserts. | Leave `READ_MODE=legacy`; the app continues reading from the old column. |
-| Switch reads | Backfill has completed and tests pass in the switch phase. | Set `READ_MODE=legacy` through the admin API. | Dual-write keeps both locations current, so read rollback is safe. |
-| New writes | `READ_MODE=new` has been verified and all app tasks are on the compatible version. | Set `WRITE_MODE=dual` if new-only writes expose an issue before contract. | The old column still exists, so dual-write restores rollback safety. |
-| Contract | A DB snapshot exists and no running app version needs `orders.billing_email`. | Stop deployment and restore from snapshot only if the contract has already removed required data. | This is the first irreversible step. Do not apply it until rollback through runtime flags is no longer needed. |
-
-When recovering a failed GitHub Actions deployment, prefer rerunning the failed
-job with the same commit SHA instead of rebuilding from a different commit. The
-ECR image tags are immutable `sha-<commit>` tags, so the task definitions should
-continue to reference the exact images that were validated earlier in the
-pipeline.
-
-If a deploy reaches ECS but causes unhealthy targets, target 5xxs, latency
-alarms, or a service that cannot stabilize, ECS should roll the service back to
-the last completed deployment through the native deployment circuit breaker. Use
-`docs/runbooks/ecs-deploy-rollback.md` to observe that automatic rollback or, if
-needed, identify the previous healthy task definition revision and roll the ECS
-service back without changing database state.
-
-Use `docs/runbooks/rollback-drill-slos.md` as the pipeline SLO contract for
-rollback practice across app, infra, and data-phase changes. A feature release
-can be more complex than the pipeline, but it should not outrun those rollback
-objectives.
-
-After an app deploy reaches ECS, run the post-deploy verifier before advancing
-runtime modes or relying on the new task image:
-
-```bash
-make post-deploy-verify
-```
-
-The target checks `/health`, `/ready`, `/metrics`, `READ_MODE`, `WRITE_MODE`,
-the active ECS task family, and the deployed app image when
-`EXPECTED_IMAGE_TAG` or `EXPECTED_APP_IMAGE` is provided. The GitHub Actions
-deploy job runs the same verifier immediately after updating the app service
-and before registering one-off worker or data export task definitions.
-
-## Canonical source
-
-This file is the operator-facing source of truth for the current split-root rollout. See `architecture.md` for the design rationale and extension boundaries.

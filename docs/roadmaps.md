@@ -10,13 +10,11 @@ work only. Durable project shape belongs in canonical docs:
   and `platform/workloads.json` define portable workload/runtime expectations,
   portability status, and intentional provider dependencies.
 
-For working style, use [Engineering Loop](engineering-loop.md).
-
 ## Current Focus
 
 | Area | State | Notes |
 |---|---|---|
-| Delivery toolkit | Current | Keep workflows metadata-driven and review-gated without hiding standard tools behind private abstractions. |
+| Delivery toolkit | Current | Keep workflows metadata-driven and review-gated, and prefer pragmatic pytest/runtime checks over bespoke validation layers. |
 | Observability | Current | Keep the local Prometheus/Loki/Tempo/Grafana baseline and AWS ADOT sidecar; CloudWatch remains the AWS rollback and managed-resource signal plane. |
 | Portability | Current | Keep provider dependencies at runtime/delivery edges; app code and contracts stay provider-neutral. |
 | Data and database | Current | Keep PostgreSQL semantics, Liquibase, PgBouncer expectations, data export manifests, and provider SDK isolation explicit. |
@@ -27,7 +25,7 @@ For working style, use [Engineering Loop](engineering-loop.md).
 |---|---|---|
 | Build and containerize | Keep runtime conformance and image/security gates fast as workloads grow. | Do this with the next real workload, not synthetic scaffolding. |
 | Runtime portability | Add a second runtime target only for a concrete cost, reliability, or capability benefit. | The capability contract is ready; a demo-only runtime would add noise. |
-| Dapr scope | Decide whether secrets/configuration, service invocation, or workflows belong in Dapr. | Pub/sub is proven; broaden only when a workload needs it. |
+| Dapr scope | Keep pub/sub as the standard app-facing transport boundary and expand only when a workload needs more platform capability. | Standardization is useful here; avoid speculative building blocks. |
 | Release evidence | Turn on CI-to-Loki publishing when there is a private or authenticated runner path. | Artifacts already exist; network/security path is the missing piece. |
 
 ## Waiting
@@ -59,6 +57,10 @@ For working style, use [Engineering Loop](engineering-loop.md).
 6. Do not add runbooks or drills unless they replace stale material or document
    an operator action someone can actually run.
 7. Move durable facts into canonical docs; leave this file as a tracker.
+8. Remove stale helpers, duplicate explanations, and dead path filters in the
+   same slice that makes them obsolete.
+9. Keep workflow and Terraform separation where it protects real review and
+   ownership boundaries; merge only when duplication is truly noise.
 
 ## Documentation Ownership
 

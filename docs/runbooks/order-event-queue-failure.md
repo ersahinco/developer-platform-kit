@@ -6,12 +6,10 @@ CloudWatch alarm is in `ALARM`, or when consumer logs show failed
 
 ## What The Alarm Means
 
-The Dapr-enabled order event consumer service relays `order.created.v1`
-messages from the database outbox to the Dapr `order-events-pubsub` component.
-In AWS, that component publishes to the SNS FIFO topic
-`aws-sdlc-containers-order-created-v1.fifo` and consumes from the SQS FIFO
-subscriber queue `aws-sdlc-containers-order-events.fifo`, then records
-deliveries into `order_event_receipts`.
+The Dapr-enabled order event consumer relays `order.created.v1` messages from
+the outbox through the `order-events-pubsub` component. In AWS that maps to SNS
+FIFO plus SQS FIFO and ends in `order_event_receipts`.
+
 Each message uses:
 
 - `event_id`: `order.created.v1:<order_id>`
@@ -19,9 +17,8 @@ Each message uses:
 - Dapr CloudEvent `id`: same as `event_id`
 - Dapr CloudEvent `data`: the existing order event payload
 
-The DLQ alarm watches `AWS/SQS` `ApproximateNumberOfMessagesVisible` for
-`aws-sdlc-containers-order-events-dlq.fifo`. It fires when any message is
-visible in the DLQ.
+The DLQ alarm watches `AWS/SQS` `ApproximateNumberOfMessagesVisible` for the
+DLQ. It fires when any message is visible there.
 
 ## First Checks
 
@@ -65,13 +62,10 @@ aws logs tail /ecs/aws-sdlc-containers/order-event-consumer \
   --region eu-central-1
 ```
 
-## Grafana Checks
+## Log Checks
 
-When a local or external Grafana/Loki path is reachable, check the `App
-Overview` dashboard for order event worker outcomes from
-`order-event-consumer` logs.
-
-Use Loki for app and consumer log context during the same window:
+When Grafana or Loki is reachable, inspect app and consumer logs in the same
+window:
 
 ```logql
 {stack="aws-sdlc-containers", service="app"} |= "order_event_publish_failed"
@@ -81,8 +75,8 @@ Use Loki for app and consumer log context during the same window:
 {stack="aws-sdlc-containers", service="order-event-consumer"}
 ```
 
-Keep the SQS DLQ CloudWatch alarm in the flow because Dapr delegates the AWS
-subscriber queue and parking-stream behavior to SNS/SQS in this stack.
+Keep the SQS DLQ CloudWatch alarm in the flow because Dapr delegates queue and
+parking behavior to SNS/SQS in this stack.
 
 ## Common Causes
 
@@ -95,7 +89,8 @@ subscriber queue and parking-stream behavior to SNS/SQS in this stack.
 
 ## Recovery
 
-If the worker cannot relay or consume order events, first restore queue access:
+If the consumer cannot relay or consume order events, first restore queue
+access:
 
 ```bash
 aws ecs describe-services \

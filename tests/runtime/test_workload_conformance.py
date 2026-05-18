@@ -16,6 +16,13 @@ import pytest
 ROOT = Path(__file__).resolve().parents[2]
 POSTGRES_IMAGE = "postgres:18.3"
 PGBOUNCER_IMAGE = "edoburu/pgbouncer:v1.25.1-p0"
+WORKLOAD_DOCKERFILE = "platform/workload.Dockerfile"
+SERVICE_HTTP_PATHS = {
+    "health": "/health",
+    "ready": "/ready",
+    "metrics": "/metrics",
+}
+RUNTIME_LABELS = ("stack", "environment", "service", "container")
 
 
 def _run(args: list[str]) -> subprocess.CompletedProcess[str]:
@@ -221,10 +228,9 @@ def runtime_network() -> Iterator[tuple[str, str]]:
 def _build_image(workload: dict[str, object], prefix: str) -> str:
     name = str(workload["name"])
     image_spec = cast(dict[str, Any], workload["image"])
-    dockerfile = str(image_spec["dockerfile"])
     build_args = dict(image_spec.get("build_args", {}))
     image = f"{prefix}-{name}:local"
-    args = ["docker", "build", "-f", dockerfile, "-t", image]
+    args = ["docker", "build", "-f", WORKLOAD_DOCKERFILE, "-t", image]
     for key, value in build_args.items():
         args.extend(["--build-arg", f"{key}={value}"])
     args.append(".")
@@ -280,7 +286,8 @@ def test_declared_service_images_satisfy_portable_runtime_contract(
             base_url = f"http://127.0.0.1:{host_port}"
             try:
                 _wait_for_http(
-                    f"{base_url}/health", int(conformance["startup_timeout_seconds"])
+                    f"{base_url}{SERVICE_HTTP_PATHS['health']}",
+                    int(conformance["startup_timeout_seconds"]),
                 )
             except AssertionError as exc:
                 logs = subprocess.run(
@@ -293,16 +300,22 @@ def test_declared_service_images_satisfy_portable_runtime_contract(
                     f"{name} did not become healthy.\nSTDOUT:\n{logs.stdout}\nSTDERR:\n{logs.stderr}"
                 ) from exc
 
-            health_status, health_payload = _http_json(f"{base_url}/health")
+            health_status, health_payload = _http_json(
+                f"{base_url}{SERVICE_HTTP_PATHS['health']}"
+            )
             assert health_status == 200
             assert health_payload["status"] == "ok"
 
-            ready_status, ready_payload = _http_json(f"{base_url}/ready")
+            ready_status, ready_payload = _http_json(
+                f"{base_url}{SERVICE_HTTP_PATHS['ready']}"
+            )
             assert ready_status == 200
             assert ready_payload["status"] == "ready"
             assert ready_payload["checks"]["database"] == "ok"  # type: ignore[index]
 
-            metrics_status, content_type, metrics = _http_text(f"{base_url}/metrics")
+            metrics_status, content_type, metrics = _http_text(
+                f"{base_url}{SERVICE_HTTP_PATHS['metrics']}"
+            )
             assert metrics_status == 200
             assert "text/plain" in content_type
             for metric_name in workload["metrics"]["required_names"]:  # type: ignore[index]
@@ -319,7 +332,7 @@ def test_declared_service_images_satisfy_portable_runtime_contract(
                     ]
                 ).stdout
             )
-            for key in workload["logs"]["runtime_labels"]:  # type: ignore[index]
+            for key in RUNTIME_LABELS:
                 assert key in labels
 
             logs = _json_logs(container)

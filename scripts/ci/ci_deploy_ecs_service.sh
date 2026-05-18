@@ -1,13 +1,19 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-
 CLUSTER=${1:?"usage: ci_deploy_ecs_service.sh <cluster> <service> <task-definition-json>"}
 SERVICE=${2:?"usage: ci_deploy_ecs_service.sh <cluster> <service> <task-definition-json>"}
 TASK_DEFINITION_PATH=${3:?"usage: ci_deploy_ecs_service.sh <cluster> <service> <task-definition-json>"}
 
-TASK_DEF_ARN=$(GITHUB_OUTPUT= "${SCRIPT_DIR}/ci_register_ecs_task_definition.sh" "$TASK_DEFINITION_PATH")
+TASK_DEF_ARN=$(aws ecs register-task-definition \
+  --cli-input-json "file://${TASK_DEFINITION_PATH}" \
+  --query 'taskDefinition.taskDefinitionArn' \
+  --output text)
+
+if [[ -z "$TASK_DEF_ARN" || "$TASK_DEF_ARN" == "None" ]]; then
+  echo "Failed to register task definition from ${TASK_DEFINITION_PATH}" >&2
+  exit 1
+fi
 
 if [[ -n "${GITHUB_OUTPUT:-}" ]]; then
   echo "task_def_arn=${TASK_DEF_ARN}" >> "$GITHUB_OUTPUT"

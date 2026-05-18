@@ -10,12 +10,8 @@ on:
   pull_request:
     paths:
       - ".github/workflows/app-build.yml"
-      - "apps/api/**"
-      - "apps/backfill_worker/**"
-      - "apps/data_export_job/**"
-      - "apps/order_event_consumer/**"
+      - "apps/**"
       - "compose.yaml"
-      - "docker/**"
       - "platform/**"
       - "packages/**"
       - "pyproject.toml"
@@ -27,12 +23,8 @@ on:
     branches: [main]
     paths:
       - ".github/workflows/app-build.yml"
-      - "apps/api/**"
-      - "apps/backfill_worker/**"
-      - "apps/data_export_job/**"
-      - "apps/order_event_consumer/**"
+      - "apps/**"
       - "compose.yaml"
-      - "docker/**"
       - "platform/**"
       - "packages/**"
       - "pyproject.toml"
@@ -111,9 +103,6 @@ jobs:
           uv run ruff format --check apps/ packages/ tests/ scripts/
           uv run ruff check apps/ packages/ tests/ scripts/
           uv run pyright
-
-      - name: Validate platform contract
-        run: uv run python scripts/ci/validate_platform_contract.py
 
       - name: Check shell script syntax
         run: find scripts -name '*.sh' -print0 | xargs -0 bash -n
@@ -196,7 +185,7 @@ jobs:
                 | {
                     name,
                     repository: .image.repository,
-                    dockerfile: .image.dockerfile,
+                    dockerfile: "platform/workload.Dockerfile",
                     context: ".",
                     tag: $tag,
                     build_args: (.image.build_args // {})

@@ -1,9 +1,8 @@
 # Rollback Drill SLOs
 
-Use these SLOs to judge the DevOps pipeline itself. They are not product
-availability SLOs. They answer a narrower question: when a controlled app,
-infra, or data rollout goes wrong, can the pipeline detect it, restore the last
-known-good state, and produce evidence quickly enough to keep iteration safe?
+Use these SLOs to judge the delivery pipeline itself, not product availability.
+They answer a narrow question: when a controlled rollout goes wrong, can the
+toolkit restore a known-good state quickly enough to keep iteration safe?
 
 ## Objectives
 
@@ -19,22 +18,9 @@ artifact with Markdown, JSON, and JSONL forms. Treat that artifact as the
 portable timeline record that can later be pushed into Loki for Grafana
 correlation.
 
-## Current Baseline
-
-The current app drill baseline was established on 2026-05-10 in
-`eu-central-1`:
-
-| Drill | GitHub Actions run | Observed result |
-|---|---|---:|
-| App latency rollback | `25627263917` | Passed in 10m19s. |
-| App error rollback | `25627680472` | Passed in 6m32s. |
-| Runtime data-phase rollback | `25675925524` | Passed. `WRITE_MODE` rollback observed in 2s; restored verification passed in 8s. |
-| Infra apply for rollback support | `25626714215` | Passed in 51s. |
-| Infra no-data rollback preflight | `25676047073` | Stopped before apply. Plan completed in 2m37s but included unrelated app ECS task-definition replacement. |
-
 Treat a single SLO breach as a pipeline regression to investigate. Treat two
-consecutive breaches of the same drill as a release-blocking issue until the
-signal, timeout, rollback, or verification path is repaired.
+consecutive breaches of the same drill as release-blocking until the signal,
+timeout, rollback, or verification path is repaired.
 
 ## Required Guardrails
 
@@ -82,48 +68,58 @@ There are exactly two permanent rollback drill workflows. One-off migration
 workflows must be removed after successful execution so they do not become
 parallel rollback paths.
 
-## Infra Drill Preflight
+## Infra No-Data Drill
 
-Before running `Infra Apply`, inspect the reviewed `Infra Plan` artifact. Apply
-only when the plan contains the intended infra drill target and no unrelated
-replacement.
-
-Stop and revert the drill commit if the plan includes:
-
-- `aws_ecs_task_definition` replacement outside the drill target.
-- ECS service replacement or task definition rollback to an older app image.
-- RDS, S3 bucket, SQS, SNS, Liquibase, backfill, data export, or runtime-mode
-  changes.
-
-The 2026-05-11 infra preflight run `25676047073` correctly stopped before
-apply because the plan included the intended CloudWatch alarm description
-update plus an unrelated app task-definition replacement from app-deploy
-ownership drift. The ownership boundary is documented in
-[App And Infra Ownership Boundary](app-infra-ownership.md).
-
-`Infra Apply` has a blast-radius guard for future accidental drift. If the
-reviewed app plan contains ECS task-definition create, replace, or destroy
-changes, the apply fails unless the operator explicitly sets:
+Use the normal Terraform path:
 
 ```text
-allow_ecs_task_definition_changes=allow-ecs-task-definition-changes
+infra-only change
+  -> Infra Plan
+  -> Infra Apply
+  -> observe
+  -> revert commit
+  -> Infra Plan
+  -> Infra Apply
+  -> verify restored state
 ```
 
-## Runtime Config Drill
+Choose one small reversible infra or observability change. Good targets are:
 
-Use `Data Runtime Rollback Drill` as the safe, representative data rollback
-exercise. It intentionally mutates only `app_runtime_config`; it does not run
-Liquibase, backfill, data export, seed scripts, or order writes.
+- Grafana dashboard JSON
+- Prometheus alert threshold or label
+- CloudWatch app symptom alarm threshold
+- ECS desired count for non-production drill windows
 
-The drill currently requires `READ_MODE=legacy` and `WRITE_MODE=legacy`, moves
-`WRITE_MODE` to `dual`, then rolls it back to the captured previous value. An
-always-run restore step posts the captured value again if any earlier step
-fails.
+Do not use schema changes, RDS changes, queue replacement, object deletion, or
+runtime `READ_MODE`/`WRITE_MODE` changes for this drill.
 
-Run it from the default branch:
+Path:
 
-```bash
-gh workflow run "Data Runtime Rollback Drill" \
-  --ref main \
-  -f confirm_drill=data-rollback-drill
-```
+1. Create one small reversible infra or observability change.
+2. Review `Infra Plan`.
+3. Merge to the default branch.
+4. Run `Infra Apply` with the reviewed plan run id.
+5. Observe the changed surface.
+6. Revert the commit.
+7. Repeat the same reviewed plan/apply path for the revert.
+
+Apply only when the reviewed plan stays inside Terraform-owned surfaces and
+does not pull in app task-definition drift, data changes, or destructive
+replacement. The ownership boundary is in
+[App And Infra Ownership Boundary](app-infra-ownership.md).
+
+Stop and do not apply if the plan includes:
+
+- RDS replacement or unrelated modification
+- S3 bucket deletion, lifecycle tightening, or object deletion
+- SQS/SNS replacement
+- ECS task or service replacement outside the intended target
+- app `aws_ecs_task_definition` changes crossing the app deploy boundary
+- Liquibase, data export, backfill, or runtime-mode actions
+
+Verify after rollback:
+
+- the changed surface matches the previous version
+- `make observability-delivery-verify` still passes when relevant
+- no data hub objects were created or deleted
+- no Liquibase, backfill, data-export, or runtime-mode workflow was run

@@ -8,10 +8,10 @@ the README, roadmap, and architecture docs can stay short.
 | Task | Read |
 |---|---|
 | Learn the shared vocabulary | [Ubiquitous Language](ubiquitous-language.md) |
-| Understand the project shape | [Architecture](architecture.md), [Architecture Layout](architecture-layout.md), [Roadmap](roadmaps.md) |
-| Continue work cleanly | [Engineering Loop](engineering-loop.md), [Roadmap](roadmaps.md) |
+| Understand the project shape | [Architecture](architecture.md), [Roadmap](roadmaps.md) |
+| Continue work cleanly | [Roadmap](roadmaps.md) |
 | Develop locally | [Local Development](local-development.md) |
-| Deploy or operate AWS | [Deployment](deployment.md), [Infrastructure](../infra/README.md), [Runbooks](runbooks/README.md), [Drills](drills/README.md) |
+| Deploy or operate AWS | [Deployment](deployment.md), [Infrastructure](../infra/README.md), [Runbooks](runbooks/README.md), [App Dependency Readiness Drill](drills/app-dependency-readiness.md) |
 
 ## Platform Toolkit Contracts
 
@@ -30,15 +30,16 @@ the README, roadmap, and architecture docs can stay short.
 | Understand data movement | [Data](data.md) |
 | Add or operate telemetry | [Observability](observability.md), [Platform Contract](platform-contract.md#observability) |
 | Handle incidents | [Runbooks](runbooks/README.md) |
-| Practice failure paths | [Drills](drills/README.md) |
+| Practice failure paths | [App Dependency Readiness Drill](drills/app-dependency-readiness.md) |
 
 ## Ownership Rules
 
 - `README.md` is the short public project entrypoint.
 - `docs/README.md` is the canonical documentation map.
 - `docs/roadmaps.md` tracks state, current work, decisions, and deferred work.
-- `docs/architecture.md` keeps design rationale; `docs/architecture-layout.md`
-  keeps repo/control-boundary ownership.
+- Use `docs/roadmaps.md` for continuation rules and current working style.
+- `docs/architecture.md` owns both design rationale and repo/control-boundary
+  ownership.
 - Canonical docs define reusable platform expectations; runbooks and drills
   describe concrete operator actions.
 - Do not add a new doc when an existing canonical doc owns the topic.

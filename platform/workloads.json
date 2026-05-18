@@ -5,38 +5,24 @@
       "name": "api",
       "kind": "service",
       "app_path": "apps/api",
-      "package": "api",
       "image": {
         "repository": "app",
-        "dockerfile": "platform/workload.Dockerfile",
-        "non_root_user": "app",
         "build_args": {
           "APP_PATH": "apps/api",
           "UV_PACKAGE": "aws-sdlc-containers-api",
           "WORKLOAD_CMD": "uvicorn api.main:app --host 0.0.0.0 --port 8000"
         }
       },
-      "http": {
-        "health": "/health",
-        "ready": "/ready",
-        "metrics": "/metrics"
-      },
-      "logs": {
-        "runtime_labels": ["stack", "environment", "service", "container"],
-        "app_fields": ["event", "request_id"]
-      },
       "metrics": {
         "format": "prometheus",
         "required_names": ["http_requests_total", "http_request_duration_seconds"]
       },
       "traces": {
-        "supported": true,
-        "protocol": "otlp_http"
+        "supported": true
       },
       "database": {
         "semantics": "postgresql",
-        "pooling": "transaction_pool",
-        "runtime_secret": "DB_PASSWORD"
+        "pooling": "transaction_pool"
       },
       "config": {
         "env": [
@@ -54,8 +40,7 @@
           "ROLLOUT_DRILL_FAULT_STATUS_CODE",
           "ROLLOUT_DRILL_FAULT_DELAY_SECONDS"
         ],
-        "secrets": ["DB_PASSWORD"],
-        "runtime_config_keys": ["READ_MODE", "WRITE_MODE"]
+        "secrets": ["DB_PASSWORD"]
       },
       "conformance": {
         "port": 8000,
@@ -79,35 +64,20 @@
           "DB_PASSWORD": "runtime-secret://postgres-password"
         },
         "expected_log_event": "http_request",
-        "expected_log_fields": ["event", "request_id", "route", "status_code"],
-        "otlp_toggle": true
-      },
-      "rollback": "app_image",
-      "release_evidence": ["deployment_id", "image_digest", "source_workflow", "verify_seconds"]
+        "expected_log_fields": ["event", "request_id", "route", "status_code"]
+      }
     },
     {
       "name": "order_event_consumer",
       "kind": "service",
       "app_path": "apps/order_event_consumer",
-      "package": "order_event_consumer",
       "image": {
         "repository": "order-event-consumer",
-        "dockerfile": "platform/workload.Dockerfile",
-        "non_root_user": "app",
         "build_args": {
           "APP_PATH": "apps/order_event_consumer",
           "UV_PACKAGE": "aws-sdlc-containers-order-event-consumer",
           "WORKLOAD_CMD": "python -m order_event_consumer.main"
         }
-      },
-      "http": {
-        "health": "/health",
-        "ready": "/ready",
-        "metrics": "/metrics"
-      },
-      "logs": {
-        "runtime_labels": ["stack", "environment", "service", "container"],
-        "app_fields": ["event", "event_id", "request_id"]
       },
       "metrics": {
         "format": "prometheus",
@@ -117,13 +87,11 @@
         ]
       },
       "traces": {
-        "supported": false,
-        "protocol": null
+        "supported": false
       },
       "database": {
         "semantics": "postgresql",
-        "pooling": "direct",
-        "runtime_secret": "DB_PASSWORD"
+        "pooling": "direct"
       },
       "dapr": {
         "scope": "pubsub",
@@ -170,37 +138,26 @@
         },
         "expected_log_event": "http_request",
         "expected_log_fields": ["event", "event_id", "request_id", "route", "status_code"]
-      },
-      "rollback": "app_image",
-      "release_evidence": ["deployment_id", "image_digest", "source_workflow", "verify_seconds"]
+      }
     },
     {
       "name": "backfill_worker",
       "kind": "job",
       "app_path": "apps/backfill_worker",
-      "package": "backfill_worker",
       "image": {
         "repository": "worker",
-        "dockerfile": "platform/workload.Dockerfile",
-        "non_root_user": "app",
         "build_args": {
           "APP_PATH": "apps/backfill_worker",
           "UV_PACKAGE": "aws-sdlc-containers-backfill-worker",
           "WORKLOAD_CMD": "python -m backfill_worker.main"
         }
       },
-      "logs": {
-        "runtime_labels": ["stack", "environment", "service", "container"],
-        "app_fields": ["event", "job_name", "last_order_id"]
-      },
       "traces": {
-        "supported": false,
-        "protocol": null
+        "supported": false
       },
       "database": {
         "semantics": "postgresql",
-        "pooling": "direct",
-        "runtime_secret": "DB_PASSWORD"
+        "pooling": "direct"
       },
       "config": {
         "env": [
@@ -234,40 +191,27 @@
         "expected_log_fields": ["event", "job_name"]
       },
       "job": {
-        "idempotency": "checkpointed",
-        "success_event": "backfill_complete",
-        "progress_event": "backfill_batch"
-      },
-      "rollback": "idempotent_rerun_or_forward_fix",
-      "release_evidence": ["source_workflow", "verify_seconds"]
+        "idempotency": "checkpointed"
+      }
     },
     {
       "name": "data_export_job",
       "kind": "job",
       "app_path": "apps/data_export_job",
-      "package": "data_export_job",
       "image": {
         "repository": "data-export-job",
-        "dockerfile": "platform/workload.Dockerfile",
-        "non_root_user": "app",
         "build_args": {
           "APP_PATH": "apps/data_export_job",
           "UV_PACKAGE": "aws-sdlc-containers-data-export-job",
           "WORKLOAD_CMD": "python -m data_export_job.main"
         }
       },
-      "logs": {
-        "runtime_labels": ["stack", "environment", "service", "container"],
-        "app_fields": ["event", "job_name", "dataset", "run_id", "status"]
-      },
       "traces": {
-        "supported": false,
-        "protocol": null
+        "supported": false
       },
       "database": {
         "semantics": "postgresql",
-        "pooling": "direct",
-        "runtime_secret": "DB_PASSWORD"
+        "pooling": "direct"
       },
       "config": {
         "env": [
@@ -303,29 +247,8 @@
         "expected_log_fields": ["event", "job_name", "dataset", "run_id", "status"]
       },
       "job": {
-        "idempotency": "run_id",
-        "success_event": "data_export_succeeded",
-        "manifest_status": "succeeded"
-      },
-      "rollback": "idempotent_rerun_or_forward_fix",
-      "release_evidence": ["source_workflow", "verify_seconds"]
+        "idempotency": "run_id"
+      }
     }
-  ],
-  "release_evidence": {
-    "required_fields": [
-      "schema_version",
-      "event_type",
-      "status",
-      "summary",
-      "timestamp",
-      "runtime_id",
-      "workload_id",
-      "deployment_id",
-      "image_digest",
-      "rollback_category",
-      "source_workflow",
-      "evidence_links",
-      "alarm_snapshot"
-    ]
-  }
+  ]
 }

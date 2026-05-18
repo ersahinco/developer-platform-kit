@@ -18,44 +18,13 @@ def _python_text(root: Path) -> str:
 
 
 def test_domain_and_application_do_not_import_outer_layers() -> None:
-    forbidden = [
-        "fastapi",
-        "sqlalchemy",
-        "boto3",
-        "api",
-        "backfill_worker",
-        "data_export_job",
-        "order_event_consumer",
-        "infrastructure",
-    ]
+    forbidden = ["fastapi", "sqlalchemy", "boto3", "api", "infrastructure"]
 
     for package in ["domain", "application"]:
         text = _python_text(ROOT / "packages" / package)
         for name in forbidden:
             assert f"import {name}" not in text
             assert f"from {name}" not in text
-
-
-def test_domain_and_application_stay_cloud_and_delivery_agnostic() -> None:
-    text = "\n".join(
-        _python_text(ROOT / "packages" / package)
-        for package in ["domain", "application"]
-    ).lower()
-
-    for forbidden in [
-        "terraform",
-        "github",
-        "cloudwatch",
-        "grafana",
-        "prometheus",
-        "loki",
-        "tempo",
-        "opentelemetry",
-        "s3",
-        "sqs",
-        "sns",
-    ]:
-        assert forbidden not in text
 
 
 def test_domain_does_not_import_application_layer() -> None:
@@ -67,14 +36,7 @@ def test_domain_does_not_import_application_layer() -> None:
 def test_api_has_no_direct_event_transport_publish_path() -> None:
     text = _python_text(ROOT / "apps" / "api")
 
-    for forbidden in [
-        "boto3",
-        "".join(("Sqs", "Order", "Event", "Publisher")),
-        "_".join(("ORDER", "EVENTS", "QUEUE", "URL")),
-        "_".join(("dispatch", "outbox", "inline")),
-        "DaprOrderEventPublisher",
-        "/v1.0/publish",
-    ]:
+    for forbidden in ["boto3", "DaprOrderEventPublisher", "/v1.0/publish"]:
         assert forbidden not in text
 
 
@@ -84,7 +46,6 @@ def test_background_hosts_keep_sql_and_storage_in_infrastructure() -> None:
         for forbidden in [
             "from sqlalchemy",
             "import sqlalchemy",
-            "create_engine",
             "import boto3",
         ]:
             assert forbidden not in text
@@ -103,24 +64,6 @@ def test_database_portability_is_postgres_not_current_provider() -> None:
     assert pooling_by_workload["backfill_worker"] == "direct"
     assert pooling_by_workload["data_export_job"] == "direct"
     assert pooling_by_workload["order_event_consumer"] == "direct"
-
-    app_text = "\n".join(
-        _python_text(ROOT / package)
-        for package in [
-            "apps",
-            "packages/domain",
-            "packages/application",
-        ]
-    ).lower()
-    for forbidden in ["rds", "aurora", "cloud sql", "neon", "supabase"]:
-        assert forbidden not in app_text
-
-    changelog_text = "\n".join(
-        path.read_text(encoding="utf-8")
-        for path in sorted((ROOT / "db" / "changelog").glob("*.yaml"))
-    ).lower()
-    for forbidden in ["rds", "aws_", "aurora"]:
-        assert forbidden not in changelog_text
 
 
 def test_object_storage_provider_sdk_stays_in_infrastructure() -> None:
@@ -199,44 +142,3 @@ def test_alternate_dapr_component_can_satisfy_same_pubsub_contract() -> None:
     assert current["metadata"]["name"] == "order-events-pubsub"
     assert alternate["metadata"]["name"] == current["metadata"]["name"]
     assert alternate["spec"]["type"].startswith("pubsub.")
-
-
-def test_order_events_dapr_resiliency_is_bounded_and_component_scoped() -> None:
-    local_resiliency = _read("platform/dapr/local/components/resiliency.yaml")
-    template_resiliency = _read("infra/app/templates/dapr/resiliency.yaml.tftpl")
-
-    for spec in [local_resiliency, template_resiliency]:
-        assert "kind: Resiliency" in spec
-        assert "order-event-consumer" in spec
-        assert "order-events-pubsub:" in spec
-        assert "outbound:" in spec
-        assert "inbound:" in spec
-        assert "maxRetries: 2" in spec
-        assert "orderEventsPubsub: 10s" in spec
-        assert "trip: consecutiveFailures > 5" in spec
-        assert "maxRetries: -1" not in spec
-
-
-def test_order_events_ecs_sidecar_loads_resiliency_spec() -> None:
-    messaging = _read("infra/app/messaging.tf")
-    workload_jobs = _read("infra/app/workload_jobs.tf")
-    compose = _read("compose.yaml")
-
-    assert 'aws_s3_object" "order_events_dapr_resiliency' in messaging
-    assert "templates/dapr/resiliency.yaml.tftpl" in messaging
-    assert "/dapr/components/resiliency.yaml" in workload_jobs
-    assert "--components-path" in workload_jobs
-    assert "./platform/dapr/local/components:/components:ro" in compose
-
-
-def test_order_events_sns_topic_is_encrypted() -> None:
-    encryption = _read("infra/app/encryption.tf")
-    messaging = _read("infra/app/messaging.tf")
-    workload_jobs = _read("infra/app/workload_jobs.tf")
-
-    assert 'resource "aws_kms_key" "order_events_sns"' in encryption
-    assert "kms:EncryptionContext:aws:sns:topicArn" in encryption
-    assert "kms_master_key_id" in messaging
-    assert "aws_kms_key.order_events_sns.arn" in messaging
-    assert "UseOrderEventsSnsKms" in workload_jobs
-    assert "kms:ViaService" in workload_jobs

@@ -65,20 +65,9 @@ jobs:
         run: uv sync --frozen --group scripts
 
       - name: Validate image tag
-        run: |
-          if [[ -z "${ROOT_DOMAIN}" ]]; then
-            echo "Set ROOT_DOMAIN as a GitHub repository or environment variable before running the drill." >&2
-            exit 1
-          fi
-          if [[ ! "$IMAGE_TAG" =~ ^sha-[0-9a-f]{40}$ ]]; then
-            echo "image_tag must be sha- followed by a 40-character lowercase commit SHA." >&2
-            exit 1
-          fi
-          image_sha="${IMAGE_TAG#sha-}"
-          if ! git merge-base --is-ancestor "$image_sha" "origin/${{ github.event.repository.default_branch }}"; then
-            echo "image_tag must reference a commit reachable from ${{ github.event.repository.default_branch }}." >&2
-            exit 1
-          fi
+        env:
+          CI_REQUIRE_ROOT_DOMAIN: "true"
+        run: scripts/ci/ci_validate_image_tag.sh "$IMAGE_TAG" "${{ github.event.repository.default_branch }}"
 
       - uses: aws-actions/configure-aws-credentials@a89a83ec143615402a01f672b6e172b7b1875000 # v6
         with:
@@ -87,9 +76,7 @@ jobs:
 
       - name: Resolve AWS image registry
         id: aws-context
-        run: |
-          account_id=$(aws sts get-caller-identity --query Account --output text)
-          echo "ecr_registry=${account_id}.dkr.ecr.${AWS_REGION}.amazonaws.com" >> "$GITHUB_OUTPUT"
+        run: scripts/ci/ci_resolve_aws_context.sh
 
       - name: Verify drill images exist
         run: |
@@ -150,9 +137,30 @@ jobs:
 
       - name: Configure drill fault injection
         run: |
-          python3 scripts/ci/ci_set_app_drill_fault.py \
-            /tmp/app-drill-task-definition.json \
-            "${{ inputs.fault_mode }}"
+          tmp_path="$(mktemp)"
+          jq --arg fault_mode "${{ inputs.fault_mode }}" '
+            .containerDefinitions |= map(
+              if .name == "app" then
+                .environment = (
+                  ((.environment // [])
+                    | map({(.name): .value})
+                    | add
+                    | . + {
+                        "ROLLOUT_DRILL_FAULT_MODE": $fault_mode,
+                        "ROLLOUT_DRILL_FAULT_PATHS": "/ready",
+                        "ROLLOUT_DRILL_FAULT_DELAY_SECONDS": "3",
+                        "ROLLOUT_DRILL_FAULT_STATUS_CODE": "503"
+                      }
+                    | to_entries
+                    | map({name: .key, value: .value})
+                    | sort_by(.name)
+                )
+              else
+                .
+              end
+            )
+          ' /tmp/app-drill-task-definition.json > "$tmp_path"
+          mv "$tmp_path" /tmp/app-drill-task-definition.json
 
       - name: Deploy drill app revision
         id: deploy_drill

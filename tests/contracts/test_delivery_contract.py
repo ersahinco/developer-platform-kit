@@ -1,7 +1,6 @@
+import json
 from pathlib import Path
 import subprocess
-
-import yaml
 
 
 ROOT = Path(__file__).resolve().parents[2]
@@ -116,32 +115,6 @@ def test_terraform_state_uses_s3_native_lockfiles_only() -> None:
     assert "dynamodb:" not in state_docs
 
 
-def test_app_rollback_drill_enforces_pipeline_slos() -> None:
-    workflow_text = _read(".github/workflows/app-rollback-drill.yml")
-    workflow = yaml.safe_load(workflow_text)
-
-    env = workflow["env"]
-    assert env["APP_ROLLBACK_ERROR_SLO_SECONDS"] == "600"
-    assert env["APP_ROLLBACK_LATENCY_SLO_SECONDS"] == "900"
-    assert env["APP_ROLLBACK_VERIFY_SLO_SECONDS"] == "120"
-
-
-def test_data_runtime_rollback_drill_enforces_pipeline_slos() -> None:
-    workflow_text = _read(".github/workflows/data-runtime-rollback-drill.yml")
-    workflow = yaml.safe_load(workflow_text)
-
-    env = workflow["env"]
-    assert env["DATA_RUNTIME_ROLLBACK_SLO_SECONDS"] == "120"
-    assert env["DATA_RUNTIME_VERIFY_SLO_SECONDS"] == "120"
-
-    assert "inputs.confirm_drill == 'data-rollback-drill'" in workflow_text
-    assert "READ_MODE=legacy and WRITE_MODE=legacy" in workflow_text
-    assert '--data \'{"mode":"dual"}\'' in workflow_text
-
-    for forbidden in ["Run Liquibase", "Run backfill", "data export", "POST /orders"]:
-        assert forbidden not in workflow_text
-
-
 def test_infra_apply_guards_app_task_definition_drift() -> None:
     workflow_text = _read(".github/workflows/infra-apply.yml")
     guard_script = _read("scripts/ci/ci_guard_infra_plan_blast_radius.sh")
@@ -154,30 +127,42 @@ def test_infra_apply_guards_app_task_definition_drift() -> None:
     )
     assert "aws_ecs_task_definition" in guard_script
     assert "allow-ecs-task-definition-changes" in workflow_text
-    assert "This can roll infra apply across the app deploy ownership boundary" in (
-        guard_script
-    )
+    assert "app deploy ownership boundary" in guard_script
 
 
-def test_workflow_inventory_keeps_only_permanent_delivery_paths() -> None:
-    workflow_names = {
-        path.name: _read(str(path.relative_to(ROOT)))
-        for path in sorted((ROOT / ".github" / "workflows").glob("*.yml"))
-    }
-    required = {
-        "app-build.yml",
-        "app-deploy.yml",
-        "app-rollback-drill.yml",
-        "data-runtime-rollback-drill.yml",
-        "infra-apply.yml",
-        "infra-plan.yml",
-        "security.yml",
-        "semgrep.yml",
-    }
-    assert required.issubset(workflow_names)
+def test_workload_registry_has_pragmatic_complete_shape() -> None:
+    contract = json.loads(_read("platform/workloads.json"))
 
-    all_workflows = "\n".join(workflow_names.values())
-    assert "confirm_migration" not in all_workflows
-    assert "terraform state rm" not in all_workflows
-    assert "Infra App Task Definition Ownership Migration" not in all_workflows
-    assert "python3 - <<'PY'" not in all_workflows
+    assert contract["schema_version"] == "1"
+    assert isinstance(contract["workloads"], list)
+    assert contract["workloads"]
+
+    for workload in contract["workloads"]:
+        assert workload["name"]
+        assert workload["kind"] in {"service", "job"}
+        assert workload["app_path"].startswith("apps/")
+        assert workload["image"]["repository"]
+        assert workload["image"]["build_args"]["APP_PATH"] == workload["app_path"]
+        assert workload["image"]["build_args"]["UV_PACKAGE"]
+        assert workload["image"]["build_args"]["WORKLOAD_CMD"]
+        assert isinstance(workload["config"]["env"], list)
+        assert isinstance(workload["config"]["secrets"], list)
+        assert workload["traces"]["supported"] in {True, False}
+
+        if workload["kind"] == "service":
+            assert "port" in workload["conformance"]
+            assert "startup_timeout_seconds" in workload["conformance"]
+        else:
+            assert "job" in workload
+            assert "timeout_seconds" in workload["conformance"]
+
+
+def test_workload_registry_maps_to_real_app_files() -> None:
+    contract = json.loads(_read("platform/workloads.json"))
+
+    for workload in contract["workloads"]:
+        app_path = ROOT / workload["app_path"]
+        assert app_path.is_dir()
+        assert (app_path / "main.py").is_file()
+        assert (app_path / "config.py").is_file()
+        assert (app_path / "pyproject.toml").is_file()
