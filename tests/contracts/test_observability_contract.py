@@ -41,7 +41,7 @@ def test_cloud_observability_is_adot_sidecar_not_hosted_lgtm() -> None:
     assert "http://127.0.0.1:4318/v1/traces" in workload_inventory_tf
     assert 'local.workload_environment["api"]' in compute_tf
     assert "default_adot_collector_config" in observability_tf
-    assert "job_name: app" in observability_tf
+    assert "job_name: api" in observability_tf
 
     for retired in [
         'resource "aws_ecs_service" "grafana"',
@@ -73,12 +73,10 @@ def test_local_grafana_stack_uses_prometheus_loki_tempo_without_cloudwatch() -> 
 def test_alb_access_logs_are_not_coupled_to_observability_stack() -> None:
     edge_tf = _read("infra/app/edge.tf")
     edge_logs_tf = _read("infra/app/edge_access_logs.tf")
-    outputs_tf = _read("infra/app/outputs.tf")
 
     assert "local.alb_access_logs_bucket_name" in edge_tf
     assert "aws_s3_bucket_policy.alb_access_logs" in edge_tf
     assert 'resource "aws_s3_bucket" "alb_access_logs"' in edge_logs_tf
-    assert "alb_access_logs_bucket_name" in outputs_tf
     assert "observability_bucket_name" not in edge_tf
 
 
@@ -89,8 +87,8 @@ def test_long_running_services_use_ecs_native_rollback_detection() -> None:
 
     assert combined.count("deployment_circuit_breaker") >= 2
     assert combined.count("rollback = true") >= 2
-    assert "task_definition_arn" in compute_tf
-    assert "enable_app_symptom_cloudwatch_alarms" in combined
+    assert "data.aws_ecs_task_definition.api_current.arn" in compute_tf
+    assert "enable_api_symptom_cloudwatch_alarms" in combined
 
 
 def test_local_prometheus_scrapes_app_and_stack_metrics() -> None:
@@ -98,7 +96,7 @@ def test_local_prometheus_scrapes_app_and_stack_metrics() -> None:
         "platform/concerns/observability/prometheus/prometheus.yml"
     )
 
-    assert "job_name: app" in local_prometheus
+    assert "job_name: api" in local_prometheus
     assert "metrics_path: /metrics" in local_prometheus
     assert "job_name: prometheus" in local_prometheus
     assert "job_name: loki" in local_prometheus

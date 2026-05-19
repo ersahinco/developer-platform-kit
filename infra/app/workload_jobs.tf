@@ -6,6 +6,113 @@
 # to understand.
 ################################################################################
 
+locals {
+  support_task_definition_defaults = {
+    requires_compatibilities = ["FARGATE"]
+    network_mode             = "awsvpc"
+    execution_role_arn       = aws_iam_role.task_exec.arn
+  }
+
+  support_workload_log_group_defaults = {
+    kms_key_id        = aws_kms_key.cloudwatch_logs.arn
+    retention_in_days = 14
+    tags              = local.tags
+  }
+
+  support_job_workloads = {
+    backfill_worker = {
+      family         = "${local.name}-backfill-worker"
+      cpu            = var.backfill_worker_cpu
+      memory         = var.backfill_worker_memory
+      task_role_arn  = aws_iam_role.api_task.arn
+      container_name = "backfill-worker"
+    }
+    data_export_job = {
+      family         = "${local.name}-data-export-job"
+      cpu            = var.data_export_job_cpu
+      memory         = var.data_export_job_memory
+      task_role_arn  = aws_iam_role.data_export_job.arn
+      container_name = "data-export-job"
+    }
+  }
+
+  liquibase_log_group_name = "/ecs/${local.name}/liquibase"
+
+  async_eventing_runtime_files = {
+    "components/order-events-pubsub.yaml" = aws_s3_object.order_events_dapr_component.key
+    "components/resiliency.yaml"          = aws_s3_object.order_events_dapr_resiliency.key
+    "config/config.yaml"                  = aws_s3_object.order_events_dapr_config.key
+  }
+
+  async_eventing_dapr_config_volume_name = "dapr-config"
+  async_eventing_dapr_mount_path         = "/dapr"
+  async_eventing_dapr_loader_dependency = [
+    { containerName = "dapr-config-loader", condition = "SUCCESS" },
+  ]
+  async_eventing_dapr_writable_mount_points = [
+    {
+      sourceVolume  = local.async_eventing_dapr_config_volume_name
+      containerPath = local.async_eventing_dapr_mount_path
+      readOnly      = false
+    },
+  ]
+  async_eventing_dapr_readonly_mount_points = [
+    {
+      sourceVolume  = local.async_eventing_dapr_config_volume_name
+      containerPath = local.async_eventing_dapr_mount_path
+      readOnly      = true
+    },
+  ]
+
+  async_eventing_dapr_config_loader_command = join(
+    " && ",
+    concat(
+      [
+        "mkdir -p ${local.async_eventing_dapr_mount_path}/components ${local.async_eventing_dapr_mount_path}/config"
+      ],
+      [
+        for target_path, source_key in local.async_eventing_runtime_files :
+        "aws s3 cp s3://${aws_s3_bucket.runtime_config.bucket}/${source_key} ${local.async_eventing_dapr_mount_path}/${target_path}"
+      ]
+    )
+  )
+
+  primary_async_eventing_dapr_app_id = local.primary_async_eventing_dapr.app_id
+
+  primary_async_eventing_daprd_command = [
+    "./daprd",
+    "--app-id",
+    local.primary_async_eventing_dapr_app_id,
+    "--app-port",
+    tostring(local.primary_async_eventing_service_port),
+    "--dapr-http-port",
+    "3500",
+    "--components-path",
+    "${local.async_eventing_dapr_mount_path}/components",
+    "--config",
+    "${local.async_eventing_dapr_mount_path}/config/config.yaml",
+  ]
+
+  primary_async_eventing_port_mappings = [
+    {
+      containerPort = local.primary_async_eventing_service_port
+      hostPort      = local.primary_async_eventing_service_port
+      protocol      = "tcp"
+    },
+  ]
+
+  primary_async_eventing_health_check = {
+    command = [
+      "CMD-SHELL",
+      "python -c \"import urllib.request; urllib.request.urlopen('http://localhost:${local.primary_async_eventing_service_port}/health')\"",
+    ]
+    interval    = 10
+    timeout     = 3
+    retries     = 3
+    startPeriod = 20
+  }
+}
+
 ################################################################################
 # Worker task definition — one-off Fargate task triggered by CI for backfill.
 # Connects directly to RDS (not via pgbouncer) — backfill transactions are
@@ -13,47 +120,41 @@
 # Reuses the shared execution role and app task role.
 ################################################################################
 
-resource "aws_ecs_task_definition" "worker" {
-  family                   = "${local.name}-worker"
-  requires_compatibilities = ["FARGATE"]
-  network_mode             = "awsvpc"
-  cpu                      = var.worker_cpu
-  memory                   = var.worker_memory
-  execution_role_arn       = aws_iam_role.task_exec.arn
-  task_role_arn            = aws_iam_role.app_task.arn
+resource "aws_ecs_task_definition" "support_job" {
+  for_each = local.support_job_workloads
+
+  family                   = each.value.family
+  requires_compatibilities = local.support_task_definition_defaults.requires_compatibilities
+  network_mode             = local.support_task_definition_defaults.network_mode
+  cpu                      = each.value.cpu
+  memory                   = each.value.memory
+  execution_role_arn       = local.support_task_definition_defaults.execution_role_arn
+  task_role_arn            = each.value.task_role_arn
 
   container_definitions = jsonencode([
     merge(local.ecs_container_defaults, {
-      name = "worker"
-      # var.initial_image_tag is used only on the first apply (bootstrap).
-      # CI always calls render-task-definition + register-task-definition
-      # with the real SHA before running this one-off task — Terraform's
-      # registered revision is never used directly after bootstrap.
-      image     = format("%s:%s", module.ecr["backfill_worker"].repository_url, var.initial_image_tag)
-      essential = true
-      # ECS does not interpolate $(VAR) in environment values. The workload
-      # receives DB_PASSWORD as a secret and composes BACKFILL_DATABASE_URL at startup.
-      secrets     = local.workload_secrets["backfill_worker"]
-      environment = local.workload_environment["backfill_worker"]
-      logConfiguration = {
-        logDriver = "awslogs"
-        options = {
-          "awslogs-group"         = local.workload_log_group_names["backfill_worker"]
-          "awslogs-region"        = local.region
-          "awslogs-stream-prefix" = "worker"
-        }
-      }
+      name = each.value.container_name
+      # var.bootstrap_image_tag is used only on the first apply (bootstrap).
+      # CI always registers a SHA-tagged revision before running or scheduling
+      # these support jobs, so Terraform's bootstrap revision is only a seed.
+      image            = format("%s:%s", module.ecr[each.key].repository_url, var.bootstrap_image_tag)
+      essential        = true
+      secrets          = local.workload_secrets[each.key]
+      environment      = local.workload_environment[each.key]
+      logConfiguration = local.workload_log_configuration[each.key]
     })
   ])
 
   tags = local.tags
 }
 
-resource "aws_cloudwatch_log_group" "worker" {
-  name              = local.workload_log_group_names["backfill_worker"]
-  kms_key_id        = aws_kms_key.cloudwatch_logs.arn
-  retention_in_days = 14
-  tags              = local.tags
+resource "aws_cloudwatch_log_group" "support_job" {
+  for_each = local.support_job_workloads
+
+  name              = local.workload_log_group_names[each.key]
+  kms_key_id        = local.support_workload_log_group_defaults.kms_key_id
+  retention_in_days = local.support_workload_log_group_defaults.retention_in_days
+  tags              = local.support_workload_log_group_defaults.tags
 }
 
 ################################################################################
@@ -85,51 +186,11 @@ resource "aws_iam_role_policy" "data_export_job_s3" {
   policy = data.aws_iam_policy_document.data_export_job_s3.json
 }
 
-resource "aws_ecs_task_definition" "data_export_job" {
-  family                   = "${local.name}-data-export-job"
-  requires_compatibilities = ["FARGATE"]
-  network_mode             = "awsvpc"
-  cpu                      = var.data_export_job_cpu
-  memory                   = var.data_export_job_memory
-  execution_role_arn       = aws_iam_role.task_exec.arn
-  task_role_arn            = aws_iam_role.data_export_job.arn
-
-  container_definitions = jsonencode([
-    merge(local.ecs_container_defaults, {
-      name = "data-export-job"
-      # var.initial_image_tag is used only on the first apply (bootstrap).
-      # CI registers a SHA-tagged revision before the scheduler uses the task
-      # family for recurring exports.
-      image       = format("%s:%s", module.ecr["data_export_job"].repository_url, var.initial_image_tag)
-      essential   = true
-      secrets     = local.workload_secrets["data_export_job"]
-      environment = local.workload_environment["data_export_job"]
-      logConfiguration = {
-        logDriver = "awslogs"
-        options = {
-          "awslogs-group"         = local.workload_log_group_names["data_export_job"]
-          "awslogs-region"        = local.region
-          "awslogs-stream-prefix" = "data-export-job"
-        }
-      }
-    })
-  ])
-
-  tags = local.tags
-}
-
-resource "aws_cloudwatch_log_group" "data_export_job" {
-  name              = local.workload_log_group_names["data_export_job"]
-  kms_key_id        = aws_kms_key.cloudwatch_logs.arn
-  retention_in_days = 14
-  tags              = local.tags
-}
-
 resource "aws_cloudwatch_log_metric_filter" "data_export_success" {
   count = var.enable_data_export_success_cloudwatch_alarm ? 1 : 0
 
   name           = "${local.name}-data-export-success"
-  log_group_name = aws_cloudwatch_log_group.data_export_job.name
+  log_group_name = aws_cloudwatch_log_group.support_job["data_export_job"].name
   pattern        = "{ ($.log = *dataset*) && ($.log = *order_contact_email*) && ($.log = *status*) && ($.log = *succeeded*) }"
 
   metric_transformation {
@@ -224,13 +285,13 @@ resource "aws_scheduler_schedule" "data_export_job" {
 
     ecs_parameters {
       # Omitting the revision intentionally selects the latest ACTIVE revision.
-      task_definition_arn = aws_ecs_task_definition.data_export_job.arn_without_revision
+      task_definition_arn = aws_ecs_task_definition.support_job["data_export_job"].arn_without_revision
       launch_type         = "FARGATE"
       platform_version    = "LATEST"
 
       network_configuration {
         assign_public_ip = false
-        security_groups  = [aws_security_group.app.id]
+        security_groups  = [aws_security_group.api.id]
         subnets          = local.platform.private_subnet_ids
       }
     }
@@ -299,7 +360,7 @@ data "aws_iam_policy_document" "order_event_consumer_sqs" {
   statement {
     sid       = "ReadDaprRuntimeConfig"
     actions   = ["s3:GetObject"]
-    resources = ["${aws_s3_bucket.runtime_config.arn}/${local.order_events_dapr_config_prefix}/*"]
+    resources = ["${aws_s3_bucket.runtime_config.arn}/${local.primary_async_eventing_dapr_config_prefix}/*"]
   }
 
   statement {
@@ -333,15 +394,15 @@ resource "aws_iam_role_policy" "order_event_consumer_sqs" {
 
 resource "aws_ecs_task_definition" "order_event_consumer" {
   family                   = "${local.name}-order-event-consumer"
-  requires_compatibilities = ["FARGATE"]
-  network_mode             = "awsvpc"
+  requires_compatibilities = local.support_task_definition_defaults.requires_compatibilities
+  network_mode             = local.support_task_definition_defaults.network_mode
   cpu                      = var.order_event_consumer_cpu
   memory                   = var.order_event_consumer_memory
-  execution_role_arn       = aws_iam_role.task_exec.arn
+  execution_role_arn       = local.support_task_definition_defaults.execution_role_arn
   task_role_arn            = aws_iam_role.order_event_consumer.arn
 
   volume {
-    name = "dapr-config"
+    name = local.async_eventing_dapr_config_volume_name
   }
 
   container_definitions = jsonencode([
@@ -352,80 +413,30 @@ resource "aws_ecs_task_definition" "order_event_consumer" {
       command = [
         "sh",
         "-c",
-        "mkdir -p /dapr/components /dapr/config && aws s3 cp s3://${aws_s3_bucket.runtime_config.bucket}/${aws_s3_object.order_events_dapr_component.key} /dapr/components/order-events-pubsub.yaml && aws s3 cp s3://${aws_s3_bucket.runtime_config.bucket}/${aws_s3_object.order_events_dapr_resiliency.key} /dapr/components/resiliency.yaml && aws s3 cp s3://${aws_s3_bucket.runtime_config.bucket}/${aws_s3_object.order_events_dapr_config.key} /dapr/config/config.yaml",
+        local.async_eventing_dapr_config_loader_command,
       ]
-      mountPoints = [
-        { sourceVolume = "dapr-config", containerPath = "/dapr", readOnly = false },
-      ]
-      logConfiguration = {
-        logDriver = "awslogs"
-        options = {
-          "awslogs-group"         = local.workload_log_group_names["order_event_consumer"]
-          "awslogs-region"        = local.region
-          "awslogs-stream-prefix" = "dapr-config-loader"
-        }
-      }
+      mountPoints      = local.async_eventing_dapr_writable_mount_points
+      logConfiguration = local.sidecar_log_configuration["dapr_config_loader"]
     }),
     merge(local.ecs_container_defaults, {
-      name      = "daprd"
-      image     = var.dapr_image
-      essential = true
-      command = [
-        "./daprd",
-        "--app-id",
-        local.workloads_by_name["order_event_consumer"].dapr.app_id,
-        "--app-port",
-        tostring(local.workloads_by_name["order_event_consumer"].service.port),
-        "--dapr-http-port",
-        "3500",
-        "--components-path",
-        "/dapr/components",
-        "--config",
-        "/dapr/config/config.yaml",
-      ]
-      mountPoints = [
-        { sourceVolume = "dapr-config", containerPath = "/dapr", readOnly = true },
-      ]
-      dependsOn = [{ containerName = "dapr-config-loader", condition = "SUCCESS" }]
-      logConfiguration = {
-        logDriver = "awslogs"
-        options = {
-          "awslogs-group"         = local.workload_log_group_names["order_event_consumer"]
-          "awslogs-region"        = local.region
-          "awslogs-stream-prefix" = "daprd"
-        }
-      }
+      name             = "daprd"
+      image            = var.dapr_image
+      essential        = true
+      command          = local.primary_async_eventing_daprd_command
+      mountPoints      = local.async_eventing_dapr_readonly_mount_points
+      dependsOn        = local.async_eventing_dapr_loader_dependency
+      logConfiguration = local.sidecar_log_configuration["daprd"]
     }),
     merge(local.ecs_container_defaults, {
-      name      = "order-event-consumer"
-      image     = format("%s:%s", module.ecr["order_event_consumer"].repository_url, var.initial_image_tag)
-      essential = true
-      portMappings = [{
-        containerPort = local.workloads_by_name["order_event_consumer"].service.port
-        hostPort      = local.workloads_by_name["order_event_consumer"].service.port
-        protocol      = "tcp"
-      }]
-      secrets     = local.workload_secrets["order_event_consumer"]
-      environment = local.workload_environment["order_event_consumer"]
-      dependsOn   = [{ containerName = "dapr-config-loader", condition = "SUCCESS" }]
-      healthCheck = {
-        command = [
-          "CMD-SHELL",
-          "python -c \"import urllib.request; urllib.request.urlopen('http://localhost:${local.workloads_by_name["order_event_consumer"].service.port}/health')\"",
-        ]
-        interval    = 10
-        timeout     = 3
-        retries     = 3
-        startPeriod = 20
-      }
-      logConfiguration = {
-        logDriver = "awslogs"
-        options = {
-          "awslogs-group"         = local.workload_log_group_names["order_event_consumer"]
-          "awslogs-region"        = local.region
-          "awslogs-stream-prefix" = "order-event-consumer"
-        }
-      }
+      name             = "order-event-consumer"
+      image            = format("%s:%s", module.ecr["order_event_consumer"].repository_url, var.bootstrap_image_tag)
+      essential        = true
+      portMappings     = local.primary_async_eventing_port_mappings
+      secrets          = local.workload_secrets["order_event_consumer"]
+      environment      = local.workload_environment["order_event_consumer"]
+      dependsOn        = local.async_eventing_dapr_loader_dependency
+      healthCheck      = local.primary_async_eventing_health_check
+      logConfiguration = local.workload_log_configuration["order_event_consumer"]
     })
   ])
 
@@ -434,16 +445,16 @@ resource "aws_ecs_task_definition" "order_event_consumer" {
 
 resource "aws_cloudwatch_log_group" "order_event_consumer" {
   name              = local.workload_log_group_names["order_event_consumer"]
-  kms_key_id        = aws_kms_key.cloudwatch_logs.arn
-  retention_in_days = 14
-  tags              = local.tags
+  kms_key_id        = local.support_workload_log_group_defaults.kms_key_id
+  retention_in_days = local.support_workload_log_group_defaults.retention_in_days
+  tags              = local.support_workload_log_group_defaults.tags
 }
 
 resource "aws_ecs_service" "order_event_consumer" {
   name            = "order-event-consumer"
   cluster         = module.ecs.cluster_arn
   task_definition = aws_ecs_task_definition.order_event_consumer.arn
-  desired_count   = var.order_event_consumer_desired_count
+  desired_count   = var.order_event_consumer_bootstrap_desired_count
   launch_type     = "FARGATE"
 
   deployment_minimum_healthy_percent = 100
@@ -456,10 +467,12 @@ resource "aws_ecs_service" "order_event_consumer" {
 
   network_configuration {
     assign_public_ip = false
-    security_groups  = [aws_security_group.app.id]
+    security_groups  = [aws_security_group.api.id]
     subnets          = local.platform.private_subnet_ids
   }
 
+  # Terraform bootstraps the service shape. The deploy workflow owns later
+  # task-definition revisions and activates the service with a verified image.
   lifecycle {
     ignore_changes = [task_definition]
   }
@@ -483,25 +496,25 @@ resource "aws_iam_role" "liquibase" {
 
 resource "aws_ecs_task_definition" "liquibase" {
   family                   = "${local.name}-liquibase"
-  requires_compatibilities = ["FARGATE"]
-  network_mode             = "awsvpc"
+  requires_compatibilities = local.support_task_definition_defaults.requires_compatibilities
+  network_mode             = local.support_task_definition_defaults.network_mode
   # 512 CPU / 1024 MiB is the minimum Fargate size that comfortably runs the
   # Liquibase JVM without OOM on startup.
   cpu    = 512
   memory = 1024
 
-  execution_role_arn = aws_iam_role.task_exec.arn
+  execution_role_arn = local.support_task_definition_defaults.execution_role_arn
   task_role_arn      = aws_iam_role.liquibase.arn
 
   container_definitions = jsonencode([
     merge(local.ecs_container_defaults, {
       name = "liquibase"
       # Changelogs are baked into this image at build time (see db/Dockerfile).
-      # var.initial_image_tag is used only on the first apply (bootstrap).
+      # var.bootstrap_image_tag is used only on the first apply (bootstrap).
       # CI always calls render-task-definition + register-task-definition
       # with the real SHA before running this one-off task — Terraform's
       # registered revision is never used directly after bootstrap.
-      image            = format("%s:%s", module.ecr["liquibase"].repository_url, var.initial_image_tag)
+      image            = format("%s:%s", module.ecr["liquibase"].repository_url, var.bootstrap_image_tag)
       essential        = true
       workingDirectory = "/liquibase"
       command = [
@@ -525,7 +538,7 @@ resource "aws_ecs_task_definition" "liquibase" {
       logConfiguration = {
         logDriver = "awslogs"
         options = {
-          "awslogs-group"         = "/ecs/${local.name}/liquibase"
+          "awslogs-group"         = local.liquibase_log_group_name
           "awslogs-region"        = local.region
           "awslogs-stream-prefix" = "liquibase"
         }
@@ -537,8 +550,8 @@ resource "aws_ecs_task_definition" "liquibase" {
 }
 
 resource "aws_cloudwatch_log_group" "liquibase" {
-  name              = "/ecs/${local.name}/liquibase"
-  kms_key_id        = aws_kms_key.cloudwatch_logs.arn
-  retention_in_days = 14
-  tags              = local.tags
+  name              = local.liquibase_log_group_name
+  kms_key_id        = local.support_workload_log_group_defaults.kms_key_id
+  retention_in_days = local.support_workload_log_group_defaults.retention_in_days
+  tags              = local.support_workload_log_group_defaults.tags
 }

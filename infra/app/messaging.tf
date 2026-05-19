@@ -6,16 +6,15 @@
 ################################################################################
 
 locals {
-  order_events_topic_name = "${local.name}-order-created-v1.fifo"
-  # Preserve the pre-Dapr queue name so the Dapr subscriber can adopt the
-  # existing SQS FIFO queue without a destructive replacement.
-  order_event_consumer_queue_name  = "${local.name}-order-events.fifo"
-  order_events_runtime_bucket_name = "${local.name}-runtime-config-${local.account_id}"
-  order_events_dapr_config_prefix  = "config/dapr/order-events"
+  primary_async_eventing_queue_name = "${local.name}-${local.primary_async_eventing_repository}.fifo"
+  runtime_config_bucket_name        = "${local.name}-runtime-config-${local.account_id}"
+  primary_async_eventing_dapr_config_prefix = (
+    "config/dapr/${local.primary_async_eventing_repository}"
+  )
 }
 
 resource "aws_sns_topic" "order_events" {
-  name                        = local.order_events_topic_name
+  name                        = local.primary_async_eventing_topic_name
   fifo_topic                  = true
   content_based_deduplication = true
   kms_master_key_id           = aws_kms_key.order_events_sns.arn
@@ -33,7 +32,7 @@ resource "aws_sqs_queue" "order_events_dlq" {
 }
 
 resource "aws_sqs_queue" "order_events" {
-  name                       = local.order_event_consumer_queue_name
+  name                       = local.primary_async_eventing_queue_name
   fifo_queue                 = true
   sqs_managed_sse_enabled    = true
   visibility_timeout_seconds = 60
@@ -89,7 +88,8 @@ resource "aws_s3_bucket" "runtime_config" {
   #checkov:skip=CKV_AWS_144:Cross-region replication is recovery overhead outside this lean sandbox.
   #checkov:skip=CKV_AWS_145:S3-managed AES256 encryption is sufficient for non-secret Dapr component config.
   #checkov:skip=CKV2_AWS_62:No event consumer exists for runtime config bucket notifications.
-  bucket = local.order_events_runtime_bucket_name
+  bucket        = local.runtime_config_bucket_name
+  force_destroy = true
 
   tags = merge(local.tags, {
     Purpose = "runtime-config"
@@ -156,7 +156,7 @@ resource "aws_s3_bucket_lifecycle_configuration" "runtime_config" {
 
 resource "aws_s3_object" "order_events_dapr_component" {
   bucket       = aws_s3_bucket.runtime_config.id
-  key          = "${local.order_events_dapr_config_prefix}/components/order-events-pubsub.yaml"
+  key          = "${local.primary_async_eventing_dapr_config_prefix}/components/order-events-pubsub.yaml"
   content_type = "text/yaml"
   content = templatefile("${path.module}/templates/dapr/order-events-pubsub.yaml.tftpl", {
     aws_region            = local.region
@@ -167,14 +167,14 @@ resource "aws_s3_object" "order_events_dapr_component" {
 
 resource "aws_s3_object" "order_events_dapr_config" {
   bucket       = aws_s3_bucket.runtime_config.id
-  key          = "${local.order_events_dapr_config_prefix}/config/config.yaml"
+  key          = "${local.primary_async_eventing_dapr_config_prefix}/config/config.yaml"
   content_type = "text/yaml"
   content      = templatefile("${path.module}/templates/dapr/config.yaml.tftpl", {})
 }
 
 resource "aws_s3_object" "order_events_dapr_resiliency" {
   bucket       = aws_s3_bucket.runtime_config.id
-  key          = "${local.order_events_dapr_config_prefix}/components/resiliency.yaml"
+  key          = "${local.primary_async_eventing_dapr_config_prefix}/components/resiliency.yaml"
   content_type = "text/yaml"
   content      = templatefile("${path.module}/templates/dapr/resiliency.yaml.tftpl", {})
 }

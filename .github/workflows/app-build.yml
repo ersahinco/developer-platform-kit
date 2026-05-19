@@ -176,43 +176,7 @@ jobs:
         env:
           TAG: sha-${{ github.sha }}
         run: |
-          images=$(jq -c \
-            --arg tag "$TAG" \
-            --arg pgbouncer_tag "$PGBOUNCER_TAG" \
-            '
-              [
-                .workloads[]
-                | {
-                    name,
-                    repository: .image.repository,
-                    dockerfile: "platform/workload.Dockerfile",
-                    context: ".",
-                    tag: $tag,
-                    build_args: {
-                      APP_PATH: .app_path,
-                      UV_PACKAGE: .image.package,
-                      WORKLOAD_CMD: .image.command
-                    }
-                  }
-              ] + [
-                {
-                  name: "liquibase",
-                  repository: "liquibase",
-                  dockerfile: "db/Dockerfile",
-                  context: "db",
-                  tag: $tag,
-                  build_args: {}
-                },
-                {
-                  name: "pgbouncer",
-                  repository: "pgbouncer",
-                  dockerfile: "db/pgbouncer/Dockerfile",
-                  context: "db/pgbouncer",
-                  tag: $pgbouncer_tag,
-                  build_args: {"PGBOUNCER_TAG": $pgbouncer_tag}
-                }
-              ]
-            ' platform/workloads.json)
+          images=$(python3 -m scripts.platform.workload_metadata image-matrix "$TAG" "$PGBOUNCER_TAG")
           echo "images=${images}" >> "$GITHUB_OUTPUT"
 
   build-scan-push:
@@ -303,3 +267,24 @@ jobs:
             echo ""
             echo "Run the App Deploy workflow with image tag sha-${{ github.sha }} after review."
           } >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Write build evidence
+        run: |
+          python3 scripts/observability/release_event.py \
+            --event-type app_build \
+            --status success \
+            --summary "Image built, scanned, and pushed for later deployment approval." \
+            --service-name "${{ matrix.image.repository }}" \
+            --workload-id "${{ matrix.image.name }}" \
+            --image-tag "${{ matrix.image.tag }}" \
+            --image-digest "${{ steps.digest.outputs.digest }}" \
+            --deployment-id "${{ steps.digest.outputs.digest }}" \
+            --output-dir "/tmp/release-evidence/${{ matrix.image.repository }}"
+          cat "/tmp/release-evidence/${{ matrix.image.repository }}/release-event.md" >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Upload build evidence
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
+        with:
+          name: release-evidence-app-build-${{ matrix.image.repository }}-${{ github.run_id }}
+          path: /tmp/release-evidence/${{ matrix.image.repository }}
+          retention-days: 30

@@ -36,11 +36,11 @@ resource "aws_security_group" "alb" {
   tags = local.tags
 }
 
-resource "aws_security_group" "app" {
+resource "aws_security_group" "api" {
   # name_prefix + create_before_destroy: same reason as alb SG — description
   # changes force replacement and a fixed name collides in the same VPC.
-  name_prefix = "${local.name}-app-"
-  description = "App tasks: inbound from ALB only, HTTPS egress to AWS APIs, Postgres to RDS"
+  name_prefix = "${local.name}-api-"
+  description = "API tasks: inbound from ALB only, HTTPS egress to AWS APIs, Postgres to RDS"
   vpc_id      = local.platform.vpc_id
 
   lifecycle {
@@ -49,8 +49,8 @@ resource "aws_security_group" "app" {
 
   ingress {
     description     = "From ALB on container port"
-    from_port       = 8000
-    to_port         = 8000
+    from_port       = local.api_service_port
+    to_port         = local.api_service_port
     protocol        = "tcp"
     security_groups = [aws_security_group.alb.id]
   }
@@ -189,9 +189,9 @@ resource "aws_wafv2_web_acl_association" "edge_alb" {
   web_acl_arn  = aws_wafv2_web_acl.edge.arn
 }
 
-resource "aws_lb_target_group" "app" {
+resource "aws_lb_target_group" "api" {
   name        = local.name
-  port        = 8000
+  port        = local.api_service_port
   protocol    = "HTTP"
   vpc_id      = local.platform.vpc_id
   target_type = "ip" # required for Fargate — each task gets its own ENI
@@ -214,9 +214,9 @@ resource "aws_lb_target_group" "app" {
   tags = local.tags
 }
 
-resource "aws_cloudwatch_metric_alarm" "app_unhealthy_targets" {
-  alarm_name          = "${local.name}-app-unhealthy-targets"
-  alarm_description   = "ALB reports unhealthy app targets. Runbook: docs/runbooks/app-service-unhealthy.md"
+resource "aws_cloudwatch_metric_alarm" "api_unhealthy_targets" {
+  alarm_name          = "${local.name}-api-unhealthy-targets"
+  alarm_description   = "ALB reports unhealthy API targets. Runbook: docs/runbooks/app-service-unhealthy.md"
   comparison_operator = "GreaterThanThreshold"
   evaluation_periods  = 3
   datapoints_to_alarm = 2
@@ -230,17 +230,17 @@ resource "aws_cloudwatch_metric_alarm" "app_unhealthy_targets" {
 
   dimensions = {
     LoadBalancer = aws_lb.this.arn_suffix
-    TargetGroup  = aws_lb_target_group.app.arn_suffix
+    TargetGroup  = aws_lb_target_group.api.arn_suffix
   }
 
   tags = local.tags
 }
 
-resource "aws_cloudwatch_metric_alarm" "app_target_5xx" {
-  count = var.enable_app_symptom_cloudwatch_alarms ? 1 : 0
+resource "aws_cloudwatch_metric_alarm" "api_target_5xx" {
+  count = var.enable_api_symptom_cloudwatch_alarms ? 1 : 0
 
-  alarm_name          = "${local.name}-app-target-5xx"
-  alarm_description   = "App targets returned 5xx responses behind the ALB. Runbook: docs/runbooks/app-edge-errors-latency.md"
+  alarm_name          = "${local.name}-api-target-5xx"
+  alarm_description   = "API targets returned 5xx responses behind the ALB. Runbook: docs/runbooks/app-edge-errors-latency.md"
   comparison_operator = "GreaterThanThreshold"
   evaluation_periods  = 1
   datapoints_to_alarm = 1
@@ -254,17 +254,17 @@ resource "aws_cloudwatch_metric_alarm" "app_target_5xx" {
 
   dimensions = {
     LoadBalancer = aws_lb.this.arn_suffix
-    TargetGroup  = aws_lb_target_group.app.arn_suffix
+    TargetGroup  = aws_lb_target_group.api.arn_suffix
   }
 
   tags = local.tags
 }
 
-resource "aws_cloudwatch_metric_alarm" "app_target_latency" {
-  count = var.enable_app_symptom_cloudwatch_alarms ? 1 : 0
+resource "aws_cloudwatch_metric_alarm" "api_target_latency" {
+  count = var.enable_api_symptom_cloudwatch_alarms ? 1 : 0
 
-  alarm_name          = "${local.name}-app-target-latency"
-  alarm_description   = "App target p95 response time exceeded 2 seconds. Runbook: docs/runbooks/app-edge-errors-latency.md"
+  alarm_name          = "${local.name}-api-target-latency"
+  alarm_description   = "API target p95 response time exceeded 2 seconds. Runbook: docs/runbooks/app-edge-errors-latency.md"
   comparison_operator = "GreaterThanThreshold"
   evaluation_periods  = 3
   datapoints_to_alarm = 2
@@ -278,7 +278,7 @@ resource "aws_cloudwatch_metric_alarm" "app_target_latency" {
 
   dimensions = {
     LoadBalancer = aws_lb.this.arn_suffix
-    TargetGroup  = aws_lb_target_group.app.arn_suffix
+    TargetGroup  = aws_lb_target_group.api.arn_suffix
   }
 
   tags = local.tags
@@ -364,7 +364,7 @@ resource "aws_lb_listener_rule" "auth" {
 
   action {
     type             = "forward"
-    target_group_arn = aws_lb_target_group.app.arn
+    target_group_arn = aws_lb_target_group.api.arn
   }
 }
 

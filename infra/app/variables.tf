@@ -38,22 +38,22 @@ variable "api_token_secret_name" {
 
 # ── ECS ───────────────────────────────────────────────────────────────────────
 
-variable "app_cpu" {
-  description = "Fargate task CPU units for the app service (256, 512, 1024, 2048, 4096)."
+variable "api_cpu" {
+  description = "Fargate task CPU units for the api workload (256, 512, 1024, 2048, 4096)."
   type        = number
   default     = 512
 }
 
-variable "app_memory" {
-  description = "Fargate task memory (MiB) for the app service."
+variable "api_memory" {
+  description = "Fargate task memory (MiB) for the api workload."
   type        = number
   default     = 1024
 }
 
-variable "app_desired_count" {
-  description = "Desired number of running app tasks."
+variable "api_bootstrap_desired_count" {
+  description = "Bootstrap desired number of running api tasks. Defaults to 0 so fresh infra apply creates a dormant service until the deploy workflow registers a verified image revision and activates it."
   type        = number
-  default     = 1
+  default     = 0
 }
 
 variable "pgbouncer_pool_size" {
@@ -62,13 +62,13 @@ variable "pgbouncer_pool_size" {
   default     = 20
 }
 
-variable "worker_cpu" {
+variable "backfill_worker_cpu" {
   description = "Fargate task CPU units for the one-off backfill worker."
   type        = number
   default     = 256
 }
 
-variable "worker_memory" {
+variable "backfill_worker_memory" {
   description = "Fargate task memory (MiB) for the one-off backfill worker."
   type        = number
   default     = 512
@@ -110,10 +110,10 @@ variable "order_event_consumer_memory" {
   default     = 1024
 }
 
-variable "order_event_consumer_desired_count" {
-  description = "Desired number of order event relay/consumer tasks."
+variable "order_event_consumer_bootstrap_desired_count" {
+  description = "Bootstrap desired number of running order event relay/consumer tasks. Defaults to 0 so fresh infra apply creates a dormant service until the deploy workflow registers a verified image revision and activates it."
   type        = number
-  default     = 1
+  default     = 0
 }
 
 variable "dapr_image" {
@@ -122,10 +122,10 @@ variable "dapr_image" {
   default     = "daprio/daprd:1.17.0"
 }
 
-# ── CloudWatch app-level reduction toggles ───────────────────────────────────
+# ── CloudWatch edge-runtime reduction toggles ────────────────────────────────
 
-variable "enable_app_symptom_cloudwatch_alarms" {
-  description = "Keep CloudWatch alarms for app target 5xx and latency symptoms. Defaults true because ECS rollback uses AWS-native alarms."
+variable "enable_api_symptom_cloudwatch_alarms" {
+  description = "Keep CloudWatch alarms for api target 5xx and latency symptoms. Defaults true because ECS rollback uses AWS-native alarms."
   type        = bool
   default     = true
 }
@@ -145,7 +145,7 @@ variable "runtime_config_loader_image" {
 }
 
 variable "enable_adot_sidecar" {
-  description = "Run the AWS Distro for OpenTelemetry Collector as an app-task sidecar. The app sends OTLP traces to localhost:4318 when enabled."
+  description = "Run the AWS Distro for OpenTelemetry Collector as an api-task sidecar. The api workload sends OTLP traces to localhost:4318 when enabled."
   type        = bool
   default     = true
 }
@@ -157,7 +157,7 @@ variable "adot_collector_image" {
 }
 
 variable "adot_collector_config" {
-  description = "Optional full ADOT Collector config. Defaults to local app metrics/traces receivers with debug export to CloudWatch logs."
+  description = "Optional full ADOT Collector config. Defaults to local api metrics/traces receivers with debug export to CloudWatch logs."
   type        = string
   default     = null
 }
@@ -188,19 +188,19 @@ variable "rds_allocated_storage_gb" {
   default     = 20
 }
 
-variable "initial_image_tag" {
-  description = "Bootstrap app image tag for the initial task-definition revision before the app pipeline registers SHA-tagged deploy revisions."
+variable "bootstrap_image_tag" {
+  description = "Bootstrap workload image tag for the initial task-definition revisions before the deploy pipeline registers SHA-tagged runtime revisions."
   type        = string
   default     = "sha-7e0fa31a82d7d2a6e302e0904abb79d1dff3492d"
 }
 
-variable "app_image_tag" {
-  description = "Rare operator override for the documented bootstrap app image tag. Routine app deploys and rollbacks are GitHub Actions-owned task-definition revisions."
+variable "api_image_tag" {
+  description = "Rare operator override for the documented bootstrap api image tag. Routine api deploys and rollbacks are GitHub Actions-owned task-definition revisions."
   type        = string
   default     = null
 
   validation {
-    condition     = var.app_image_tag == null || startswith(var.app_image_tag, "sha-")
-    error_message = "app_image_tag must be null or start with sha-."
+    condition     = var.api_image_tag == null || startswith(var.api_image_tag, "sha-")
+    error_message = "api_image_tag must be null or start with sha-."
   }
 }

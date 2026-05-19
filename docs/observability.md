@@ -80,13 +80,13 @@ Cloud log groups:
 
 | Log group | Writer |
 |---|---|
-| `/ecs/<stack-name>/app` | edge-service container in the current reference runtime |
+| `/ecs/<stack-name>/api` | edge-service container in the current reference runtime |
 | `/ecs/<stack-name>/adot` | ADOT sidecar when enabled |
 | `/ecs/<stack-name>/pgbouncer` | PgBouncer sidecar |
 | `/ecs/<stack-name>/order-event-consumer` | Consumer, `daprd`, config loader |
 | `/ecs/<stack-name>/data-export-job` | Scheduled export task |
 | `/ecs/<stack-name>/liquibase` | Migration task |
-| `/ecs/<stack-name>/worker` | Backfill worker |
+| `/ecs/<stack-name>/backfill-worker` | Backfill worker |
 
 CloudWatch owns these AWS-native signals:
 

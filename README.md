@@ -118,6 +118,23 @@ make dapr-up
 
 For full local setup, use [docs/local-development.md](docs/local-development.md).
 
+## Quick Operator Path
+
+For reviewed deploy/apply/build evidence and incident triage:
+
+```bash
+make post-deploy-verify
+make incident-evidence
+make release-evidence-runs
+GH_RUN_ID=<workflow-run-id> make release-evidence-download
+RELEASE_EVENTS_DIR=/tmp/aws-sdlc-containers-release-evidence/<workflow-run-id> \
+make incident-evidence
+```
+
+Then continue with [docs/deployment.md](docs/deployment.md),
+[docs/observability.md](docs/observability.md), and
+[docs/runbooks/README.md](docs/runbooks/README.md).
+
 ## Delivery Shape
 
 - `app-build.yml`: validate, test, run runtime conformance, build, scan, push

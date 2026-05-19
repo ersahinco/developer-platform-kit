@@ -27,8 +27,8 @@ Start the local stack and optional observability:
 ```bash
 make dev
 make migrate
-docker compose build app
-docker compose up -d app
+docker compose build api
+docker compose up -d api
 make observability
 ```
 
@@ -92,8 +92,8 @@ Check whether the process is alive but dependency readiness is failing:
 ```bash
 curl -i http://localhost:8000/health
 curl -i http://localhost:8000/ready
-docker compose ps app pgbouncer db
-docker compose logs --tail=100 app
+docker compose ps api pgbouncer db
+docker compose logs --tail=100 api
 docker compose logs --tail=100 pgbouncer
 docker compose logs --tail=100 db
 ```
@@ -103,10 +103,10 @@ For an AWS incident with the same symptoms, use the same split:
 ```bash
 curl -i "https://$(terraform -chdir=infra/app output -raw api_fqdn)/health"
 curl -i "https://$(terraform -chdir=infra/app output -raw api_fqdn)/ready"
-aws logs tail "/ecs/${STACK_NAME}/app" --since 30m --region "$AWS_REGION"
+aws logs tail "/ecs/${STACK_NAME}/api" --since 30m --region "$AWS_REGION"
 aws ecs describe-services \
   --cluster "$(terraform -chdir=infra/app output -raw ecs_cluster_name)" \
-  --services "$(terraform -chdir=infra/app output -raw app_service_name)" \
+  --services "$(terraform -chdir=infra/app output -raw api_service_name)" \
   --region "$AWS_REGION"
 aws rds describe-db-instances --region "$AWS_REGION"
 ```

@@ -18,6 +18,21 @@ artifact with Markdown, JSON, and JSONL forms. Treat that artifact as the
 portable timeline record that can later be pushed into Loki for Grafana
 correlation.
 
+## Evidence Review Path
+
+Use the same review path for both rollback drills and real rollback analysis:
+
+```bash
+make release-evidence-runs
+GH_RUN_ID=<workflow-run-id> make release-evidence-download
+RELEASE_EVENTS_DIR=/tmp/aws-sdlc-containers-release-evidence/<workflow-run-id> \
+make incident-evidence
+```
+
+For a drill, confirm the bundle lines up the triggering fault mode, the alarm
+or runtime-mode transition, the restored revision or phase, and the final
+verification outcome before marking the drill complete.
+
 Treat a single SLO breach as a pipeline regression to investigate. Treat two
 consecutive breaches of the same drill as release-blocking until the signal,
 timeout, rollback, or verification path is repaired.

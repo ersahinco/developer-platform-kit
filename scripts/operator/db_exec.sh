@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# db_exec.sh — open psql inside a running app ECS task via ECS Exec
+# db_exec.sh — open psql inside a running api ECS task via ECS Exec
 # Usage: db_exec.sh <aws_region>
 set -euo pipefail
 
@@ -25,7 +25,7 @@ terraform init \
   -reconfigure -input=false > /dev/null 2>&1
 
 CLUSTER=$(terraform output -raw ecs_cluster_name)
-SERVICE=$(terraform output -raw app_service_name)
+SERVICE=$(terraform output -raw api_service_name)
 cd ../..
 
 TASK_ARN=$(aws ecs list-tasks \
@@ -43,7 +43,7 @@ echo "→ exec into task $TASK_ARN"
 aws ecs execute-command \
   --cluster "$CLUSTER" \
   --task "$TASK_ARN" \
-  --container app \
+  --container api \
   --interactive \
   --command 'psql $DATABASE_URL' \
   --region "$AWS_REGION"

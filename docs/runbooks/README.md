@@ -13,3 +13,22 @@ contract, and capability questions.
 | Scheduled export missing or failed | [Data Export Job Failure](data-export-job-failure.md) |
 | Terraform/app ownership drift | [App And Infra Ownership Boundary](app-infra-ownership.md) |
 | Practice rollback drills and timing expectations | [Rollback Drill SLOs](rollback-drill-slos.md) |
+
+## Operator Entry Points
+
+Prefer these commands before diving into individual AWS consoles:
+
+```bash
+make post-deploy-verify
+make incident-evidence
+make release-evidence-runs
+GH_RUN_ID=<workflow-run-id> make release-evidence-download
+RELEASE_EVENTS_DIR=/tmp/aws-sdlc-containers-release-evidence/<workflow-run-id> \
+make incident-evidence
+make observability-delivery-verify
+make release-event-delivery-verify
+```
+
+Use downloaded `release-evidence-*` artifacts from GitHub Actions whenever they
+exist. They keep build, deploy, and apply evidence portable and make incident
+review much easier to reconstruct later.

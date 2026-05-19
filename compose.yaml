@@ -17,7 +17,7 @@ x-pooled-db-env: &pooled_db_env
   DB_HOST: pgbouncer
   DB_PORT: 5432
 
-x-app-database-url: &app_database_url ${DATABASE_URL:-postgresql://postgres:postgres@pgbouncer:5432/aws_sdlc_containers}
+x-api-database-url: &api_database_url ${DATABASE_URL:-postgresql://postgres:postgres@pgbouncer:5432/aws_sdlc_containers}
 x-backfill-database-url: &backfill_database_url ${BACKFILL_DATABASE_URL:-postgresql://postgres:postgres@db:5432/aws_sdlc_containers}
 x-data-export-database-url: &data_export_database_url ${DATA_EXPORT_DATABASE_URL:-postgresql://postgres:postgres@db:5432/aws_sdlc_containers}
 
@@ -47,10 +47,10 @@ services:
       retries: 10
       start_period: 10s
 
-  # PgBouncer sits between the app and Postgres.
-  # The app's DATABASE_URL points to pgbouncer:5432, not db:5432.
+  # PgBouncer sits between the API and Postgres.
+  # The API's DATABASE_URL points to pgbouncer:5432, not db:5432.
   # transaction mode: server connections are returned to the pool after each
-  # transaction, allowing many app connections to share a small server-side pool.
+  # transaction, allowing many API connections to share a small server-side pool.
   # edoburu/pgbouncer: actively maintained, current versions, simple env-var config.
   pgbouncer:
     image: edoburu/pgbouncer:v1.25.1-p0
@@ -98,7 +98,7 @@ services:
     profiles:
       - migration
 
-  app:
+  api:
     build:
       <<: *workload_build
       args:
@@ -107,7 +107,7 @@ services:
         WORKLOAD_CMD: uvicorn api.main:app --host 0.0.0.0 --port 8000
     environment:
       <<: *pooled_db_env
-      DATABASE_URL: *app_database_url
+      DATABASE_URL: *api_database_url
       OTEL_TRACES_ENABLED: ${OTEL_TRACES_ENABLED:-false}
       OTEL_EXPORTER_OTLP_TRACES_ENDPOINT: ${OTEL_EXPORTER_OTLP_TRACES_ENDPOINT:-http://tempo:4318/v1/traces}
       OTEL_SERVICE_NAME: aws-sdlc-containers-api
@@ -120,7 +120,7 @@ services:
       pgbouncer:
         condition: service_healthy
 
-  worker:
+  backfill-worker:
     build:
       <<: *workload_build
       args:
@@ -129,7 +129,7 @@ services:
         WORKLOAD_CMD: python -m backfill_worker.main
     environment:
       <<: *direct_db_env
-      # Worker bypasses pgbouncer — connects directly to Postgres.
+      # Backfill bypasses pgbouncer and connects directly to Postgres.
       BACKFILL_DATABASE_URL: *backfill_database_url
       BACKFILL_BATCH_SIZE: ${BACKFILL_BATCH_SIZE:-1000}
       BACKFILL_SLEEP_MS: ${BACKFILL_SLEEP_MS:-100}
@@ -146,7 +146,7 @@ services:
         WORKLOAD_CMD: python -m data_export_job.main
     environment:
       <<: *direct_db_env
-      # Export job bypasses pgbouncer, matching worker/DDL behavior.
+      # Export job bypasses pgbouncer, matching backfill/DDL behavior.
       DATA_EXPORT_DATABASE_URL: *data_export_database_url
       DATA_EXPORT_OUTPUT_DIR: /exports
     volumes:
@@ -249,7 +249,7 @@ services:
     ports:
       - "${PROMETHEUS_PORT:-9090}:9090"
     depends_on:
-      app:
+      api:
         condition: service_started
     profiles:
       - observability

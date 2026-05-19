@@ -50,16 +50,28 @@ def _free_port() -> int:
 
 
 def _load_workloads() -> list[dict[str, object]]:
-    workloads = json.loads((ROOT / "platform" / "workloads.json").read_text())[
-        "workloads"
-    ]
+    contract = json.loads((ROOT / "platform" / "workloads.json").read_text())
     conformance = json.loads(
         (ROOT / "platform" / "runtime-conformance.json").read_text()
-    )["workloads"]
+    )
+    default_env = dict(conformance.get("defaults", {}).get("env", {}))
+    default_secrets = dict(conformance.get("defaults", {}).get("secrets", {}))
+    workloads = contract["workloads"]
     merged: list[dict[str, object]] = []
     for workload in workloads:
         item = dict(workload)
-        item["conformance"] = conformance[workload["name"]]
+        workload_conformance = dict(conformance["workloads"][workload["name"]])
+        workload_env = dict(default_env)
+        database = cast(dict[str, object], workload["database"])
+        workload_env["DB_HOST"] = (
+            "pgbouncer" if database["pooling"] == "transaction_pool" else "db"
+        )
+        workload_env.update(dict(workload_conformance.get("env", {})))
+        workload_secrets = dict(default_secrets)
+        workload_secrets.update(dict(workload_conformance.get("secrets", {})))
+        workload_conformance["env"] = workload_env
+        workload_conformance["secrets"] = workload_secrets
+        item["conformance"] = workload_conformance
         merged.append(item)
     return merged
 

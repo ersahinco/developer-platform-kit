@@ -58,7 +58,7 @@ def test_ecs_checks_are_skipped_without_service_env(monkeypatch) -> None:
 
 def test_ecs_checks_validate_primary_task_and_image(monkeypatch) -> None:
     monkeypatch.setenv("ECS_CLUSTER", "aws-sdlc-containers")
-    monkeypatch.setenv("ECS_SERVICE", "app")
+    monkeypatch.setenv("ECS_SERVICE", "api")
     monkeypatch.setenv("EXPECTED_IMAGE_TAG", "sha-test")
 
     def fake_aws_json(args: list[str], region: str) -> dict[str, Any]:
@@ -81,8 +81,8 @@ def test_ecs_checks_validate_primary_task_and_image(monkeypatch) -> None:
                     "family": "aws-sdlc-containers",
                     "containerDefinitions": [
                         {
-                            "name": "app",
-                            "image": "example.dkr.ecr/app:sha-test",
+                            "name": "api",
+                            "image": "example.dkr.ecr/api:sha-test",
                         }
                     ],
                 }

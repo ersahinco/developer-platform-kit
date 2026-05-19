@@ -64,6 +64,13 @@ and docs.
 - `platform/runtime-conformance.json` stays runtime-check-specific and should
   not grow into a second application spec.
 
+Use these inspection commands before changing a runtime seam:
+
+```bash
+make workload-capability-matrix
+make capability-implementation-matrix
+```
+
 For current AWS rollout and operator flow, use [Deployment](deployment.md)
 instead of this document.
 

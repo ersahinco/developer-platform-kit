@@ -62,15 +62,22 @@ jobs:
             exit 1
           fi
 
-      - name: Require stable app service
+      - name: Resolve primary edge service
+        id: primary-service
+        run: |
+          IFS=$'\t' read -r workload_name service < <(python3 -m scripts.platform.workload_metadata primary-edge)
+          echo "service=${service}" >> "$GITHUB_OUTPUT"
+          echo "workload_name=${workload_name}" >> "$GITHUB_OUTPUT"
+
+      - name: Require stable primary edge service
         run: |
           service_json=$(aws ecs describe-services \
             --cluster "${{ env.STACK_NAME }}" \
-            --services app \
+            --services "${{ steps.primary-service.outputs.service }}" \
             --output json)
           primary_rollout_state=$(echo "$service_json" | jq -r '.services[0].deployments[] | select(.status == "PRIMARY") | .rolloutState')
           if [[ "$primary_rollout_state" != "COMPLETED" ]]; then
-            echo "App service must be stable before runtime-config rollback drill; got ${primary_rollout_state}." >&2
+            echo "Primary edge service must be stable before runtime-config rollback drill; got ${primary_rollout_state}." >&2
             exit 1
           fi
 
@@ -106,6 +113,7 @@ jobs:
           {
             echo "### Runtime config rollback drill"
             echo ""
+            echo "- Service: ${{ steps.primary-service.outputs.service }}"
             echo "- Captured READ_MODE: ${read_mode}"
             echo "- Captured WRITE_MODE: ${write_mode}"
             echo "- Forward drill mode: dual"
@@ -213,7 +221,7 @@ jobs:
         env:
           BASE_URL: https://api.${{ env.ROOT_DOMAIN }}
           ECS_CLUSTER: ${{ env.STACK_NAME }}
-          ECS_SERVICE: app
+          ECS_SERVICE: ${{ steps.primary-service.outputs.service }}
           EXPECTED_TASK_FAMILY: ${{ env.STACK_NAME }}
           EXPECTED_READ_MODE: ${{ steps.current.outputs.read_mode }}
           EXPECTED_WRITE_MODE: ${{ steps.current.outputs.write_mode }}
@@ -249,9 +257,11 @@ jobs:
             --event-type data_runtime_rollback_drill \
             --status "${{ job.status }}" \
             --summary "Data runtime rollback drill completed with status ${{ job.status }}" \
-            --service-name app \
+            --service-name "${{ steps.primary-service.outputs.service }}" \
+            --workload-id "${{ steps.primary-service.outputs.workload_name }}" \
             --read-mode "${{ steps.current.outputs.read_mode }}" \
             --write-mode "${{ steps.current.outputs.write_mode }}" \
+            --rollback-category runtime_data_phase \
             --rollback-seconds "${{ steps.rollback.outputs.rollback_seconds }}" \
             --rollback-slo-seconds "${{ env.DATA_RUNTIME_ROLLBACK_SLO_SECONDS }}" \
             --verify-seconds "${{ steps.verify-restored.outputs.verify_seconds }}" \

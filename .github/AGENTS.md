@@ -9,11 +9,11 @@ The cross-tool base rules in root `AGENTS.md` apply here too.
 
 | Workflow | Owns |
 |---|---|
-| `app-build.yml` | Validate, test, runtime conformance, build image, scan, push |
+| `app-build.yml` | Validate, test, runtime conformance, build image, scan, push, emit build evidence |
 | `app-deploy.yml` | Migrate DB, deploy, verify health, register support workloads, emit release evidence |
 | `infra-plan.yml` | terraform fmt, validate, TFLint, Checkov, plan — post for review |
-| `infra-apply.yml` | terraform apply — manual trigger only, after plan review |
-| `security.yml` | Gitleaks, pip-audit, Trivy |
+| `infra-apply.yml` | terraform apply — manual trigger only, after plan review, emit release evidence |
+| `security.yml` | Gitleaks, pip-audit, docs/workflow/Dockerfile lint |
 | `semgrep.yml` | Semgrep SAST |
 | `app-rollback-drill.yml` | App image rollback drill |
 | `data-runtime-rollback-drill.yml` | Data-phase rollback drill |

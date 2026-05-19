@@ -52,6 +52,22 @@ boundaries, use [Architecture](architecture.md).
 - Runtime-specific details may change later, but this gate shape should stay
   recognizable.
 
+## GitHub Gate Matrix
+
+Pull requests should be green across these workflows before merge. The toolkit
+keeps each gate in one owning workflow rather than spreading the same check
+across multiple YAML files.
+
+| Workflow | Pull request role | Owned gates |
+|---|---|---|
+| `app-build.yml` | App and workload validation | Ruff format check, Ruff lint, Pyright, shell script syntax, pytest, runtime conformance |
+| `security.yml` | Repo hygiene and dependency safety | `make secret-scan`, `make lint-docs`, `make lint-workflows`, `make lint-dockerfiles`, `make dependency-audit` |
+| `semgrep.yml` | Static application security testing | Semgrep CE scan for `apps/`, `packages/`, and `scripts/` |
+| `infra-plan.yml` | Infrastructure validation and review evidence | `terraform fmt`, `terraform validate`, TFLint, Checkov, reviewed Terraform plan artifact/comment |
+
+`app-deploy.yml` and `infra-apply.yml` are intentionally not pull-request
+gates. They remain separate, reviewed, cloud-changing workflows.
+
 ## Approved Default Enterprise Delivery Shape
 
 - Build immutable artifacts once, then deploy those exact image references.

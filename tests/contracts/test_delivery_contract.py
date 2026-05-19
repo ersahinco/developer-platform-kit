@@ -2,6 +2,7 @@ import json
 from pathlib import Path
 import re
 import subprocess
+from typing import Any
 
 import yaml
 
@@ -14,6 +15,72 @@ ENV_NAME_PATTERN = re.compile(
 
 def _read(path: str) -> str:
     return (ROOT / path).read_text(encoding="utf-8")
+
+
+def _runtime_conformance() -> dict[str, Any]:
+    return json.loads(_read("platform/runtime-conformance.json"))
+
+
+def _workload_conformance(
+    workload: dict[str, Any], conformance: dict[str, Any]
+) -> dict[str, Any]:
+    defaults = conformance.get("defaults", {})
+    default_env = dict(defaults.get("env", {}))  # type: ignore[union-attr]
+    default_secrets = dict(defaults.get("secrets", {}))  # type: ignore[union-attr]
+    workload_fixture = dict(conformance["workloads"][workload["name"]])  # type: ignore[index]
+    database = workload["database"]
+    default_env["DB_HOST"] = (
+        "pgbouncer" if database["pooling"] == "transaction_pool" else "db"
+    )
+    workload_fixture["env"] = {**default_env, **dict(workload_fixture.get("env", {}))}
+    workload_fixture["secrets"] = {
+        **default_secrets,
+        **dict(workload_fixture.get("secrets", {})),
+    }
+    return workload_fixture
+
+
+def _compose_service_name(workload: dict[str, Any]) -> str:
+    image = workload["image"]
+    return str(image["repository"])
+
+
+def _config_path(workload: dict[str, Any]) -> Path:
+    return ROOT / str(workload["app_path"]) / "config.py"
+
+
+def _workload_by_name(contract: dict[str, Any], workload_name: str) -> dict[str, Any]:
+    return next(
+        workload
+        for workload in contract["workloads"]  # type: ignore[index]
+        if workload["name"] == workload_name
+    )
+
+
+def _operator_surface_text() -> str:
+    return "\n".join(
+        [
+            _read("scripts/operator/db_exec.sh"),
+            _read("scripts/operator/db_tunnel.sh"),
+            _read("docs/drills/app-dependency-readiness.md"),
+            _read("docs/runbooks/ecs-deploy-rollback.md"),
+            _read("docs/runbooks/app-service-incident.md"),
+            _read("docs/runbooks/order-event-queue-failure.md"),
+        ]
+    )
+
+
+def _alarm_surface_text() -> str:
+    return "\n".join(
+        [
+            _read("docs/runbooks/app-service-incident.md"),
+            _read("docs/runbooks/ecs-deploy-rollback.md"),
+        ]
+    )
+
+
+def _declared_config_names(workload: dict[str, Any]) -> set[str]:
+    return set(workload["config"]["env"]) | set(workload["config"]["secrets"])
 
 
 def test_repository_does_not_track_generated_or_placeholder_artifacts() -> None:
@@ -170,12 +237,13 @@ def test_workflow_inventory_stays_small_and_intentional() -> None:
 
 def test_workload_registry_has_pragmatic_complete_shape() -> None:
     contract = json.loads(_read("platform/workloads.json"))
-    conformance = json.loads(_read("platform/runtime-conformance.json"))
+    conformance = _runtime_conformance()
 
     assert contract["schema_version"] == "4"
-    assert conformance["schema_version"] == "1"
+    assert conformance["schema_version"] == "2"
     assert isinstance(contract["workloads"], list)
     assert contract["workloads"]
+    assert isinstance(conformance["defaults"], dict)
     assert isinstance(conformance["workloads"], dict)
 
     for workload in contract["workloads"]:
@@ -190,7 +258,7 @@ def test_workload_registry_has_pragmatic_complete_shape() -> None:
         assert isinstance(workload["config"]["secrets"], list)
         assert workload["traces"]["supported"] in {True, False}
         assert workload["name"] in conformance["workloads"]
-        workload_conformance = conformance["workloads"][workload["name"]]
+        workload_conformance = _workload_conformance(workload, conformance)
 
         if workload["kind"] == "service":
             assert "service" in workload
@@ -231,7 +299,7 @@ def test_workload_contract_stays_portable_and_excludes_aws_runtime_values() -> N
 
 
 def test_runtime_conformance_stays_fixture_only_not_a_second_workload_spec() -> None:
-    conformance = json.loads(_read("platform/runtime-conformance.json"))
+    conformance = _runtime_conformance()
     forbidden_workload_shape_keys = {
         "app_path",
         "database",
@@ -245,6 +313,8 @@ def test_runtime_conformance_stays_fixture_only_not_a_second_workload_spec() -> 
         "traces",
     }
 
+    assert set(conformance["defaults"]) == {"env", "secrets"}
+
     for workload_name, workload_fixture in conformance["workloads"].items():
         assert workload_name
         assert forbidden_workload_shape_keys.isdisjoint(workload_fixture)
@@ -253,10 +323,48 @@ def test_runtime_conformance_stays_fixture_only_not_a_second_workload_spec() -> 
 def test_delivery_workflows_use_workload_spec_as_inventory_source() -> None:
     app_build_workflow = _read(".github/workflows/app-build.yml")
     app_deploy_workflow = _read(".github/workflows/app-deploy.yml")
+    app_rollback_workflow = _read(".github/workflows/app-rollback-drill.yml")
+    data_runtime_rollback_workflow = _read(
+        ".github/workflows/data-runtime-rollback-drill.yml"
+    )
+    platform_inventory = _read("scripts/observability/platform_inventory.py")
+    workload_metadata = _read("scripts/platform/workload_metadata.py")
 
-    assert "platform/workloads.json" in app_build_workflow
-    assert "platform/workloads.json" in app_deploy_workflow
-    assert '.operational.class == "edge-service"' in app_deploy_workflow
+    assert "python3 -m scripts.platform.workload_metadata image-matrix" in (
+        app_build_workflow
+    )
+    assert "python3 -m scripts.platform.workload_metadata repositories" in (
+        app_deploy_workflow
+    )
+    assert "python3 -m scripts.platform.workload_metadata primary-edge" in (
+        app_deploy_workflow
+    )
+    assert "python3 -m scripts.platform.workload_metadata primary-edge" in (
+        app_rollback_workflow
+    )
+    assert "python3 -m scripts.platform.workload_metadata primary-edge" in (
+        data_runtime_rollback_workflow
+    )
+    assert (
+        "python3 -m scripts.observability.platform_inventory edge-symptom-alarms"
+        in app_rollback_workflow
+    )
+    assert "python3 -m scripts.platform.workload_metadata internal-services" in (
+        app_deploy_workflow
+    )
+    assert "python3 -m scripts.platform.workload_metadata job-workloads" in (
+        app_deploy_workflow
+    )
+    assert 'ROOT / "platform" / "workloads.json"' in workload_metadata
+    assert "def workload_capabilities(" in workload_metadata
+    assert "def primary_edge_service_workload()" in workload_metadata
+    assert "def internal_service_workloads()" in workload_metadata
+    assert "def job_workloads()" in workload_metadata
+    assert "def build_image_matrix(" in workload_metadata
+    assert "def workload_capability_rows()" in workload_metadata
+    assert "def current_runtime_capability_rows()" in workload_metadata
+    assert "def edge_symptom_alarm_names(" in platform_inventory
+    assert "edge-symptom-alarms <stack-name>" in platform_inventory
     assert (
         "for repo in app worker data-export-job order-event-consumer liquibase"
         not in (app_deploy_workflow)
@@ -269,29 +377,69 @@ def test_delivery_workflows_use_workload_spec_as_inventory_source() -> None:
 
 def test_app_build_workflow_uses_declared_workload_build_metadata() -> None:
     app_build_workflow = _read(".github/workflows/app-build.yml")
+    workload_metadata = _read("scripts/platform/workload_metadata.py")
 
     for expected in [
-        "platform/workloads.json",
-        "APP_PATH: .app_path",
-        "UV_PACKAGE: .image.package",
-        "WORKLOAD_CMD: .image.command",
+        "python3 -m scripts.platform.workload_metadata image-matrix",
+        "APP_PATH",
+        "UV_PACKAGE",
+        "WORKLOAD_CMD",
     ]:
-        assert expected in app_build_workflow
+        assert expected in (
+            app_build_workflow if "python3" in expected else workload_metadata
+        )
 
 
 def test_makefile_operator_entrypoints_use_declared_edge_service() -> None:
     makefile = _read("Makefile")
 
-    assert "PRIMARY_EDGE_SERVICE   ?= $(shell jq -r " in makefile
-    assert '.operational.class == "edge-service"' in makefile
+    assert "python3 -m scripts.platform.workload_metadata primary-edge" in makefile
     assert "--service $(PRIMARY_EDGE_SERVICE)" in makefile
     assert 'ECS_SERVICE="$${ECS_SERVICE:-$(PRIMARY_EDGE_SERVICE)}"' in makefile
+    assert "SERVICE_NAME           ?= $(PRIMARY_EDGE_SERVICE)" in makefile
+    assert 'RELEASE_EVENTS_DIR="$(RELEASE_EVENTS_DIR)"' in makefile
+    assert '--service-name "$(SERVICE_NAME)"' in makefile
+    assert '--lookback-minutes "$(LOOKBACK_MINUTES)"' in makefile
+    assert '--output-dir "$(INCIDENT_EVIDENCE_DIR)"' in makefile
+    assert "release-evidence-runs:" in makefile
+    assert (
+        "RUN_ID\\tWORKFLOW\\tBRANCH\\tSTATUS\\tCONCLUSION\\tCREATED_AT\\tTITLE\\tURL"
+        in makefile
+    )
+    assert "gh run list \\" in makefile
+    assert (
+        "--json databaseId,workflowName,displayTitle,headBranch,status,conclusion,createdAt,url"
+        in makefile
+    )
+    assert "App Build" in makefile
+    assert "App Deploy" in makefile
+    assert "Infra Apply" in makefile
+    assert "release-evidence-download:" in makefile
+    assert "Set GH_RUN_ID=<workflow-run-id>" in makefile
+    assert 'gh run download "$(GH_RUN_ID)"' in makefile
+    assert "--pattern 'release-evidence-*'" in makefile
+    assert "workload-capability-matrix:" in makefile
+    assert "python3 -m scripts.platform.workload_metadata capability-matrix" in (
+        makefile
+    )
+    assert "capability-implementation-matrix:" in makefile
+    assert "python3 -m scripts.platform.workload_metadata implementation-matrix" in (
+        makefile
+    )
 
 
 def test_workflow_ownership_boundaries_stay_split() -> None:
+    app_build_workflow = _read(".github/workflows/app-build.yml")
     app_deploy_workflow = _read(".github/workflows/app-deploy.yml")
+    app_rollback_workflow = _read(".github/workflows/app-rollback-drill.yml")
+    data_runtime_rollback_workflow = _read(
+        ".github/workflows/data-runtime-rollback-drill.yml"
+    )
     infra_apply_workflow = _read(".github/workflows/infra-apply.yml")
+    security_workflow = _read(".github/workflows/security.yml")
 
+    assert "scripts/observability/release_event.py" in app_build_workflow
+    assert "Upload build evidence" in app_build_workflow
     assert "terraform apply -auto-approve" not in app_deploy_workflow
     assert "terraform init" not in app_deploy_workflow
     assert "ci_deploy_ecs_service.sh" in app_deploy_workflow
@@ -300,6 +448,148 @@ def test_workflow_ownership_boundaries_stay_split() -> None:
     assert "terraform apply -auto-approve" in infra_apply_workflow
     assert "ci_deploy_ecs_service.sh" not in infra_apply_workflow
     assert "ci_run_ecs_task.sh" not in infra_apply_workflow
+    assert "scripts/observability/release_event.py" in app_rollback_workflow
+    assert "Upload app rollback drill evidence" in app_rollback_workflow
+    assert "--rollback-category app_image" in app_rollback_workflow
+    assert "python3 -m scripts.platform.workload_metadata primary-edge" in (
+        data_runtime_rollback_workflow
+    )
+    assert "scripts/observability/release_event.py" in data_runtime_rollback_workflow
+    assert "Upload data runtime rollback evidence" in data_runtime_rollback_workflow
+    assert "--rollback-category runtime_data_phase" in (data_runtime_rollback_workflow)
+    assert "make secret-scan" in security_workflow
+    assert "make lint-docs" in security_workflow
+    assert "make lint-workflows" in security_workflow
+    assert "make lint-dockerfiles" in security_workflow
+    assert "make dependency-audit" in security_workflow
+
+
+def test_devops_toolchain_documents_and_enforces_mandatory_pr_gates() -> None:
+    toolchain_doc = _read("docs/devops-toolchain.md")
+    app_build_workflow = _read(".github/workflows/app-build.yml")
+    security_workflow = _read(".github/workflows/security.yml")
+    semgrep_workflow = _read(".github/workflows/semgrep.yml")
+    infra_plan_workflow = _read(".github/workflows/infra-plan.yml")
+
+    for expected in [
+        "## GitHub Gate Matrix",
+        "`app-build.yml`",
+        "`security.yml`",
+        "`semgrep.yml`",
+        "`infra-plan.yml`",
+        "Ruff format check, Ruff lint, Pyright, shell script syntax, pytest, runtime conformance",
+        "`make secret-scan`, `make lint-docs`, `make lint-workflows`, `make lint-dockerfiles`, `make dependency-audit`",
+        "Semgrep CE scan for `apps/`, `packages/`, and `scripts/`",
+        "`terraform fmt`, `terraform validate`, TFLint, Checkov, reviewed Terraform plan artifact/comment",
+    ]:
+        assert expected in toolchain_doc
+
+    for expected in [
+        "uv run ruff format --check",
+        "uv run ruff check",
+        "uv run pyright",
+        "xargs -0 bash -n",
+        "uv run pytest tests/ -v",
+        "make runtime-conformance",
+    ]:
+        assert expected in app_build_workflow
+
+    for expected in [
+        "make secret-scan",
+        "make lint-docs",
+        "make lint-workflows",
+        "make lint-dockerfiles",
+        "make dependency-audit",
+    ]:
+        assert expected in security_workflow
+
+    assert "semgrep scan --config auto apps/ packages/ scripts/" in semgrep_workflow
+
+    for expected in [
+        "terraform fmt -check -recursive infra",
+        "terraform validate platform",
+        "terraform validate app",
+        "tflint platform",
+        "tflint app",
+        "checkov",
+        "Upload plan artifact",
+        "Post plan to PR",
+    ]:
+        assert expected in infra_plan_workflow
+
+
+def test_deployment_doc_and_cloud_workflows_keep_release_control_boundaries() -> None:
+    deployment_doc = _read("docs/deployment.md")
+    app_build_workflow = _read(".github/workflows/app-build.yml")
+    app_deploy_workflow = _read(".github/workflows/app-deploy.yml")
+    infra_plan_workflow = _read(".github/workflows/infra-plan.yml")
+    infra_apply_workflow = _read(".github/workflows/infra-apply.yml")
+
+    for expected in [
+        "## GitHub Change Control Matrix",
+        "## Review Checklist",
+        "`app-build.yml`",
+        "`app-deploy.yml`",
+        "`infra-plan.yml`",
+        "`infra-apply.yml`",
+        "Manual `workflow_dispatch` with `confirm_build=build`",
+        "Manual `workflow_dispatch` with approved immutable `image_tag` and `confirm_deploy=deploy`",
+        "Manual `workflow_dispatch` with successful `plan_run_id` and `confirm_apply=apply`",
+        "release-evidence-app-build-*",
+        "release-evidence-app-deploy-*",
+        "release-evidence-infra-apply-*",
+        "PRs prove correctness",
+        "manual workflows promote a",
+        "reviewed artifact or reviewed plan",
+        "App build review:",
+        "App deploy review:",
+        "Infra apply review:",
+        "Rollback or drill review:",
+    ]:
+        assert expected in deployment_doc
+
+    for expected in [
+        "workflow_dispatch:",
+        "confirm_build:",
+        "inputs.confirm_build == 'build'",
+        "environment: aws",
+        "Push image",
+        "Attest image provenance",
+        "scripts/observability/release_event.py",
+        "Upload build evidence",
+    ]:
+        assert expected in app_build_workflow
+
+    for expected in [
+        "workflow_dispatch:",
+        "image_tag:",
+        "confirm_deploy:",
+        "inputs.confirm_deploy == 'deploy'",
+        "Validate image tag",
+        "environment: aws",
+        "scripts/observability/release_event.py",
+        "Upload app deploy evidence",
+    ]:
+        assert expected in app_deploy_workflow
+
+    for expected in [
+        "Upload plan artifact",
+        "Post plan to PR",
+    ]:
+        assert expected in infra_plan_workflow
+
+    for expected in [
+        "workflow_dispatch:",
+        "plan_run_id:",
+        "confirm_apply:",
+        "inputs.confirm_apply == 'apply'",
+        "Expected an Infra Plan workflow run",
+        "Re-run Infra Plan before applying.",
+        "environment: aws",
+        "scripts/observability/release_event.py",
+        "Upload infra apply evidence",
+    ]:
+        assert expected in infra_apply_workflow
 
 
 def test_observability_delivery_inventory_uses_workload_spec() -> None:
@@ -307,12 +597,27 @@ def test_observability_delivery_inventory_uses_workload_spec() -> None:
         "scripts/observability/verify_observability_delivery.py"
     )
     platform_inventory = _read("scripts/observability/platform_inventory.py")
+    workload_metadata = _read("scripts/platform/workload_metadata.py")
 
-    assert "workload_contract()" in platform_inventory
+    assert (
+        "from scripts.platform.workload_metadata import primary_async_eventing_workload"
+        in platform_inventory
+    )
+    assert (
+        "from scripts.platform.workload_metadata import scheduled_job_workloads"
+        in platform_inventory
+    )
+    assert "def workload_capabilities(" in workload_metadata
+    assert "def primary_async_eventing_workload()" in workload_metadata
+    assert "def scheduled_job_workloads()" in workload_metadata
     assert "def workload_log_group_suffixes()" in platform_inventory
+    assert "def edge_service_repository() -> str:" in platform_inventory
+    assert "def _edge_release_alarm_suffixes()" in platform_inventory
+    assert "def _edge_incident_only_alarm_suffixes()" in platform_inventory
     assert 'REQUIRED_SUPPORT_LOG_GROUP_SUFFIXES = ["liquibase", "pgbouncer"]' in (
         platform_inventory
     )
+    assert "_WORKLOAD_ALARM_SUFFIXES_BY_NAME" in platform_inventory
     assert "expected_log_group_suffixes" in observability_delivery
     assert "expected_log_group_names" in observability_delivery
 
@@ -329,16 +634,63 @@ def test_runbooks_and_drills_avoid_demo_stack_specific_literals() -> None:
     assert "--region eu-central-1" not in operator_docs
 
 
+def test_operator_docs_surface_release_evidence_as_the_normal_review_path() -> None:
+    readme = _read("README.md")
+    docs_index = _read("docs/README.md")
+    runbooks_index = _read("docs/runbooks/README.md")
+    deployment_doc = _read("docs/deployment.md")
+    app_incident = _read("docs/runbooks/app-service-incident.md")
+    deploy_rollback = _read("docs/runbooks/ecs-deploy-rollback.md")
+    rollback_slos = _read("docs/runbooks/rollback-drill-slos.md")
+
+    for text in [
+        readme,
+        docs_index,
+        runbooks_index,
+    ]:
+        assert "make release-evidence-runs" in text
+        assert "GH_RUN_ID=<workflow-run-id> make release-evidence-download" in text
+        assert (
+            "RELEASE_EVENTS_DIR=/tmp/aws-sdlc-containers-release-evidence/<workflow-run-id>"
+            in text
+        )
+        assert "make incident-evidence" in text
+
+    for text in [deployment_doc, app_incident, deploy_rollback]:
+        assert "release-evidence-*" in text
+        assert "make release-evidence-runs" in text
+        assert "GH_RUN_ID=<workflow-run-id> make release-evidence-download" in text
+        assert (
+            "RELEASE_EVENTS_DIR=/tmp/aws-sdlc-containers-release-evidence/<workflow-run-id>"
+            in text
+        )
+        assert "make incident-evidence" in text
+
+    for text in [rollback_slos]:
+        assert "## Evidence Review Path" in text
+        assert "make release-evidence-runs" in text
+        assert "GH_RUN_ID=<workflow-run-id> make release-evidence-download" in text
+        assert (
+            "RELEASE_EVENTS_DIR=/tmp/aws-sdlc-containers-release-evidence/<workflow-run-id>"
+            in text
+        )
+        assert "make incident-evidence" in text
+
+    for text in [readme, docs_index, runbooks_index]:
+        assert "make post-deploy-verify" in text
+
+
 def test_incident_bundle_and_deploy_verify_reduce_repo_literal_defaults() -> None:
     incident_bundle = _read("scripts/observability/incident_evidence_bundle.py")
     platform_inventory = _read("scripts/observability/platform_inventory.py")
+    workload_metadata = _read("scripts/platform/workload_metadata.py")
     verify_post_deploy = _read("scripts/release/verify_post_deploy.py")
 
     assert (
         "from scripts.observability.platform_inventory import dapr_workload_service_name"
         in (incident_bundle)
     )
-    assert 'ROOT / "platform" / "workloads.json"' in platform_inventory
+    assert 'ROOT / "platform" / "workloads.json"' in workload_metadata
     assert "def dapr_workload_service_name()" in platform_inventory
     assert "def release_alarm_names(" in platform_inventory
     assert "def incident_alarm_names(" in platform_inventory
@@ -362,41 +714,217 @@ def test_infra_runtime_inventory_uses_workload_contract() -> None:
     compute = _read("infra/app/compute_ecs.tf")
     jobs = _read("infra/app/workload_jobs.tf")
     ecr = _read("infra/app/ecr.tf")
+    messaging = _read("infra/app/messaging.tf")
+    encryption = _read("infra/app/encryption.tf")
 
     assert (
         'jsondecode(file("${path.module}/../../platform/workloads.json"))' in inventory
     )
+    assert "api_service_port" in inventory
+    assert "workload_capabilities = {" in inventory
+    assert (
+        'workload.kind == "service" && workload.operational.class == "edge-service"'
+        in inventory
+    )
+    assert (
+        'workload.kind == "job" && workload.operational.class == "scheduled-job"'
+        in inventory
+    )
+    assert "can(workload.dapr)" in inventory
+    assert 'workload.database.pooling == "transaction_pool"' in inventory
+    assert 'workload.database.pooling == "direct"' in inventory
+    assert "workload.traces.supported" in inventory
+    assert "primary_edge_workload_name" in inventory
+    assert (
+        'capabilities.edge_service && capabilities.edge_exposure == "public"'
+        in inventory
+    )
+    assert (
+        "local.workloads_by_name[local.primary_edge_workload_name].service.port"
+        in inventory
+    )
+    assert "primary_async_eventing_workload_name" in inventory
+    assert "primary_async_eventing_dapr" in inventory
+    assert "primary_async_eventing_repository" in inventory
+    assert "primary_async_eventing_service_port" in inventory
+    assert "primary_async_eventing_topic_name" in inventory
+    assert "primary_async_eventing_pubsub_name" in inventory
+    assert "database_runtime_values_by_pooling = {" in inventory
+    assert "workload_log_configuration = {" in inventory
+    assert "trace_endpoint = (" in inventory
+    assert "workload_trace_env_overrides = {" in inventory
+    assert "workload_async_eventing_env_defaults = {" in inventory
+    assert (
+        'OTEL_SERVICE_NAME                  = "${local.name}-${workload.image.repository}"'
+        in inventory
+    )
+    assert 'DAPR_HTTP_PORT     = "3500"' in inventory
     assert 'local.workload_environment["api"]' in compute
     assert 'local.workload_secrets["api"]' in compute
-    assert 'local.workload_environment["backfill_worker"]' in jobs
-    assert 'local.workload_environment["data_export_job"]' in jobs
+    assert 'resource "aws_ecs_task_definition" "api"' in compute
+    assert "api_task_definition_containers = [" in compute
+    assert (
+        "container_definitions    = jsonencode(local.api_task_definition_containers)"
+        in compute
+    )
+    assert "aws_ecs_task_definition.api" in compute
+    assert "depends_on" in compute
+    assert "local.workload_environment[each.key]" in jobs
+    assert "local.workload_secrets[each.key]" in jobs
     assert 'local.workload_environment["order_event_consumer"]' in jobs
     assert "for name, workload in local.workloads_by_name" in ecr
+    assert "containerPort = local.api_service_port" in compute
+    assert "container_port   = local.api_service_port" in compute
+    assert 'resource "aws_ecs_service" "api"' in compute
+    assert "ignore_changes = [task_definition]" in compute
+    assert "support_job_workloads = {" in jobs
+    assert 'resource "aws_ecs_task_definition" "support_job"' in jobs
+    assert "for_each = local.support_job_workloads" in jobs
+    assert "module.ecr[each.key]" in jobs
+    assert "name = each.value.container_name" in jobs
+    assert "logConfiguration = local.workload_log_configuration[each.key]" in (jobs)
+    assert 'resource "aws_cloudwatch_log_group" "support_job"' in jobs
+    assert 'aws_cloudwatch_log_group.support_job["data_export_job"].name' in jobs
+    assert (
+        'aws_ecs_task_definition.support_job["data_export_job"].arn_without_revision'
+        in jobs
+    )
+    assert 'resource "aws_ecs_service" "order_event_consumer"' in jobs
+    assert "ignore_changes = [task_definition]" in jobs
+    assert "support_task_definition_defaults = {" in jobs
+    assert "async_eventing_dapr_config_loader_command = join(" in jobs
+    assert "async_eventing_dapr_loader_dependency = [" in jobs
+    assert "primary_async_eventing_port_mappings = [" in jobs
+    assert "primary_async_eventing_health_check = {" in jobs
+    assert "primary_async_eventing_daprd_command = [" in jobs
+    assert "primary_async_eventing_queue_name" in messaging
+    assert "runtime_config_bucket_name" in messaging
+    assert "primary_async_eventing_dapr_config_prefix" in messaging
+    assert "local.primary_async_eventing_topic_name" in messaging
+    assert "local.primary_async_eventing_dapr_config_prefix" in jobs
+    assert "local.primary_async_eventing_topic_name" in encryption
 
     for workload in contract["workloads"]:
         workload_name = workload["name"]
-        assert f"{workload_name} = " in inventory
-        assert f'local.workload_environment["{workload_name}"]' in (
-            compute if workload_name == "api" else jobs
-        )
-        assert f'local.workload_secrets["{workload_name}"]' in (
-            compute if workload_name == "api" else jobs
-        )
+        if workload_name == "order_event_consumer":
+            assert "local.primary_async_eventing_workload_name" in inventory
+            assert f'local.workload_environment["{workload_name}"]' in jobs
+            assert f'local.workload_secrets["{workload_name}"]' in jobs
+        elif workload_name in {"backfill_worker", "data_export_job"}:
+            assert workload_name in jobs
+            assert "local.workload_environment[each.key]" in jobs
+            assert "local.workload_secrets[each.key]" in jobs
+        else:
+            assert f"{workload_name} = " in inventory
+            assert f'local.workload_environment["{workload_name}"]' in compute
+            assert f'local.workload_secrets["{workload_name}"]' in compute
+
+
+def test_infra_root_prefers_rebuildability_over_state_migration_baggage() -> None:
+    infra_app_tf = "\n".join(
+        path.read_text(encoding="utf-8")
+        for path in sorted((ROOT / "infra" / "app").glob("*.tf"))
+    )
+
+    assert "moved {" not in infra_app_tf
+    for removed in [
+        "module.ecr_app",
+        'module.ecr["app"]',
+        'module.ecr["worker"]',
+        'module.ecs.module.service["app"]',
+    ]:
+        assert removed not in infra_app_tf
+
+
+def test_disposable_runtime_artifacts_destroy_cleanly() -> None:
+    ecr_tf = _read("infra/app/ecr.tf")
+    edge_access_logs_tf = _read("infra/app/edge_access_logs.tf")
+    messaging_tf = _read("infra/app/messaging.tf")
+
+    assert (
+        "repository_force_delete = true" in ecr_tf
+        or "repository_force_delete         = true" in ecr_tf
+    )
+    assert "force_destroy = true" in edge_access_logs_tf
+    assert "force_destroy = true" in messaging_tf
+
+
+def test_infra_variable_surface_uses_canonical_runtime_names() -> None:
+    variables_tf = _read("infra/app/variables.tf")
+    stack_tfvars = _read("infra/app/stack.tfvars")
+    compute_tf = _read("infra/app/compute_ecs.tf")
+    jobs_tf = _read("infra/app/workload_jobs.tf")
+
+    for expected in [
+        'variable "api_cpu"',
+        'variable "api_memory"',
+        'variable "api_bootstrap_desired_count"',
+        'variable "backfill_worker_cpu"',
+        'variable "backfill_worker_memory"',
+        'variable "order_event_consumer_bootstrap_desired_count"',
+        'variable "enable_api_symptom_cloudwatch_alarms"',
+        'variable "bootstrap_image_tag"',
+        'variable "api_image_tag"',
+    ]:
+        assert expected in variables_tf
+
+    for removed in [
+        'variable "app_cpu"',
+        'variable "app_memory"',
+        'variable "app_desired_count"',
+        'variable "api_desired_count"',
+        'variable "worker_cpu"',
+        'variable "worker_memory"',
+        'variable "order_event_consumer_desired_count"',
+        'variable "enable_app_symptom_cloudwatch_alarms"',
+        'variable "initial_image_tag"',
+        'variable "app_image_tag"',
+    ]:
+        assert removed not in variables_tf
+
+    assert "bootstrap_image_tag" in stack_tfvars
+    assert "api_image_tag" in stack_tfvars
+    assert "initial_image_tag" not in stack_tfvars
+    assert "app_image_tag" not in stack_tfvars
+    assert "var.api_cpu" in compute_tf
+    assert "var.api_memory" in compute_tf
+    assert "var.api_bootstrap_desired_count" in compute_tf
+    assert "var.enable_api_symptom_cloudwatch_alarms" in compute_tf
+    assert "var.api_image_tag" in compute_tf
+    assert "var.bootstrap_image_tag" in compute_tf
+    assert "var.backfill_worker_cpu" in jobs_tf
+    assert "var.backfill_worker_memory" in jobs_tf
+    assert "var.order_event_consumer_bootstrap_desired_count" in jobs_tf
+    assert "var.bootstrap_image_tag" in jobs_tf
+
+
+def test_app_deploy_owns_service_activation_after_bootstrap() -> None:
+    workflow = _read(".github/workflows/app-deploy.yml")
+    deploy_script = _read("scripts/ci/ci_deploy_ecs_service.sh")
+    variables_tf = _read("infra/app/variables.tf")
+
+    assert 'variable "api_bootstrap_desired_count"' in variables_tf
+    assert "default     = 0" in variables_tf
+    assert 'variable "order_event_consumer_bootstrap_desired_count"' in variables_tf
+    assert (
+        'scripts/ci/ci_deploy_ecs_service.sh "${STACK_NAME}" "${{ steps.primary-service.outputs.service }}" /tmp/api-task-definition.json 1'
+        in workflow
+    )
+    assert (
+        'scripts/ci/ci_deploy_ecs_service.sh "${STACK_NAME}" "$service" "$task_definition" 1'
+        in workflow
+    )
+    assert "[desired-count]" in deploy_script
+    assert 'update_args+=(--desired-count "$DESIRED_COUNT")' in deploy_script
 
 
 def test_compose_build_args_and_ports_align_with_workload_spec() -> None:
     contract = json.loads(_read("platform/workloads.json"))
     compose = yaml.safe_load(_read("compose.yaml"))
     services = compose["services"]
-    service_map = {
-        "api": "app",
-        "backfill_worker": "worker",
-        "data_export_job": "data-export-job",
-        "order_event_consumer": "order-event-consumer",
-    }
 
     for workload in contract["workloads"]:
-        compose_name = service_map[workload["name"]]
+        compose_name = _compose_service_name(workload)
         compose_service = services[compose_name]
         build_args = compose_service["build"]["args"]
 
@@ -415,11 +943,7 @@ def test_compose_build_args_and_ports_align_with_workload_spec() -> None:
                 assert env_port is not None
                 assert str(env_port) == str(port)
 
-    order_event_workload = next(
-        workload
-        for workload in contract["workloads"]
-        if workload["name"] == "order_event_consumer"
-    )
+    order_event_workload = _workload_by_name(contract, "order_event_consumer")
     dapr = order_event_workload["dapr"]
     dapr_service = services["order-event-consumer-dapr"]
     order_event_service = services["order-event-consumer"]
@@ -436,26 +960,103 @@ def test_compose_build_args_and_ports_align_with_workload_spec() -> None:
 
 def test_workload_spec_config_names_match_app_settings() -> None:
     contract = json.loads(_read("platform/workloads.json"))
-    config_paths = {
-        "api": ROOT / "apps" / "api" / "config.py",
-        "order_event_consumer": ROOT / "apps" / "order_event_consumer" / "config.py",
-        "backfill_worker": ROOT / "apps" / "backfill_worker" / "config.py",
-        "data_export_job": ROOT / "apps" / "data_export_job" / "config.py",
-    }
     shared_config_text = (ROOT / "packages" / "infrastructure" / "config.py").read_text(
         encoding="utf-8"
     )
     shared_names = set(ENV_NAME_PATTERN.findall(shared_config_text))
 
     for workload in contract["workloads"]:
-        config_text = config_paths[workload["name"]].read_text(encoding="utf-8")
+        config_text = _config_path(workload).read_text(encoding="utf-8")
         discovered_names = set(ENV_NAME_PATTERN.findall(config_text))
         if "PostgresRuntimeSettings" in config_text:
             discovered_names |= shared_names
-        declared_names = set(workload["config"]["env"]) | set(
-            workload["config"]["secrets"]
-        )
-        assert declared_names == discovered_names
+        assert _declared_config_names(workload) == discovered_names
+
+
+def test_outputs_use_canonical_workload_and_runtime_names() -> None:
+    outputs = _read("infra/app/outputs.tf")
+
+    for expected in [
+        'output "api_fqdn"',
+        'output "api_unhealthy_targets_alarm_name"',
+        'output "api_symptom_cloudwatch_alarms_enabled"',
+        'output "api_target_5xx_alarm_name"',
+        'output "api_target_latency_alarm_name"',
+        'output "order_event_consumer_service_name"',
+        'output "data_export_schedule_name"',
+        'output "data_export_scheduler_target_errors_alarm_name"',
+        'output "data_export_success_cloudwatch_alarm_enabled"',
+        'output "data_export_success_missing_alarm_name"',
+        'output "rds_endpoint"',
+        'output "rds_instance_identifier"',
+        'output "db_secret_arn"',
+        'output "rds_cpu_high_alarm_name"',
+        'output "rds_free_storage_low_alarm_name"',
+        'output "rds_connections_high_alarm_name"',
+        'output "data_hub_bucket_name"',
+        'output "ecs_cluster_name"',
+        'output "api_service_name"',
+        'output "order_events_queue_url"',
+        'output "order_events_dlq_name"',
+        'output "order_events_dlq_visible_alarm_name"',
+    ]:
+        assert expected in outputs
+
+    for removed in [
+        'output "alb_dns_name"',
+        'output "alb_url"',
+        'output "acm_certificate_arn"',
+        'output "edge_waf_web_acl_arn"',
+        'output "ecr_api_repository_url"',
+        'output "ecr_backfill_worker_repository_url"',
+        'output "ecr_liquibase_repository_url"',
+        'output "ecr_data_export_job_repository_url"',
+        'output "ecr_order_event_consumer_repository_url"',
+        'output "backfill_worker_task_definition_arn"',
+        'output "data_export_job_task_definition_arn"',
+        'output "data_export_success_metric_namespace"',
+        'output "data_export_success_metric_name"',
+        'output "liquibase_task_definition_arn"',
+        'output "data_hub_prefixes"',
+        'output "runtime_task_exec_role_arn"',
+        'output "api_task_role_arn"',
+        'output "order_events_topic_arn"',
+        'output "private_subnet_ids"',
+        'output "runtime_security_group_id"',
+        'output "github_actions_role_arn"',
+        'output "alb_access_logs_bucket_name"',
+        'output "adot_sidecar_enabled"',
+        'output "app_unhealthy_targets_alarm_name"',
+        'output "app_symptom_cloudwatch_alarms_enabled"',
+        'output "app_target_5xx_alarm_name"',
+        'output "app_target_latency_alarm_name"',
+        'output "ecr_app_repository_url"',
+        'output "ecr_worker_repository_url"',
+        'output "worker_task_definition_arn"',
+        'output "app_service_name"',
+        'output "app_task_exec_role_arn"',
+        'output "app_task_role_arn"',
+        'output "app_security_group_id"',
+    ]:
+        assert removed not in outputs
+
+
+def test_operator_surface_prefers_canonical_api_service_output() -> None:
+    operator_surface = _operator_surface_text()
+
+    assert "output -raw api_service_name" in operator_surface
+    assert "output -raw app_service_name" not in operator_surface
+
+
+def test_alarm_surface_prefers_canonical_api_alarm_outputs() -> None:
+    alarm_surface = _alarm_surface_text()
+
+    assert "output -raw api_unhealthy_targets_alarm_name" in alarm_surface
+    assert "output -raw api_target_5xx_alarm_name" in alarm_surface
+    assert "output -raw api_target_latency_alarm_name" in alarm_surface
+    assert "output -raw app_unhealthy_targets_alarm_name" not in alarm_surface
+    assert "output -raw app_target_5xx_alarm_name" not in alarm_surface
+    assert "output -raw app_target_latency_alarm_name" not in alarm_surface
 
 
 def test_workload_configs_share_postgres_runtime_helper() -> None:
@@ -475,15 +1076,9 @@ def test_compose_workload_env_names_stay_within_declared_contract() -> None:
     contract = json.loads(_read("platform/workloads.json"))
     compose = yaml.safe_load(_read("compose.yaml"))
     services = compose["services"]
-    service_map = {
-        "api": "app",
-        "backfill_worker": "worker",
-        "data_export_job": "data-export-job",
-        "order_event_consumer": "order-event-consumer",
-    }
 
     for workload in contract["workloads"]:
-        compose_name = service_map[workload["name"]]
+        compose_name = _compose_service_name(workload)
         compose_env = set(services[compose_name].get("environment", {}).keys())
         declared_names = set(workload["config"]["env"]) | set(
             workload["config"]["secrets"]
@@ -495,15 +1090,9 @@ def test_compose_database_wiring_matches_declared_pooling_model() -> None:
     contract = json.loads(_read("platform/workloads.json"))
     compose = yaml.safe_load(_read("compose.yaml"))
     services = compose["services"]
-    service_map = {
-        "api": "app",
-        "backfill_worker": "worker",
-        "data_export_job": "data-export-job",
-        "order_event_consumer": "order-event-consumer",
-    }
 
     for workload in contract["workloads"]:
-        compose_name = service_map[workload["name"]]
+        compose_name = _compose_service_name(workload)
         env = services[compose_name].get("environment", {})
         expected_host = (
             "pgbouncer"
@@ -520,15 +1109,14 @@ def test_compose_database_wiring_matches_declared_pooling_model() -> None:
 
 def test_runtime_conformance_uses_declared_workload_config_names() -> None:
     contract = json.loads(_read("platform/workloads.json"))
-    conformance = json.loads(_read("platform/runtime-conformance.json"))["workloads"]
+    conformance = _runtime_conformance()
 
     for workload in contract["workloads"]:
-        names = set(workload["config"]["env"]) | set(workload["config"]["secrets"])
-        workload_conformance = conformance[workload["name"]]
+        workload_conformance = _workload_conformance(workload, conformance)
         conformance_names = set(workload_conformance["env"]) | set(
             workload_conformance["secrets"]
         )
-        assert conformance_names.issubset(names)
+        assert conformance_names.issubset(_declared_config_names(workload))
 
 
 def test_platform_concerns_and_catalog_boundaries_exist() -> None:

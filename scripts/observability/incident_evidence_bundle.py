@@ -135,6 +135,9 @@ def _release_event_summary(
         "summary": event.get("summary"),
         "timestamp": event.get("timestamp"),
         "service": event.get("service"),
+        "workload_id": event.get("workload_id"),
+        "deployment_id": event.get("deployment_id"),
+        "rollback_category": event.get("rollback_category"),
         "github_run_id": github.get("run_id"),
         "github_run_url": github.get("run_url"),
         "workflow": github.get("workflow"),
@@ -271,7 +274,7 @@ def _load_loki_release_events(
 
     query = (
         f'{{stack="{stack_name}",environment="aws",'
-        'event_type=~"app_deploy|app_rollback_drill|'
+        'event_type=~"app_build|app_deploy|app_rollback_drill|'
         'data_runtime_rollback_drill|infra_apply"}}'
     )
     try:
@@ -336,7 +339,7 @@ def _query_hints(
                 "expr": f'{{{base_labels}}} |= "<request_id>"',
             },
             {
-                "name": "app errors",
+                "name": "api errors",
                 "expr": f'{{{base_labels}}} |~ "(?i)(error|exception|traceback)"',
             },
             {
@@ -345,7 +348,7 @@ def _query_hints(
             },
             {
                 "name": "delivery events",
-                "expr": f'{{stack="{stack_name}",environment="aws",event_type=~"app_deploy|app_rollback_drill|data_runtime_rollback_drill|infra_apply"}}',
+                "expr": f'{{stack="{stack_name}",environment="aws",event_type=~"app_build|app_deploy|app_rollback_drill|data_runtime_rollback_drill|infra_apply"}}',
             },
         ],
         "prometheus": [
@@ -541,6 +544,14 @@ def render_markdown(bundle: dict[str, Any]) -> str:
             timestamp = event.get("timestamp") or "unknown time"
             source = event.get("source") or "unknown source"
             lines.append(f"- {timestamp}: {detail} ({status}, run {run}, {source})")
+            if event.get("workflow"):
+                lines.append(f"  - workflow: `{event['workflow']}`")
+            if event.get("workload_id"):
+                lines.append(f"  - workload_id: `{event['workload_id']}`")
+            if event.get("deployment_id"):
+                lines.append(f"  - deployment_id: `{event['deployment_id']}`")
+            if event.get("rollback_category"):
+                lines.append(f"  - rollback_category: `{event['rollback_category']}`")
             if event.get("image_tag"):
                 lines.append(f"  - image_tag: `{event['image_tag']}`")
             if event.get("task_definition"):
@@ -597,7 +608,7 @@ def main() -> int:
     parser.add_argument(
         "--stack-name", default=os.environ.get("STACK_NAME", DEFAULT_STACK_NAME)
     )
-    parser.add_argument("--service-name", default="app")
+    parser.add_argument("--service-name", default="api")
     parser.add_argument(
         "--region", default=os.environ.get("AWS_REGION", "eu-central-1")
     )

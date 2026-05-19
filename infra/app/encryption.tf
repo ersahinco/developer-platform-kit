@@ -103,7 +103,7 @@ data "aws_iam_policy_document" "order_events_sns_kms" {
     condition {
       test     = "ArnLike"
       variable = "kms:EncryptionContext:aws:sns:topicArn"
-      values   = ["arn:aws:sns:${local.region}:${local.account_id}:${local.order_events_topic_name}"]
+      values   = ["arn:aws:sns:${local.region}:${local.account_id}:${local.primary_async_eventing_topic_name}"]
     }
   }
 }

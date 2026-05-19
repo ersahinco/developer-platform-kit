@@ -78,10 +78,17 @@ jobs:
         id: aws-context
         run: scripts/ci/ci_resolve_aws_context.sh
 
+      - name: Resolve primary edge service
+        id: primary-service
+        run: |
+          IFS=$'\t' read -r workload_name service < <(python3 -m scripts.platform.workload_metadata primary-edge)
+          echo "service=${service}" >> "$GITHUB_OUTPUT"
+          echo "workload_name=${workload_name}" >> "$GITHUB_OUTPUT"
+
       - name: Verify drill images exist
         run: |
           aws ecr describe-images \
-            --repository-name "${STACK_NAME}/app" \
+            --repository-name "${STACK_NAME}/${{ steps.primary-service.outputs.service }}" \
             --image-ids "imageTag=${IMAGE_TAG}"
 
       - name: Capture current app task definition
@@ -89,7 +96,7 @@ jobs:
         run: |
           service_json=$(aws ecs describe-services \
             --cluster "${{ env.STACK_NAME }}" \
-            --services app \
+            --services "${{ steps.primary-service.outputs.service }}" \
             --output json)
           current_task_definition=$(echo "$service_json" | jq -r '.services[0].deployments[] | select(.status == "PRIMARY") | .taskDefinition')
           primary_rollout_state=$(echo "$service_json" | jq -r '.services[0].deployments[] | select(.status == "PRIMARY") | .rolloutState')
@@ -106,10 +113,11 @@ jobs:
 
       - name: Validate rollback alarms are clear
         run: |
-          alarm_names=(
-            "${{ env.STACK_NAME }}-app-target-5xx"
-            "${{ env.STACK_NAME }}-app-target-latency"
-          )
+          mapfile -t alarm_names < <(python3 -m scripts.observability.platform_inventory edge-symptom-alarms "${STACK_NAME}")
+          if [[ "${#alarm_names[@]}" -ne 2 ]]; then
+            echo "Expected 2 edge symptom alarms, found ${#alarm_names[@]}." >&2
+            exit 1
+          fi
           alarm_count=$(aws cloudwatch describe-alarms \
             --alarm-names "${alarm_names[@]}" \
             --query "length(MetricAlarms)" \
@@ -131,16 +139,16 @@ jobs:
         run: |
           scripts/ci/ci_render_ecs_task_definition.sh \
             "${STACK_NAME}" \
-            app \
-            "${{ steps.aws-context.outputs.ecr_registry }}/${STACK_NAME}/app:${IMAGE_TAG}" \
-            /tmp/app-drill-task-definition.json
+            "${{ steps.primary-service.outputs.service }}" \
+            "${{ steps.aws-context.outputs.ecr_registry }}/${STACK_NAME}/${{ steps.primary-service.outputs.service }}:${IMAGE_TAG}" \
+            /tmp/primary-edge-drill-task-definition.json
 
       - name: Configure drill fault injection
         run: |
           tmp_path="$(mktemp)"
-          jq --arg fault_mode "${{ inputs.fault_mode }}" '
+          jq --arg fault_mode "${{ inputs.fault_mode }}" --arg container_name "${{ steps.primary-service.outputs.service }}" '
             .containerDefinitions |= map(
-              if .name == "app" then
+              if .name == $container_name then
                 .environment = (
                   ((.environment // [])
                     | map({(.name): .value})
@@ -159,8 +167,8 @@ jobs:
                 .
               end
             )
-          ' /tmp/app-drill-task-definition.json > "$tmp_path"
-          mv "$tmp_path" /tmp/app-drill-task-definition.json
+          ' /tmp/primary-edge-drill-task-definition.json > "$tmp_path"
+          mv "$tmp_path" /tmp/primary-edge-drill-task-definition.json
 
       - name: Deploy drill app revision
         id: deploy_drill
@@ -168,7 +176,7 @@ jobs:
           ECS_DEPLOY_WAIT_FOR_STABLE: "false"
         run: |
           echo "deploy_started_epoch=$(date +%s)" >> "$GITHUB_OUTPUT"
-          scripts/ci/ci_deploy_ecs_service.sh "${STACK_NAME}" app /tmp/app-drill-task-definition.json
+          scripts/ci/ci_deploy_ecs_service.sh "${STACK_NAME}" "${{ steps.primary-service.outputs.service }}" /tmp/primary-edge-drill-task-definition.json
 
       - name: Wait for ECS automatic rollback
         id: wait_rollback
@@ -206,7 +214,7 @@ jobs:
           while (( SECONDS < rollback_deadline )); do
             service_json=$(aws ecs describe-services \
               --cluster "${{ env.STACK_NAME }}" \
-              --services app \
+              --services "${{ steps.primary-service.outputs.service }}" \
               --output json)
             primary_task_definition=$(echo "$service_json" | jq -r '.services[0].deployments[] | select(.status == "PRIMARY") | .taskDefinition')
             primary_rollout_state=$(echo "$service_json" | jq -r '.services[0].deployments[] | select(.status == "PRIMARY") | .rolloutState')
@@ -250,7 +258,7 @@ jobs:
         env:
           BASE_URL: https://api.${{ env.ROOT_DOMAIN }}
           ECS_CLUSTER: ${{ env.STACK_NAME }}
-          ECS_SERVICE: app
+          ECS_SERVICE: ${{ steps.primary-service.outputs.service }}
           EXPECTED_TASK_FAMILY: ${{ env.STACK_NAME }}
         run: |
           verify_started_epoch=$(date +%s)
@@ -284,12 +292,14 @@ jobs:
             --event-type app_rollback_drill \
             --status "${{ job.status }}" \
             --summary "App rollback drill completed with status ${{ job.status }}" \
-            --service-name app \
+            --service-name "${{ steps.primary-service.outputs.service }}" \
+            --workload-id "${{ steps.primary-service.outputs.workload_name }}" \
             --image-tag "${{ env.IMAGE_TAG }}" \
             --task-definition "${{ steps.current.outputs.task_definition }}" \
             --previous-task-definition "${{ steps.current.outputs.task_definition }}" \
             --drill-task-definition "${{ steps.deploy_drill.outputs.task_def_arn }}" \
             --fault-mode "${{ inputs.fault_mode }}" \
+            --rollback-category app_image \
             --rollback-seconds "${{ steps.wait_rollback.outputs.rollback_seconds }}" \
             --rollback-slo-seconds "${{ inputs.fault_mode == 'error' && env.APP_ROLLBACK_ERROR_SLO_SECONDS || env.APP_ROLLBACK_LATENCY_SLO_SECONDS }}" \
             --verify-seconds "${{ steps.verify-restored.outputs.verify_seconds }}" \

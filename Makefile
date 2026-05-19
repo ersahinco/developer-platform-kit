@@ -40,7 +40,13 @@ TF_PLATFORM_STATE_KEY  ?= $(STACK_NAME)/platform.tfstate
 TF_APP_STATE_KEY       ?= $(STACK_NAME)/app.tfstate
 TF_PLATFORM_VARS_FILE  := stack.tfvars
 TF_APP_VARS_FILE       := stack.tfvars
-PRIMARY_EDGE_SERVICE   ?= $(shell jq -r '.workloads[] | select(.kind == "service" and .operational.class == "edge-service") | .image.repository' platform/workloads.json 2>/dev/null)
+PRIMARY_EDGE_SERVICE   ?= $(shell python3 -m scripts.platform.workload_metadata primary-edge 2>/dev/null | cut -f2)
+SERVICE_NAME           ?= $(PRIMARY_EDGE_SERVICE)
+LOOKBACK_MINUTES       ?= 60
+RELEASE_EVENTS_DIR     ?=
+INCIDENT_EVIDENCE_DIR  ?= /tmp/aws-sdlc-containers-incident-evidence
+RELEASE_EVIDENCE_DIR   ?= /tmp/aws-sdlc-containers-release-evidence
+GH_RUN_ID              ?=
 
 # ── Help ──────────────────────────────────────────────────────────────────────
 
@@ -125,15 +131,37 @@ lint-docs: ## Check Markdown links
 
 .PHONY: lint-workflows
 lint-workflows: ## Lint GitHub workflows
-	actionlint
+	@if command -v actionlint >/dev/null 2>&1; then \
+		actionlint; \
+	else \
+		docker run --rm \
+			-v "$(CURDIR):/repo" \
+			-w /repo \
+			rhysd/actionlint:1.7.12@sha256:b1934ee5f1c509618f2508e6eb47ee0d3520686341fec936f3b79331f9315667; \
+	fi
 
 .PHONY: lint-dockerfiles
 lint-dockerfiles: ## Lint Dockerfiles
-	hadolint db/Dockerfile db/pgbouncer/Dockerfile platform/workload.Dockerfile
+	@if command -v hadolint >/dev/null 2>&1; then \
+		hadolint db/Dockerfile db/pgbouncer/Dockerfile platform/workload.Dockerfile; \
+	else \
+		docker run --rm \
+			-v "$(CURDIR):/repo" \
+			-w /repo \
+			hadolint/hadolint:v2.14.0-debian@sha256:158cd0184dcaa18bd8ec20b61f4c1cabdf8b32a592d062f57bdcb8e4c1d312e2 \
+			hadolint db/Dockerfile db/pgbouncer/Dockerfile platform/workload.Dockerfile; \
+	fi
 
 .PHONY: secret-scan
 secret-scan: ## Scan repository for committed secrets
-	gitleaks dir . --redact --no-banner
+	@if command -v gitleaks >/dev/null 2>&1; then \
+		gitleaks dir . --redact --no-banner; \
+	else \
+		docker run --rm \
+			-v "$(CURDIR):/repo" \
+			ghcr.io/gitleaks/gitleaks:v8.30.1@sha256:c00b6bd0aeb3071cbcb79009cb16a60dd9e0a7c60e2be9ab65d25e6bc8abbb7f \
+			dir /repo --redact --no-banner; \
+	fi
 
 .PHONY: dependency-audit
 dependency-audit: ## Audit uv-locked Python dependencies for known vulnerabilities
@@ -269,6 +297,30 @@ release-event-delivery-verify: ## Verify release-event push/query round-trip thr
 	STACK_NAME="$(STACK_NAME)" \
 	uv run python scripts/observability/verify_release_event_loki_delivery.py
 
+.PHONY: release-evidence-runs
+release-evidence-runs: ## List recent cloud-changing GitHub workflow runs that emit release evidence
+	@printf "RUN_ID\tWORKFLOW\tBRANCH\tSTATUS\tCONCLUSION\tCREATED_AT\tTITLE\tURL\n"
+	gh run list \
+		--limit 20 \
+		--json databaseId,workflowName,displayTitle,headBranch,status,conclusion,createdAt,url \
+		--jq '.[] | select(.workflowName == "App Build" or .workflowName == "App Deploy" or .workflowName == "Infra Apply" or .workflowName == "App No-Data Rollback Drill" or .workflowName == "Data Runtime Rollback Drill") | [.databaseId, .workflowName, .headBranch, .status, (.conclusion // "-"), .createdAt, .displayTitle, .url] | @tsv'
+
+.PHONY: release-evidence-download
+release-evidence-download: ## Download GitHub release-evidence-* artifacts for GH_RUN_ID into $(RELEASE_EVIDENCE_DIR)/$(GH_RUN_ID)
+	@[ -n "$(GH_RUN_ID)" ] || (echo "Set GH_RUN_ID=<workflow-run-id>" >&2; exit 1)
+	@mkdir -p "$(RELEASE_EVIDENCE_DIR)/$(GH_RUN_ID)"
+	gh run download "$(GH_RUN_ID)" \
+		--pattern 'release-evidence-*' \
+		--dir "$(RELEASE_EVIDENCE_DIR)/$(GH_RUN_ID)"
+
+.PHONY: workload-capability-matrix
+workload-capability-matrix: ## Print the declared workload capability matrix from platform/workloads.json
+	python3 -m scripts.platform.workload_metadata capability-matrix
+
+.PHONY: capability-implementation-matrix
+capability-implementation-matrix: ## Print the current runtime capability-to-implementation matrix
+	python3 -m scripts.platform.workload_metadata implementation-matrix
+
 .PHONY: observability-cloud-traffic
 observability-cloud-traffic: ## Generate live API traffic for Grafana/CloudWatch observation
 	@AWS_REGION="$(AWS_REGION)" \
@@ -280,7 +332,11 @@ incident-evidence: ## Build portable Markdown/JSON incident evidence bundle
 	@AWS_REGION="$(AWS_REGION)" \
 	STACK_NAME="$(STACK_NAME)" \
 	ROOT_DOMAIN="$(ROOT_DOMAIN)" \
-	uv run python scripts/observability/incident_evidence_bundle.py
+	RELEASE_EVENTS_DIR="$(RELEASE_EVENTS_DIR)" \
+	uv run python scripts/observability/incident_evidence_bundle.py \
+		--service-name "$(SERVICE_NAME)" \
+		--lookback-minutes "$(LOOKBACK_MINUTES)" \
+		--output-dir "$(INCIDENT_EVIDENCE_DIR)"
 
 # ── DB access — no bastion needed ─────────────────────────────────────────────
 #

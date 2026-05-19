@@ -60,7 +60,7 @@ aws sqs get-queue-attributes \
 Inspect app and consumer logs:
 
 ```bash
-aws logs tail "/ecs/${STACK_NAME}/app" \
+aws logs tail "/ecs/${STACK_NAME}/api" \
   --since 30m \
   --region "$AWS_REGION"
 
@@ -75,7 +75,7 @@ When Grafana or Loki is reachable, inspect app and consumer logs in the same
 window:
 
 ```logql
-{stack="<stack-name>", service="app"} |= "order_event_publish_failed"
+{stack="<stack-name>", service="api"} |= "order_event_publish_failed"
 ```
 
 ```logql
@@ -102,7 +102,7 @@ access:
 ```bash
 aws ecs describe-services \
   --cluster "$(terraform -chdir=infra/app output -raw ecs_cluster_name)" \
-  --services "$(terraform -chdir=infra/app output -raw app_service_name)" \
+  --services "$(terraform -chdir=infra/app output -raw api_service_name)" \
   --region "$AWS_REGION"
 
 aws ecs describe-services \

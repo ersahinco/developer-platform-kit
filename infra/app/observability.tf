@@ -28,7 +28,7 @@ locals {
       prometheus:
         config:
           scrape_configs:
-            - job_name: app
+            - job_name: api
               metrics_path: /metrics
               static_configs:
                 - targets: ["127.0.0.1:8000"]

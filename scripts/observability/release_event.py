@@ -425,7 +425,7 @@ def main() -> int:
         "--status", default=os.environ.get("RELEASE_EVENT_STATUS", "unknown")
     )
     parser.add_argument("--summary")
-    parser.add_argument("--service-name", default="app")
+    parser.add_argument("--service-name", default="api")
     parser.add_argument("--image-tag")
     parser.add_argument("--task-definition")
     parser.add_argument("--previous-task-definition")
@@ -466,7 +466,7 @@ def main() -> int:
         "--alarm-name",
         action="append",
         default=[],
-        help="CloudWatch alarm name to capture; defaults to the app alarm set.",
+        help="CloudWatch alarm name to capture; defaults to the api alarm set.",
     )
     parser.add_argument(
         "--strict-alarms",

@@ -29,6 +29,22 @@ topic before adding a new page.
 | Add or evaluate another runtime | [Runtime Toolkit](runtime-toolkit.md) |
 | Work on telemetry or release evidence | [Observability](observability.md), [Platform Contract](platform-contract.md#observability) |
 
+## Operator Quick Path
+
+For deploy review, rollback review, or incident triage, start here:
+
+```bash
+make post-deploy-verify
+make incident-evidence
+make release-evidence-runs
+GH_RUN_ID=<workflow-run-id> make release-evidence-download
+RELEASE_EVENTS_DIR=/tmp/aws-sdlc-containers-release-evidence/<workflow-run-id> \
+make incident-evidence
+```
+
+Then use [Deployment](deployment.md), [Observability](observability.md), and
+[Runbooks](runbooks/README.md) for the deeper workflow-specific path.
+
 ## Ownership Rules
 
 - `README.md` is the short project entrypoint.

@@ -40,7 +40,7 @@ def _release_event(**overrides: Any) -> dict[str, Any]:
         "event_type": "app_deploy",
         "status": "success",
         "summary": "App deploy verification passed",
-        "service_name": "app",
+        "service_name": "api",
         "image_tag": TEST_IMAGE_TAG,
         "task_definition": TEST_TASK_DEFINITION,
         "previous_task_definition": None,
@@ -77,7 +77,7 @@ def test_delivery_verifier_checks_expected_inventory_and_rejects_stale_streams(
             return {
                 "logStreams": [
                     {
-                        "logStreamName": "app/app",
+                        "logStreamName": "api/api",
                         "lastEventTimestamp": 1_800_000_000_000,
                     }
                 ]
@@ -86,7 +86,7 @@ def test_delivery_verifier_checks_expected_inventory_and_rejects_stale_streams(
 
     monkeypatch.setattr(delivery, "_aws_json", fake_aws_json)
     monkeypatch.setattr(delivery.time, "time", lambda: 1_800_000_100)
-    monkeypatch.setenv("CLOUDWATCH_FRESH_LOG_GROUPS", "app")
+    monkeypatch.setenv("CLOUDWATCH_FRESH_LOG_GROUPS", "api")
     monkeypatch.setenv("CLOUDWATCH_LOG_FRESHNESS_SECONDS", "3600")
 
     inventory = delivery._check_cloudwatch_log_inventory(
@@ -179,7 +179,7 @@ def test_delivery_verifier_checks_loki_log_group_labels_and_fresh_logs(
 
     monkeypatch.setattr(delivery.httpx, "get", fake_get)
     monkeypatch.setattr(delivery.time, "time", lambda: 1_800_000_100)
-    monkeypatch.setenv("LOKI_FRESH_LOG_GROUPS", "app")
+    monkeypatch.setenv("LOKI_FRESH_LOG_GROUPS", "api")
 
     results = delivery._check_loki_delivery("aws-sdlc-containers")
 
@@ -221,7 +221,7 @@ def test_delivery_verifier_default_loki_freshness_checks_app_only(
     results = delivery._check_loki_delivery("aws-sdlc-containers")
 
     assert all(result.ok for result in results)
-    assert any("/ecs/aws-sdlc-containers/app" in item for item in queried_log_groups)
+    assert any("/ecs/aws-sdlc-containers/api" in item for item in queried_log_groups)
     assert len(queried_log_groups) == 1
 
 
@@ -237,8 +237,8 @@ def test_delivery_verifier_flags_old_loki_schema_without_log_group(
                     {
                         "stack": "aws-sdlc-containers",
                         "environment": "aws",
-                        "service": "app",
-                        "container": "app",
+                        "service": "api",
+                        "container": "api",
                     }
                 ]
             }
@@ -302,8 +302,8 @@ def test_incident_evidence_bundle_collects_portable_context(
                 "taskDefinition": {
                     "containerDefinitions": [
                         {
-                            "name": "app",
-                            "image": "example/app:sha-1234567890abcdef1234567890abcdef12345678",
+                            "name": "api",
+                            "image": "example/api:sha-test-image",
                         },
                         {
                             "name": "pgbouncer",
@@ -316,7 +316,7 @@ def test_incident_evidence_bundle_collects_portable_context(
             return {
                 "MetricAlarms": [
                     {
-                        "AlarmName": "aws-sdlc-containers-app-target-5xx",
+                        "AlarmName": "aws-sdlc-containers-api-target-5xx",
                         "StateValue": "OK",
                         "StateReason": "Threshold not breached",
                     }
@@ -329,7 +329,7 @@ def test_incident_evidence_bundle_collects_portable_context(
 
     bundle = evidence.build_bundle(
         stack_name="aws-sdlc-containers",
-        service_name="app",
+        service_name="api",
         region="eu-central-1",
         root_domain="ersahinco-sandbox.eu",
         lookback_minutes=30,
@@ -354,7 +354,22 @@ def test_incident_evidence_bundle_includes_recent_release_events(
     now = datetime.now(UTC)
     release_events_dir = tmp_path / "release-events"
     release_events_dir.mkdir()
-    recent_event = _release_event(now=now)
+    recent_event = _release_event(
+        event_type="app_build",
+        summary="Image build completed",
+        task_definition=None,
+        read_mode=None,
+        write_mode=None,
+        verify_seconds=None,
+        verify_slo_seconds=None,
+        deployment_id="sha256:builddigest",
+        image_digest="sha256:builddigest",
+        now=now,
+        env={
+            "GITHUB_RUN_ID": TEST_RUN_ID,
+            "GITHUB_WORKFLOW": "App Build",
+        },
+    )
     old_event = {
         **recent_event,
         "timestamp": (now - timedelta(hours=3)).isoformat(),
@@ -376,7 +391,7 @@ def test_incident_evidence_bundle_includes_recent_release_events(
 
     bundle = evidence.build_bundle(
         stack_name="aws-sdlc-containers",
-        service_name="app",
+        service_name="api",
         region="eu-central-1",
         root_domain="ersahinco-sandbox.eu",
         lookback_minutes=60,
@@ -385,13 +400,16 @@ def test_incident_evidence_bundle_includes_recent_release_events(
     _, markdown_path = evidence.write_bundle(bundle, tmp_path / "bundle")
 
     assert bundle["release_event_sources"]["loaded_count"] == 1
-    assert bundle["release_events"][0]["event_type"] == "app_deploy"
+    assert bundle["release_events"][0]["event_type"] == "app_build"
     assert bundle["release_events"][0]["github_run_id"] == TEST_RUN_ID
     assert bundle["release_events"][0]["image_tag"].startswith("sha-")
+    assert bundle["release_events"][0]["workflow"] == "App Build"
+    assert bundle["release_events"][0]["deployment_id"] == "sha256:builddigest"
     markdown = markdown_path.read_text(encoding="utf-8")
     assert "Recent Delivery Events" in markdown
-    assert "App deploy verification passed" in markdown
+    assert "Image build completed" in markdown
     assert TEST_RUN_ID in markdown
+    assert "deployment_id: `sha256:builddigest`" in markdown
     assert "make observability-cloud-traffic" in markdown
 
 
@@ -427,7 +445,10 @@ def test_incident_evidence_bundle_queries_loki_release_events(
     def fake_loki_json(loki_url: str, params: dict[str, str]) -> dict[str, Any]:
         assert loki_url == "http://127.0.0.1:3100"
         assert "query_range" not in loki_url
-        assert "event_type" in params["query"]
+        assert (
+            'event_type=~"app_build|app_deploy|app_rollback_drill|data_runtime_rollback_drill|infra_apply"'
+            in params["query"]
+        )
         assert params["direction"] == "BACKWARD"
         return {
             "data": {
@@ -445,7 +466,7 @@ def test_incident_evidence_bundle_queries_loki_release_events(
 
     bundle = evidence.build_bundle(
         stack_name="aws-sdlc-containers",
-        service_name="app",
+        service_name="api",
         region="eu-central-1",
         root_domain="ersahinco-sandbox.eu",
         lookback_minutes=60,
@@ -460,6 +481,7 @@ def test_incident_evidence_bundle_queries_loki_release_events(
     assert bundle["release_events"][0]["plan_run_id"] == TEST_PLAN_RUN_ID
     markdown = markdown_path.read_text(encoding="utf-8")
     assert "Infra apply completed" in markdown
+    assert "workflow: `Infra Apply`" in markdown
     assert "loki" in markdown
 
 
@@ -469,7 +491,7 @@ def test_release_event_writes_markdown_json_and_jsonl(tmp_path: Path) -> None:
         "region": "eu-central-1",
         "alarms": [
             {
-                "name": "aws-sdlc-containers-app-target-5xx",
+                "name": "aws-sdlc-containers-api-target-5xx",
                 "state": "OK",
                 "reason": "Threshold not breached",
                 "updated_at": "2026-05-12T09:59:00+00:00",
@@ -489,14 +511,69 @@ def test_release_event_writes_markdown_json_and_jsonl(tmp_path: Path) -> None:
     assert TEST_RUN_ID in markdown
     assert "aws-ecs" in markdown
     assert "Alarm Snapshot" in markdown
-    assert "aws-sdlc-containers-app-target-5xx: OK" in markdown
+    assert "aws-sdlc-containers-api-target-5xx: OK" in markdown
     assert event["runtime_id"] == "aws-ecs"
-    assert event["workload_id"] == "app"
+    assert event["workload_id"] == "api"
     assert event["deployment_id"] == TEST_TASK_DEFINITION
     assert event["source_workflow"] == "App Deploy"
     assert event["correlation"]["github_run_id"] == TEST_RUN_ID
     assert event["revision"]["image_tag"].startswith("sha-")
     assert event["alarm_snapshot"]["alarms"][0]["state"] == "OK"
+
+
+def test_incident_evidence_bundle_surfaces_rollback_metadata(
+    monkeypatch, tmp_path: Path
+) -> None:
+    now = datetime.now(UTC)
+    release_events_dir = tmp_path / "release-events"
+    release_events_dir.mkdir()
+    rollback_event = _release_event(
+        event_type="app_rollback_drill",
+        summary="App rollback drill completed",
+        task_definition="arn:aws:ecs:task-definition/aws-sdlc-containers:8",
+        previous_task_definition="arn:aws:ecs:task-definition/aws-sdlc-containers:7",
+        drill_task_definition="arn:aws:ecs:task-definition/aws-sdlc-containers:9",
+        fault_mode="error",
+        read_mode=None,
+        write_mode=None,
+        rollback_category="app_image",
+        rollback_seconds=90,
+        rollback_slo_seconds=600,
+        verify_seconds=15,
+        now=now,
+        env={
+            "GITHUB_RUN_ID": TEST_RUN_ID,
+            "GITHUB_WORKFLOW": "App No-Data Rollback Drill",
+        },
+    )
+    (release_events_dir / "release-event.json").write_text(
+        json.dumps(rollback_event), encoding="utf-8"
+    )
+
+    def fake_aws_json(args: list[str], region: str) -> dict[str, Any]:
+        if args[:2] == ["ecs", "describe-services"]:
+            return {"services": [{"deployments": []}]}
+        if args[:2] == ["cloudwatch", "describe-alarms"]:
+            return {"MetricAlarms": []}
+        raise AssertionError(f"unexpected AWS call: {args}")
+
+    monkeypatch.setattr(evidence, "_aws_json", fake_aws_json)
+
+    bundle = evidence.build_bundle(
+        stack_name="aws-sdlc-containers",
+        service_name="api",
+        region="eu-central-1",
+        root_domain="ersahinco-sandbox.eu",
+        lookback_minutes=60,
+        release_events_dir=release_events_dir,
+    )
+    _, markdown_path = evidence.write_bundle(bundle, tmp_path / "bundle")
+
+    assert bundle["release_events"][0]["rollback_category"] == "app_image"
+    assert bundle["release_events"][0]["workload_id"] == "api"
+    markdown = markdown_path.read_text(encoding="utf-8")
+    assert "rollback_category: `app_image`" in markdown
+    assert "workload_id: `api`" in markdown
 
 
 def test_release_event_contract_requires_portable_fields() -> None:
@@ -514,11 +591,11 @@ def test_release_event_captures_cloudwatch_alarm_snapshot(monkeypatch) -> None:
     def fake_aws_json(args: list[str], region: str) -> dict[str, Any]:
         assert region == "eu-central-1"
         assert args[:3] == ["cloudwatch", "describe-alarms", "--alarm-names"]
-        assert "aws-sdlc-containers-app-target-5xx" in args
+        assert "aws-sdlc-containers-api-target-5xx" in args
         return {
             "MetricAlarms": [
                 {
-                    "AlarmName": "aws-sdlc-containers-app-target-5xx",
+                    "AlarmName": "aws-sdlc-containers-api-target-5xx",
                     "StateValue": "ALARM",
                     "StateReason": "5xx rollback drill fault observed",
                     "StateUpdatedTimestamp": "2026-05-12T10:00:00+00:00",
@@ -536,7 +613,7 @@ def test_release_event_captures_cloudwatch_alarm_snapshot(monkeypatch) -> None:
     )
 
     assert snapshot["errors"] == []
-    assert snapshot["alarms"][0]["name"] == "aws-sdlc-containers-app-target-5xx"
+    assert snapshot["alarms"][0]["name"] == "aws-sdlc-containers-api-target-5xx"
     assert snapshot["alarms"][0]["state"] == "ALARM"
 
 

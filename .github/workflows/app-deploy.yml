@@ -8,7 +8,7 @@ on:
         required: true
         type: string
       confirm_deploy:
-        description: "Type deploy to confirm migration, deployment, verification, and worker run."
+        description: "Type deploy to confirm migration, deployment, verification, and backfill run."
         required: true
         type: string
 
@@ -62,7 +62,7 @@ jobs:
 
       - name: Verify approved images exist
         run: |
-          for repo in $(jq -r '.workloads[].image.repository' platform/workloads.json); do
+          for repo in $(python3 -m scripts.platform.workload_metadata repositories); do
             aws ecr describe-images \
               --repository-name "${STACK_NAME}/${repo}" \
               --image-ids "imageTag=${IMAGE_TAG}"
@@ -175,13 +175,7 @@ jobs:
       - name: Resolve primary edge service
         id: primary-service
         run: |
-          edge_count=$(jq '[.workloads[] | select(.kind == "service" and .operational.class == "edge-service")] | length' platform/workloads.json)
-          if [[ "$edge_count" != "1" ]]; then
-            echo "Expected exactly one edge-service workload, found ${edge_count}." >&2
-            exit 1
-          fi
-          service=$(jq -r '.workloads[] | select(.kind == "service" and .operational.class == "edge-service") | .image.repository' platform/workloads.json)
-          workload_name=$(jq -r '.workloads[] | select(.kind == "service" and .operational.class == "edge-service") | .name' platform/workloads.json)
+          IFS=$'\t' read -r workload_name service < <(python3 -m scripts.platform.workload_metadata primary-edge)
           echo "service=${service}" >> "$GITHUB_OUTPUT"
           echo "workload_name=${workload_name}" >> "$GITHUB_OUTPUT"
 
@@ -191,11 +185,11 @@ jobs:
             "${STACK_NAME}" \
             "${{ steps.primary-service.outputs.service }}" \
             "${{ steps.aws-context.outputs.ecr_registry }}/${STACK_NAME}/${{ steps.primary-service.outputs.service }}:${IMAGE_TAG}" \
-            /tmp/app-task-definition.json
+            /tmp/api-task-definition.json
 
       - name: Deploy primary edge service
         id: deploy-app
-        run: scripts/ci/ci_deploy_ecs_service.sh "${STACK_NAME}" "${{ steps.primary-service.outputs.service }}" /tmp/app-task-definition.json
+        run: scripts/ci/ci_deploy_ecs_service.sh "${STACK_NAME}" "${{ steps.primary-service.outputs.service }}" /tmp/api-task-definition.json 1
 
       - name: Verify deployed edge service
         id: verify-app
@@ -221,12 +215,7 @@ jobs:
         env:
           ECR_REGISTRY: ${{ steps.aws-context.outputs.ecr_registry }}
         run: |
-          jq -r '
-            .workloads[]
-            | select(.kind == "job")
-            | [.name, .image.repository]
-            | @tsv
-          ' platform/workloads.json | while IFS=$'\t' read -r workload_name container; do
+          python3 -m scripts.platform.workload_metadata job-workloads | while IFS=$'\t' read -r workload_name container; do
             task_definition="/tmp/${container}-task-definition.json"
             scripts/ci/ci_render_ecs_task_definition.sh \
               "${STACK_NAME}-${container}" \
@@ -248,18 +237,14 @@ jobs:
         env:
           ECR_REGISTRY: ${{ steps.aws-context.outputs.ecr_registry }}
         run: |
-          jq -r '
-            .workloads[]
-            | select(.kind == "service" and .image.repository != "app")
-            | .image.repository
-          ' platform/workloads.json | while IFS= read -r service; do
+          python3 -m scripts.platform.workload_metadata internal-services | while IFS=$'\t' read -r _workload_name service; do
             task_definition="/tmp/${service}-task-definition.json"
             scripts/ci/ci_render_ecs_task_definition.sh \
               "${STACK_NAME}-${service}" \
               "$service" \
               "${ECR_REGISTRY}/${STACK_NAME}/${service}:${IMAGE_TAG}" \
               "$task_definition"
-            scripts/ci/ci_deploy_ecs_service.sh "${STACK_NAME}" "$service" "$task_definition"
+            scripts/ci/ci_deploy_ecs_service.sh "${STACK_NAME}" "$service" "$task_definition" 1
           done
 
       - name: Run backfill worker
@@ -274,7 +259,7 @@ jobs:
             "${{ steps.net.outputs.subnet_id }}" \
             "${{ steps.net.outputs.sg_id }}")
           echo "Backfill task: $TASK_ARN"
-          echo "Monitor: CloudWatch Logs /ecs/${STACK_NAME}/worker"
+          echo "Monitor: CloudWatch Logs /ecs/${STACK_NAME}/backfill-worker"
 
   evidence:
     name: Evidence

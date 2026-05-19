@@ -1,14 +1,20 @@
 {
-  "schema_version": "1",
+  "schema_version": "2",
+  "defaults": {
+    "env": {
+      "DB_PORT": "5432",
+      "DB_USER": "postgres",
+      "DB_NAME": "aws_sdlc_containers"
+    },
+    "secrets": {
+      "DB_PASSWORD": "runtime-secret://postgres-password"
+    }
+  },
   "workloads": {
     "api": {
       "startup_timeout_seconds": 60,
       "env": {
         "DATABASE_URL": "postgresql://postgres:postgres@pgbouncer:5432/aws_sdlc_containers",
-        "DB_HOST": "pgbouncer",
-        "DB_PORT": "5432",
-        "DB_USER": "postgres",
-        "DB_NAME": "aws_sdlc_containers",
         "OTEL_TRACES_ENABLED": "false",
         "OTEL_EXPORTER_OTLP_TRACES_ENDPOINT": "http://127.0.0.1:4318/v1/traces",
         "OTEL_SERVICE_NAME": "aws-sdlc-containers-api-conformance",
@@ -18,9 +24,6 @@
         "ROLLOUT_DRILL_FAULT_STATUS_CODE": "503",
         "ROLLOUT_DRILL_FAULT_DELAY_SECONDS": "3"
       },
-      "secrets": {
-        "DB_PASSWORD": "runtime-secret://postgres-password"
-      },
       "expected_log_event": "http_request",
       "expected_log_fields": ["event", "request_id", "route", "status_code"]
     },
@@ -28,10 +31,6 @@
       "startup_timeout_seconds": 60,
       "env": {
         "DATABASE_URL": "postgresql://postgres:postgres@db:5432/aws_sdlc_containers",
-        "DB_HOST": "db",
-        "DB_PORT": "5432",
-        "DB_USER": "postgres",
-        "DB_NAME": "aws_sdlc_containers",
         "DAPR_HTTP_ENDPOINT": "http://127.0.0.1:3500",
         "DAPR_HTTP_PORT": "3500",
         "ORDER_EVENTS_APP_PORT": "8081",
@@ -42,9 +41,6 @@
         "ORDER_EVENTS_RELAY_BATCH_SIZE": "10",
         "ORDER_EVENTS_IDLE_SLEEP_SECONDS": "1"
       },
-      "secrets": {
-        "DB_PASSWORD": "runtime-secret://postgres-password"
-      },
       "expected_log_event": "http_request",
       "expected_log_fields": ["event", "event_id", "request_id", "route", "status_code"]
     },
@@ -52,16 +48,9 @@
       "timeout_seconds": 60,
       "env": {
         "BACKFILL_DATABASE_URL": "postgresql://postgres:postgres@db:5432/aws_sdlc_containers",
-        "DB_HOST": "db",
-        "DB_PORT": "5432",
-        "DB_USER": "postgres",
-        "DB_NAME": "aws_sdlc_containers",
         "BACKFILL_BATCH_SIZE": "1000",
         "BACKFILL_SLEEP_MS": "0",
         "BACKFILL_MAX_BATCHES": "1"
-      },
-      "secrets": {
-        "DB_PASSWORD": "runtime-secret://postgres-password"
       },
       "expected_success_event": "backfill_complete",
       "expected_log_fields": ["event", "job_name"]
@@ -70,17 +59,10 @@
       "timeout_seconds": 60,
       "env": {
         "DATA_EXPORT_DATABASE_URL": "postgresql://postgres:postgres@db:5432/aws_sdlc_containers",
-        "DB_HOST": "db",
-        "DB_PORT": "5432",
-        "DB_USER": "postgres",
-        "DB_NAME": "aws_sdlc_containers",
         "DATA_EXPORT_OUTPUT_DIR": "/exports",
         "DATA_EXPORT_RUN_ID": "conformance",
         "DATA_EXPORT_DATE": "2026-05-13",
         "DATA_EXPORT_S3_BUCKET": ""
-      },
-      "secrets": {
-        "DB_PASSWORD": "runtime-secret://postgres-password"
       },
       "expected_success_event": "data_export_succeeded",
       "expected_log_fields": ["event", "job_name", "dataset", "run_id", "status"]

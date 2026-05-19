@@ -88,6 +88,45 @@ make infra-app-apply
 
 This keeps the project lean while still supporting safe schema evolution.
 
+## GitHub Change Control Matrix
+
+These workflows intentionally separate review from cloud change. The common path
+is: validate and plan on pull requests, then manually promote reviewed artifacts
+or reviewed plans on the default branch.
+
+| Workflow | Trigger and reviewed input | Control boundary | Evidence |
+|---|---|---|---|
+| `app-build.yml` | Manual `workflow_dispatch` with `confirm_build=build` after PR review on the default branch | Builds, scans, attests, and pushes immutable images only; no runtime rollout | Build summary plus `release-evidence-app-build-*` artifact per image |
+| `app-deploy.yml` | Manual `workflow_dispatch` with approved immutable `image_tag` and `confirm_deploy=deploy` on the default branch | Runs Liquibase, updates ECS services and support task definitions, verifies health, and runs backfill if needed | `release-evidence-app-deploy-*` artifact and step summary |
+| `infra-plan.yml` | Pull request, main push, or manual run | Produces reviewed Terraform plans without changing cloud resources | Uploaded Terraform plan artifact and optional PR comment |
+| `infra-apply.yml` | Manual `workflow_dispatch` with successful `plan_run_id` and `confirm_apply=apply` on the default branch | Applies only reviewed Terraform plan artifacts for the current default-branch SHA | `release-evidence-infra-apply-*` artifact and step summary |
+
+The practical rule is simple: PRs prove correctness, manual workflows promote a
+reviewed artifact or reviewed plan, and every cloud-changing step leaves behind
+portable evidence.
+
+## Review Checklist
+
+Use the same short review loop for deploys, applies, and drills:
+
+```bash
+make release-evidence-runs
+GH_RUN_ID=<workflow-run-id> make release-evidence-download
+RELEASE_EVENTS_DIR=/tmp/aws-sdlc-containers-release-evidence/<workflow-run-id> \
+make incident-evidence
+```
+
+Then check the evidence for the path you are reviewing:
+
+1. App build review:
+   Confirm the selected `App Build` run is on the expected branch and SHA, the image tag is the intended immutable `sha-...` tag, and the downloaded `release-evidence-app-build-*` artifacts cover the images you expect to deploy.
+2. App deploy review:
+   Confirm Liquibase and deploy both completed, `release-evidence-app-deploy-*` records the expected service, image tag, and task definition, and `make post-deploy-verify` or the incident bundle does not show unresolved alarm or verification failures.
+3. Infra apply review:
+   Confirm the selected `Infra Apply` run corresponds to the reviewed `Infra Plan` for the current default-branch SHA, and the release evidence plus plan artifact reflect only the intended Terraform change surface.
+4. Rollback or drill review:
+   Confirm the evidence timeline shows the failing revision, the restored revision, the relevant alarm window, and the verification outcome before declaring the drill or rollback successful.
+
 ## Common Commands
 
 ```bash
@@ -95,9 +134,22 @@ make infra-plan
 make infra-apply
 make app-deploy
 make post-deploy-verify
+make incident-evidence
 make db-tunnel
 make db-exec
 make db-seed
+```
+
+For deploy or apply review, prefer downloaded `release-evidence-*` artifacts and
+the incident bundle over ad hoc console spelunking. Point the bundle command at
+the downloaded artifacts when you want one portable view that combines release
+events with current alarms, ECS state, and query hints:
+
+```bash
+make release-evidence-runs
+GH_RUN_ID=<workflow-run-id> make release-evidence-download
+RELEASE_EVENTS_DIR=/tmp/aws-sdlc-containers-release-evidence/<workflow-run-id> \
+make incident-evidence
 ```
 
 ## Access Patterns

@@ -44,6 +44,12 @@ This choice affects:
 The contract meaning of each class lives in
 [Platform Contract](platform-contract.md#operational-class).
 
+Before adding a new workload, inspect the existing declared shapes:
+
+```bash
+make workload-capability-matrix
+```
+
 ## Add The Host
 
 Create:

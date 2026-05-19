@@ -16,6 +16,19 @@ This is a companion to [Platform Contract](platform-contract.md):
 
 Use [Architecture](architecture.md) when the question is where code belongs.
 
+To inspect the current declared workload capability matrix directly from the
+contract:
+
+```bash
+make workload-capability-matrix
+```
+
+To inspect the current runtime implementation seams for those capabilities:
+
+```bash
+make capability-implementation-matrix
+```
+
 ## Current Capabilities
 
 | Capability | Workload-facing contract | Current owner |
@@ -31,6 +44,20 @@ Use [Architecture](architecture.md) when the question is where code belongs.
 | Release evidence | portable release event, artifact upload, optional Loki push | workflows, `scripts/observability/release_event.py` |
 | Incident evidence | portable bundle with ECS, alarms, release context, query hints | `scripts/observability/incident_evidence_bundle.py` |
 | Runtime conformance | external proof that workloads satisfy the declared contract | `platform/runtime-conformance.json`, `tests/runtime/`, `make runtime-conformance` |
+
+## Current AWS Implementation Seams
+
+The current runtime target is still intentionally `aws-ecs`. The point is not
+to hide that, but to make replacement seams explicit:
+
+```bash
+make capability-implementation-matrix
+```
+
+Those seams are where a future cheaper or different implementation should plug
+in, for example a different PostgreSQL host, broker, object store, or hosting
+runtime, without moving provider details into workloads or turning the workload
+contract into deployment choreography.
 
 ## Ownership Rules
 

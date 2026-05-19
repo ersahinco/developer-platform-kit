@@ -1,9 +1,10 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-CLUSTER=${1:?"usage: ci_deploy_ecs_service.sh <cluster> <service> <task-definition-json>"}
-SERVICE=${2:?"usage: ci_deploy_ecs_service.sh <cluster> <service> <task-definition-json>"}
-TASK_DEFINITION_PATH=${3:?"usage: ci_deploy_ecs_service.sh <cluster> <service> <task-definition-json>"}
+CLUSTER=${1:?"usage: ci_deploy_ecs_service.sh <cluster> <service> <task-definition-json> [desired-count]"}
+SERVICE=${2:?"usage: ci_deploy_ecs_service.sh <cluster> <service> <task-definition-json> [desired-count]"}
+TASK_DEFINITION_PATH=${3:?"usage: ci_deploy_ecs_service.sh <cluster> <service> <task-definition-json> [desired-count]"}
+DESIRED_COUNT=${4:-}
 
 TASK_DEF_ARN=$(aws ecs register-task-definition \
   --cli-input-json "file://${TASK_DEFINITION_PATH}" \
@@ -19,11 +20,17 @@ if [[ -n "${GITHUB_OUTPUT:-}" ]]; then
   echo "task_def_arn=${TASK_DEF_ARN}" >> "$GITHUB_OUTPUT"
 fi
 
-aws ecs update-service \
-  --cluster "$CLUSTER" \
-  --service "$SERVICE" \
-  --task-definition "$TASK_DEF_ARN" \
-  > /dev/null
+update_args=(
+  --cluster "$CLUSTER"
+  --service "$SERVICE"
+  --task-definition "$TASK_DEF_ARN"
+)
+
+if [[ -n "$DESIRED_COUNT" ]]; then
+  update_args+=(--desired-count "$DESIRED_COUNT")
+fi
+
+aws ecs update-service "${update_args[@]}" > /dev/null
 
 if [[ "${ECS_DEPLOY_WAIT_FOR_STABLE:-true}" == "true" ]]; then
   aws ecs wait services-stable \

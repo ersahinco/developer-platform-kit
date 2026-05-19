@@ -1,81 +1,26 @@
-output "alb_dns_name" {
-  description = "Public DNS of the ALB. Useful for inspection, but the intended endpoint is api_fqdn."
-  value       = aws_lb.this.dns_name
-}
-
 output "api_fqdn" {
   description = "Public DNS name for the single API endpoint in Route 53."
   value       = local.api_fqdn
 }
 
-output "alb_url" {
-  description = "HTTPS base URL for the API."
-  value       = "https://${local.api_fqdn}"
+output "api_unhealthy_targets_alarm_name" {
+  description = "CloudWatch alarm for unhealthy ALB targets behind the api workload."
+  value       = aws_cloudwatch_metric_alarm.api_unhealthy_targets.alarm_name
 }
 
-output "acm_certificate_arn" {
-  description = "ACM certificate ARN attached to the HTTPS listener."
-  value       = aws_acm_certificate_validation.api.certificate_arn
+output "api_symptom_cloudwatch_alarms_enabled" {
+  description = "Whether api target 5xx and latency CloudWatch alarms are enabled."
+  value       = var.enable_api_symptom_cloudwatch_alarms
 }
 
-output "edge_waf_web_acl_arn" {
-  description = "WAFv2 Web ACL ARN associated with the public API ALB."
-  value       = aws_wafv2_web_acl.edge.arn
+output "api_target_5xx_alarm_name" {
+  description = "CloudWatch alarm for target-generated 5xx responses behind the api workload."
+  value       = var.enable_api_symptom_cloudwatch_alarms ? aws_cloudwatch_metric_alarm.api_target_5xx[0].alarm_name : null
 }
 
-output "app_unhealthy_targets_alarm_name" {
-  description = "CloudWatch alarm for unhealthy ALB targets behind the app service."
-  value       = aws_cloudwatch_metric_alarm.app_unhealthy_targets.alarm_name
-}
-
-output "app_symptom_cloudwatch_alarms_enabled" {
-  description = "Whether app target 5xx and latency CloudWatch alarms are enabled."
-  value       = var.enable_app_symptom_cloudwatch_alarms
-}
-
-output "app_target_5xx_alarm_name" {
-  description = "CloudWatch alarm for target-generated 5xx responses behind the ALB."
-  value       = var.enable_app_symptom_cloudwatch_alarms ? aws_cloudwatch_metric_alarm.app_target_5xx[0].alarm_name : null
-}
-
-output "app_target_latency_alarm_name" {
-  description = "CloudWatch alarm for elevated app target response time behind the ALB."
-  value       = var.enable_app_symptom_cloudwatch_alarms ? aws_cloudwatch_metric_alarm.app_target_latency[0].alarm_name : null
-}
-
-output "ecr_app_repository_url" {
-  description = "ECR URL for the app image."
-  value       = module.ecr["api"].repository_url
-}
-
-output "ecr_worker_repository_url" {
-  description = "ECR URL for the worker image."
-  value       = module.ecr["backfill_worker"].repository_url
-}
-
-output "ecr_liquibase_repository_url" {
-  description = "ECR URL for the Liquibase migrations image."
-  value       = module.ecr["liquibase"].repository_url
-}
-
-output "ecr_data_export_job_repository_url" {
-  description = "ECR URL for the data export job image."
-  value       = module.ecr["data_export_job"].repository_url
-}
-
-output "ecr_order_event_consumer_repository_url" {
-  description = "ECR URL for the order event consumer image."
-  value       = module.ecr["order_event_consumer"].repository_url
-}
-
-output "worker_task_definition_arn" {
-  description = "Worker task definition ARN. Pass to `aws ecs run-task` to trigger a backfill."
-  value       = aws_ecs_task_definition.worker.arn
-}
-
-output "data_export_job_task_definition_arn" {
-  description = "Data export job task definition ARN used by EventBridge Scheduler."
-  value       = aws_ecs_task_definition.data_export_job.arn
+output "api_target_latency_alarm_name" {
+  description = "CloudWatch alarm for elevated api target response time behind the ALB."
+  value       = var.enable_api_symptom_cloudwatch_alarms ? aws_cloudwatch_metric_alarm.api_target_latency[0].alarm_name : null
 }
 
 output "order_event_consumer_service_name" {
@@ -93,16 +38,6 @@ output "data_export_scheduler_target_errors_alarm_name" {
   value       = aws_cloudwatch_metric_alarm.data_export_scheduler_target_errors.alarm_name
 }
 
-output "data_export_success_metric_namespace" {
-  description = "CloudWatch namespace for the data export success metric."
-  value       = "${local.name}/DataExport"
-}
-
-output "data_export_success_metric_name" {
-  description = "CloudWatch metric name emitted when a data export succeeds."
-  value       = "SuccessCount"
-}
-
 output "data_export_success_cloudwatch_alarm_enabled" {
   description = "Whether the data export success CloudWatch metric filter and freshness alarm are enabled."
   value       = var.enable_data_export_success_cloudwatch_alarm
@@ -111,11 +46,6 @@ output "data_export_success_cloudwatch_alarm_enabled" {
 output "data_export_success_missing_alarm_name" {
   description = "CloudWatch alarm for missing scheduled data export successes."
   value       = var.enable_data_export_success_cloudwatch_alarm ? aws_cloudwatch_metric_alarm.data_export_success_missing[0].alarm_name : null
-}
-
-output "liquibase_task_definition_arn" {
-  description = "Liquibase task definition ARN for one-off schema migration tasks."
-  value       = aws_ecs_task_definition.liquibase.arn
 }
 
 output "rds_endpoint" {
@@ -153,39 +83,19 @@ output "data_hub_bucket_name" {
   value       = aws_s3_bucket.data_hub.bucket
 }
 
-output "data_hub_prefixes" {
-  description = "S3 prefixes reserved for data hub raw, curated, and manifest objects."
-  value       = local.data_hub_prefixes
-}
-
 output "ecs_cluster_name" {
   description = "ECS cluster name for the app stack."
   value       = module.ecs.cluster_name
 }
 
-output "app_service_name" {
-  description = "ECS service name for the long-running app."
-  value       = module.ecs.services["app"].name
-}
-
-output "app_task_exec_role_arn" {
-  description = "Task execution role ARN shared by the app and one-off support tasks."
-  value       = aws_iam_role.task_exec.arn
-}
-
-output "app_task_role_arn" {
-  description = "Task role ARN for app runtime permissions."
-  value       = aws_iam_role.app_task.arn
+output "api_service_name" {
+  description = "ECS service name for the api workload."
+  value       = aws_ecs_service.api.name
 }
 
 output "order_events_queue_url" {
   description = "Dapr subscriber SQS FIFO queue URL for order.created.v1 events."
   value       = aws_sqs_queue.order_events.url
-}
-
-output "order_events_topic_arn" {
-  description = "SNS FIFO topic ARN used by Dapr order event pub/sub."
-  value       = aws_sns_topic.order_events.arn
 }
 
 output "order_events_dlq_name" {
@@ -196,29 +106,4 @@ output "order_events_dlq_name" {
 output "order_events_dlq_visible_alarm_name" {
   description = "CloudWatch alarm for visible messages in the order events DLQ."
   value       = aws_cloudwatch_metric_alarm.order_events_dlq_visible.alarm_name
-}
-
-output "private_subnet_ids" {
-  description = "Private subnet IDs used by the ECS service and one-off tasks."
-  value       = local.platform.private_subnet_ids
-}
-
-output "app_security_group_id" {
-  description = "App security group ID used by the ECS service and one-off tasks."
-  value       = aws_security_group.app.id
-}
-
-output "github_actions_role_arn" {
-  description = "IAM role ARN assumed by GitHub Actions through OIDC."
-  value       = local.github_actions_role_arn
-}
-
-output "alb_access_logs_bucket_name" {
-  description = "S3 bucket for public ALB access logs."
-  value       = aws_s3_bucket.alb_access_logs.bucket
-}
-
-output "adot_sidecar_enabled" {
-  description = "Whether the app task definition includes the ADOT collector sidecar."
-  value       = var.enable_adot_sidecar
 }

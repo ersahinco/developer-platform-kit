@@ -1,27 +1,12 @@
 ################################################################################
-# App task identity
+# Api task identity
 #
-# The app task role is root-owned so the ECS service module can stop managing
-# app task-definition revisions after bootstrap without also dropping runtime
+# The api task role is root-owned so the ECS service module can stop managing
+# api task-definition revisions after bootstrap without also dropping runtime
 # IAM ownership.
 ################################################################################
 
-moved {
-  from = module.ecs.module.service["app"].aws_iam_role.tasks[0]
-  to   = aws_iam_role.app_task
-}
-
-moved {
-  from = module.ecs.module.service["app"].aws_iam_policy.tasks[0]
-  to   = aws_iam_policy.app_task
-}
-
-moved {
-  from = module.ecs.module.service["app"].aws_iam_role_policy_attachment.tasks_internal[0]
-  to   = aws_iam_role_policy_attachment.app_task_internal
-}
-
-data "aws_iam_policy_document" "app_task_assume" {
+data "aws_iam_policy_document" "api_task_assume" {
   statement {
     sid     = "ECSTasksAssumeRole"
     actions = ["sts:AssumeRole"]
@@ -45,17 +30,17 @@ data "aws_iam_policy_document" "app_task_assume" {
   }
 }
 
-resource "aws_iam_role" "app_task" {
-  name_prefix = "app-tasks-"
-  description = "IAM role for ECS tasks in Service app"
+resource "aws_iam_role" "api_task" {
+  name_prefix = "api-tasks-"
+  description = "IAM role for ECS tasks in Service api"
 
-  assume_role_policy    = data.aws_iam_policy_document.app_task_assume.json
+  assume_role_policy    = data.aws_iam_policy_document.api_task_assume.json
   force_detach_policies = true
 
   tags = local.tags
 }
 
-data "aws_iam_policy_document" "app_task" {
+data "aws_iam_policy_document" "api_task" {
   statement {
     sid = "ECSExec"
     actions = [
@@ -68,15 +53,15 @@ data "aws_iam_policy_document" "app_task" {
   }
 }
 
-resource "aws_iam_policy" "app_task" {
-  name_prefix = "app-tasks-"
+resource "aws_iam_policy" "api_task" {
+  name_prefix = "api-tasks-"
   description = "Task role IAM policy"
-  policy      = data.aws_iam_policy_document.app_task.json
+  policy      = data.aws_iam_policy_document.api_task.json
 
   tags = local.tags
 }
 
-resource "aws_iam_role_policy_attachment" "app_task_internal" {
-  role       = aws_iam_role.app_task.name
-  policy_arn = aws_iam_policy.app_task.arn
+resource "aws_iam_role_policy_attachment" "api_task_internal" {
+  role       = aws_iam_role.api_task.name
+  policy_arn = aws_iam_policy.api_task.arn
 }
