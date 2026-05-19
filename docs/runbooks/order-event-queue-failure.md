@@ -1,8 +1,15 @@
 # Order Event Queue Failure
 
-Use this runbook when the `aws-sdlc-containers-order-events-dlq-visible`
-CloudWatch alarm is in `ALARM`, or when consumer logs show failed
+Use this runbook when the order-events-dlq-visible CloudWatch alarm is in
+`ALARM`, or when consumer logs show failed
 `order.created.v1` relay or consume attempts.
+
+Use Terraform outputs and environment variables in examples:
+
+```bash
+export AWS_REGION="${AWS_REGION:-eu-central-1}"
+export STACK_NAME="${STACK_NAME:-<stack-name>}"
+```
 
 ## What The Alarm Means
 
@@ -27,7 +34,7 @@ Confirm the alarm:
 ```bash
 aws cloudwatch describe-alarms \
   --alarm-names "$(terraform -chdir=infra/app output -raw order_events_dlq_visible_alarm_name)" \
-  --region eu-central-1
+  --region "$AWS_REGION"
 ```
 
 Inspect the source queue and DLQ:
@@ -36,30 +43,30 @@ Inspect the source queue and DLQ:
 aws sqs get-queue-attributes \
   --queue-url "$(terraform -chdir=infra/app output -raw order_events_queue_url)" \
   --attribute-names All \
-  --region eu-central-1
+  --region "$AWS_REGION"
 
 DLQ_URL="$(aws sqs get-queue-url \
   --queue-name "$(terraform -chdir=infra/app output -raw order_events_dlq_name)" \
   --query QueueUrl \
   --output text \
-  --region eu-central-1)"
+  --region "$AWS_REGION")"
 
 aws sqs get-queue-attributes \
   --queue-url "$DLQ_URL" \
   --attribute-names All \
-  --region eu-central-1
+  --region "$AWS_REGION"
 ```
 
 Inspect app and consumer logs:
 
 ```bash
-aws logs tail /ecs/aws-sdlc-containers/app \
+aws logs tail "/ecs/${STACK_NAME}/app" \
   --since 30m \
-  --region eu-central-1
+  --region "$AWS_REGION"
 
-aws logs tail /ecs/aws-sdlc-containers/order-event-consumer \
+aws logs tail "/ecs/${STACK_NAME}/order-event-consumer" \
   --since 30m \
-  --region eu-central-1
+  --region "$AWS_REGION"
 ```
 
 ## Log Checks
@@ -68,11 +75,11 @@ When Grafana or Loki is reachable, inspect app and consumer logs in the same
 window:
 
 ```logql
-{stack="aws-sdlc-containers", service="app"} |= "order_event_publish_failed"
+{stack="<stack-name>", service="app"} |= "order_event_publish_failed"
 ```
 
 ```logql
-{stack="aws-sdlc-containers", service="order-event-consumer"}
+{stack="<stack-name>", service="order-event-consumer"}
 ```
 
 Keep the SQS DLQ CloudWatch alarm in the flow because Dapr delegates queue and
@@ -96,12 +103,12 @@ access:
 aws ecs describe-services \
   --cluster "$(terraform -chdir=infra/app output -raw ecs_cluster_name)" \
   --services "$(terraform -chdir=infra/app output -raw app_service_name)" \
-  --region eu-central-1
+  --region "$AWS_REGION"
 
 aws ecs describe-services \
   --cluster "$(terraform -chdir=infra/app output -raw ecs_cluster_name)" \
   --services "$(terraform -chdir=infra/app output -raw order_event_consumer_service_name)" \
-  --region eu-central-1
+  --region "$AWS_REGION"
 ```
 
 If the failure started after a deploy, use
@@ -121,7 +128,7 @@ aws sqs receive-message \
   --attribute-names All \
   --message-attribute-names All \
   --visibility-timeout 30 \
-  --region eu-central-1
+  --region "$AWS_REGION"
 ```
 
 Only replay messages after the consumer defect is fixed. Preserve the original

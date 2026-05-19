@@ -16,7 +16,7 @@ moved {
 }
 
 resource "aws_cloudwatch_log_group" "app" {
-  name              = "/ecs/${local.name}/app"
+  name              = local.workload_log_group_names["api"]
   retention_in_days = 30
   kms_key_id        = aws_kms_key.cloudwatch_logs.arn
 

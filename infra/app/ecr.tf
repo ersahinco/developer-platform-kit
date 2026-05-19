@@ -6,38 +6,27 @@
 ################################################################################
 
 locals {
-  ecr_repositories = {
-    app = {
-      repository_name = "app"
-      tag_prefixes    = ["sha-"]
-      keep_count      = 10
+  ecr_repositories = merge(
+    {
+      for name, workload in local.workloads_by_name : name => {
+        repository_name = workload.image.repository
+        tag_prefixes    = ["sha-"]
+        keep_count      = 10
+      }
+    },
+    {
+      liquibase = {
+        repository_name = "liquibase"
+        tag_prefixes    = ["sha-"]
+        keep_count      = 10
+      }
+      pgbouncer = {
+        repository_name = "pgbouncer"
+        tag_prefixes    = ["v"]
+        keep_count      = 5
+      }
     }
-    worker = {
-      repository_name = "worker"
-      tag_prefixes    = ["sha-"]
-      keep_count      = 10
-    }
-    liquibase = {
-      repository_name = "liquibase"
-      tag_prefixes    = ["sha-"]
-      keep_count      = 10
-    }
-    data_export_job = {
-      repository_name = "data-export-job"
-      tag_prefixes    = ["sha-"]
-      keep_count      = 10
-    }
-    order_event_consumer = {
-      repository_name = "order-event-consumer"
-      tag_prefixes    = ["sha-"]
-      keep_count      = 10
-    }
-    pgbouncer = {
-      repository_name = "pgbouncer"
-      tag_prefixes    = ["v"]
-      keep_count      = 5
-    }
-  }
+  )
 }
 
 module "ecr" {
@@ -84,12 +73,22 @@ module "ecr" {
 
 moved {
   from = module.ecr_app
-  to   = module.ecr["app"]
+  to   = module.ecr["api"]
 }
 
 moved {
   from = module.ecr_worker
-  to   = module.ecr["worker"]
+  to   = module.ecr["backfill_worker"]
+}
+
+moved {
+  from = module.ecr["app"]
+  to   = module.ecr["api"]
+}
+
+moved {
+  from = module.ecr["worker"]
+  to   = module.ecr["backfill_worker"]
 }
 
 moved {

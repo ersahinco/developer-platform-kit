@@ -40,6 +40,7 @@ TF_PLATFORM_STATE_KEY  ?= $(STACK_NAME)/platform.tfstate
 TF_APP_STATE_KEY       ?= $(STACK_NAME)/app.tfstate
 TF_PLATFORM_VARS_FILE  := stack.tfvars
 TF_APP_VARS_FILE       := stack.tfvars
+PRIMARY_EDGE_SERVICE   ?= $(shell jq -r '.workloads[] | select(.kind == "service" and .operational.class == "edge-service") | .image.repository' platform/workloads.json 2>/dev/null)
 
 # ── Help ──────────────────────────────────────────────────────────────────────
 
@@ -234,10 +235,10 @@ infra-apply: infra-platform-apply infra-app-apply ## Terraform apply — platfor
 # ── App — deploy ──────────────────────────────────────────────────────────────
 
 .PHONY: app-deploy
-app-deploy: ## Force new deployment of the existing ECS app service
+app-deploy: ## Force new deployment of the declared primary edge ECS service
 	aws ecs update-service \
 		--cluster $(STACK_NAME) \
-		--service app \
+		--service $(PRIMARY_EDGE_SERVICE) \
 		--task-definition $(STACK_NAME) \
 		--force-new-deployment \
 		--region $(AWS_REGION) \
@@ -252,7 +253,7 @@ post-deploy-verify: ## Verify deployed app readiness, metrics, modes, and ECS im
 		--query SecretString --output text)}" \
 	BASE_URL="$${BASE_URL:-https://api.$(ROOT_DOMAIN)}" \
 	ECS_CLUSTER="$${ECS_CLUSTER:-$(STACK_NAME)}" \
-	ECS_SERVICE="$${ECS_SERVICE:-app}" \
+	ECS_SERVICE="$${ECS_SERVICE:-$(PRIMARY_EDGE_SERVICE)}" \
 	EXPECTED_TASK_FAMILY="$${EXPECTED_TASK_FAMILY:-$(STACK_NAME)}" \
 	uv run python scripts/release/verify_post_deploy.py
 

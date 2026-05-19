@@ -1,6 +1,8 @@
 # Runbooks
 
 Use these during AWS incidents, failed deploys, and alarm investigations.
+These pages own operator action only. Use canonical docs for architecture,
+contract, and capability questions.
 
 | Situation | Runbook |
 |---|---|

@@ -1,9 +1,14 @@
 # Data Export Job Failure
 
-Use this runbook when the
-`aws-sdlc-containers-data-export-scheduler-target-errors` or
-`aws-sdlc-containers-data-export-success-missing` CloudWatch alarm is in
-`ALARM`.
+Use this runbook when the data export scheduler-target-errors or
+success-missing CloudWatch alarm is in `ALARM`.
+
+Use Terraform outputs and environment variables in examples:
+
+```bash
+export AWS_REGION="${AWS_REGION:-eu-central-1}"
+export STACK_NAME="${STACK_NAME:-<stack-name>}"
+```
 
 ## What The Alarm Means
 
@@ -15,7 +20,7 @@ This is a scheduler-to-ECS delivery signal. If the task starts and the
 container exits non-zero, inspect the ECS task and CloudWatch logs even if this
 alarm does not fire.
 
-The success-missing alarm watches the custom `aws-sdlc-containers/DataExport`
+The success-missing alarm watches the custom `<stack-name>/DataExport`
 `SuccessCount` metric emitted from successful manifest log lines. It fires when
 no successful export is observed for two consecutive daily evaluation windows.
 
@@ -33,12 +38,12 @@ aws cloudwatch describe-alarms \
   --alarm-names \
     "$(terraform -chdir=infra/app output -raw data_export_scheduler_target_errors_alarm_name)" \
     "$(terraform -chdir=infra/app output -raw data_export_success_missing_alarm_name)" \
-  --region eu-central-1
+  --region "$AWS_REGION"
 
 aws scheduler get-schedule \
   --group-name default \
   --name "$(terraform -chdir=infra/app output -raw data_export_schedule_name)" \
-  --region eu-central-1
+  --region "$AWS_REGION"
 ```
 
 Check recent stopped tasks for the data export family:
@@ -46,9 +51,9 @@ Check recent stopped tasks for the data export family:
 ```bash
 aws ecs list-tasks \
   --cluster "$(terraform -chdir=infra/app output -raw ecs_cluster_name)" \
-  --family aws-sdlc-containers-data-export-job \
+  --family "${STACK_NAME}-data-export-job" \
   --desired-status STOPPED \
-  --region eu-central-1
+  --region "$AWS_REGION"
 ```
 
 Describe any recent task ARN returned by `list-tasks`:
@@ -57,15 +62,15 @@ Describe any recent task ARN returned by `list-tasks`:
 aws ecs describe-tasks \
   --cluster "$(terraform -chdir=infra/app output -raw ecs_cluster_name)" \
   --tasks "<task-arn>" \
-  --region eu-central-1
+  --region "$AWS_REGION"
 ```
 
 Inspect application logs:
 
 ```bash
-aws logs tail /ecs/aws-sdlc-containers/data-export-job \
+aws logs tail "/ecs/${STACK_NAME}/data-export-job" \
   --since 2h \
-  --region eu-central-1
+  --region "$AWS_REGION"
 ```
 
 ## Grafana Checks
@@ -74,7 +79,7 @@ When a reachable Loki endpoint contains data export logs, inspect successful
 and failed manifest log records there before changing CloudWatch alarms:
 
 ```logql
-{stack="aws-sdlc-containers", service="data-export-job"} | json | dataset="order_contact_email"
+{stack="<stack-name>", service="data-export-job"} | json | dataset="order_contact_email"
 ```
 
 A future Grafana freshness alert should be based on either that successful
@@ -97,7 +102,7 @@ private subnet:
 
 ```bash
 GITHUB_OUTPUT=/tmp/data-export-network.env \
-  scripts/ci/ci_resolve_ecs_network.sh aws-sdlc-containers
+  scripts/ci/ci_resolve_ecs_network.sh "${STACK_NAME}"
 source /tmp/data-export-network.env
 
 export ECS_RUN_TASK_WAIT_FOR_STOPPED=true
@@ -106,7 +111,7 @@ export ECS_RUN_TASK_LABEL="Data export job"
 
 TASK_ARN=$(scripts/ci/ci_run_ecs_task.sh \
   "$(terraform -chdir=infra/app output -raw ecs_cluster_name)" \
-  "aws-sdlc-containers-data-export-job" \
+  "${STACK_NAME}-data-export-job" \
   "$subnet_id" \
   "$sg_id")
 ```
@@ -117,12 +122,12 @@ Confirm that the expected S3 objects exist:
 aws s3 ls \
   "s3://$(terraform -chdir=infra/app output -raw data_hub_bucket_name)/raw/order_contact_email/" \
   --recursive \
-  --region eu-central-1
+  --region "$AWS_REGION"
 
 aws s3 ls \
   "s3://$(terraform -chdir=infra/app output -raw data_hub_bucket_name)/manifests/order_contact_email/" \
   --recursive \
-  --region eu-central-1
+  --region "$AWS_REGION"
 ```
 
 The alarm returns to `OK` after the next evaluation window has no target

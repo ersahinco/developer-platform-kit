@@ -19,7 +19,12 @@ import time
 from typing import Any
 from urllib import error, request
 
-from scripts.observability.platform_inventory import release_alarm_names
+from scripts.observability.platform_inventory import (
+    DEFAULT_AWS_REGION,
+    DEFAULT_ENVIRONMENT,
+    DEFAULT_STACK_NAME,
+    release_alarm_names,
+)
 
 REQUIRED_EVENT_FIELDS = [
     ("schema_version",),
@@ -164,8 +169,8 @@ def build_event(
 ) -> dict[str, Any]:
     env = dict(os.environ if env is None else env)
     now = datetime.now(UTC) if now is None else now
-    stack_name = env.get("STACK_NAME", "aws-sdlc-containers")
-    environment = env.get("DEPLOYMENT_ENVIRONMENT", "aws")
+    stack_name = env.get("STACK_NAME", DEFAULT_STACK_NAME)
+    environment = env.get("DEPLOYMENT_ENVIRONMENT", DEFAULT_ENVIRONMENT)
     github = _github_context(env)
     resolved_runtime_id = runtime_id or env.get("RUNTIME_ID", "aws-ecs")
     resolved_workload_id = workload_id or service_name
@@ -198,7 +203,7 @@ def build_event(
         "stack": {
             "name": stack_name,
             "environment": environment,
-            "region": env.get("AWS_REGION", "eu-central-1"),
+            "region": env.get("AWS_REGION", DEFAULT_AWS_REGION),
             "root_domain": env.get("ROOT_DOMAIN"),
         },
         "service": service_name,
@@ -224,7 +229,7 @@ def build_event(
         if alarm_snapshot is not None
         else {
             "captured_at": None,
-            "region": env.get("AWS_REGION", "eu-central-1"),
+            "region": env.get("AWS_REGION", DEFAULT_AWS_REGION),
             "alarms": [],
             "errors": [],
         },

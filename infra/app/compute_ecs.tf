@@ -136,7 +136,7 @@ module "ecs" {
           # Documentation-only container shape after the ownership migration:
           # GitHub Actions renders and registers real app task-definition
           # revisions. See docs/runbooks/app-infra-ownership.md.
-          image     = format("%s:%s", module.ecr["app"].repository_url, coalesce(var.app_image_tag, var.initial_image_tag))
+          image     = format("%s:%s", module.ecr["api"].repository_url, coalesce(var.app_image_tag, var.initial_image_tag))
           essential = true
 
           # ECS container definition keys are camelCase — they map directly to the ECS API
@@ -146,26 +146,8 @@ module "ecs" {
 
           # ECS does not interpolate $(VAR) in environment values. DB_PASSWORD is
           # injected as a secret; the app's config.py composes DATABASE_URL at startup.
-          secrets = [
-            { name = "DB_PASSWORD", valueFrom = "${module.rds.db_instance_master_user_secret_arn}:password::" },
-          ]
-
-          environment = concat([
-            { name = "ROLLOUT_DRILL_FAULT_MODE", value = "off" },
-            { name = "ROLLOUT_DRILL_FAULT_PATHS", value = "/ready" },
-            { name = "ROLLOUT_DRILL_FAULT_DELAY_SECONDS", value = "3" },
-            { name = "ROLLOUT_DRILL_FAULT_STATUS_CODE", value = "503" },
-            ], var.enable_adot_sidecar ? [
-            { name = "OTEL_TRACES_ENABLED", value = "true" },
-            { name = "OTEL_EXPORTER_OTLP_TRACES_ENDPOINT", value = "http://127.0.0.1:4318/v1/traces" },
-            { name = "OTEL_SERVICE_NAME", value = "aws-sdlc-containers-api" },
-            { name = "OTEL_DEPLOYMENT_ENVIRONMENT", value = "aws" },
-            ] : [], (!var.enable_adot_sidecar && var.otel_exporter_otlp_traces_endpoint != null) ? [
-            { name = "OTEL_TRACES_ENABLED", value = "true" },
-            { name = "OTEL_EXPORTER_OTLP_TRACES_ENDPOINT", value = var.otel_exporter_otlp_traces_endpoint },
-            { name = "OTEL_SERVICE_NAME", value = "aws-sdlc-containers-api" },
-            { name = "OTEL_DEPLOYMENT_ENVIRONMENT", value = "aws" },
-          ] : [])
+          secrets     = local.workload_secrets["api"]
+          environment = local.workload_environment["api"]
 
           # pgbouncer must be accepting connections before the app starts.
           dependsOn = concat(
@@ -195,7 +177,7 @@ module "ecs" {
           cloudwatch_log_group_kms_key_id        = aws_kms_key.cloudwatch_logs.arn
           # Explicit name keeps the log group stack-scoped and readable instead of
           # relying on the module's generic service-key-derived default.
-          cloudwatch_log_group_name = "/ecs/${local.name}/app"
+          cloudwatch_log_group_name = local.workload_log_group_names["api"]
         }
       })
 

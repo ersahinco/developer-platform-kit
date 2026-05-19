@@ -16,7 +16,7 @@
       "title": "Open Selected Group In Explore",
       "tooltip": "",
       "type": "link",
-      "url": "/explore?orgId=1&left=%7B%22datasource%22:%22Loki%22,%22queries%22:%5B%7B%22refId%22:%22A%22,%22expr%22:%22%7Bstack%3D%5C%22aws-sdlc-containers%5C%22%2C%20environment%3D%5C%22$environment%5C%22%2C%20log_group%3D~%5C%22$log_group%5C%22%7D%22%7D%5D,%22range%22:%7B%22from%22:%22$__from%22,%22to%22:%22$__to%22%7D%7D"
+      "url": "/explore?orgId=1&left=%7B%22datasource%22:%22Loki%22,%22queries%22:%5B%7B%22refId%22:%22A%22,%22expr%22:%22%7Bstack%3D%5C%22$stack%5C%22%2C%20environment%3D%5C%22$environment%5C%22%2C%20log_group%3D~%5C%22$log_group%5C%22%7D%22%7D%5D,%22range%22:%7B%22from%22:%22$__from%22,%22to%22:%22$__to%22%7D%7D"
     }
   ],
   "liveNow": false,
@@ -48,7 +48,7 @@
             {
               "targetBlank": false,
               "title": "Open in Explore",
-              "url": "/explore?orgId=1&left=%7B%22datasource%22:%22Loki%22,%22queries%22:%5B%7B%22refId%22:%22A%22,%22expr%22:%22%7Bstack%3D%5C%22aws-sdlc-containers%5C%22%2C%20environment%3D%5C%22$environment%5C%22%2C%20log_group%3D%5C%22${__field.labels.log_group}%5C%22%7D%22%7D%5D,%22range%22:%7B%22from%22:%22$__from%22,%22to%22:%22$__to%22%7D%7D"
+              "url": "/explore?orgId=1&left=%7B%22datasource%22:%22Loki%22,%22queries%22:%5B%7B%22refId%22:%22A%22,%22expr%22:%22%7Bstack%3D%5C%22$stack%5C%22%2C%20environment%3D%5C%22$environment%5C%22%2C%20log_group%3D%5C%22${__field.labels.log_group}%5C%22%7D%22%7D%5D,%22range%22:%7B%22from%22:%22$__from%22,%22to%22:%22$__to%22%7D%7D"
             }
           ],
           "mappings": [],
@@ -91,7 +91,7 @@
             "uid": "Loki"
           },
           "editorMode": "code",
-          "expr": "sum by (log_group) (count_over_time({stack=\"aws-sdlc-containers\", environment=\"$environment\"}[$__range]))",
+          "expr": "sum by (log_group) (count_over_time({stack=\"$stack\", environment=\"$environment\"}[$__range]))",
           "legendFormat": "{{log_group}}",
           "queryType": "instant",
           "refId": "A"
@@ -159,7 +159,7 @@
             "uid": "Loki"
           },
           "editorMode": "code",
-          "expr": "{stack=\"aws-sdlc-containers\", environment=\"$environment\", log_group=~\"$log_group\", container=~\"$container\"} |~ \"$search\"",
+          "expr": "{stack=\"$stack\", environment=\"$environment\", log_group=~\"$log_group\", container=~\"$container\"} |~ \"$search\"",
           "queryType": "range",
           "refId": "A"
         }
@@ -178,6 +178,26 @@
     "list": [
       {
         "current": {
+          "selected": true,
+          "text": "aws-sdlc-containers",
+          "value": "aws-sdlc-containers"
+        },
+        "hide": 0,
+        "label": "Stack",
+        "name": "stack",
+        "options": [
+          {
+            "selected": true,
+            "text": "aws-sdlc-containers",
+            "value": "aws-sdlc-containers"
+          }
+        ],
+        "query": "aws-sdlc-containers",
+        "skipUrlSync": false,
+        "type": "textbox"
+      },
+      {
+        "current": {
           "selected": false,
           "text": "aws",
           "value": "aws"
@@ -186,14 +206,14 @@
           "type": "loki",
           "uid": "Loki"
         },
-        "definition": "label_values({stack=\"aws-sdlc-containers\"}, environment)",
+        "definition": "label_values({stack=\"$stack\"}, environment)",
         "hide": 0,
         "includeAll": false,
         "label": "Environment",
         "multi": false,
         "name": "environment",
         "options": [],
-        "query": "label_values({stack=\"aws-sdlc-containers\"}, environment)",
+        "query": "label_values({stack=\"$stack\"}, environment)",
         "refresh": 1,
         "regex": "",
         "skipUrlSync": false,
@@ -211,19 +231,19 @@
           "type": "loki",
           "uid": "Loki"
         },
-        "definition": "/ecs/aws-sdlc-containers/app,/ecs/aws-sdlc-containers/adot,/ecs/aws-sdlc-containers/pgbouncer,/ecs/aws-sdlc-containers/worker,/ecs/aws-sdlc-containers/data-export-job,/ecs/aws-sdlc-containers/order-event-consumer,/ecs/aws-sdlc-containers/liquibase",
+        "definition": "label_values({stack=\"$stack\", environment=\"$environment\"}, log_group)",
         "hide": 0,
         "includeAll": true,
         "label": "Log group",
         "multi": false,
         "name": "log_group",
         "options": [],
-        "query": "/ecs/aws-sdlc-containers/app,/ecs/aws-sdlc-containers/adot,/ecs/aws-sdlc-containers/pgbouncer,/ecs/aws-sdlc-containers/worker,/ecs/aws-sdlc-containers/data-export-job,/ecs/aws-sdlc-containers/order-event-consumer,/ecs/aws-sdlc-containers/liquibase",
+        "query": "label_values({stack=\"$stack\", environment=\"$environment\"}, log_group)",
         "refresh": 1,
         "regex": "",
         "skipUrlSync": false,
         "sort": 1,
-        "type": "custom"
+        "type": "query"
       },
       {
         "allValue": ".*",
@@ -236,19 +256,19 @@
           "type": "loki",
           "uid": "Loki"
         },
-        "definition": "app,adot,pgbouncer,worker,data-export-job,order-event-consumer,liquibase",
+        "definition": "label_values({stack=\"$stack\", environment=\"$environment\", log_group=~\"$log_group\"}, container)",
         "hide": 0,
         "includeAll": true,
         "label": "Container",
         "multi": false,
         "name": "container",
         "options": [],
-        "query": "app,adot,pgbouncer,worker,data-export-job,order-event-consumer,liquibase",
+        "query": "label_values({stack=\"$stack\", environment=\"$environment\", log_group=~\"$log_group\"}, container)",
         "refresh": 1,
         "regex": "",
         "skipUrlSync": false,
         "sort": 1,
-        "type": "custom"
+        "type": "query"
       },
       {
         "current": {

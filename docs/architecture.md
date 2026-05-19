@@ -11,6 +11,18 @@ adapters at infrastructure edges, Terraform-owned runtime resources, GitHub
 Actions delivery gates, platform concerns, and portable observability and
 evidence.
 
+This document owns repository shape and placement rules.
+
+Use companion docs when the question is more specific:
+
+- [Platform Contract](platform-contract.md) for workload expectations and what
+  `platform/workloads.json` owns
+- [Platform Capabilities](platform-capabilities.md) for the capability surface
+  currently implemented
+- [Data](data.md) for schema rollout and export behavior
+- [Deployment](deployment.md) for AWS rollout sequence
+- [Observability](observability.md) for telemetry and evidence behavior
+
 ## Repository Model
 
 The repository is evolving toward three explicit layers:
@@ -23,6 +35,16 @@ Until that evolution is complete, `infra/platform` and `infra/app` remain the
 deployable assembly roots, and `platform/workloads.json` remains the temporary
 application specification.
 
+## Target State
+
+The intended mature monorepo shape is:
+
+- `apps/` = workload hosts
+- `packages/` = reusable behavior and adapters
+- `platform/` = shared contract and concern definitions
+- `infra/` = runtime-specific implementation and catalog
+- `scripts/` = explicit edge automation, never hidden orchestration
+
 ## Current Architecture Contract
 
 - One repository, one platform monorepo seed, one shared database reference
@@ -34,6 +56,10 @@ application specification.
 - One public API edge protected by WAF
 - One PostgreSQL database with Liquibase-managed schema history
 - One scheduled export workload and one async order-event path
+
+These are architectural defaults for the current seed, not portable contract
+guarantees. Keep workload behavior in the contract and runtime mechanics at the
+platform edge.
 
 ## Package Map
 
@@ -67,6 +93,10 @@ Operational class points outward:
 - `backfill_worker` is the operator-triggered job
 - `data_export_job` is the scheduler-triggered job
 
+This mapping is documented here so contributors understand repo shape. The
+portable meaning of each operational class lives in
+[Platform Contract](platform-contract.md#operational-class).
+
 ## Repo Ownership
 
 Use these boundaries when deciding where a change belongs:
@@ -92,6 +122,15 @@ Keep `apps/*` thin, keep domain/application free of provider SDKs and runtime
 framework code, and add new folders only when there is real behavior and a
 clear owner.
 
+## Platform Principles
+
+- Use standard tools directly.
+- Prefer metadata plus tests over wrappers.
+- Keep delivery ownership split where review boundaries matter.
+- Add shared abstractions only after repeated need is proven.
+- Every supported workload must be operable, observable, and testable by
+  default.
+
 ## Database Capability Ownership
 
 The project keeps one PostgreSQL database and documents ownership by capability,
@@ -105,38 +144,9 @@ not by fake service boundaries:
 | Migration and backfill control | `backfill_progress`, `DATABASECHANGELOG`, `DATABASECHANGELOGLOCK` | Liquibase and backfill worker |
 | Export outputs | S3 data hub objects | data export job |
 
-## Schema Migration Lifecycle
-
-The reference migration moves `orders.billing_email` into
-`order_contact_email` with the standard expand, dual-write, backfill, switch,
-and contract pattern.
-
-- `WRITE_MODE` controls where new writes go
-- `READ_MODE` controls where reads come from
-- Both values live in `app_runtime_config`
-- The API exposes admin endpoints so rollout can advance or roll back without a
-  redeploy
-
-This is intentionally one of the main teaching paths in the repo because it
-exercises rollout safety, one-off jobs, and rollback boundaries without adding
-extra business complexity.
-
-## Async Order Events
-
-The async path is intentionally narrow but real:
-
-- The API writes `order.created.v1` to the outbox in the same transaction as
-  the order
-- `order-event-consumer` relays outbox rows through the Dapr sidecar
-- The current runtime maps Dapr pub/sub to AWS SNS/SQS
-- Consumers record receipts and keep delivery idempotent
-
-Dapr is the standard app-facing transport boundary here. Broker details stay in
-`infra/`, `platform/concerns/dapr/`, and runtime scripts.
-
-The platform monorepo direction keeps Dapr in scope because workload complexity
-and portability needs are expected to grow. The repo should keep Dapr
-declarative and platform-owned rather than wrapping it in a custom framework.
+The concrete schema rollout and eventing behavior are intentional teaching
+paths, but their detailed contract lives in [Data](data.md) and
+[Platform Contract](platform-contract.md#eventing) rather than here.
 
 ## Platform Choices
 
@@ -169,3 +179,7 @@ These are deferred on purpose:
 - Snapshot/restore automation before destructive contract migrations
 - Broader Dapr capabilities beyond the current pub/sub boundary
 - A second runtime target without a real operating reason
+
+When one of these becomes a real need, first decide whether it changes the
+portable workload contract, the current capability inventory, or only the AWS
+runtime implementation. Then update the owning doc for that layer.

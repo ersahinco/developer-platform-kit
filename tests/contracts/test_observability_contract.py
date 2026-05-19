@@ -14,6 +14,7 @@ def _read(path: str) -> str:
 def test_cloud_observability_is_adot_sidecar_not_hosted_lgtm() -> None:
     observability_tf = _read("infra/app/observability.tf")
     compute_tf = _read("infra/app/compute_ecs.tf")
+    workload_inventory_tf = _read("infra/app/workload_inventory.tf")
     variables_tf = _read("infra/app/variables.tf")
     workflows = "\n".join(
         [
@@ -26,6 +27,7 @@ def test_cloud_observability_is_adot_sidecar_not_hosted_lgtm() -> None:
         [
             observability_tf,
             compute_tf,
+            workload_inventory_tf,
             _read("infra/app/workload_jobs.tf"),
             _read("infra/app/runtime_identity.tf"),
             _read("infra/app/outputs.tf"),
@@ -36,7 +38,8 @@ def test_cloud_observability_is_adot_sidecar_not_hosted_lgtm() -> None:
     assert "aws-otel-collector:v0.47.0" in variables_tf
     assert "adot_collector_container" in observability_tf
     assert 'command   = ["--config=env:ADOT_COLLECTOR_CONFIG"]' in (observability_tf)
-    assert "http://127.0.0.1:4318/v1/traces" in compute_tf
+    assert "http://127.0.0.1:4318/v1/traces" in workload_inventory_tf
+    assert 'local.workload_environment["api"]' in compute_tf
     assert "default_adot_collector_config" in observability_tf
     assert "job_name: app" in observability_tf
 

@@ -1,14 +1,20 @@
 # Platform Capabilities
 
-This document is the current capability map for the platform monorepo seed.
+This document is the current capability inventory for the platform monorepo
+seed.
 
 Use it to answer:
 
-- what capabilities the platform currently standardizes
-- which layer owns each capability
+- what the platform currently standardizes
+- which layer owns each capability today
 - where to extend the repo when a new workload needs more
 
-The goal is clarity, not a new abstraction model.
+This is a companion to [Platform Contract](platform-contract.md):
+
+- `platform-contract.md` says what workloads must expose
+- this doc says what the repository currently implements around that contract
+
+Use [Architecture](architecture.md) when the question is where code belongs.
 
 ## Current Capabilities
 
@@ -32,6 +38,17 @@ The goal is clarity, not a new abstraction model.
 - Add shared runtime concern to `platform/concerns/`
 - Add provider/runtime implementation to `infra/`, workflows, or scripts
 - Add reusable workflow or adapter logic only after repetition is proven
+
+If a capability belongs to all runtimes, prefer the contract. If it exists only
+because the current AWS runtime implements it, keep it out of the contract and
+record it here or in runtime-facing docs instead.
+
+## Admission Rule For New Capabilities
+
+- Standardize a new capability only when a real workload needs it.
+- First decide whether it belongs in the portable contract, the current
+  capability inventory, or the AWS runtime only.
+- Do not add provider-neutral abstraction layers speculatively.
 
 ## Not Yet Platform Capabilities
 

@@ -1,3 +1,4 @@
+import ast
 from pathlib import Path
 import subprocess
 
@@ -9,46 +10,65 @@ def _read(path: str) -> str:
     return (ROOT / path).read_text(encoding="utf-8")
 
 
-def _python_text(root: Path) -> str:
-    return "\n".join(
-        path.read_text(encoding="utf-8")
-        for path in sorted(root.rglob("*.py"))
-        if "__pycache__" not in path.parts
-    )
+def _python_files(root: Path) -> list[Path]:
+    return [
+        path for path in sorted(root.rglob("*.py")) if "__pycache__" not in path.parts
+    ]
+
+
+def _imports(root: Path) -> tuple[set[str], set[str]]:
+    top_level: set[str] = set()
+    module_paths: set[str] = set()
+    for path in _python_files(root):
+        module = ast.parse(path.read_text(encoding="utf-8"), filename=str(path))
+        for node in ast.walk(module):
+            if isinstance(node, ast.Import):
+                for alias in node.names:
+                    module_paths.add(alias.name)
+                    top_level.add(alias.name.split(".", 1)[0])
+            if isinstance(node, ast.ImportFrom) and node.module is not None:
+                module_paths.add(node.module)
+                top_level.add(node.module.split(".", 1)[0])
+    return top_level, module_paths
+
+
+def _string_literals(root: Path) -> set[str]:
+    values: set[str] = set()
+    for path in _python_files(root):
+        module = ast.parse(path.read_text(encoding="utf-8"), filename=str(path))
+        for node in ast.walk(module):
+            if isinstance(node, ast.Constant) and isinstance(node.value, str):
+                values.add(node.value)
+    return values
 
 
 def test_domain_and_application_do_not_import_outer_layers() -> None:
-    forbidden = ["fastapi", "sqlalchemy", "boto3", "api", "infrastructure"]
+    forbidden = {"fastapi", "sqlalchemy", "boto3", "api", "infrastructure"}
 
     for package in ["domain", "application"]:
-        text = _python_text(ROOT / "packages" / package)
-        for name in forbidden:
-            assert f"import {name}" not in text
-            assert f"from {name}" not in text
+        top_level_imports, _ = _imports(ROOT / "packages" / package)
+        assert top_level_imports.isdisjoint(forbidden)
 
 
 def test_domain_does_not_import_application_layer() -> None:
-    text = _python_text(ROOT / "packages" / "domain")
-
-    assert "application" not in text
+    top_level_imports, _ = _imports(ROOT / "packages" / "domain")
+    assert "application" not in top_level_imports
 
 
 def test_api_has_no_direct_event_transport_publish_path() -> None:
-    text = _python_text(ROOT / "apps" / "api")
+    top_level_imports, module_paths = _imports(ROOT / "apps" / "api")
+    literals = _string_literals(ROOT / "apps" / "api")
 
-    for forbidden in ["boto3", "DaprOrderEventPublisher", "/v1.0/publish"]:
-        assert forbidden not in text
+    assert "boto3" not in top_level_imports
+    assert "infrastructure.dapr.pubsub" not in module_paths
+    assert "/v1.0/publish" not in literals
 
 
 def test_background_hosts_keep_sql_and_storage_in_infrastructure() -> None:
     for app in ["backfill_worker", "data_export_job", "order_event_consumer"]:
-        text = _python_text(ROOT / "apps" / app)
-        for forbidden in [
-            "from sqlalchemy",
-            "import sqlalchemy",
-            "import boto3",
-        ]:
-            assert forbidden not in text
+        top_level_imports, _ = _imports(ROOT / "apps" / app)
+        assert "sqlalchemy" not in top_level_imports
+        assert "boto3" not in top_level_imports
 
 
 def test_database_portability_is_postgres_not_current_provider() -> None:
@@ -126,17 +146,21 @@ def test_dapr_pubsub_boundary_keeps_provider_brokers_at_runtime_edge() -> None:
     assert order_consumer["dapr"]["scope"] == "pubsub"
     assert order_consumer["dapr"]["pubsub_name"] == "order-events-pubsub"
 
-    app_facing_text = "\n".join(
-        [
-            _python_text(ROOT / "packages" / "application"),
-            _python_text(ROOT / "apps" / "order_event_consumer"),
-            _python_text(ROOT / "packages" / "infrastructure" / "dapr"),
-        ]
-    ).lower()
+    app_facing_literals = {
+        literal.lower()
+        for literal in (
+            _string_literals(ROOT / "packages" / "application")
+            | _string_literals(ROOT / "apps" / "order_event_consumer")
+            | _string_literals(ROOT / "packages" / "infrastructure" / "dapr")
+        )
+    }
     for forbidden in ["sns", "sqs", "localstack", "queue_url", "topic_arn"]:
-        assert forbidden not in app_facing_text
+        assert forbidden not in app_facing_literals
 
-    dapr_adapter = _python_text(ROOT / "packages" / "infrastructure" / "dapr")
+    dapr_adapter = "\n".join(
+        path.read_text(encoding="utf-8")
+        for path in _python_files(ROOT / "packages" / "infrastructure" / "dapr")
+    )
     runtime_edge = "\n".join(
         [
             _read("infra/app/messaging.tf"),

@@ -7,7 +7,7 @@
           "uid": "Loki"
         },
         "enable": true,
-        "expr": "{stack=\"aws-sdlc-containers\",environment=\"aws\",service=~\"app|infra\",event_type=~\"app_deploy|app_rollback_drill|data_runtime_rollback_drill|infra_apply\"} | json",
+        "expr": "{stack=\"$stack\",environment=\"$environment\",service=~\"app|infra\",event_type=~\"app_deploy|app_rollback_drill|data_runtime_rollback_drill|infra_apply\"} | json",
         "iconColor": "rgba(31, 120, 193, 1)",
         "name": "Delivery Events",
         "tagKeys": "event_type,status,service,github_run_id",
@@ -228,7 +228,7 @@
             "type": "loki",
             "uid": "Loki"
           },
-          "expr": "{stack=\"aws-sdlc-containers\", service=\"app\", container=\"app\"}",
+          "expr": "{stack=\"$stack\", environment=\"$environment\", service=\"app\", container=\"app\"}",
           "refId": "A"
         }
       ],
@@ -380,7 +380,7 @@
             "uid": "Loki"
           },
           "editorMode": "code",
-          "expr": "sum by (event) (count_over_time({stack=\"aws-sdlc-containers\", service=\"order-event-consumer\"} | json | event=~\"outbox_relay|order_event_consumed|order_event_consume_failed\" [$__rate_interval]))",
+          "expr": "sum by (event) (count_over_time({stack=\"$stack\", environment=\"$environment\", service=\"order-event-consumer\"} | json | event=~\"outbox_relay|order_event_consumed|order_event_consume_failed\" [$__rate_interval]))",
           "legendFormat": "{{event}}",
           "queryType": "range",
           "refId": "A"
@@ -418,7 +418,7 @@
             "uid": "Loki"
           },
           "editorMode": "code",
-          "expr": "{stack=\"aws-sdlc-containers\", environment=\"aws\", event_type=~\"app_deploy|app_rollback_drill|data_runtime_rollback_drill|infra_apply\"} | json",
+          "expr": "{stack=\"$stack\", environment=\"$environment\", event_type=~\"app_deploy|app_rollback_drill|data_runtime_rollback_drill|infra_apply\"} | json",
           "queryType": "range",
           "refId": "A"
         }
@@ -434,7 +434,52 @@
     "local"
   ],
   "templating": {
-    "list": []
+    "list": [
+      {
+        "current": {
+          "selected": true,
+          "text": "aws-sdlc-containers",
+          "value": "aws-sdlc-containers"
+        },
+        "hide": 0,
+        "label": "Stack",
+        "name": "stack",
+        "options": [
+          {
+            "selected": true,
+            "text": "aws-sdlc-containers",
+            "value": "aws-sdlc-containers"
+          }
+        ],
+        "query": "aws-sdlc-containers",
+        "skipUrlSync": false,
+        "type": "textbox"
+      },
+      {
+        "current": {
+          "selected": false,
+          "text": "aws",
+          "value": "aws"
+        },
+        "datasource": {
+          "type": "loki",
+          "uid": "Loki"
+        },
+        "definition": "label_values({stack=\"$stack\"}, environment)",
+        "hide": 0,
+        "includeAll": false,
+        "label": "Environment",
+        "multi": false,
+        "name": "environment",
+        "options": [],
+        "query": "label_values({stack=\"$stack\"}, environment)",
+        "refresh": 1,
+        "regex": "",
+        "skipUrlSync": false,
+        "sort": 1,
+        "type": "query"
+      }
+    ]
   },
   "time": {
     "from": "now-15m",

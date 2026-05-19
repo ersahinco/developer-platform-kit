@@ -5,6 +5,26 @@ Use this guide when adding a new reference workload under `apps/`.
 The goal is to add one workload with the smallest complete platform footprint,
 not to introduce a new abstraction layer.
 
+This is a task guide, not the source of truth for platform design.
+
+Use companion docs when needed:
+
+- [Platform Contract](platform-contract.md) for the portable workload contract
+- [Architecture](architecture.md) for repo placement and ownership rules
+- [Platform Capabilities](platform-capabilities.md) for the currently available
+  runtime patterns
+
+## Onboarding Order
+
+Follow this order so workload intent stays canonical:
+
+1. declare workload intent in `platform/workloads.json`
+2. add the host under `apps/`
+3. add reusable behavior in `packages/` only if it is truly shared
+4. wire local and runtime concerns
+5. wire AWS runtime inventory
+6. add tests and docs
+
 ## Decide The Operational Class First
 
 Pick the workload role before writing code:
@@ -20,6 +40,9 @@ This choice affects:
 - health/readiness/metrics expectations
 - runtime ownership in Compose, workflows, and Terraform
 - alarm and evidence expectations
+
+The contract meaning of each class lives in
+[Platform Contract](platform-contract.md#operational-class).
 
 ## Add The Host
 
@@ -91,6 +114,7 @@ custom host framework or bespoke workload DSL.
 Update the smallest set of delivery/runtime surfaces needed:
 
 - `compose.yaml` for local runtime
+- `infra/app/workload_inventory.tf` for AWS runtime values derived from the workload contract
 - GitHub workflows only if the workload changes build/deploy inventory
 - `infra/app` only when runtime resources must change
 - observability scripts only when the workload changes platform-visible signals

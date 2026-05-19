@@ -12,6 +12,11 @@ The observability contract is portable and local-first:
 The goal is to keep standard telemetry shapes without hosting a full Grafana,
 Loki, Prometheus, and Tempo platform inside AWS Terraform.
 
+This doc owns observability behavior and operator workflow. Use
+[Platform Contract](platform-contract.md#observability) for the portable
+contract and [Platform Capabilities](platform-capabilities.md) for the current
+capability inventory.
+
 ## Concern Profiles
 
 Observability now follows the same concern/profile model as Dapr:
@@ -75,13 +80,13 @@ Cloud log groups:
 
 | Log group | Writer |
 |---|---|
-| `/ecs/aws-sdlc-containers/app` | API container |
-| `/ecs/aws-sdlc-containers/adot` | ADOT sidecar when enabled |
-| `/ecs/aws-sdlc-containers/pgbouncer` | PgBouncer sidecar |
-| `/ecs/aws-sdlc-containers/order-event-consumer` | Consumer, `daprd`, config loader |
-| `/ecs/aws-sdlc-containers/data-export-job` | Scheduled export task |
-| `/ecs/aws-sdlc-containers/liquibase` | Migration task |
-| `/ecs/aws-sdlc-containers/worker` | Backfill worker |
+| `/ecs/<stack-name>/app` | edge-service container in the current reference runtime |
+| `/ecs/<stack-name>/adot` | ADOT sidecar when enabled |
+| `/ecs/<stack-name>/pgbouncer` | PgBouncer sidecar |
+| `/ecs/<stack-name>/order-event-consumer` | Consumer, `daprd`, config loader |
+| `/ecs/<stack-name>/data-export-job` | Scheduled export task |
+| `/ecs/<stack-name>/liquibase` | Migration task |
+| `/ecs/<stack-name>/worker` | Backfill worker |
 
 CloudWatch owns these AWS-native signals:
 
@@ -91,7 +96,7 @@ CloudWatch owns these AWS-native signals:
 | `AWS/RDS` | CPU, storage, connection pressure |
 | `AWS/SQS` | order-event DLQ visibility |
 | `AWS/Scheduler` | scheduled export delivery failures |
-| `aws-sdlc-containers/DataExport` | export freshness |
+| `<stack-name>/DataExport` | export freshness |
 | `ECS/ContainerInsights` | ECS troubleshooting |
 | `AWS/WAFV2` | public edge security inspection |
 

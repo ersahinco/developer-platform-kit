@@ -27,6 +27,8 @@ from pathlib import Path
 from typing import Any
 from urllib import parse, request
 
+from scripts.observability.platform_inventory import api_trace_service_name
+from scripts.observability.platform_inventory import DEFAULT_STACK_NAME
 from scripts.observability.platform_inventory import dapr_workload_service_name
 from scripts.observability.platform_inventory import incident_alarm_names
 
@@ -362,7 +364,7 @@ def _query_hints(
         ],
         "tempo": [
             {
-                "service": "aws-sdlc-containers-api",
+                "service": api_trace_service_name(stack_name),
                 "tags": ["request_id", "http.route", "http.status_code"],
             }
         ],
@@ -593,7 +595,7 @@ def write_bundle(bundle: dict[str, Any], output_dir: Path) -> tuple[Path, Path]:
 def main() -> int:
     parser = argparse.ArgumentParser(description="Build an incident evidence bundle.")
     parser.add_argument(
-        "--stack-name", default=os.environ.get("STACK_NAME", "aws-sdlc-containers")
+        "--stack-name", default=os.environ.get("STACK_NAME", DEFAULT_STACK_NAME)
     )
     parser.add_argument("--service-name", default="app")
     parser.add_argument(

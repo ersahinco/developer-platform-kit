@@ -26,36 +26,22 @@ import os
 import subprocess
 import sys
 import time
-from functools import lru_cache
-from pathlib import Path
 from dataclasses import dataclass
 from typing import Any
 from urllib.parse import urlparse, urlunparse
 
 import httpx
 
-ROOT = Path(__file__).resolve().parents[2]
-REQUIRED_SUPPORT_LOG_GROUP_SUFFIXES = ["liquibase", "pgbouncer"]
-OPTIONAL_SUPPORT_LOG_GROUP_SUFFIXES = ["adot"]
-DEFAULT_ALLOWED_EXTRA_STACK_LOG_GROUP_SUFFIXES = [
-    "firelens",
-    "grafana",
-    "loki",
-    "prometheus",
-    "tempo",
-]
-DEFAULT_FRESH_LOG_GROUP_SUFFIXES = ["app", "pgbouncer"]
-DEFAULT_FRESH_LOKI_LOG_GROUP_SUFFIXES = ["app"]
-
-
-@lru_cache(maxsize=1)
-def _workload_log_group_suffixes() -> list[str]:
-    contract = json.loads((ROOT / "platform" / "workloads.json").read_text())
-    return [workload["image"]["repository"] for workload in contract["workloads"]]
-
-
-def _expected_log_group_suffixes() -> list[str]:
-    return [*_workload_log_group_suffixes(), *REQUIRED_SUPPORT_LOG_GROUP_SUFFIXES]
+from scripts.observability.platform_inventory import (
+    DEFAULT_ALLOWED_EXTRA_STACK_LOG_GROUP_SUFFIXES,
+    DEFAULT_AWS_REGION,
+    DEFAULT_STACK_NAME,
+    OPTIONAL_SUPPORT_LOG_GROUP_SUFFIXES,
+    default_fresh_log_group_suffixes,
+    default_fresh_loki_log_group_suffixes,
+    expected_log_group_names,
+    expected_log_group_suffixes,
+)
 
 
 def _known_log_group_suffixes() -> list[str]:
@@ -64,7 +50,7 @@ def _known_log_group_suffixes() -> list[str]:
         DEFAULT_ALLOWED_EXTRA_STACK_LOG_GROUP_SUFFIXES,
     )
     return [
-        *_expected_log_group_suffixes(),
+        *expected_log_group_suffixes(),
         *OPTIONAL_SUPPORT_LOG_GROUP_SUFFIXES,
         *allowed_extras,
     ]
@@ -90,11 +76,11 @@ def _aws_json(args: list[str], region: str) -> dict[str, Any]:
 
 
 def _expected_log_group_names(stack_name: str) -> list[str]:
-    return [f"/ecs/{stack_name}/{suffix}" for suffix in _expected_log_group_suffixes()]
+    return expected_log_group_names(stack_name)
 
 
 def _expected_loki_log_group_names(stack_name: str) -> list[str]:
-    return [f"/ecs/{stack_name}/{suffix}" for suffix in _expected_log_group_suffixes()]
+    return expected_log_group_names(stack_name)
 
 
 def _check_cloudwatch_log_inventory(stack_name: str, region: str) -> list[CheckResult]:
@@ -193,7 +179,9 @@ def _latest_cloudwatch_event_ms(
 def _check_cloudwatch_freshness(stack_name: str, region: str) -> list[CheckResult]:
     freshness_seconds = int(os.environ.get("CLOUDWATCH_LOG_FRESHNESS_SECONDS", "86400"))
     cutoff_ms = int((time.time() - freshness_seconds) * 1000)
-    suffixes = _csv_env("CLOUDWATCH_FRESH_LOG_GROUPS", DEFAULT_FRESH_LOG_GROUP_SUFFIXES)
+    suffixes = _csv_env(
+        "CLOUDWATCH_FRESH_LOG_GROUPS", default_fresh_log_group_suffixes()
+    )
     results: list[CheckResult] = []
 
     for suffix in suffixes:
@@ -231,7 +219,7 @@ def _check_loki_delivery(stack_name: str) -> list[CheckResult]:
     )
     start_ns = int((time.time() - freshness_seconds) * 1_000_000_000)
     log_group_suffixes = _csv_env(
-        "LOKI_FRESH_LOG_GROUPS", DEFAULT_FRESH_LOKI_LOG_GROUP_SUFFIXES
+        "LOKI_FRESH_LOG_GROUPS", default_fresh_loki_log_group_suffixes()
     )
 
     for suffix in log_group_suffixes:
@@ -339,8 +327,8 @@ def _check_loki_log_group_inventory(
 
 
 def main() -> int:
-    region = os.environ.get("AWS_REGION", "eu-central-1")
-    stack_name = os.environ.get("STACK_NAME", "aws-sdlc-containers")
+    region = os.environ.get("AWS_REGION", DEFAULT_AWS_REGION)
+    stack_name = os.environ.get("STACK_NAME", DEFAULT_STACK_NAME)
     results = [
         *_check_cloudwatch_log_inventory(stack_name, region),
         *_check_cloudwatch_freshness(stack_name, region),

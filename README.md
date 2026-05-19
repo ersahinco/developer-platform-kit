@@ -45,15 +45,13 @@ scheduled job, or operator job.
 
 ## Start Here
 
-- Shared vocabulary: [docs/ubiquitous-language.md](docs/ubiquitous-language.md)
-- Repo and boundary rationale: [docs/architecture.md](docs/architecture.md)
-- Runtime hosts vs reusable packages: [apps/README.md](apps/README.md), [packages/README.md](packages/README.md)
-- Portable workload expectations: [docs/platform-contract.md](docs/platform-contract.md)
-- Add a new workload example: [docs/adding-workloads.md](docs/adding-workloads.md)
-- Current platform capability surface: [docs/platform-capabilities.md](docs/platform-capabilities.md)
-- Runtime target expectations: [docs/runtime-toolkit.md](docs/runtime-toolkit.md)
-- Current work state: [docs/roadmaps.md](docs/roadmaps.md)
 - Canonical doc map: [docs/README.md](docs/README.md)
+- Repo and boundary rationale: [docs/architecture.md](docs/architecture.md)
+- Portable workload expectations: [docs/platform-contract.md](docs/platform-contract.md)
+- Runtime hosts vs reusable packages: [apps/README.md](apps/README.md), [packages/README.md](packages/README.md)
+- Local workflow: [docs/local-development.md](docs/local-development.md)
+- AWS deployment and operations: [docs/deployment.md](docs/deployment.md)
+- Current work state: [docs/roadmaps.md](docs/roadmaps.md)
 
 ## What This Demonstrates
 
@@ -99,8 +97,7 @@ aws-sdlc-containers/
 make dev
 make migrate
 make seed
-docker compose build app
-docker compose up -d app
+make local-up
 curl --fail --show-error http://localhost:8000/health
 ```
 

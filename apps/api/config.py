@@ -1,37 +1,22 @@
 from dataclasses import dataclass
 from dataclasses import field
 
-from infrastructure.config import compose_postgres_url
 from infrastructure.config import env_bool
 from infrastructure.config import env_float
 from infrastructure.config import env_int
 from infrastructure.config import env_str
 from infrastructure.config import load_env_file
+from infrastructure.config import PostgresRuntimeSettings
 from infrastructure.config import require_value
-from infrastructure.config import validate_postgres_url
 
 
 load_env_file()
 
 
 @dataclass
-class Settings:
+class Settings(PostgresRuntimeSettings):
     database_url: str | None = field(default_factory=lambda: env_str("DATABASE_URL"))
-    db_password: str | None = field(default_factory=lambda: env_str("DB_PASSWORD"))
-    db_user: str = field(
-        default_factory=lambda: require_value(env_str("DB_USER", "app"), "DB_USER")
-    )
-    db_host: str = field(
-        default_factory=lambda: require_value(
-            env_str("DB_HOST", "localhost"), "DB_HOST"
-        )
-    )
-    db_port: int = field(default_factory=lambda: env_int("DB_PORT", 5432))
-    db_name: str = field(
-        default_factory=lambda: require_value(
-            env_str("DB_NAME", "aws_sdlc_containers"), "DB_NAME"
-        )
-    )
+    db_host: str | None = field(default_factory=lambda: env_str("DB_HOST", "localhost"))
     otel_traces_enabled: bool = field(
         default_factory=lambda: env_bool("OTEL_TRACES_ENABLED")
     )
@@ -69,17 +54,11 @@ class Settings:
     )
 
     def __post_init__(self) -> None:
-        if self.database_url is None:
-            if self.db_password is None:
-                raise ValueError("Either DATABASE_URL or DB_PASSWORD must be set")
-            self.database_url = compose_postgres_url(
-                db_user=self.db_user,
-                db_password=self.db_password,
-                db_host=self.db_host,
-                db_port=self.db_port,
-                db_name=self.db_name,
-            )
-        self.database_url = validate_postgres_url(self.database_url)
+        self.database_url = self.resolve_database_url(
+            database_url=self.database_url,
+            env_name="DATABASE_URL",
+            default_db_host="localhost",
+        )
 
 
 settings = Settings()

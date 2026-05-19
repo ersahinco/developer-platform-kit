@@ -38,6 +38,13 @@ The drill enforces the app rollback objectives in
 10 minutes, latency rollback observed within 15 minutes, and restored app
 verification within 2 minutes.
 
+Use Terraform outputs and environment variables in examples:
+
+```bash
+export AWS_REGION="${AWS_REGION:-eu-central-1}"
+export STACK_NAME="${STACK_NAME:-<stack-name>}"
+```
+
 ## Before Rolling Back
 
 Confirm the current service state:
@@ -46,7 +53,7 @@ Confirm the current service state:
 aws ecs describe-services \
   --cluster "$(terraform -chdir=infra/app output -raw ecs_cluster_name)" \
   --services "$(terraform -chdir=infra/app output -raw app_service_name)" \
-  --region eu-central-1 \
+  --region "$AWS_REGION" \
   --query 'services[0].{status:status,taskDefinition:taskDefinition,deployments:deployments[*].{status:status,taskDefinition:taskDefinition,rolloutState:rolloutState,running:runningCount,pending:pendingCount}}'
 ```
 
@@ -54,11 +61,11 @@ List recent active app task definition revisions:
 
 ```bash
 aws ecs list-task-definitions \
-  --family-prefix aws-sdlc-containers \
+  --family-prefix "${STACK_NAME}" \
   --status ACTIVE \
   --sort DESC \
   --max-items 10 \
-  --region eu-central-1
+  --region "$AWS_REGION"
 ```
 
 Choose the most recent known-good revision from the list. Prefer the revision
@@ -82,7 +89,7 @@ aws ecs update-service \
   --service "$(terraform -chdir=infra/app output -raw app_service_name)" \
   --task-definition "$PREVIOUS_TASK_DEFINITION_ARN" \
   --force-new-deployment \
-  --region eu-central-1
+  --region "$AWS_REGION"
 ```
 
 Wait for stabilization:
@@ -91,7 +98,7 @@ Wait for stabilization:
 aws ecs wait services-stable \
   --cluster "$(terraform -chdir=infra/app output -raw ecs_cluster_name)" \
   --services "$(terraform -chdir=infra/app output -raw app_service_name)" \
-  --region eu-central-1
+  --region "$AWS_REGION"
 ```
 
 ## Verify Recovery
@@ -110,12 +117,12 @@ aws cloudwatch describe-alarms \
     "$(terraform -chdir=infra/app output -raw app_unhealthy_targets_alarm_name)" \
     "$(terraform -chdir=infra/app output -raw app_target_5xx_alarm_name)" \
     "$(terraform -chdir=infra/app output -raw app_target_latency_alarm_name)" \
-  --region eu-central-1
+  --region "$AWS_REGION"
 
 aws ecs describe-services \
   --cluster "$(terraform -chdir=infra/app output -raw ecs_cluster_name)" \
   --services "$(terraform -chdir=infra/app output -raw app_service_name)" \
-  --region eu-central-1 \
+  --region "$AWS_REGION" \
   --query 'services[0].events[:10]'
 ```
 

@@ -2,6 +2,10 @@
 
 This is the local development runbook for the current repository shape.
 
+This doc owns local setup and day-to-day workflow. For platform design and
+ownership rules, use [Architecture](architecture.md). For portable workload
+expectations, use [Platform Contract](platform-contract.md).
+
 Reference workloads live under `apps/`:
 
 - `apps/api`
@@ -28,10 +32,12 @@ Useful root entrypoints:
 make dev
 make migrate
 make seed
-docker compose build app
-docker compose up -d app
+make local-up
 curl --fail --show-error http://localhost:8000/health
 ```
+
+Use the stepwise Docker commands only when you intentionally want to start the
+API without the rest of the standard local profile.
 
 ## Migration Walkthrough
 

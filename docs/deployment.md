@@ -10,6 +10,10 @@ lifecycle:
 Safe rollout comes from additive schema change, runtime switches, and one-off
 tasks, not from duplicating infrastructure.
 
+This doc owns current AWS delivery and operator flow. For the portable workload
+contract, use [Platform Contract](platform-contract.md). For repo placement and
+ownership boundaries, use [Architecture](architecture.md).
+
 ## Pipeline Shape
 
 - `infra-plan.yml`: lint, validate, and publish reviewed Terraform plans

@@ -151,6 +151,23 @@ def test_infra_apply_guards_app_task_definition_drift() -> None:
     assert "app deploy ownership boundary" in guard_script
 
 
+def test_workflow_inventory_stays_small_and_intentional() -> None:
+    workflow_names = sorted(
+        path.name for path in (ROOT / ".github" / "workflows").glob("*.yml")
+    )
+
+    assert workflow_names == [
+        "app-build.yml",
+        "app-deploy.yml",
+        "app-rollback-drill.yml",
+        "data-runtime-rollback-drill.yml",
+        "infra-apply.yml",
+        "infra-plan.yml",
+        "security.yml",
+        "semgrep.yml",
+    ]
+
+
 def test_workload_registry_has_pragmatic_complete_shape() -> None:
     contract = json.loads(_read("platform/workloads.json"))
     conformance = json.loads(_read("platform/runtime-conformance.json"))
@@ -194,6 +211,45 @@ def test_workload_registry_has_pragmatic_complete_shape() -> None:
             assert "timeout_seconds" in workload_conformance
 
 
+def test_workload_contract_stays_portable_and_excludes_aws_runtime_values() -> None:
+    workloads_json = _read("platform/workloads.json").lower()
+    forbidden_runtime_markers = [
+        "arn:",
+        ".amazonaws.com",
+        "aws_",
+        '"ecs',
+        '"ecr',
+        '"rds',
+        '"cloudwatch',
+        '"eventbridge',
+        '"wafv2',
+        "s3://",
+    ]
+
+    for marker in forbidden_runtime_markers:
+        assert marker not in workloads_json
+
+
+def test_runtime_conformance_stays_fixture_only_not_a_second_workload_spec() -> None:
+    conformance = json.loads(_read("platform/runtime-conformance.json"))
+    forbidden_workload_shape_keys = {
+        "app_path",
+        "database",
+        "dapr",
+        "image",
+        "job",
+        "kind",
+        "metrics",
+        "operational",
+        "service",
+        "traces",
+    }
+
+    for workload_name, workload_fixture in conformance["workloads"].items():
+        assert workload_name
+        assert forbidden_workload_shape_keys.isdisjoint(workload_fixture)
+
+
 def test_delivery_workflows_use_workload_spec_as_inventory_source() -> None:
     app_build_workflow = _read(".github/workflows/app-build.yml")
     app_deploy_workflow = _read(".github/workflows/app-deploy.yml")
@@ -211,17 +267,66 @@ def test_delivery_workflows_use_workload_spec_as_inventory_source() -> None:
     )
 
 
+def test_app_build_workflow_uses_declared_workload_build_metadata() -> None:
+    app_build_workflow = _read(".github/workflows/app-build.yml")
+
+    for expected in [
+        "platform/workloads.json",
+        "APP_PATH: .app_path",
+        "UV_PACKAGE: .image.package",
+        "WORKLOAD_CMD: .image.command",
+    ]:
+        assert expected in app_build_workflow
+
+
+def test_makefile_operator_entrypoints_use_declared_edge_service() -> None:
+    makefile = _read("Makefile")
+
+    assert "PRIMARY_EDGE_SERVICE   ?= $(shell jq -r " in makefile
+    assert '.operational.class == "edge-service"' in makefile
+    assert "--service $(PRIMARY_EDGE_SERVICE)" in makefile
+    assert 'ECS_SERVICE="$${ECS_SERVICE:-$(PRIMARY_EDGE_SERVICE)}"' in makefile
+
+
+def test_workflow_ownership_boundaries_stay_split() -> None:
+    app_deploy_workflow = _read(".github/workflows/app-deploy.yml")
+    infra_apply_workflow = _read(".github/workflows/infra-apply.yml")
+
+    assert "terraform apply -auto-approve" not in app_deploy_workflow
+    assert "terraform init" not in app_deploy_workflow
+    assert "ci_deploy_ecs_service.sh" in app_deploy_workflow
+    assert "ci_run_ecs_task.sh" in app_deploy_workflow
+
+    assert "terraform apply -auto-approve" in infra_apply_workflow
+    assert "ci_deploy_ecs_service.sh" not in infra_apply_workflow
+    assert "ci_run_ecs_task.sh" not in infra_apply_workflow
+
+
 def test_observability_delivery_inventory_uses_workload_spec() -> None:
     observability_delivery = _read(
         "scripts/observability/verify_observability_delivery.py"
     )
+    platform_inventory = _read("scripts/observability/platform_inventory.py")
 
-    assert 'ROOT / "platform" / "workloads.json"' in observability_delivery
-    assert "def _workload_log_group_suffixes()" in observability_delivery
+    assert "workload_contract()" in platform_inventory
+    assert "def workload_log_group_suffixes()" in platform_inventory
     assert 'REQUIRED_SUPPORT_LOG_GROUP_SUFFIXES = ["liquibase", "pgbouncer"]' in (
-        observability_delivery
+        platform_inventory
     )
-    assert 'OPTIONAL_SUPPORT_LOG_GROUP_SUFFIXES = ["adot"]' in observability_delivery
+    assert "expected_log_group_suffixes" in observability_delivery
+    assert "expected_log_group_names" in observability_delivery
+
+
+def test_runbooks_and_drills_avoid_demo_stack_specific_literals() -> None:
+    operator_docs = "\n".join(
+        path.read_text(encoding="utf-8")
+        for root in [ROOT / "docs" / "runbooks", ROOT / "docs" / "drills"]
+        for path in sorted(root.glob("*.md"))
+    )
+
+    assert "/ecs/aws-sdlc-containers/" not in operator_docs
+    assert '{stack="aws-sdlc-containers"' not in operator_docs
+    assert "--region eu-central-1" not in operator_docs
 
 
 def test_incident_bundle_and_deploy_verify_reduce_repo_literal_defaults() -> None:
@@ -249,6 +354,34 @@ def test_workload_registry_maps_to_real_app_files() -> None:
         assert (app_path / "main.py").is_file()
         assert (app_path / "config.py").is_file()
         assert (app_path / "pyproject.toml").is_file()
+
+
+def test_infra_runtime_inventory_uses_workload_contract() -> None:
+    contract = json.loads(_read("platform/workloads.json"))
+    inventory = _read("infra/app/workload_inventory.tf")
+    compute = _read("infra/app/compute_ecs.tf")
+    jobs = _read("infra/app/workload_jobs.tf")
+    ecr = _read("infra/app/ecr.tf")
+
+    assert (
+        'jsondecode(file("${path.module}/../../platform/workloads.json"))' in inventory
+    )
+    assert 'local.workload_environment["api"]' in compute
+    assert 'local.workload_secrets["api"]' in compute
+    assert 'local.workload_environment["backfill_worker"]' in jobs
+    assert 'local.workload_environment["data_export_job"]' in jobs
+    assert 'local.workload_environment["order_event_consumer"]' in jobs
+    assert "for name, workload in local.workloads_by_name" in ecr
+
+    for workload in contract["workloads"]:
+        workload_name = workload["name"]
+        assert f"{workload_name} = " in inventory
+        assert f'local.workload_environment["{workload_name}"]' in (
+            compute if workload_name == "api" else jobs
+        )
+        assert f'local.workload_secrets["{workload_name}"]' in (
+            compute if workload_name == "api" else jobs
+        )
 
 
 def test_compose_build_args_and_ports_align_with_workload_spec() -> None:
@@ -309,14 +442,33 @@ def test_workload_spec_config_names_match_app_settings() -> None:
         "backfill_worker": ROOT / "apps" / "backfill_worker" / "config.py",
         "data_export_job": ROOT / "apps" / "data_export_job" / "config.py",
     }
+    shared_config_text = (ROOT / "packages" / "infrastructure" / "config.py").read_text(
+        encoding="utf-8"
+    )
+    shared_names = set(ENV_NAME_PATTERN.findall(shared_config_text))
 
     for workload in contract["workloads"]:
         config_text = config_paths[workload["name"]].read_text(encoding="utf-8")
         discovered_names = set(ENV_NAME_PATTERN.findall(config_text))
+        if "PostgresRuntimeSettings" in config_text:
+            discovered_names |= shared_names
         declared_names = set(workload["config"]["env"]) | set(
             workload["config"]["secrets"]
         )
         assert declared_names == discovered_names
+
+
+def test_workload_configs_share_postgres_runtime_helper() -> None:
+    for workload_name in [
+        "api",
+        "order_event_consumer",
+        "backfill_worker",
+        "data_export_job",
+    ]:
+        config_text = (ROOT / "apps" / workload_name / "config.py").read_text(
+            encoding="utf-8"
+        )
+        assert "PostgresRuntimeSettings" in config_text
 
 
 def test_compose_workload_env_names_stay_within_declared_contract() -> None:
@@ -391,3 +543,27 @@ def test_platform_concerns_and_catalog_boundaries_exist() -> None:
 
     for path in expected_paths:
         assert path.is_dir(), f"missing expected repository boundary: {path}"
+
+
+def test_observability_assets_do_not_hardcode_single_stack_inventory() -> None:
+    app_overview = _read(
+        "platform/concerns/observability/grafana/dashboards/app-overview.json"
+    )
+    log_groups = _read(
+        "platform/concerns/observability/grafana/dashboards/log-groups.json"
+    )
+    promtail = _read("platform/concerns/observability/promtail/promtail.yml")
+    compose = _read("compose.yaml")
+
+    assert '{stack=\\"$stack\\"' in app_overview
+    assert 'label_values({stack=\\"$stack\\"}, environment)' in app_overview
+    assert (
+        'label_values({stack=\\"$stack\\", environment=\\"$environment\\"}, log_group)'
+        in (log_groups)
+    )
+    assert (
+        'label_values({stack=\\"$stack\\", environment=\\"$environment\\", log_group=~\\"$log_group\\"}, container)'
+        in (log_groups)
+    )
+    assert "${STACK_NAME:-aws-sdlc-containers}" in promtail
+    assert "-config.expand-env=true" in compose

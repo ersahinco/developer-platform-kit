@@ -10,6 +10,10 @@ This is the canonical data contract for the current reference workload:
 For request correlation across logs, traces, tables, and exports, use
 [Observability](observability.md).
 
+Use [Platform Contract](platform-contract.md) for the portable workload
+contract and [Architecture](architecture.md) for repo boundaries. This document
+owns the current data behavior and rollout shape.
+
 ## Current Flow
 
 Application path:

@@ -1,48 +1,45 @@
 # Documentation
 
-This is the canonical map for project docs. Keep this file grouped by task so
-the README, roadmap, and architecture docs can stay short.
+This is the canonical documentation map. Use it to find the owning doc for a
+topic before adding a new page.
 
-## Start Here
+## Canonical Docs
+
+| Topic | Owning doc | Use it for |
+|---|---|---|
+| Repo shape and ownership boundaries | [Architecture](architecture.md) | Where code, Terraform, scripts, and docs belong |
+| Portable workload expectations | [Platform Contract](platform-contract.md) | What workloads must expose and what `platform/workloads.json` owns |
+| Current standardized capability surface | [Platform Capabilities](platform-capabilities.md) | What the platform currently provides and where to extend it |
+| Runtime-target evaluation | [Runtime Toolkit](runtime-toolkit.md) | When and how to add another hosting runtime |
+| Local workflow | [Local Development](local-development.md) | Day-to-day setup and migration walkthrough |
+| AWS delivery and rollout | [Deployment](deployment.md) | Bootstrap, pipeline shape, and rollout sequence |
+| Operational telemetry | [Observability](observability.md) | Local/cloud observability wiring and validation |
+| Current work state | [Roadmaps](roadmaps.md) | Continuation notes, deferred work, and project status |
+
+## Reading Paths
 
 | Task | Read |
 |---|---|
-| Learn the shared vocabulary | [Ubiquitous Language](ubiquitous-language.md) |
-| Understand the project shape | [Architecture](architecture.md), [Roadmap](roadmaps.md) |
-| Understand the platform monorepo decision | [ADR 0001](adr/0001-aws-first-platform-monorepo-seed.md) |
-| Continue work cleanly | [Roadmap](roadmaps.md) |
-| Develop locally | [Local Development](local-development.md) |
-| Deploy or operate AWS | [Deployment](deployment.md), [Infrastructure](../infra/README.md), [Runbooks](runbooks/README.md), [App Dependency Readiness Drill](drills/app-dependency-readiness.md) |
-
-## Platform Toolkit Contracts
-
-| Task | Read |
-|---|---|
-| Understand the portable workload contract | [Platform Contract](platform-contract.md) |
+| Learn the vocabulary | [Ubiquitous Language](ubiquitous-language.md) |
+| Understand the monorepo model | [Architecture](architecture.md), [ADR 0001](adr/0001-aws-first-platform-monorepo-seed.md) |
+| Understand the platform itself | [Platform Contract](platform-contract.md), [Platform Capabilities](platform-capabilities.md) |
 | Add a workload | [Adding Workloads](adding-workloads.md), [Platform Contract](platform-contract.md#workload-checklist) |
-| See the current platform capability surface | [Platform Capabilities](platform-capabilities.md) |
-| Understand the temporary application specification | [Platform Contract](platform-contract.md#application-specification) |
-| Add or evaluate a runtime target | [Runtime Toolkit](runtime-toolkit.md) |
-| Keep provider edges portable | [Data](data.md), [Platform Contract](platform-contract.md#eventing) |
-
-## Delivery And Operations
-
-| Task | Read |
-|---|---|
-| Understand CI and quality gates | [DevOps Toolchain](devops-toolchain.md) |
-| Understand data movement | [Data](data.md) |
-| Add or operate telemetry | [Observability](observability.md), [Platform Contract](platform-contract.md#observability) |
-| Handle incidents | [Runbooks](runbooks/README.md) |
-| Practice failure paths | [App Dependency Readiness Drill](drills/app-dependency-readiness.md) |
+| Work locally | [Local Development](local-development.md) |
+| Deploy or operate AWS | [Deployment](deployment.md), [Infrastructure](../infra/README.md), [Runbooks](runbooks/README.md) |
+| Add or evaluate another runtime | [Runtime Toolkit](runtime-toolkit.md) |
+| Work on telemetry or release evidence | [Observability](observability.md), [Platform Contract](platform-contract.md#observability) |
 
 ## Ownership Rules
 
-- `README.md` is the short public project entrypoint.
-- `docs/README.md` is the canonical documentation map.
-- `docs/roadmaps.md` tracks state, current work, decisions, and deferred work.
-- Use `docs/roadmaps.md` for continuation rules and current working style.
-- `docs/architecture.md` owns both design rationale and repo/control-boundary
-  ownership.
-- Canonical docs define reusable platform expectations; runbooks and drills
-  describe concrete operator actions.
-- Do not add a new doc when an existing canonical doc owns the topic.
+- `README.md` is the short project entrypoint.
+- `docs/README.md` is the canonical map; prefer linking to it from summary docs.
+- `docs/architecture.md` owns repo boundaries and placement rules.
+- `docs/platform-contract.md` owns portable workload expectations.
+- `docs/platform-capabilities.md` owns the current capability inventory, not the
+  abstract contract.
+- `docs/runtime-toolkit.md` owns multi-runtime evaluation rules, not current
+  AWS rollout details.
+- `docs/roadmaps.md` owns current state, continuation notes, and deferred work.
+- Runbooks and drills describe operator action, not platform design.
+- Do not add a new doc when one of the canonical docs above already owns the
+  topic.

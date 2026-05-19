@@ -4,6 +4,10 @@ This project standardizes a delivery toolchain for portable application
 workloads. The current runtime is ECS Fargate; the reusable part is the review
 shape around build, check, scan, deploy, and evidence.
 
+This doc owns the quality-gate and workflow toolchain view. For the actual AWS
+deploy sequence, use [Deployment](deployment.md). For repo and ownership
+boundaries, use [Architecture](architecture.md).
+
 ## Current Toolchain
 
 | Concern | Tool |
@@ -47,6 +51,14 @@ shape around build, check, scan, deploy, and evidence.
 - Infra plan is reviewed before infra apply.
 - Runtime-specific details may change later, but this gate shape should stay
   recognizable.
+
+## Approved Default Enterprise Delivery Shape
+
+- Build immutable artifacts once, then deploy those exact image references.
+- Keep deploy and apply triggers reviewed and intentionally separate.
+- Emit evidence for every cloud-changing action.
+- Treat contract and runtime checks as first-class gates, not optional
+  follow-up verification.
 
 ## Local Quality Commands
 

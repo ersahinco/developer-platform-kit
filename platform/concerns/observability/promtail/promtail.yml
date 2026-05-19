@@ -19,7 +19,7 @@ scrape_configs:
       - source_labels: ["__meta_docker_container_label_com_docker_compose_service"]
         target_label: compose_service
       - target_label: stack
-        replacement: aws-sdlc-containers
+        replacement: ${STACK_NAME:-aws-sdlc-containers}
       - target_label: environment
         replacement: local
       - source_labels: ["__meta_docker_container_label_com_docker_compose_service"]
@@ -29,7 +29,7 @@ scrape_configs:
       - source_labels: ["__meta_docker_container_label_com_docker_compose_service"]
         regex: "(.+)"
         target_label: log_group
-        replacement: "/ecs/aws-sdlc-containers/$1"
+        replacement: "/ecs/${STACK_NAME:-aws-sdlc-containers}/$1"
       - source_labels: ["__meta_docker_container_name"]
         target_label: docker_container
     pipeline_stages:

@@ -2,9 +2,16 @@
 
 Use this runbook when any of these CloudWatch alarms are in `ALARM`:
 
-- `aws-sdlc-containers-rds-cpu-high`
-- `aws-sdlc-containers-rds-free-storage-low`
-- `aws-sdlc-containers-rds-connections-high`
+- `rds-cpu-high`
+- `rds-free-storage-low`
+- `rds-connections-high`
+
+Use Terraform outputs and environment variables in examples:
+
+```bash
+export AWS_REGION="${AWS_REGION:-eu-central-1}"
+export STACK_NAME="${STACK_NAME:-<stack-name>}"
+```
 
 ## What The Alarms Mean
 
@@ -28,7 +35,7 @@ aws cloudwatch describe-alarms \
     "$(terraform -chdir=infra/app output -raw rds_cpu_high_alarm_name)" \
     "$(terraform -chdir=infra/app output -raw rds_free_storage_low_alarm_name)" \
     "$(terraform -chdir=infra/app output -raw rds_connections_high_alarm_name)" \
-  --region eu-central-1
+  --region "$AWS_REGION"
 ```
 
 Inspect the DB instance:
@@ -36,19 +43,19 @@ Inspect the DB instance:
 ```bash
 aws rds describe-db-instances \
   --db-instance-identifier "$(terraform -chdir=infra/app output -raw rds_instance_identifier)" \
-  --region eu-central-1
+  --region "$AWS_REGION"
 ```
 
 Check app and PgBouncer logs for connection or timeout symptoms:
 
 ```bash
-aws logs tail /ecs/aws-sdlc-containers/app \
+aws logs tail "/ecs/${STACK_NAME}/app" \
   --since 30m \
-  --region eu-central-1
+  --region "$AWS_REGION"
 
-aws logs tail /ecs/aws-sdlc-containers/pgbouncer \
+aws logs tail "/ecs/${STACK_NAME}/pgbouncer" \
   --since 30m \
-  --region eu-central-1
+  --region "$AWS_REGION"
 ```
 
 ## Common Causes
@@ -82,7 +89,7 @@ aws cloudwatch describe-alarms \
     "$(terraform -chdir=infra/app output -raw rds_cpu_high_alarm_name)" \
     "$(terraform -chdir=infra/app output -raw rds_free_storage_low_alarm_name)" \
     "$(terraform -chdir=infra/app output -raw rds_connections_high_alarm_name)" \
-  --region eu-central-1
+  --region "$AWS_REGION"
 
 curl -fsS "https://$(terraform -chdir=infra/app output -raw api_fqdn)/health"
 ```

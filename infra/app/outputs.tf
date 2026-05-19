@@ -45,12 +45,12 @@ output "app_target_latency_alarm_name" {
 
 output "ecr_app_repository_url" {
   description = "ECR URL for the app image."
-  value       = module.ecr["app"].repository_url
+  value       = module.ecr["api"].repository_url
 }
 
 output "ecr_worker_repository_url" {
   description = "ECR URL for the worker image."
-  value       = module.ecr["worker"].repository_url
+  value       = module.ecr["backfill_worker"].repository_url
 }
 
 output "ecr_liquibase_repository_url" {

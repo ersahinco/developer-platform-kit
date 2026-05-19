@@ -12,6 +12,15 @@ The current extraction candidate map lives in
 `infra/catalog/aws/extraction-map.md`. Use it before creating a new module so
 the repo does not drift into speculative abstraction.
 
+This doc is an infrastructure index, not the main architecture doc.
+
+Use companion docs when the question is broader:
+
+- [Architecture](../docs/architecture.md) for repo boundaries and placement
+  rules
+- [Deployment](../docs/deployment.md) for AWS rollout and operator flow
+- [Runtime Toolkit](../docs/runtime-toolkit.md) for runtime-target evaluation
+
 Terraform is still organized by lifecycle boundary:
 
 - `platform/` owns AWS-bound bootstrap resources with an app-independent

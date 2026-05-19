@@ -5,12 +5,17 @@ Azure, GCP, Nomad, or cheaper compute. The goal is not multi-cloud ceremony.
 The goal is to prove that a real runtime can host the existing portable
 workloads without moving provider assumptions into app code.
 
-`docs/platform-contract.md` defines what workloads must expose.
+Use this doc together with:
+
+- [Platform Contract](platform-contract.md) for portable workload expectations
+- [Architecture](architecture.md) for repo and ownership boundaries
+- [Platform Capabilities](platform-capabilities.md) for the current capability
+  surface
+
 `platform/workloads.json` is the temporary application specification.
-`platform/runtime-conformance.json` is the local/CI runtime fixture used to
-prove the declared workloads still satisfy that specification from the outside.
-`make runtime-conformance` is the main proof that declared workloads still run
-from the outside.
+`platform/runtime-conformance.json` is the local/CI runtime fixture.
+`make runtime-conformance` is the main executable proof that declared workloads
+still satisfy the contract from the outside.
 
 ## Entry Criteria
 
@@ -58,6 +63,9 @@ and docs.
   one runtime.
 - `platform/runtime-conformance.json` stays runtime-check-specific and should
   not grow into a second application spec.
+
+For current AWS rollout and operator flow, use [Deployment](deployment.md)
+instead of this document.
 
 ## Portable Baseline
 

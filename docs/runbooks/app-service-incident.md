@@ -7,14 +7,23 @@ This runbook is for app-service incidents. If the safest recovery is to restore
 the previous app revision, follow
 [ECS Deploy Rollback](ecs-deploy-rollback.md).
 
+Use Terraform outputs and environment variables in examples:
+
+```bash
+export AWS_REGION="${AWS_REGION:-eu-central-1}"
+export STACK_NAME="${STACK_NAME:-<stack-name>}"
+```
+
 ## Trigger
 
 Start here when any of these conditions are true:
 
-- `aws-sdlc-containers-app-unhealthy-targets` is in `ALARM`
-- `aws-sdlc-containers-app-target-5xx` is in `ALARM`
-- `aws-sdlc-containers-app-target-latency` is in `ALARM`
 - clients or synthetic checks show `/health` or `/ready` failures
+- the unhealthy-targets, target-5xx, or target-latency alarm from
+  `terraform -chdir=infra/app output` is in `ALARM`
+
+In practice, prefer the alarm names from `terraform -chdir=infra/app output`
+instead of assuming the current stack name.
 
 Interpret the signal this way:
 
@@ -37,12 +46,12 @@ aws cloudwatch describe-alarms \
     "$(terraform -chdir=infra/app output -raw app_unhealthy_targets_alarm_name)" \
     "$(terraform -chdir=infra/app output -raw app_target_5xx_alarm_name)" \
     "$(terraform -chdir=infra/app output -raw app_target_latency_alarm_name)" \
-  --region eu-central-1
+  --region "$AWS_REGION"
 
 aws ecs describe-services \
   --cluster "$(terraform -chdir=infra/app output -raw ecs_cluster_name)" \
   --services "$(terraform -chdir=infra/app output -raw app_service_name)" \
-  --region eu-central-1
+  --region "$AWS_REGION"
 ```
 
 Check running and recently stopped tasks:
@@ -52,19 +61,19 @@ aws ecs list-tasks \
   --cluster "$(terraform -chdir=infra/app output -raw ecs_cluster_name)" \
   --service-name "$(terraform -chdir=infra/app output -raw app_service_name)" \
   --desired-status RUNNING \
-  --region eu-central-1
+  --region "$AWS_REGION"
 
 aws ecs list-tasks \
   --cluster "$(terraform -chdir=infra/app output -raw ecs_cluster_name)" \
-  --family aws-sdlc-containers \
+  --family "${STACK_NAME}" \
   --desired-status STOPPED \
-  --region eu-central-1
+  --region "$AWS_REGION"
 ```
 
 Check logs and endpoints:
 
 ```bash
-aws logs tail /ecs/aws-sdlc-containers/app --since 30m --region eu-central-1
+aws logs tail "/ecs/${STACK_NAME}/app" --since 30m --region "$AWS_REGION"
 curl -i "https://$(terraform -chdir=infra/app output -raw api_fqdn)/health"
 curl -i "https://$(terraform -chdir=infra/app output -raw api_fqdn)/ready"
 ```
@@ -73,7 +82,7 @@ If Grafana/Loki/Prometheus are reachable, inspect the same window in the `App
 Overview` dashboard and corresponding logs:
 
 ```logql
-{stack="aws-sdlc-containers", service="app"} |= "ERROR"
+{stack="<stack-name>", service="app"} |= "ERROR"
 ```
 
 ## Triage
@@ -110,7 +119,7 @@ Confirm the service stabilizes and alarms clear:
 aws ecs wait services-stable \
   --cluster "$(terraform -chdir=infra/app output -raw ecs_cluster_name)" \
   --services "$(terraform -chdir=infra/app output -raw app_service_name)" \
-  --region eu-central-1
+  --region "$AWS_REGION"
 
 curl -fsS "https://$(terraform -chdir=infra/app output -raw api_fqdn)/health"
 
@@ -119,5 +128,5 @@ aws cloudwatch describe-alarms \
     "$(terraform -chdir=infra/app output -raw app_unhealthy_targets_alarm_name)" \
     "$(terraform -chdir=infra/app output -raw app_target_5xx_alarm_name)" \
     "$(terraform -chdir=infra/app output -raw app_target_latency_alarm_name)" \
-  --region eu-central-1
+  --region "$AWS_REGION"
 ```

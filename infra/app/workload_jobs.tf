@@ -29,23 +29,16 @@ resource "aws_ecs_task_definition" "worker" {
       # CI always calls render-task-definition + register-task-definition
       # with the real SHA before running this one-off task — Terraform's
       # registered revision is never used directly after bootstrap.
-      image     = format("%s:%s", module.ecr["worker"].repository_url, var.initial_image_tag)
+      image     = format("%s:%s", module.ecr["backfill_worker"].repository_url, var.initial_image_tag)
       essential = true
-      secrets = [
-        # ECS does not interpolate $(VAR) in environment values. DB_PASSWORD is
-        # injected as a secret; worker's config.py composes BACKFILL_DATABASE_URL at startup.
-        { name = "DB_PASSWORD", valueFrom = "${module.rds.db_instance_master_user_secret_arn}:password::" },
-      ]
-      environment = [
-        { name = "DB_HOST", value = module.rds.db_instance_address },
-        { name = "DB_PORT", value = tostring(module.rds.db_instance_port) },
-        { name = "BACKFILL_BATCH_SIZE", value = tostring(var.backfill_batch_size) },
-        { name = "BACKFILL_SLEEP_MS", value = "100" },
-      ]
+      # ECS does not interpolate $(VAR) in environment values. The workload
+      # receives DB_PASSWORD as a secret and composes BACKFILL_DATABASE_URL at startup.
+      secrets     = local.workload_secrets["backfill_worker"]
+      environment = local.workload_environment["backfill_worker"]
       logConfiguration = {
         logDriver = "awslogs"
         options = {
-          "awslogs-group"         = "/ecs/${local.name}/worker"
+          "awslogs-group"         = local.workload_log_group_names["backfill_worker"]
           "awslogs-region"        = local.region
           "awslogs-stream-prefix" = "worker"
         }
@@ -57,7 +50,7 @@ resource "aws_ecs_task_definition" "worker" {
 }
 
 resource "aws_cloudwatch_log_group" "worker" {
-  name              = "/ecs/${local.name}/worker"
+  name              = local.workload_log_group_names["backfill_worker"]
   kms_key_id        = aws_kms_key.cloudwatch_logs.arn
   retention_in_days = 14
   tags              = local.tags
@@ -107,23 +100,14 @@ resource "aws_ecs_task_definition" "data_export_job" {
       # var.initial_image_tag is used only on the first apply (bootstrap).
       # CI registers a SHA-tagged revision before the scheduler uses the task
       # family for recurring exports.
-      image     = format("%s:%s", module.ecr["data_export_job"].repository_url, var.initial_image_tag)
-      essential = true
-      secrets = [
-        { name = "DB_USER", valueFrom = "${module.rds.db_instance_master_user_secret_arn}:username::" },
-        { name = "DB_PASSWORD", valueFrom = "${module.rds.db_instance_master_user_secret_arn}:password::" },
-      ]
-      environment = [
-        { name = "DB_HOST", value = module.rds.db_instance_address },
-        { name = "DB_PORT", value = tostring(module.rds.db_instance_port) },
-        { name = "DB_NAME", value = "aws_sdlc_containers" },
-        { name = "DATA_EXPORT_OUTPUT_DIR", value = "/tmp/aws-sdlc-containers-data-hub" },
-        { name = "DATA_EXPORT_S3_BUCKET", value = aws_s3_bucket.data_hub.bucket },
-      ]
+      image       = format("%s:%s", module.ecr["data_export_job"].repository_url, var.initial_image_tag)
+      essential   = true
+      secrets     = local.workload_secrets["data_export_job"]
+      environment = local.workload_environment["data_export_job"]
       logConfiguration = {
         logDriver = "awslogs"
         options = {
-          "awslogs-group"         = "/ecs/${local.name}/data-export-job"
+          "awslogs-group"         = local.workload_log_group_names["data_export_job"]
           "awslogs-region"        = local.region
           "awslogs-stream-prefix" = "data-export-job"
         }
@@ -135,7 +119,7 @@ resource "aws_ecs_task_definition" "data_export_job" {
 }
 
 resource "aws_cloudwatch_log_group" "data_export_job" {
-  name              = "/ecs/${local.name}/data-export-job"
+  name              = local.workload_log_group_names["data_export_job"]
   kms_key_id        = aws_kms_key.cloudwatch_logs.arn
   retention_in_days = 14
   tags              = local.tags
@@ -376,7 +360,7 @@ resource "aws_ecs_task_definition" "order_event_consumer" {
       logConfiguration = {
         logDriver = "awslogs"
         options = {
-          "awslogs-group"         = "/ecs/${local.name}/order-event-consumer"
+          "awslogs-group"         = local.workload_log_group_names["order_event_consumer"]
           "awslogs-region"        = local.region
           "awslogs-stream-prefix" = "dapr-config-loader"
         }
@@ -389,9 +373,9 @@ resource "aws_ecs_task_definition" "order_event_consumer" {
       command = [
         "./daprd",
         "--app-id",
-        "order-event-consumer",
+        local.workloads_by_name["order_event_consumer"].dapr.app_id,
         "--app-port",
-        "8081",
+        tostring(local.workloads_by_name["order_event_consumer"].service.port),
         "--dapr-http-port",
         "3500",
         "--components-path",
@@ -406,33 +390,29 @@ resource "aws_ecs_task_definition" "order_event_consumer" {
       logConfiguration = {
         logDriver = "awslogs"
         options = {
-          "awslogs-group"         = "/ecs/${local.name}/order-event-consumer"
+          "awslogs-group"         = local.workload_log_group_names["order_event_consumer"]
           "awslogs-region"        = local.region
           "awslogs-stream-prefix" = "daprd"
         }
       }
     }),
     merge(local.ecs_container_defaults, {
-      name         = "order-event-consumer"
-      image        = format("%s:%s", module.ecr["order_event_consumer"].repository_url, var.initial_image_tag)
-      essential    = true
-      portMappings = [{ containerPort = 8081, hostPort = 8081, protocol = "tcp" }]
-      secrets = [
-        { name = "DB_PASSWORD", valueFrom = "${module.rds.db_instance_master_user_secret_arn}:password::" },
-      ]
-      environment = [
-        { name = "DB_HOST", value = module.rds.db_instance_address },
-        { name = "DB_PORT", value = tostring(module.rds.db_instance_port) },
-        { name = "DB_NAME", value = "aws_sdlc_containers" },
-        { name = "DAPR_HTTP_ENDPOINT", value = "http://localhost:3500" },
-        { name = "ORDER_EVENTS_APP_PORT", value = "8081" },
-        { name = "ORDER_EVENTS_WORKER_MODE", value = "both" },
-        { name = "ORDER_EVENTS_PUBSUB_NAME", value = "order-events-pubsub" },
-        { name = "ORDER_EVENTS_TOPIC", value = local.order_events_topic_name },
-      ]
-      dependsOn = [{ containerName = "dapr-config-loader", condition = "SUCCESS" }]
+      name      = "order-event-consumer"
+      image     = format("%s:%s", module.ecr["order_event_consumer"].repository_url, var.initial_image_tag)
+      essential = true
+      portMappings = [{
+        containerPort = local.workloads_by_name["order_event_consumer"].service.port
+        hostPort      = local.workloads_by_name["order_event_consumer"].service.port
+        protocol      = "tcp"
+      }]
+      secrets     = local.workload_secrets["order_event_consumer"]
+      environment = local.workload_environment["order_event_consumer"]
+      dependsOn   = [{ containerName = "dapr-config-loader", condition = "SUCCESS" }]
       healthCheck = {
-        command     = ["CMD-SHELL", "python -c \"import urllib.request; urllib.request.urlopen('http://localhost:8081/health')\""]
+        command = [
+          "CMD-SHELL",
+          "python -c \"import urllib.request; urllib.request.urlopen('http://localhost:${local.workloads_by_name["order_event_consumer"].service.port}/health')\"",
+        ]
         interval    = 10
         timeout     = 3
         retries     = 3
@@ -441,7 +421,7 @@ resource "aws_ecs_task_definition" "order_event_consumer" {
       logConfiguration = {
         logDriver = "awslogs"
         options = {
-          "awslogs-group"         = "/ecs/${local.name}/order-event-consumer"
+          "awslogs-group"         = local.workload_log_group_names["order_event_consumer"]
           "awslogs-region"        = local.region
           "awslogs-stream-prefix" = "order-event-consumer"
         }
@@ -453,7 +433,7 @@ resource "aws_ecs_task_definition" "order_event_consumer" {
 }
 
 resource "aws_cloudwatch_log_group" "order_event_consumer" {
-  name              = "/ecs/${local.name}/order-event-consumer"
+  name              = local.workload_log_group_names["order_event_consumer"]
   kms_key_id        = aws_kms_key.cloudwatch_logs.arn
   retention_in_days = 14
   tags              = local.tags

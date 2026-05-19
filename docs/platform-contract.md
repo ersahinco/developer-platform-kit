@@ -34,21 +34,31 @@ It currently does not own:
 - Terraform composition or GitHub Actions deployment choreography
 - runtime-conformance fixture values used only by the local/CI container checks
 
-This file is intentionally transitional. The long-term direction is to keep
-workloads declaring what they need once while platform and runtime layers own
+This file is intentionally transitional. The long-term direction is still to
+let workloads declare what they need once while platform and runtime layers own
 how those needs are fulfilled.
 
-Current split:
+## Metadata Ownership
 
-- keep workload identity, operational class, Dapr need, runtime-facing config
-  names, and shared image identity in `platform/workloads.json`
-- keep local/CI fixture values in `platform/runtime-conformance.json`
-- keep deploy ordering, task registration, verification sequence, and cloud
-  rollout mechanics in workflows, scripts, and `infra/`
+Keep the metadata model to three layers only:
 
-`platform/runtime-conformance.json` now owns the local/CI runtime fixture data
-used by `make runtime-conformance`. That keeps test-only environment values and
-expected log markers out of the main workload specification.
+- `platform/workloads.json` defines what the workload is: identity,
+  operational class, app path, shared image metadata, declared config names,
+  service port shape, Dapr intent, and portable expectations
+- `platform/runtime-conformance.json` defines local/CI fixture data only for
+  `make runtime-conformance`
+- `infra/app/workload_inventory.tf` defines how the current AWS runtime
+  fulfills that contract with runtime values, secret wiring, and AWS-facing
+  naming derived from the workload contract
+
+Ownership rule:
+
+- contract metadata defines what the workload is
+- runtime inventory defines how AWS fulfills it
+
+Do not let `platform/runtime-conformance.json` grow second application-spec
+semantics, and do not let `infra/app/workload_inventory.tf` redefine workload
+identity or capability intent.
 
 ## Workload Shape
 

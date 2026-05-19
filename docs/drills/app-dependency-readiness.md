@@ -13,6 +13,13 @@ cannot reach its database dependency. The expected operator signal is:
 The drill should be run in a local development environment unless an incident
 commander explicitly schedules the AWS variant.
 
+Use Terraform outputs and environment variables for the AWS variant:
+
+```bash
+export AWS_REGION="${AWS_REGION:-eu-central-1}"
+export STACK_NAME="${STACK_NAME:-<stack-name>}"
+```
+
 ## Local Trigger
 
 Start the local stack and optional observability:
@@ -96,12 +103,12 @@ For an AWS incident with the same symptoms, use the same split:
 ```bash
 curl -i "https://$(terraform -chdir=infra/app output -raw api_fqdn)/health"
 curl -i "https://$(terraform -chdir=infra/app output -raw api_fqdn)/ready"
-aws logs tail /ecs/aws-sdlc-containers/app --since 30m --region eu-central-1
+aws logs tail "/ecs/${STACK_NAME}/app" --since 30m --region "$AWS_REGION"
 aws ecs describe-services \
   --cluster "$(terraform -chdir=infra/app output -raw ecs_cluster_name)" \
   --services "$(terraform -chdir=infra/app output -raw app_service_name)" \
-  --region eu-central-1
-aws rds describe-db-instances --region eu-central-1
+  --region "$AWS_REGION"
+aws rds describe-db-instances --region "$AWS_REGION"
 ```
 
 Then choose the owning runbook:
