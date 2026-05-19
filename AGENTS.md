@@ -134,6 +134,7 @@ broker. The durable handoff is the database outbox.
 - Preserve explicit platform boundaries, metadata ownership, and review-gated delivery
 - Make the common path obvious, maintainable, and easy to extend
 
+## Example Prompt
 ```
 Review this platform monorepo as a staff platform architect and continue improving it with one guiding principle: more with less.
 
