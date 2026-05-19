@@ -1,4 +1,33 @@
+x-workload-build: &workload_build
+  context: .
+  dockerfile: platform/workload.Dockerfile
+
+x-db-identity-env: &db_identity_env
+  DB_USER: ${POSTGRES_USER:-postgres}
+  DB_PASSWORD: ${POSTGRES_PASSWORD:-postgres}
+  DB_NAME: ${POSTGRES_DB:-aws_sdlc_containers}
+
+x-direct-db-env: &direct_db_env
+  <<: *db_identity_env
+  DB_HOST: db
+  DB_PORT: 5432
+
+x-pooled-db-env: &pooled_db_env
+  <<: *db_identity_env
+  DB_HOST: pgbouncer
+  DB_PORT: 5432
+
+x-app-database-url: &app_database_url ${DATABASE_URL:-postgresql://postgres:postgres@pgbouncer:5432/aws_sdlc_containers}
+x-backfill-database-url: &backfill_database_url ${BACKFILL_DATABASE_URL:-postgresql://postgres:postgres@db:5432/aws_sdlc_containers}
+x-data-export-database-url: &data_export_database_url ${DATA_EXPORT_DATABASE_URL:-postgresql://postgres:postgres@db:5432/aws_sdlc_containers}
+
+x-order-event-consumer-app-id: &order_event_consumer_app_id order-event-consumer
+x-order-event-consumer-app-port: &order_event_consumer_app_port "8081"
+x-order-event-consumer-pubsub-name: &order_event_consumer_pubsub_name order-events-pubsub
+x-order-event-consumer-topic: &order_event_consumer_topic order-created-v1.fifo
+
 services:
+
   db:
     image: postgres:18.3
     environment:
@@ -71,14 +100,14 @@ services:
 
   app:
     build:
-      context: .
-      dockerfile: platform/workload.Dockerfile
+      <<: *workload_build
       args:
         APP_PATH: apps/api
         UV_PACKAGE: aws-sdlc-containers-api
         WORKLOAD_CMD: uvicorn api.main:app --host 0.0.0.0 --port 8000
     environment:
-      DATABASE_URL: ${DATABASE_URL:-postgresql://postgres:postgres@pgbouncer:5432/aws_sdlc_containers}
+      <<: *pooled_db_env
+      DATABASE_URL: *app_database_url
       OTEL_TRACES_ENABLED: ${OTEL_TRACES_ENABLED:-false}
       OTEL_EXPORTER_OTLP_TRACES_ENDPOINT: ${OTEL_EXPORTER_OTLP_TRACES_ENDPOINT:-http://tempo:4318/v1/traces}
       OTEL_SERVICE_NAME: aws-sdlc-containers-api
@@ -93,15 +122,15 @@ services:
 
   worker:
     build:
-      context: .
-      dockerfile: platform/workload.Dockerfile
+      <<: *workload_build
       args:
         APP_PATH: apps/backfill_worker
         UV_PACKAGE: aws-sdlc-containers-backfill-worker
         WORKLOAD_CMD: python -m backfill_worker.main
     environment:
+      <<: *direct_db_env
       # Worker bypasses pgbouncer — connects directly to Postgres.
-      BACKFILL_DATABASE_URL: postgresql://${POSTGRES_USER:-postgres}:${POSTGRES_PASSWORD:-postgres}@db:5432/${POSTGRES_DB:-aws_sdlc_containers}
+      BACKFILL_DATABASE_URL: *backfill_database_url
       BACKFILL_BATCH_SIZE: ${BACKFILL_BATCH_SIZE:-1000}
       BACKFILL_SLEEP_MS: ${BACKFILL_SLEEP_MS:-100}
     depends_on:
@@ -110,15 +139,15 @@ services:
 
   data-export-job:
     build:
-      context: .
-      dockerfile: platform/workload.Dockerfile
+      <<: *workload_build
       args:
         APP_PATH: apps/data_export_job
         UV_PACKAGE: aws-sdlc-containers-data-export-job
         WORKLOAD_CMD: python -m data_export_job.main
     environment:
+      <<: *direct_db_env
       # Export job bypasses pgbouncer, matching worker/DDL behavior.
-      DATA_EXPORT_DATABASE_URL: postgresql://${POSTGRES_USER:-postgres}:${POSTGRES_PASSWORD:-postgres}@db:5432/${POSTGRES_DB:-aws_sdlc_containers}
+      DATA_EXPORT_DATABASE_URL: *data_export_database_url
       DATA_EXPORT_OUTPUT_DIR: /exports
     volumes:
       - data_exports:/exports
@@ -140,23 +169,18 @@ services:
 
   order-event-consumer:
     build:
-      context: .
-      dockerfile: platform/workload.Dockerfile
+      <<: *workload_build
       args:
         APP_PATH: apps/order_event_consumer
         UV_PACKAGE: aws-sdlc-containers-order-event-consumer
         WORKLOAD_CMD: python -m order_event_consumer.main
     environment:
-      DB_HOST: db
-      DB_PORT: 5432
-      DB_USER: ${POSTGRES_USER:-postgres}
-      DB_PASSWORD: ${POSTGRES_PASSWORD:-postgres}
-      DB_NAME: ${POSTGRES_DB:-aws_sdlc_containers}
+      <<: *direct_db_env
       DAPR_HTTP_ENDPOINT: http://order-event-consumer-dapr:3500
-      ORDER_EVENTS_APP_PORT: 8081
+      ORDER_EVENTS_APP_PORT: *order_event_consumer_app_port
       ORDER_EVENTS_WORKER_MODE: both
-      ORDER_EVENTS_PUBSUB_NAME: order-events-pubsub
-      ORDER_EVENTS_TOPIC: order-created-v1.fifo
+      ORDER_EVENTS_PUBSUB_NAME: *order_event_consumer_pubsub_name
+      ORDER_EVENTS_TOPIC: *order_event_consumer_topic
     depends_on:
       db:
         condition: service_healthy
@@ -170,11 +194,11 @@ services:
     command:
       - ./daprd
       - --app-id
-      - order-event-consumer
+      - *order_event_consumer_app_id
       - --app-port
-      - "8081"
+      - *order_event_consumer_app_port
       - --app-channel-address
-      - order-event-consumer
+      - *order_event_consumer_app_id
       - --dapr-http-port
       - "3500"
       - --components-path
@@ -182,8 +206,8 @@ services:
       - --config
       - /config/config.yaml
     volumes:
-      - ./platform/dapr/local/components:/components:ro
-      - ./platform/dapr/local/config.yaml:/config/config.yaml:ro
+      - ./platform/concerns/dapr/profiles/local/components:/components:ro
+      - ./platform/concerns/dapr/profiles/local/config.yaml:/config/config.yaml:ro
     ports:
       - "${DAPR_HTTP_PORT:-3500}:3500"
     depends_on:
@@ -219,8 +243,8 @@ services:
       - --storage.tsdb.path=/prometheus
       - --log.level=warn
     volumes:
-      - ./observability/prometheus/prometheus.yml:/etc/prometheus/prometheus.yml:ro
-      - ./observability/prometheus/rules:/etc/prometheus/rules:ro
+      - ./platform/concerns/observability/prometheus/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - ./platform/concerns/observability/prometheus/rules:/etc/prometheus/rules:ro
       - prometheus_data:/prometheus
     ports:
       - "${PROMETHEUS_PORT:-9090}:9090"
@@ -236,7 +260,7 @@ services:
       - -config.file=/etc/loki/loki.yml
       - -log.level=warn
     volumes:
-      - ./observability/loki/loki.yml:/etc/loki/loki.yml:ro
+      - ./platform/concerns/observability/loki/loki.yml:/etc/loki/loki.yml:ro
       - loki_data:/loki
     ports:
       - "${LOKI_PORT:-3100}:3100"
@@ -252,7 +276,7 @@ services:
       - -config.file=/etc/tempo/tempo.yml
       - -log.level=warn
     volumes:
-      - ./observability/tempo/tempo.yml:/etc/tempo/tempo.yml:ro
+      - ./platform/concerns/observability/tempo/tempo.yml:/etc/tempo/tempo.yml:ro
       - tempo_data:/tmp/tempo
     ports:
       - "${TEMPO_PORT:-3200}:3200"
@@ -265,7 +289,7 @@ services:
     image: grafana/promtail:${PROMTAIL_TAG:-3.6.10}
     command: -config.file=/etc/promtail/promtail.yml
     volumes:
-      - ./observability/promtail/promtail.yml:/etc/promtail/promtail.yml:ro
+      - ./platform/concerns/observability/promtail/promtail.yml:/etc/promtail/promtail.yml:ro
       - /var/run/docker.sock:/var/run/docker.sock:ro
     depends_on:
       loki:
@@ -286,8 +310,8 @@ services:
       TEMPO_URL: "http://tempo:3200"
     volumes:
       - grafana_data:/var/lib/grafana
-      - ./observability/grafana/provisioning:/etc/grafana/provisioning:ro
-      - ./observability/grafana/dashboards:/var/lib/grafana/dashboards:ro
+      - ./platform/concerns/observability/grafana/provisioning:/etc/grafana/provisioning:ro
+      - ./platform/concerns/observability/grafana/dashboards:/var/lib/grafana/dashboards:ro
     ports:
       - "${GRAFANA_PORT:-3000}:3000"
     depends_on:

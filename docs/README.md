@@ -9,6 +9,7 @@ the README, roadmap, and architecture docs can stay short.
 |---|---|
 | Learn the shared vocabulary | [Ubiquitous Language](ubiquitous-language.md) |
 | Understand the project shape | [Architecture](architecture.md), [Roadmap](roadmaps.md) |
+| Understand the platform monorepo decision | [ADR 0001](adr/0001-aws-first-platform-monorepo-seed.md) |
 | Continue work cleanly | [Roadmap](roadmaps.md) |
 | Develop locally | [Local Development](local-development.md) |
 | Deploy or operate AWS | [Deployment](deployment.md), [Infrastructure](../infra/README.md), [Runbooks](runbooks/README.md), [App Dependency Readiness Drill](drills/app-dependency-readiness.md) |
@@ -18,7 +19,9 @@ the README, roadmap, and architecture docs can stay short.
 | Task | Read |
 |---|---|
 | Understand the portable workload contract | [Platform Contract](platform-contract.md) |
-| Add a workload | [Platform Contract](platform-contract.md#workload-checklist) |
+| Add a workload | [Adding Workloads](adding-workloads.md), [Platform Contract](platform-contract.md#workload-checklist) |
+| See the current platform capability surface | [Platform Capabilities](platform-capabilities.md) |
+| Understand the temporary application specification | [Platform Contract](platform-contract.md#application-specification) |
 | Add or evaluate a runtime target | [Runtime Toolkit](runtime-toolkit.md) |
 | Keep provider edges portable | [Data](data.md), [Platform Contract](platform-contract.md#eventing) |
 

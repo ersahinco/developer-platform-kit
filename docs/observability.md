@@ -12,6 +12,17 @@ The observability contract is portable and local-first:
 The goal is to keep standard telemetry shapes without hosting a full Grafana,
 Loki, Prometheus, and Tempo platform inside AWS Terraform.
 
+## Concern Profiles
+
+Observability now follows the same concern/profile model as Dapr:
+
+- `local` profile: the OSS stack under `platform/concerns/observability/`
+- `aws` profile: CloudWatch logs, CloudWatch alarms, and optional ADOT sidecar
+  wiring owned through Terraform and release/operator scripts
+
+This keeps environment differences explicit without introducing a custom
+observability abstraction layer.
+
 ## Local Runtime
 
 Start the local observability stack:
@@ -35,7 +46,8 @@ Local endpoints:
 | Tempo | `http://localhost:3200` |
 | Grafana | `http://127.0.0.1:3000` |
 
-Grafana provisioning lives under `observability/grafana/`.
+Grafana provisioning lives under
+`platform/concerns/observability/grafana/`.
 
 ## Cloud Runtime
 
@@ -85,6 +97,21 @@ CloudWatch owns these AWS-native signals:
 
 Prometheus remains the portable app metrics shape. The API and order event
 consumer expose `/metrics`; the local stack scrapes those endpoints.
+
+## Alarm Ownership
+
+Keep alarm categories explicit:
+
+- platform-owned edge alarms: ALB health, 5xx, latency
+- platform-owned managed-resource alarms: RDS, SQS, Scheduler, WAF
+- workload-derived delivery alarms: alarms whose presence depends on declared
+  workload capabilities such as Dapr event delivery or scheduled export runs
+- release/incident default snapshots: the bounded alarm set collected by
+  release and incident evidence scripts
+
+The repo now centralizes default release and incident alarm inventories in
+`scripts/observability/platform_inventory.py` so those inventories stay aligned
+with the actual runtime contract instead of drifting into handwritten lists.
 
 ## Debug Loop
 

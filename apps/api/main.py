@@ -1,10 +1,6 @@
 import asyncio
-import json
 import logging
-import os
 import re
-import time
-import uuid
 from typing import Annotated
 from typing import cast
 
@@ -29,14 +25,25 @@ from api.schemas import (
     WriteModeResponse,
 )
 from api.telemetry import configure_tracing
-from application.idempotency import IdempotencyRepository, order_request_hash
+from application.idempotency import (
+    IdempotencyRepository,
+    begin_idempotent_request,
+    order_request_hash,
+)
 from domain.order import ReadModeValue, WriteModeValue
 from application.order_submission import (
     CustomerNotFoundError,
     InvalidOrderAmountError,
     submit_order,
 )
+from infrastructure.http_health import (
+    database_readiness_response,
+    health_payload,
+)
+from infrastructure.http_faults import maybe_build_fault_response
 from application.ports import ConfigStore, CustomerRepository, OrderRepository
+from infrastructure.http_observability import request_observability_middleware
+from api.config import settings
 
 
 class _SuppressLowValueAccessLogs(logging.Filter):
@@ -88,99 +95,41 @@ REQUEST_LATENCY = Histogram(
 )
 
 
-def _route_label(request: Request) -> str:
-    route = request.scope.get("route")
-    return getattr(route, "path", request.url.path)
-
-
-def _request_id(request: Request) -> str:
-    request_id = request.headers.get("x-request-id", "").strip()
-    return request_id or uuid.uuid4().hex
-
-
-def _rollout_fault_paths() -> set[str]:
-    raw_paths = os.getenv("ROLLOUT_DRILL_FAULT_PATHS", "/ready")
-    return {path.strip() for path in raw_paths.split(",") if path.strip()}
-
-
-def _rollout_fault_status_code() -> int:
-    try:
-        status_code = int(os.getenv("ROLLOUT_DRILL_FAULT_STATUS_CODE", "503"))
-    except ValueError:
-        return status.HTTP_503_SERVICE_UNAVAILABLE
-    if 100 <= status_code <= 599:
-        return status_code
-    return status.HTTP_503_SERVICE_UNAVAILABLE
-
-
-def _rollout_fault_delay_seconds() -> float:
-    try:
-        delay = float(os.getenv("ROLLOUT_DRILL_FAULT_DELAY_SECONDS", "3"))
-    except ValueError:
-        return 3.0
-    return max(0.0, delay)
-
-
-def _rollout_fault_mode_for(request: Request) -> str:
-    mode = os.getenv("ROLLOUT_DRILL_FAULT_MODE", "off").strip().lower()
-    if mode not in {"error", "latency"}:
-        return "off"
-    if request.url.path not in _rollout_fault_paths():
-        return "off"
-    return mode
-
-
-@app.middleware("http")
-async def observe_requests(request: Request, call_next) -> Response:
-    request_id = _request_id(request)
-    request.state.request_id = request_id
-
-    if request.url.path == "/metrics":
-        response = await call_next(request)
-        response.headers["X-Request-ID"] = request_id
-        return response
-
-    started_at = time.perf_counter()
-    try:
-        fault_mode = _rollout_fault_mode_for(request)
-        if fault_mode == "latency":
-            await asyncio.sleep(_rollout_fault_delay_seconds())
-            response = await call_next(request)
-        elif fault_mode == "error":
-            response = JSONResponse(
-                status_code=_rollout_fault_status_code(),
-                content={"detail": "rollout drill fault injection"},
-            )
-        else:
-            response = await call_next(request)
-    except Exception:
-        route = _route_label(request)
-        REQUEST_COUNT.labels(request.method, route, "500").inc()
-        REQUEST_LATENCY.labels(request.method, route).observe(
-            time.perf_counter() - started_at
-        )
-        raise
-
-    route = _route_label(request)
-    REQUEST_COUNT.labels(request.method, route, str(response.status_code)).inc()
-    elapsed_seconds = time.perf_counter() - started_at
-    REQUEST_LATENCY.labels(request.method, route).observe(elapsed_seconds)
-    response.headers["X-Request-ID"] = request_id
-    print(
-        json.dumps(
-            {
-                "event": "http_request",
-                "request_id": request_id,
-                "method": request.method,
-                "route": route,
-                "status_code": response.status_code,
-                "duration_ms": round(elapsed_seconds * 1000, 3),
-            },
-            sort_keys=True,
-        ),
-        flush=True,
+async def _rollout_fault_response(request: Request) -> Response | None:
+    return await maybe_build_fault_response(
+        mode=settings.rollout_drill_fault_mode,
+        path=request.url.path,
+        configured_paths=settings.rollout_drill_fault_paths,
+        status_code=settings.rollout_drill_fault_status_code,
+        delay_seconds=settings.rollout_drill_fault_delay_seconds,
+        sleep=asyncio.sleep,
     )
-    return response
+
+
+def _http_request_event(
+    request: Request,
+    response: Response,
+    request_id: str,
+    elapsed_seconds: float,
+) -> dict[str, object]:
+    return {
+        "event": "http_request",
+        "request_id": request_id,
+        "method": request.method,
+        "route": getattr(request.scope.get("route"), "path", request.url.path),
+        "status_code": response.status_code,
+        "duration_ms": round(elapsed_seconds * 1000, 3),
+    }
+
+
+app.middleware("http")(
+    request_observability_middleware(
+        request_count=REQUEST_COUNT,
+        request_latency=REQUEST_LATENCY,
+        event_payload=_http_request_event,
+        before_request=_rollout_fault_response,
+    )
+)
 
 
 def get_order_repo(db: DbDep) -> OrderRepository:
@@ -210,20 +159,6 @@ def get_config_store(db: DbDep) -> ConfigStore:
     return SQLAlchemyConfigStore(session=db)
 
 
-def _begin_idempotent_request(
-    *,
-    idempotency: IdempotencyRepository,
-    key: str,
-    request_hash: str,
-):
-    deadline = time.monotonic() + 5
-    while True:
-        result = idempotency.begin(key=key, request_hash=request_hash)
-        if result.status != "processing" or time.monotonic() >= deadline:
-            return result
-        time.sleep(0.05)
-
-
 OrderRepoDep = Annotated[OrderRepository, Depends(get_order_repo)]
 CustomerRepoDep = Annotated[CustomerRepository, Depends(get_customer_repo)]
 IdempotencyRepoDep = Annotated[IdempotencyRepository, Depends(get_idempotency_repo)]
@@ -232,20 +167,18 @@ ConfigStoreDep = Annotated[ConfigStore, Depends(get_config_store)]
 
 @app.get("/health", response_model=HealthResponse)
 def health() -> HealthResponse:
-    return HealthResponse(status="ok")
+    return HealthResponse(**health_payload())
 
 
 @app.get("/ready", response_model=ReadinessResponse)
 def ready(db: DbDep) -> ReadinessResponse | JSONResponse:
-    try:
-        db.execute(text("SELECT 1"))
-    except Exception:
-        return JSONResponse(
-            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
-            content={"status": "unready", "checks": {"database": "unavailable"}},
-        )
-
-    return ReadinessResponse(status="ready", checks={"database": "ok"})
+    result = database_readiness_response(lambda: db.execute(text("SELECT 1")))
+    if isinstance(result, JSONResponse):
+        return result
+    return ReadinessResponse(
+        status=cast(str, result["status"]),
+        checks=cast(dict[str, str], result["checks"]),
+    )
 
 
 @app.get("/metrics", include_in_schema=False)
@@ -285,7 +218,7 @@ def create_order(
                 status_code=400,
                 detail="Idempotency-Key must be between 1 and 200 characters",
             )
-        begin = _begin_idempotent_request(
+        begin = begin_idempotent_request(
             idempotency=idempotency,
             key=idempotency_key,
             request_hash=request_hash,

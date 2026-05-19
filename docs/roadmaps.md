@@ -15,15 +15,18 @@ work only. Durable project shape belongs in canonical docs:
 | Area | State | Notes |
 |---|---|---|
 | Delivery toolkit | Current | Keep workflows metadata-driven and review-gated, and prefer pragmatic pytest/runtime checks over bespoke validation layers. |
-| Observability | Current | Keep the local Prometheus/Loki/Tempo/Grafana baseline and AWS ADOT sidecar; CloudWatch remains the AWS rollback and managed-resource signal plane. |
+| Observability | Current | Keep the local Prometheus/Loki/Tempo/Grafana baseline under `platform/concerns/observability` and the AWS ADOT sidecar; CloudWatch remains the AWS rollback and managed-resource signal plane. |
 | Portability | Current | Keep provider dependencies at runtime/delivery edges; app code and contracts stay provider-neutral. |
 | Data and database | Current | Keep PostgreSQL semantics, Liquibase, PgBouncer expectations, data export manifests, and provider SDK isolation explicit. |
+| Repo model | Current | Keep the platform monorepo seed explicit: infra catalog, platform concerns, and workload examples. |
+| Capability map | Current | Keep `docs/platform-capabilities.md` aligned with the real platform surface; add capabilities only for real workload need. |
 
 ## Next
 
 | Area | Work | Trigger |
 |---|---|---|
 | Build and containerize | Keep runtime conformance and image/security gates fast as workloads grow. | Do this with the next real workload, not synthetic scaffolding. |
+| Workload onboarding | Keep `docs/adding-workloads.md` aligned with the real workload contract and smallest supported runtime patterns. | Update it when the next workload introduces a genuinely new shape. |
 | Runtime portability | Add a second runtime target only for a concrete cost, reliability, or capability benefit. | The capability contract is ready; a demo-only runtime would add noise. |
 | Dapr scope | Keep pub/sub as the standard app-facing transport boundary and expand only when a workload needs more platform capability. | Standardization is useful here; avoid speculative building blocks. |
 | Release evidence | Turn on CI-to-Loki publishing when there is a private or authenticated runner path. | Artifacts already exist; network/security path is the missing piece. |
@@ -40,9 +43,9 @@ work only. Durable project shape belongs in canonical docs:
 
 | Work | Result |
 |---|---|
-| Clean Architecture package shape | `apps/*` hosts with `packages/domain`, `packages/application`, and `packages/infrastructure`. |
+| Clean Architecture package shape | `apps/*` reference hosts with `packages/domain`, `packages/application`, and `packages/infrastructure`. |
 | Terraform split | `infra/platform` owns bootstrap/network/OIDC; `infra/app` owns runtime resources. |
-| Local development housekeeping | Devcontainer-first workflow, root `compose.yaml`, and shared `observability/` assets. |
+| Local development housekeeping | Devcontainer-first workflow, root `compose.yaml`, and shared `platform/concerns/observability/` assets. |
 | ECS-hosted LGTM retirement | Cloud keeps CloudWatch logs, ALB access logs, and ADOT sidecar telemetry; OSS LGTM stays local/external. |
 | Workflow bloat reduction | App image builds come from workload metadata; deploy rendering uses a small shared ECS helper. |
 
@@ -74,6 +77,8 @@ work only. Durable project shape belongs in canonical docs:
 
 | Date | Decision | Rationale |
 |---|---|---|
+| 2026-05-18 | Reframe the repo as a platform monorepo seed. | The repo now distinguishes infrastructure catalog, platform concerns, and workload examples without introducing a private framework or a rewrite. |
+| 2026-05-18 | Keep AWS-first portability by boundary as the default. | The repo should stay lean, standards-based, and runtime-specific until a real second-runtime need appears. |
 | 2026-05-13 | Retire the ECS-hosted LGTM/FireLens stack. | Learning value is in standard telemetry contracts and dashboards, not hand-wiring Grafana, Loki, Prometheus, Tempo, ALBs, service discovery, IAM, and storage in Terraform. |
 | 2026-05-13 | Use workload metadata for image build orchestration. | The workload contract should be the source of truth for buildable images, while the workflow supplies cloud credentials and registry resolution. |
 | 2026-05-12 | Keep incident evidence portable and operator-readable. | Incident response needs clean labels, query hints, and deploy context without cloud-only Grafana features. |

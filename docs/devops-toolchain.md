@@ -66,4 +66,7 @@ setup is allowed; install only the tools you need and keep them aligned with CI.
   apply, security, semgrep.
 - Keep scripts small and explicit.
 - Prefer metadata-driven behavior over repeated YAML logic.
+- Keep workload intent in `platform/workloads.json`, but keep deploy sequence,
+  cloud resource decisions, and operator choreography in workflows, scripts,
+  and Terraform.
 - Do not add a second CI system until there is a real operating need.

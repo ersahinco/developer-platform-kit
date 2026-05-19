@@ -17,7 +17,7 @@ Short form: standardize the delivery workflow, do not replace the tools.
 | Term | Meaning |
 |---|---|
 | Delivery toolkit | The repo conventions, contracts, scripts, tests, docs, and infrastructure shape that make workloads repeatable. It is not a private framework. |
-| Workload | A deployable or runnable unit under `apps/`: service, worker, scheduled job, or one-off job. |
+| Workload | A deployable or runnable unit, currently represented by reference hosts under `apps/`: service, worker, scheduled job, or one-off job. |
 | Service workload | A long-running HTTP workload that exposes `/health`, `/ready`, and `/metrics`. |
 | Job workload | A one-off or scheduled workload that exits with a meaningful status and emits structured start/progress/success/failure events. |
 | App host | Runtime wiring in `apps/*`: settings, HTTP schemas/routes, process lifecycle, and dependency assembly. |
@@ -67,6 +67,7 @@ Short form: standardize the delivery workflow, do not replace the tools.
 - New SQL, Dapr, object storage, or provider SDK code starts in
   `packages/infrastructure` or platform/delivery edges.
 - New workload metadata starts in `platform/workloads.json`.
+- New shared runtime capability definitions start in `platform/concerns/`.
 - New operator action belongs in a runbook only when someone can actually run
   it.
 - New docs should update the canonical owner instead of creating a parallel

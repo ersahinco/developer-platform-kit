@@ -19,14 +19,7 @@ import time
 from typing import Any
 from urllib import error, request
 
-DEFAULT_ALARM_SUFFIXES = [
-    "app-target-5xx",
-    "app-target-latency",
-    "app-log-errors",
-    "app-log-rollback-drill-faults",
-    "order-event-consumer-failures",
-    "data-export-job-failures",
-]
+from scripts.observability.platform_inventory import release_alarm_names
 
 REQUIRED_EVENT_FIELDS = [
     ("schema_version",),
@@ -79,10 +72,6 @@ def _github_context(env: dict[str, str]) -> dict[str, str | None]:
     }
 
 
-def _default_alarm_names(stack_name: str) -> list[str]:
-    return [f"{stack_name}-{suffix}" for suffix in DEFAULT_ALARM_SUFFIXES]
-
-
 def _aws_json(args: list[str], region: str) -> dict[str, Any]:
     command = [
         "aws",
@@ -109,7 +98,7 @@ def capture_alarm_snapshot(
     now: datetime | None = None,
 ) -> dict[str, Any]:
     now = datetime.now(UTC) if now is None else now
-    names = alarm_names if alarm_names else _default_alarm_names(stack_name)
+    names = alarm_names if alarm_names else release_alarm_names(stack_name)
     snapshot: dict[str, Any] = {
         "captured_at": now.isoformat(),
         "region": region,

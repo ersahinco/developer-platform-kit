@@ -1,7 +1,8 @@
 from __future__ import annotations
 
 import json
-from typing import Any
+from types import MethodType
+from typing import Any, cast
 
 from fastapi.testclient import TestClient
 from sqlalchemy import text
@@ -199,6 +200,49 @@ def test_relay_outbox_logs_non_empty_result(committed_db_session, monkeypatch, c
         "published": 1,
         "failed": 0,
     }
+
+
+def test_relay_forever_delegates_loop_to_application_layer(monkeypatch):
+    session = object()
+    captured: dict[str, Any] = {}
+
+    class _Stop:
+        def is_set(self) -> bool:
+            return False
+
+        def wait(self, timeout: float | None = None) -> bool:
+            return False
+
+    class _SessionFactory:
+        def __call__(self) -> _SessionContext:
+            return _SessionContext(session)
+
+    def fake_run_order_event_relay(**kwargs: object) -> None:
+        captured.update(kwargs)
+
+    monkeypatch.setattr(
+        consumer_main, "run_order_event_relay", fake_run_order_event_relay
+    )
+    monkeypatch.setattr(settings, "order_events_relay_batch_size", 7)
+    monkeypatch.setattr(settings, "order_events_idle_sleep_seconds", 1.5)
+    monkeypatch.setattr(settings, "order_events_worker_run_once", True)
+
+    stop = _Stop()
+    publisher = _Publisher()
+    consumer_main.relay_forever(_SessionFactory(), publisher=publisher, stop=stop)
+
+    assert isinstance(captured["outbox"], consumer_main.SQLAlchemyOutboxRepository)
+    assert captured["publisher"] is publisher
+    assert captured["limit"] == 7
+    stop_requested = cast(MethodType, captured["stop_requested"])
+    wait_for_retry = cast(MethodType, captured["wait_for_retry"])
+    assert stop_requested.__self__ is stop
+    assert stop_requested.__func__ is type(stop).is_set
+    assert wait_for_retry.__self__ is stop
+    assert wait_for_retry.__func__ is type(stop).wait
+    assert captured["idle_sleep_seconds"] == 1.5
+    assert captured["run_once"] is True
+    assert captured["on_result"] is consumer_main._log_relay_result
 
 
 def test_consumer_deduplicates_repeated_delivery(committed_db_session):

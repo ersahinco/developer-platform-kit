@@ -1,6 +1,18 @@
 # Infrastructure
 
-Terraform is organized by lifecycle boundary:
+The repository distinguishes reusable infrastructure catalog material from
+deployable stack assembly:
+
+- `infra/catalog/` is the home for reusable AWS building blocks as real reuse
+  appears.
+- `infra/platform` and `infra/app` remain the current deployable Terraform
+  roots. They are assembly roots, not the catalog.
+
+The current extraction candidate map lives in
+`infra/catalog/aws/extraction-map.md`. Use it before creating a new module so
+the repo does not drift into speculative abstraction.
+
+Terraform is still organized by lifecycle boundary:
 
 - `platform/` owns AWS-bound bootstrap resources with an app-independent
   lifecycle: VPC networking, VPC endpoints, Route 53/account lookups, and the

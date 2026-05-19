@@ -2,7 +2,7 @@
 
 This is the local development runbook for the current repository shape.
 
-Deployable workloads live under `apps/`:
+Reference workloads live under `apps/`:
 
 - `apps/api`
 - `apps/backfill_worker`

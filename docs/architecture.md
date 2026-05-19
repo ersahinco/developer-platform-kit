@@ -1,20 +1,34 @@
 # Architecture
 
-`aws-sdlc-containers` is a delivery toolkit first and an AWS/ECS implementation
-second. The current runtime stays intentionally narrow: one AWS account and
-region, one ECS cluster, one PostgreSQL database, and one reference system that
-proves safe in-place rollout.
+`aws-sdlc-containers` is a platform monorepo seed first and an AWS/ECS
+implementation second. The current runtime stays intentionally narrow: one AWS
+account and region, one ECS cluster, one PostgreSQL database, and one set of
+reference workloads that prove safe in-place rollout.
 
 The reusable architecture is the contract around proven tools: OCI images,
-explicit app hosts, inward-facing domain and application packages, runtime
+explicit workload hosts, inward-facing domain and application packages, runtime
 adapters at infrastructure edges, Terraform-owned runtime resources, GitHub
-Actions delivery gates, and portable observability and evidence.
+Actions delivery gates, platform concerns, and portable observability and
+evidence.
+
+## Repository Model
+
+The repository is evolving toward three explicit layers:
+
+- Infrastructure catalog: reusable cloud building blocks under `infra/catalog`
+- Platform concerns: shared runtime capabilities under `platform/concerns`
+- Workload examples: reference consumers of the platform contract under `apps/`
+
+Until that evolution is complete, `infra/platform` and `infra/app` remain the
+deployable assembly roots, and `platform/workloads.json` remains the temporary
+application specification.
 
 ## Current Architecture Contract
 
-- One repository, one application system, one shared database
-- Multiple workload hosts under `apps/` without pretending they are separate
-  products
+- One repository, one platform monorepo seed, one shared database reference
+- Multiple reference workload hosts under `apps/`
+- Explicit workload operational classes: edge service, internal service,
+  operator job, scheduled job
 - Split Terraform ownership: `infra/platform` for bootstrap and shared platform
   concerns, `infra/app` for runtime resources
 - One public API edge protected by WAF
@@ -26,7 +40,17 @@ Actions delivery gates, and portable observability and evidence.
 - `packages/domain`: pure entities, value objects, and domain events
 - `packages/application`: use cases, ports, and workflow logic
 - `packages/infrastructure`: SQLAlchemy, Dapr, storage, and runtime adapters
-- `apps/*`: workload hosts with settings, routes, process lifecycle, and wiring
+- `apps/*`: reference workload hosts with settings, routes, lifecycle, and wiring
+
+This means similarly named files can legitimately exist in both places when
+they represent different layers. For example:
+
+- `packages/application/data_export.py` owns the export use case
+- `packages/infrastructure/data_export.py` owns SQL/file/S3 adapters
+- `apps/data_export_job/` owns the runnable workload host
+
+See [apps/README.md](../apps/README.md) and [packages/README.md](../packages/README.md)
+for the short contributor-facing version of this rule.
 
 Dependencies point inward:
 
@@ -36,6 +60,13 @@ apps/*  -> packages/infrastructure
 packages/infrastructure -> packages/application + packages/domain
 ```
 
+Operational class points outward:
+
+- `api` is the public edge service
+- `order_event_consumer` is the internal async service
+- `backfill_worker` is the operator-triggered job
+- `data_export_job` is the scheduler-triggered job
+
 ## Repo Ownership
 
 Use these boundaries when deciding where a change belongs:
@@ -43,14 +74,17 @@ Use these boundaries when deciding where a change belongs:
 | Path | Owns |
 |---|---|
 | `.github/workflows/` | CI, security, app build/deploy, infra plan/apply |
-| `apps/` | workload entrypoints and runtime wiring |
+| `apps/` | reference workload entrypoints and runtime wiring |
 | `packages/domain` | pure domain behavior |
 | `packages/application` | use cases and stable ports |
 | `packages/infrastructure` | SQL, Dapr, storage, and runtime adapters |
 | `db/` | Liquibase, bootstrap SQL, PgBouncer assets |
+| `infra/catalog` | reusable AWS infrastructure building blocks as they are extracted |
 | `infra/platform` | shared platform and bootstrap resources |
 | `infra/app` | runtime resources |
-| `observability/` | local Prometheus, Loki, Tempo, Grafana assets |
+| `platform/concerns/` | Dapr, observability, security, policy, and networking concerns |
+| `platform/workloads.json` | temporary application specification |
+| `platform/runtime-conformance.json` | local/CI runtime fixture data for external conformance checks |
 | `scripts/` | CI, operator, release, observability, and data helpers |
 | `tests/` | API, application, runtime, infra, and contract checks |
 
@@ -98,7 +132,11 @@ The async path is intentionally narrow but real:
 - Consumers record receipts and keep delivery idempotent
 
 Dapr is the standard app-facing transport boundary here. Broker details stay in
-`infra/`, `platform/dapr/`, and runtime scripts.
+`infra/`, `platform/concerns/dapr/`, and runtime scripts.
+
+The platform monorepo direction keeps Dapr in scope because workload complexity
+and portability needs are expected to grow. The repo should keep Dapr
+declarative and platform-owned rather than wrapping it in a custom framework.
 
 ## Platform Choices
 

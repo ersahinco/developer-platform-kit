@@ -4,18 +4,16 @@ import datetime
 from contextlib import asynccontextmanager
 import json
 import threading
-import time
-from typing import Any, Protocol
-import uuid
+from typing import Any, Protocol, cast
 
 from fastapi import FastAPI, Request
 from prometheus_client import CONTENT_TYPE_LATEST, Counter, Histogram, generate_latest
-from starlette import status
 from starlette.responses import JSONResponse, Response
 import uvicorn
 
 from application.order_event_processing import (
     record_order_event_receipt,
+    run_order_event_relay,
     relay_order_outbox_once,
 )
 from application.order_event_receipts import OrderEventReceiptResult
@@ -29,6 +27,11 @@ from infrastructure.dapr.pubsub import (
     DaprOrderEventPublisher,
     payload_from_cloud_event,
 )
+from infrastructure.http_health import (
+    database_readiness_response,
+    health_payload,
+)
+from infrastructure.http_observability import request_observability_middleware
 from order_event_consumer.config import settings
 
 
@@ -48,6 +51,12 @@ REQUEST_LATENCY = Histogram(
 
 class OrderEventPublisher(Protocol):
     def publish(self, message: OutboxMessage) -> None: ...
+
+
+class StopSignal(Protocol):
+    def is_set(self) -> bool: ...
+
+    def wait(self, timeout: float | None = None) -> bool: ...
 
 
 def relay_outbox_once(
@@ -101,24 +110,44 @@ def _publisher() -> DaprOrderEventPublisher:
     )
 
 
+def _log_relay_result(result: object) -> None:
+    published = getattr(result, "published", 0)
+    failed = getattr(result, "failed", 0)
+    if published == 0 and failed == 0:
+        return
+    print(
+        json.dumps(
+            {
+                "event": "outbox_relay",
+                "published": published,
+                "failed": failed,
+            },
+            sort_keys=True,
+        ),
+        flush=True,
+    )
+
+
 def relay_forever(
     SessionLocal: Any,
     *,
     publisher: OrderEventPublisher,
-    stop: threading.Event,
+    stop: StopSignal,
 ) -> None:
     while not stop.is_set():
-        work_done = 0
         with SessionLocal() as session:
-            work_done = relay_outbox_once(
-                session,
+            run_order_event_relay(
+                outbox=SQLAlchemyOutboxRepository(session),
                 publisher=publisher,
                 limit=settings.order_events_relay_batch_size,
+                stop_requested=stop.is_set,
+                wait_for_retry=stop.wait,
+                idle_sleep_seconds=settings.order_events_idle_sleep_seconds,
+                run_once=settings.order_events_worker_run_once,
+                on_result=_log_relay_result,
             )
         if settings.order_events_worker_run_once:
             return
-        if work_done == 0:
-            stop.wait(settings.order_events_idle_sleep_seconds)
 
 
 @asynccontextmanager
@@ -153,77 +182,50 @@ async def lifespan(app: FastAPI):
 app = FastAPI(title="aws-sdlc-containers-order-event-consumer", lifespan=lifespan)
 
 
-def _route_label(request: Request) -> str:
-    route = request.scope.get("route")
-    return getattr(route, "path", request.url.path)
+def _http_request_event(
+    request: Request,
+    response: Response,
+    request_id: str,
+    elapsed_seconds: float,
+) -> dict[str, object]:
+    return {
+        "event": "http_request",
+        "event_id": None,
+        "request_id": request_id,
+        "method": request.method,
+        "route": getattr(request.scope.get("route"), "path", request.url.path),
+        "status_code": response.status_code,
+        "duration_ms": round(elapsed_seconds * 1000, 3),
+    }
 
 
-def _request_id(request: Request) -> str:
-    request_id = request.headers.get("x-request-id", "").strip()
-    return request_id or uuid.uuid4().hex
-
-
-@app.middleware("http")
-async def observe_requests(request: Request, call_next) -> Response:
-    request_id = _request_id(request)
-    request.state.request_id = request_id
-
-    if request.url.path == "/metrics":
-        response = await call_next(request)
-        response.headers["X-Request-ID"] = request_id
-        return response
-
-    started_at = time.perf_counter()
-    try:
-        response = await call_next(request)
-    except Exception:
-        route = _route_label(request)
-        REQUEST_COUNT.labels(request.method, route, "500").inc()
-        REQUEST_LATENCY.labels(request.method, route).observe(
-            time.perf_counter() - started_at
-        )
-        raise
-
-    route = _route_label(request)
-    REQUEST_COUNT.labels(request.method, route, str(response.status_code)).inc()
-    elapsed_seconds = time.perf_counter() - started_at
-    REQUEST_LATENCY.labels(request.method, route).observe(elapsed_seconds)
-    response.headers["X-Request-ID"] = request_id
-    print(
-        json.dumps(
-            {
-                "event": "http_request",
-                "event_id": None,
-                "request_id": request_id,
-                "method": request.method,
-                "route": route,
-                "status_code": response.status_code,
-                "duration_ms": round(elapsed_seconds * 1000, 3),
-            },
-            sort_keys=True,
-        ),
-        flush=True,
+app.middleware("http")(
+    request_observability_middleware(
+        request_count=REQUEST_COUNT,
+        request_latency=REQUEST_LATENCY,
+        event_payload=_http_request_event,
     )
-    return response
+)
 
 
 @app.get("/health")
 def health() -> dict[str, str]:
-    return {"status": "ok"}
+    return health_payload()
 
 
 @app.get("/ready", response_model=None)
 def ready(request: Request) -> dict[str, object] | JSONResponse:
-    try:
-        with request.app.state.SessionLocal() as session:
-            ping_database(session)
-    except Exception:
-        return JSONResponse(
-            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
-            content={"status": "unready", "checks": {"database": "unavailable"}},
-        )
+    result = database_readiness_response(
+        lambda: _ping_session_local(request.app.state.SessionLocal)
+    )
+    if isinstance(result, JSONResponse):
+        return result
+    return cast(dict[str, object], result)
 
-    return {"status": "ready", "checks": {"database": "ok"}}
+
+def _ping_session_local(session_factory: Any) -> None:
+    with session_factory() as session:
+        ping_database(session)
 
 
 @app.get("/metrics", include_in_schema=False)

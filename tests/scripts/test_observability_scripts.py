@@ -121,6 +121,39 @@ def test_delivery_verifier_flags_unexpected_stack_log_group(monkeypatch) -> None
     assert any("unexpected stack log groups" in result.message for result in results)
 
 
+def test_delivery_verifier_tolerates_known_optional_stack_log_groups(
+    monkeypatch,
+) -> None:
+    expected_groups = delivery._expected_log_group_names("aws-sdlc-containers")
+
+    def fake_aws_json(args: list[str], region: str) -> dict[str, Any]:
+        return {
+            "logGroups": [
+                {"logGroupName": name, "retentionInDays": 14}
+                for name in [
+                    *expected_groups,
+                    "/ecs/aws-sdlc-containers/adot",
+                    "/ecs/aws-sdlc-containers/firelens",
+                    "/ecs/aws-sdlc-containers/grafana",
+                    "/ecs/aws-sdlc-containers/loki",
+                    "/ecs/aws-sdlc-containers/prometheus",
+                    "/ecs/aws-sdlc-containers/tempo",
+                ]
+            ]
+        }
+
+    monkeypatch.setattr(delivery, "_aws_json", fake_aws_json)
+
+    results = delivery._check_cloudwatch_log_inventory(
+        "aws-sdlc-containers", "eu-central-1"
+    )
+
+    assert all(result.ok for result in results)
+    assert any(
+        "optional support log groups present" in result.message for result in results
+    )
+
+
 def test_delivery_verifier_checks_loki_log_group_labels_and_fresh_logs(
     monkeypatch,
 ) -> None:

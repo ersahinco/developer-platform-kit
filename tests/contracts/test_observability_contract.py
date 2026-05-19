@@ -57,7 +57,8 @@ def test_cloud_observability_is_adot_sidecar_not_hosted_lgtm() -> None:
 
 def test_local_grafana_stack_uses_prometheus_loki_tempo_without_cloudwatch() -> None:
     datasources = _read(
-        "observability/grafana/provisioning/datasources/datasources.yml"
+        "platform/concerns/observability/grafana/provisioning/datasources/"
+        "datasources.yml"
     )
 
     assert "type: prometheus" in datasources
@@ -90,7 +91,9 @@ def test_long_running_services_use_ecs_native_rollback_detection() -> None:
 
 
 def test_local_prometheus_scrapes_app_and_stack_metrics() -> None:
-    local_prometheus = _read("observability/prometheus/prometheus.yml")
+    local_prometheus = _read(
+        "platform/concerns/observability/prometheus/prometheus.yml"
+    )
 
     assert "job_name: app" in local_prometheus
     assert "metrics_path: /metrics" in local_prometheus

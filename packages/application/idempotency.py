@@ -2,6 +2,7 @@ import hashlib
 import json
 from dataclasses import dataclass
 from decimal import Decimal
+import time
 from typing import Literal, Protocol
 
 IdempotencyBeginStatus = Literal["started", "replay", "conflict", "processing"]
@@ -26,6 +27,22 @@ class IdempotencyRepository(Protocol):
     ) -> None: ...
 
     def fail(self, *, key: str, error: str) -> None: ...
+
+
+def begin_idempotent_request(
+    *,
+    idempotency: IdempotencyRepository,
+    key: str,
+    request_hash: str,
+    timeout_seconds: float = 5.0,
+    retry_interval_seconds: float = 0.05,
+) -> IdempotencyBeginResult:
+    deadline = time.monotonic() + timeout_seconds
+    while True:
+        result = idempotency.begin(key=key, request_hash=request_hash)
+        if result.status != "processing" or time.monotonic() >= deadline:
+            return result
+        time.sleep(retry_interval_seconds)
 
 
 def order_request_hash(

@@ -66,6 +66,32 @@ def test_database_portability_is_postgres_not_current_provider() -> None:
     assert pooling_by_workload["order_event_consumer"] == "direct"
 
 
+def test_workload_operational_classes_match_current_reference_roles() -> None:
+    import json
+
+    contract = json.loads((ROOT / "platform" / "workloads.json").read_text())
+    operational_by_workload = {
+        workload["name"]: workload["operational"] for workload in contract["workloads"]
+    }
+
+    assert operational_by_workload["api"] == {
+        "class": "edge-service",
+        "exposure": "public",
+    }
+    assert operational_by_workload["order_event_consumer"] == {
+        "class": "internal-service",
+        "exposure": "internal",
+    }
+    assert operational_by_workload["backfill_worker"] == {
+        "class": "operator-job",
+        "trigger": "manual",
+    }
+    assert operational_by_workload["data_export_job"] == {
+        "class": "scheduled-job",
+        "trigger": "schedule",
+    }
+
+
 def test_object_storage_provider_sdk_stays_in_infrastructure() -> None:
     tracked_files = subprocess.run(
         ["git", "ls-files", "*.py"],
@@ -96,6 +122,7 @@ def test_dapr_pubsub_boundary_keeps_provider_brokers_at_runtime_edge() -> None:
         for workload in contract["workloads"]
         if workload["name"] == "order_event_consumer"
     )
+    assert order_consumer["dapr"]["app_id"] == "order-event-consumer"
     assert order_consumer["dapr"]["scope"] == "pubsub"
     assert order_consumer["dapr"]["pubsub_name"] == "order-events-pubsub"
 
@@ -113,7 +140,10 @@ def test_dapr_pubsub_boundary_keeps_provider_brokers_at_runtime_edge() -> None:
     runtime_edge = "\n".join(
         [
             _read("infra/app/messaging.tf"),
-            _read("platform/dapr/local/components/order-events-pubsub.yaml"),
+            _read(
+                "platform/concerns/dapr/profiles/local/components/"
+                "order-events-pubsub.yaml"
+            ),
         ]
     ).lower()
     assert "/v1.0/publish/" in dapr_adapter
@@ -127,7 +157,9 @@ def test_alternate_dapr_component_can_satisfy_same_pubsub_contract() -> None:
         (
             ROOT
             / "platform"
+            / "concerns"
             / "dapr"
+            / "profiles"
             / "local"
             / "components"
             / "order-events-pubsub.yaml"

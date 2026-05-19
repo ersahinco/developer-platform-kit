@@ -188,7 +188,11 @@ jobs:
                     dockerfile: "platform/workload.Dockerfile",
                     context: ".",
                     tag: $tag,
-                    build_args: (.image.build_args // {})
+                    build_args: {
+                      APP_PATH: .app_path,
+                      UV_PACKAGE: .image.package,
+                      WORKLOAD_CMD: .image.command
+                    }
                   }
               ] + [
                 {

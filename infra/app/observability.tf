@@ -4,7 +4,8 @@
 # Cloud runtime observability is intentionally lean: ECS writes workload stdout
 # to CloudWatch Logs, the API can send OTLP traces to a same-task ADOT sidecar,
 # and the portable Prometheus/Loki/Tempo/Grafana learning surface stays local
-# under observability/ instead of being reimplemented as ECS services.
+# under platform/concerns/observability/ instead of being reimplemented as ECS
+# services.
 ################################################################################
 
 locals {

@@ -50,8 +50,18 @@ def _free_port() -> int:
 
 
 def _load_workloads() -> list[dict[str, object]]:
-    contract = json.loads((ROOT / "platform" / "workloads.json").read_text())
-    return list(contract["workloads"])
+    workloads = json.loads((ROOT / "platform" / "workloads.json").read_text())[
+        "workloads"
+    ]
+    conformance = json.loads(
+        (ROOT / "platform" / "runtime-conformance.json").read_text()
+    )["workloads"]
+    merged: list[dict[str, object]] = []
+    for workload in workloads:
+        item = dict(workload)
+        item["conformance"] = conformance[workload["name"]]
+        merged.append(item)
+    return merged
 
 
 def _json_logs(container: str) -> list[dict[str, object]]:
@@ -228,7 +238,11 @@ def runtime_network() -> Iterator[tuple[str, str]]:
 def _build_image(workload: dict[str, object], prefix: str) -> str:
     name = str(workload["name"])
     image_spec = cast(dict[str, Any], workload["image"])
-    build_args = dict(image_spec.get("build_args", {}))
+    build_args = {
+        "APP_PATH": str(workload["app_path"]),
+        "UV_PACKAGE": str(image_spec["package"]),
+        "WORKLOAD_CMD": str(image_spec["command"]),
+    }
     image = f"{prefix}-{name}:local"
     args = ["docker", "build", "-f", WORKLOAD_DOCKERFILE, "-t", image]
     for key, value in build_args.items():
@@ -255,7 +269,8 @@ def test_declared_service_images_satisfy_portable_runtime_contract(
         name = str(workload["name"])
         conformance = workload["conformance"]  # type: ignore[index]
         assert isinstance(conformance, dict)
-        port = int(conformance["port"])
+        service = cast(dict[str, object], workload["service"])
+        port = int(cast(int | str, service["port"]))
         host_port = _free_port()
         image = _build_image(workload, prefix)
         container = f"{prefix}-{name}"

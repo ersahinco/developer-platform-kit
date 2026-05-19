@@ -210,7 +210,12 @@ def _check_ecs() -> list[CheckResult]:
         return [CheckResult(False, "ECS_CLUSTER and ECS_SERVICE must be set together")]
 
     region = os.environ.get("AWS_REGION", "eu-central-1")
-    expected_family = os.environ.get("EXPECTED_TASK_FAMILY", "aws-sdlc-containers")
+    expected_family = (
+        os.environ.get("EXPECTED_TASK_FAMILY")
+        or os.environ.get("STACK_NAME")
+        or cluster
+        or "aws-sdlc-containers"
+    )
     app_container_name = os.environ.get("APP_CONTAINER_NAME", "app")
     expected_image = os.environ.get("EXPECTED_APP_IMAGE")
     expected_tag = os.environ.get("EXPECTED_IMAGE_TAG")

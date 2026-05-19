@@ -27,6 +27,8 @@ from pathlib import Path
 from typing import Any
 from urllib import parse, request
 
+from scripts.observability.platform_inventory import dapr_workload_service_name
+from scripts.observability.platform_inventory import incident_alarm_names
 
 CORRELATION_FIELDS = [
     "stack",
@@ -55,20 +57,6 @@ def _safe_aws_json(args: list[str], region: str) -> dict[str, Any]:
         return _aws_json(args, region)
     except (subprocess.CalledProcessError, json.JSONDecodeError) as exc:
         return {"error": str(exc), "args": args}
-
-
-def _alarm_names(stack_name: str) -> list[str]:
-    return [
-        f"{stack_name}-app-unhealthy-targets",
-        f"{stack_name}-app-target-5xx",
-        f"{stack_name}-app-target-latency",
-        f"{stack_name}-rds-cpu-high",
-        f"{stack_name}-rds-free-storage-low",
-        f"{stack_name}-rds-connections-high",
-        f"{stack_name}-order-events-dlq-visible",
-        f"{stack_name}-data-export-scheduler-target-errors",
-        f"{stack_name}-data-export-success-missing",
-    ]
 
 
 def _primary_deployment(service: dict[str, Any]) -> dict[str, Any]:
@@ -334,6 +322,7 @@ def _query_hints(
     stack_name: str, service_name: str, root_domain: str
 ) -> dict[str, Any]:
     base_labels = f'stack="{stack_name}",environment="aws",service="{service_name}"'
+    relay_service_name = dapr_workload_service_name()
     return {
         "grafana_dashboards": [
             "AWS SDLC Containers / App Overview",
@@ -350,7 +339,7 @@ def _query_hints(
             },
             {
                 "name": "order event relay",
-                "expr": f'{{stack="{stack_name}",environment="aws",service="order-event-consumer"}} |= "<event_id>"',
+                "expr": f'{{stack="{stack_name}",environment="aws",service="{relay_service_name}"}} |= "<event_id>"',
             },
             {
                 "name": "delivery events",
@@ -434,7 +423,12 @@ def build_bundle(
             task_definition = task_definition_value
 
     alarm_response = _safe_aws_json(
-        ["cloudwatch", "describe-alarms", "--alarm-names", *_alarm_names(stack_name)],
+        [
+            "cloudwatch",
+            "describe-alarms",
+            "--alarm-names",
+            *incident_alarm_names(stack_name),
+        ],
         region,
     )
     metric_alarms = alarm_response.get("MetricAlarms", [])

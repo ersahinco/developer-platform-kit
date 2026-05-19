@@ -6,7 +6,9 @@ The goal is to prove that a real runtime can host the existing portable
 workloads without moving provider assumptions into app code.
 
 `docs/platform-contract.md` defines what workloads must expose.
-`platform/workloads.json` is the machine-readable workload registry.
+`platform/workloads.json` is the temporary application specification.
+`platform/runtime-conformance.json` is the local/CI runtime fixture used to
+prove the declared workloads still satisfy that specification from the outside.
 `make runtime-conformance` is the main proof that declared workloads still run
 from the outside.
 
@@ -37,15 +39,25 @@ Before a runtime is called supported, it must provide:
   evidence
 - Separate bootstrap/platform and app/runtime infrastructure ownership
 
+The runtime must also preserve declared workload operational classes:
+
+- externally routed edge services
+- internal long-running services
+- manually triggered operator jobs
+- scheduler-triggered recurring jobs
+
 ## Current AWS ECS Target
 
 The current `aws-ecs` target is implemented through `infra/`,
-`.github/workflows/`, `scripts/`, `compose.yaml`, tests, and docs.
+`.github/workflows/`, `scripts/`, `compose.yaml`, `platform/concerns/`, tests,
+and docs.
 
 - AWS details stay in `infra/platform`, `infra/app`, and AWS-facing scripts.
 - The portable part is the workload contract and evidence shape.
-- `platform/workloads.json` remains the single workload registry while there is
+- `platform/workloads.json` remains the workload specification while there is
   one runtime.
+- `platform/runtime-conformance.json` stays runtime-check-specific and should
+  not grow into a second application spec.
 
 ## Portable Baseline
 

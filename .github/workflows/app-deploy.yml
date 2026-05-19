@@ -62,7 +62,7 @@ jobs:
 
       - name: Verify approved images exist
         run: |
-          for repo in app worker data-export-job order-event-consumer liquibase; do
+          for repo in $(jq -r '.workloads[].image.repository' platform/workloads.json); do
             aws ecr describe-images \
               --repository-name "${STACK_NAME}/${repo}" \
               --image-ids "imageTag=${IMAGE_TAG}"
@@ -138,6 +138,7 @@ jobs:
       contents: read
       id-token: write
     outputs:
+      primary_service: ${{ steps.primary-service.outputs.service }}
       task_definition: ${{ steps.deploy-app.outputs.task_def_arn }}
       verify_seconds: ${{ steps.verify-app.outputs.verify_seconds }}
 
@@ -171,24 +172,37 @@ jobs:
         id: net
         run: scripts/ci/ci_resolve_ecs_network.sh "${{ env.STACK_NAME }}"
 
-      - name: Render app task definition
+      - name: Resolve primary edge service
+        id: primary-service
+        run: |
+          edge_count=$(jq '[.workloads[] | select(.kind == "service" and .operational.class == "edge-service")] | length' platform/workloads.json)
+          if [[ "$edge_count" != "1" ]]; then
+            echo "Expected exactly one edge-service workload, found ${edge_count}." >&2
+            exit 1
+          fi
+          service=$(jq -r '.workloads[] | select(.kind == "service" and .operational.class == "edge-service") | .image.repository' platform/workloads.json)
+          workload_name=$(jq -r '.workloads[] | select(.kind == "service" and .operational.class == "edge-service") | .name' platform/workloads.json)
+          echo "service=${service}" >> "$GITHUB_OUTPUT"
+          echo "workload_name=${workload_name}" >> "$GITHUB_OUTPUT"
+
+      - name: Render primary edge task definition
         run: |
           scripts/ci/ci_render_ecs_task_definition.sh \
             "${STACK_NAME}" \
-            app \
-            "${{ steps.aws-context.outputs.ecr_registry }}/${STACK_NAME}/app:${IMAGE_TAG}" \
+            "${{ steps.primary-service.outputs.service }}" \
+            "${{ steps.aws-context.outputs.ecr_registry }}/${STACK_NAME}/${{ steps.primary-service.outputs.service }}:${IMAGE_TAG}" \
             /tmp/app-task-definition.json
 
-      - name: Deploy app service
+      - name: Deploy primary edge service
         id: deploy-app
-        run: scripts/ci/ci_deploy_ecs_service.sh "${STACK_NAME}" app /tmp/app-task-definition.json
+        run: scripts/ci/ci_deploy_ecs_service.sh "${STACK_NAME}" "${{ steps.primary-service.outputs.service }}" /tmp/app-task-definition.json
 
-      - name: Verify deployed app
+      - name: Verify deployed edge service
         id: verify-app
         env:
           BASE_URL: https://api.${{ env.ROOT_DOMAIN }}
           ECS_CLUSTER: ${{ env.STACK_NAME }}
-          ECS_SERVICE: app
+          ECS_SERVICE: ${{ steps.primary-service.outputs.service }}
           EXPECTED_TASK_FAMILY: ${{ env.STACK_NAME }}
           EXPECTED_IMAGE_TAG: ${{ env.IMAGE_TAG }}
         run: |
@@ -207,19 +221,15 @@ jobs:
         env:
           ECR_REGISTRY: ${{ steps.aws-context.outputs.ecr_registry }}
         run: |
-          declare -A task_families=(
-            [worker]="${STACK_NAME}-worker"
-            [data_export_job]="${STACK_NAME}-data-export-job"
-          )
-          declare -A containers=(
-            [worker]="worker"
-            [data_export_job]="data-export-job"
-          )
-          for key in worker data_export_job; do
-            container="${containers[$key]}"
+          jq -r '
+            .workloads[]
+            | select(.kind == "job")
+            | [.name, .image.repository]
+            | @tsv
+          ' platform/workloads.json | while IFS=$'\t' read -r workload_name container; do
             task_definition="/tmp/${container}-task-definition.json"
             scripts/ci/ci_render_ecs_task_definition.sh \
-              "${task_families[$key]}" \
+              "${STACK_NAME}-${container}" \
               "$container" \
               "${ECR_REGISTRY}/${STACK_NAME}/${container}:${IMAGE_TAG}" \
               "$task_definition"
@@ -231,15 +241,18 @@ jobs:
               echo "Failed to register task definition for ${container}." >&2
               exit 1
             fi
-            echo "${key}_task_def_arn=${task_def_arn}" >> "$GITHUB_OUTPUT"
+            echo "${workload_name}_task_def_arn=${task_def_arn}" >> "$GITHUB_OUTPUT"
           done
 
       - name: Deploy service task definitions
         env:
           ECR_REGISTRY: ${{ steps.aws-context.outputs.ecr_registry }}
         run: |
-          services=(order-event-consumer)
-          for service in "${services[@]}"; do
+          jq -r '
+            .workloads[]
+            | select(.kind == "service" and .image.repository != "app")
+            | .image.repository
+          ' platform/workloads.json | while IFS= read -r service; do
             task_definition="/tmp/${service}-task-definition.json"
             scripts/ci/ci_render_ecs_task_definition.sh \
               "${STACK_NAME}-${service}" \
@@ -257,7 +270,7 @@ jobs:
         run: |
           TASK_ARN=$(scripts/ci/ci_run_ecs_task.sh \
             "${STACK_NAME}" \
-            "${{ steps.support-tasks.outputs.worker_task_def_arn }}" \
+            "${{ steps.support-tasks.outputs.backfill_worker_task_def_arn }}" \
             "${{ steps.net.outputs.subnet_id }}" \
             "${{ steps.net.outputs.sg_id }}")
           echo "Backfill task: $TASK_ARN"
@@ -303,7 +316,7 @@ jobs:
             --event-type app_deploy \
             --status "${status}" \
             --summary "${summary}" \
-            --service-name app \
+            --service-name "${{ needs.deploy.outputs.primary_service }}" \
             --image-tag "${{ env.IMAGE_TAG }}" \
             --task-definition "${{ needs.deploy.outputs.task_definition }}" \
             --verify-seconds "${{ needs.deploy.outputs.verify_seconds }}" \

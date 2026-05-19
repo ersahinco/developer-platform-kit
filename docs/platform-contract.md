@@ -1,22 +1,62 @@
 # Platform Contract
 
-This is the portable application contract for this repository. It describes
-what a workload must provide to run on the current platform shape without
+This is the portable workload contract for this repository. It describes what a
+workload example must provide to run on the current platform shape without
 pretending the runtime is cloud-neutral.
 
-The project goal is an opinionated delivery toolkit, not a private framework.
-Use standard tools directly and keep provider details at the platform edge.
+The project goal is an opinionated platform monorepo seed, not a private
+framework. Use standard tools directly and keep provider details at the
+platform edge.
 
-`platform/workloads.json` is the machine-readable workload registry.
-Focused pytest checks and `make runtime-conformance` are the main proof that the
-declared workloads still satisfy the contract.
+`platform/workloads.json` is the temporary machine-readable application
+specification. Focused pytest checks and `make runtime-conformance` are the main
+proof that the declared workloads still satisfy the contract.
+
+## Application Specification
+
+`platform/workloads.json` currently owns:
+
+- workload identity and kind
+- workload host location under `apps/`
+- workload operational class such as public edge, internal service, scheduled
+  job, or operator-run job
+- service port declarations for HTTP workloads
+- Dapr app identity and component mappings when a workload uses Dapr
+- shared image package and command metadata
+- portable health, metrics, traces, and idempotency expectations
+- workload-facing config and secret names
+
+It currently does not own:
+
+- provider-specific resource names
+- AWS queue, topic, bucket, ALB, ECS, IAM, or RDS implementation details
+- Dapr component backing implementations for a given environment profile
+- Terraform composition or GitHub Actions deployment choreography
+- runtime-conformance fixture values used only by the local/CI container checks
+
+This file is intentionally transitional. The long-term direction is to keep
+workloads declaring what they need once while platform and runtime layers own
+how those needs are fulfilled.
+
+Current split:
+
+- keep workload identity, operational class, Dapr need, runtime-facing config
+  names, and shared image identity in `platform/workloads.json`
+- keep local/CI fixture values in `platform/runtime-conformance.json`
+- keep deploy ordering, task registration, verification sequence, and cloud
+  rollout mechanics in workflows, scripts, and `infra/`
+
+`platform/runtime-conformance.json` now owns the local/CI runtime fixture data
+used by `make runtime-conformance`. That keeps test-only environment values and
+expected log markers out of the main workload specification.
 
 ## Workload Shape
 
 Every service workload must provide:
 
 - A committed OCI image declared in `platform/workloads.json`
-- A stable app package under `apps/`
+- A stable reference host package under `apps/`
+- A declared HTTP service port in the application specification
 - `/health`, `/ready`, and `/metrics`
 - Prometheus metrics
 - Structured logs with stable runtime labels and workload identifiers
@@ -32,8 +72,30 @@ Every one-off or scheduled job must provide:
 - Structured start, progress, success, and failure events
 - The same config and secret rules as services
 
-Current long-running workloads are `apps/api` and `apps/order_event_consumer`.
-Current job workloads are `apps/backfill_worker` and `apps/data_export_job`.
+Current long-running reference workloads are `apps/api` and
+`apps/order_event_consumer`. Current job workloads are
+`apps/backfill_worker` and `apps/data_export_job`.
+
+## Operational Class
+
+The workload specification must declare the operational class for each
+workload so future additions do not rely on imitation or repo folklore.
+
+- `edge-service`: a user-facing or externally routed HTTP service
+- `internal-service`: a long-running service without public edge ownership
+- `operator-job`: a one-off task triggered manually or by CI/operator workflow
+- `scheduled-job`: a recurring task triggered by a scheduler
+
+Current reference mapping:
+
+- `api` is an `edge-service`
+- `order_event_consumer` is an `internal-service`
+- `backfill_worker` is an `operator-job`
+- `data_export_job` is a `scheduled-job`
+
+This classification is part of the portable contract. Runtime-specific details
+such as ALB, ECS service count, EventBridge Scheduler, or manual operator
+workflow still belong at the platform edge.
 
 ## Workload Checklist
 
@@ -51,7 +113,7 @@ Current job workloads are `apps/backfill_worker` and `apps/data_export_job`.
 - `packages/domain`: pure business behavior
 - `packages/application`: use cases and stable ports
 - `packages/infrastructure`: SQL, storage, Dapr, and provider adapters
-- `apps/*`: runtime wiring, settings, HTTP routes, and entrypoints
+- `apps/*`: reference workload wiring, settings, HTTP routes, and entrypoints
 - `infra/`, `scripts/`, and workflows: provider and delivery edges
 
 Provider resource names such as buckets, queues, task definitions, and IAM
@@ -75,6 +137,8 @@ Dapr is the app-facing eventing boundary in this repo.
 
 - Application code can know Dapr pub/sub names, topics, CloudEvents, and
   outbox semantics
+- The application specification can declare Dapr app identity and component
+  mappings
 - Application code should not know whether the runtime uses SNS/SQS, Redis,
   Kafka, Azure Service Bus, GCP Pub/Sub, or another broker
 - The durable application handoff remains the database outbox
@@ -96,6 +160,12 @@ The portable observability baseline is:
 CloudWatch remains the AWS-native signal source for rollback and managed
 infrastructure alarms. It is allowed at the platform edge, but it is not the
 portable app observability contract.
+
+Alarm ownership rule:
+
+- workloads declare observable behavior and runtime class
+- platform concerns decide which CloudWatch alarms, release snapshots, and
+  incident snapshots protect those behaviors in the current runtime
 
 ## Delivery And Evidence
 

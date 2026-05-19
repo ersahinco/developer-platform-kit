@@ -60,7 +60,8 @@ Do not add a second database provider only to prove portability.
 
 ## Export Contract
 
-`apps/data_export_job` exports `order_contact_email` first to a local path that
+The `apps/data_export_job` reference workload exports `order_contact_email`
+first to a local path that
 matches the object-store shape, then publishes a manifest only after the raw
 CSV succeeds and validates.
 

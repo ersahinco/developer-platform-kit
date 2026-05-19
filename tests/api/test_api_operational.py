@@ -25,6 +25,7 @@ from api.main import (  # noqa: E402
     get_order_repo,
 )
 from api.main import get_config_store  # noqa: E402
+from api.config import settings  # noqa: E402
 from domain.customer import Customer  # noqa: E402
 from domain.order import Order  # noqa: E402
 
@@ -179,7 +180,7 @@ def test_ready_reports_unavailable_when_ping_fails() -> None:
 
 
 def test_rollout_drill_fault_defaults_to_off(monkeypatch) -> None:
-    monkeypatch.delenv("ROLLOUT_DRILL_FAULT_MODE", raising=False)
+    monkeypatch.setattr(settings, "rollout_drill_fault_mode", "off")
     _override_db(_ReadySession())
     try:
         with TestClient(app) as client:
@@ -192,9 +193,9 @@ def test_rollout_drill_fault_defaults_to_off(monkeypatch) -> None:
 
 
 def test_rollout_drill_error_fault_returns_configured_status(monkeypatch) -> None:
-    monkeypatch.setenv("ROLLOUT_DRILL_FAULT_MODE", "error")
-    monkeypatch.setenv("ROLLOUT_DRILL_FAULT_PATHS", "/ready")
-    monkeypatch.setenv("ROLLOUT_DRILL_FAULT_STATUS_CODE", "503")
+    monkeypatch.setattr(settings, "rollout_drill_fault_mode", "error")
+    monkeypatch.setattr(settings, "rollout_drill_fault_paths", "/ready")
+    monkeypatch.setattr(settings, "rollout_drill_fault_status_code", 503)
 
     with TestClient(app) as client:
         response = client.get("/ready")
@@ -213,9 +214,9 @@ def test_rollout_drill_latency_fault_delays_only_configured_paths(
     async def fake_sleep(seconds: float) -> None:
         calls.append(seconds)
 
-    monkeypatch.setenv("ROLLOUT_DRILL_FAULT_MODE", "latency")
-    monkeypatch.setenv("ROLLOUT_DRILL_FAULT_PATHS", "/ready")
-    monkeypatch.setenv("ROLLOUT_DRILL_FAULT_DELAY_SECONDS", "3")
+    monkeypatch.setattr(settings, "rollout_drill_fault_mode", "latency")
+    monkeypatch.setattr(settings, "rollout_drill_fault_paths", "/ready")
+    monkeypatch.setattr(settings, "rollout_drill_fault_delay_seconds", 3.0)
     monkeypatch.setattr(api_main.asyncio, "sleep", fake_sleep)
     _override_db(_ReadySession())
 
@@ -232,7 +233,7 @@ def test_rollout_drill_latency_fault_delays_only_configured_paths(
 
 
 def test_rollout_drill_invalid_fault_mode_behaves_as_off(monkeypatch) -> None:
-    monkeypatch.setenv("ROLLOUT_DRILL_FAULT_MODE", "surprise")
+    monkeypatch.setattr(settings, "rollout_drill_fault_mode", "surprise")
     _override_db(_ReadySession())
     try:
         with TestClient(app) as client:

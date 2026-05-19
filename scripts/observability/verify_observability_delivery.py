@@ -26,34 +26,48 @@ import os
 import subprocess
 import sys
 import time
+from functools import lru_cache
+from pathlib import Path
 from dataclasses import dataclass
 from typing import Any
 from urllib.parse import urlparse, urlunparse
 
 import httpx
 
-EXPECTED_LOG_GROUP_SUFFIXES = [
-    "app",
-    "adot",
-    "data-export-job",
-    "liquibase",
-    "order-event-consumer",
-    "pgbouncer",
-    "worker",
+ROOT = Path(__file__).resolve().parents[2]
+REQUIRED_SUPPORT_LOG_GROUP_SUFFIXES = ["liquibase", "pgbouncer"]
+OPTIONAL_SUPPORT_LOG_GROUP_SUFFIXES = ["adot"]
+DEFAULT_ALLOWED_EXTRA_STACK_LOG_GROUP_SUFFIXES = [
+    "firelens",
+    "grafana",
+    "loki",
+    "prometheus",
+    "tempo",
 ]
+DEFAULT_FRESH_LOG_GROUP_SUFFIXES = ["app", "pgbouncer"]
+DEFAULT_FRESH_LOKI_LOG_GROUP_SUFFIXES = ["app"]
 
-EXPECTED_LOKI_LOG_GROUP_SUFFIXES = EXPECTED_LOG_GROUP_SUFFIXES
 
-DEFAULT_FRESH_LOG_GROUP_SUFFIXES = [
-    "app",
-    "adot",
-    "order-event-consumer",
-    "pgbouncer",
-]
+@lru_cache(maxsize=1)
+def _workload_log_group_suffixes() -> list[str]:
+    contract = json.loads((ROOT / "platform" / "workloads.json").read_text())
+    return [workload["image"]["repository"] for workload in contract["workloads"]]
 
-DEFAULT_FRESH_LOKI_LOG_GROUP_SUFFIXES = [
-    "app",
-]
+
+def _expected_log_group_suffixes() -> list[str]:
+    return [*_workload_log_group_suffixes(), *REQUIRED_SUPPORT_LOG_GROUP_SUFFIXES]
+
+
+def _known_log_group_suffixes() -> list[str]:
+    allowed_extras = _csv_env(
+        "CLOUDWATCH_ALLOWED_EXTRA_LOG_GROUPS",
+        DEFAULT_ALLOWED_EXTRA_STACK_LOG_GROUP_SUFFIXES,
+    )
+    return [
+        *_expected_log_group_suffixes(),
+        *OPTIONAL_SUPPORT_LOG_GROUP_SUFFIXES,
+        *allowed_extras,
+    ]
 
 
 @dataclass(frozen=True)
@@ -76,18 +90,20 @@ def _aws_json(args: list[str], region: str) -> dict[str, Any]:
 
 
 def _expected_log_group_names(stack_name: str) -> list[str]:
-    return [f"/ecs/{stack_name}/{suffix}" for suffix in EXPECTED_LOG_GROUP_SUFFIXES]
+    return [f"/ecs/{stack_name}/{suffix}" for suffix in _expected_log_group_suffixes()]
 
 
 def _expected_loki_log_group_names(stack_name: str) -> list[str]:
-    return [
-        f"/ecs/{stack_name}/{suffix}" for suffix in EXPECTED_LOKI_LOG_GROUP_SUFFIXES
-    ]
+    return [f"/ecs/{stack_name}/{suffix}" for suffix in _expected_log_group_suffixes()]
 
 
 def _check_cloudwatch_log_inventory(stack_name: str, region: str) -> list[CheckResult]:
     prefix = f"/ecs/{stack_name}"
     expected = set(_expected_log_group_names(stack_name))
+    known = {f"/ecs/{stack_name}/{suffix}" for suffix in _known_log_group_suffixes()}
+    optional = {
+        f"/ecs/{stack_name}/{suffix}" for suffix in OPTIONAL_SUPPORT_LOG_GROUP_SUFFIXES
+    }
 
     try:
         response = _aws_json(
@@ -109,7 +125,9 @@ def _check_cloudwatch_log_inventory(stack_name: str, region: str) -> list[CheckR
     }
     actual = set(groups)
     missing = sorted(expected - actual)
-    unexpected = sorted(actual - expected)
+    unexpected = sorted(actual - known)
+    optional_present = sorted(actual & optional)
+    optional_missing = sorted(optional - actual)
 
     results = [
         CheckResult(
@@ -123,6 +141,16 @@ def _check_cloudwatch_log_inventory(stack_name: str, region: str) -> list[CheckR
             "CloudWatch has no unexpected stack log groups"
             if not unexpected
             else f"CloudWatch unexpected stack log groups: {', '.join(unexpected)}",
+        ),
+        CheckResult(
+            True,
+            "CloudWatch optional support log groups present: "
+            + (", ".join(optional_present) if optional_present else "none"),
+        ),
+        CheckResult(
+            True,
+            "CloudWatch optional support log groups absent: "
+            + (", ".join(optional_missing) if optional_missing else "none"),
         ),
     ]
 

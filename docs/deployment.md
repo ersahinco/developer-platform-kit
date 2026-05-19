@@ -21,6 +21,11 @@ tasks, not from duplicating infrastructure.
 Terraform owns infrastructure shape. GitHub Actions owns app image rollout
 after bootstrap. Keep that boundary explicit.
 
+`platform/workloads.json` can identify what workloads exist and which one is
+the primary edge service, but it should not own AWS rollout choreography. Task
+registration, service update order, verification sequence, and support-job
+execution remain delivery-edge behavior.
+
 ## GitHub Setup
 
 Create one GitHub environment named `aws` with:

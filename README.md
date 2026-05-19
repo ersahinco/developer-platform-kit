@@ -1,15 +1,15 @@
 # aws-sdlc-containers
 
-`aws-sdlc-containers` is an opinionated cloud-native delivery toolkit that
-standardizes how teams build, observe, containerize, and deploy portable
+`aws-sdlc-containers` is an opinionated cloud-native platform monorepo seed
+that standardizes how teams build, observe, containerize, and deploy portable
 application workloads using proven industry-standard tools.
 
 Short form: standardize the delivery workflow, do not replace the tools.
 
-The repo keeps one intentional reference system on one AWS/ECS runtime. The
-reusable part is the delivery contract: workload shape, package boundaries,
-container builds, config and secrets, observability, CI gates, rollout safety,
-and operator evidence.
+The repo currently keeps one intentional AWS/ECS reference runtime and a small
+set of reference workloads. The reusable part is the platform contract:
+workload shape, package boundaries, container builds, config and secrets,
+observability, CI gates, rollout safety, and operator evidence.
 
 ## Toolkit Charter
 
@@ -23,11 +23,34 @@ and operator evidence.
 - Prefer small explicit conventions over private abstractions.
 - Add runtime targets only for a real operating need.
 
+## Repository Layers
+
+- Infrastructure catalog: reusable AWS building blocks and future extracted
+  modules live under `infra/catalog/`.
+- Platform concerns: Dapr, observability, security, policy, and networking
+  concerns live under `platform/concerns/`.
+- Workload examples: the current `apps/*` hosts are reference workloads that
+  show how teams consume the platform contract without taking provider
+  dependencies into business logic.
+
+`platform/workloads.json` is the temporary application specification. It owns
+workload intent, portable runtime expectations, and the current build/runtime
+build metadata while the repository converges on a leaner single source of
+truth. `platform/runtime-conformance.json` owns the local/CI fixture data used
+to prove workloads satisfy that specification from the outside.
+
+The workload spec also declares operational class so contributors do not have
+to infer from examples whether something is a public edge, internal service,
+scheduled job, or operator job.
+
 ## Start Here
 
 - Shared vocabulary: [docs/ubiquitous-language.md](docs/ubiquitous-language.md)
 - Repo and boundary rationale: [docs/architecture.md](docs/architecture.md)
+- Runtime hosts vs reusable packages: [apps/README.md](apps/README.md), [packages/README.md](packages/README.md)
 - Portable workload expectations: [docs/platform-contract.md](docs/platform-contract.md)
+- Add a new workload example: [docs/adding-workloads.md](docs/adding-workloads.md)
+- Current platform capability surface: [docs/platform-capabilities.md](docs/platform-capabilities.md)
 - Runtime target expectations: [docs/runtime-toolkit.md](docs/runtime-toolkit.md)
 - Current work state: [docs/roadmaps.md](docs/roadmaps.md)
 - Canonical doc map: [docs/README.md](docs/README.md)
@@ -45,16 +68,24 @@ The reference workload is intentionally complex where that complexity teaches
 durable platform capabilities: schema rollout, async transport boundaries,
 scheduled jobs, and operator evidence.
 
+## Architectural Defaults
+
+- AWS-first, not multi-cloud-first
+- Portability by boundary, not by a custom abstraction layer
+- Dapr only where it removes workload/provider coupling
+- No Kubernetes, Helm, Kustomize, or Crossplane until there is a real runtime
+  need
+- No new top-level directories until they fit the platform monorepo model
+
 ## Project Shape
 
 ```text
 aws-sdlc-containers/
-|-- apps/                # workload hosts
+|-- apps/                # reference workload hosts
 |-- packages/            # domain, application, infrastructure
 |-- db/                  # Liquibase changelog and Postgres assets
-|-- infra/               # platform root and app root
-|-- platform/            # workload registry, shared image, Dapr config
-|-- observability/       # local Grafana, Loki, Tempo, Prometheus assets
+|-- infra/               # catalog boundary plus platform/app assembly roots
+|-- platform/            # application spec, shared image, platform concerns
 |-- scripts/             # CI, release, operator, observability, data helpers
 |-- tests/               # API, contract, runtime, infrastructure checks
 |-- docs/
