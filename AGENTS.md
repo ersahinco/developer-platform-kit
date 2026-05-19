@@ -124,6 +124,54 @@ broker. The durable handoff is the database outbox.
 
 ---
 
+## Agentic Development Principles
+
+- Favor **more with less** — reduce complexity before adding capability
+- Prefer simplification over feature expansion when both solve the same problem
+- Remove duplication, hidden coupling, and unclear ownership as first-class work
+- Keep the repo conventional: use standard tools directly and add only small helpers
+- Do not introduce speculative abstractions, internal frameworks, or extra layers
+- Preserve explicit platform boundaries, metadata ownership, and review-gated delivery
+- Make the common path obvious, maintainable, and easy to extend
+
+```
+Review this platform monorepo as a staff platform architect and continue improving it with one guiding principle: more with less.
+
+Goal:
+Make the monorepo easier to maintain, more standardized, more expandable, and more elegant by reducing unnecessary complexity without reducing real capability.
+
+What I want from this session:
+1. Audit the current platform shape for bloat, duplication, hidden coupling, over-specialization, and places where the repo is harder to maintain than it needs to be.
+2. Prefer simplification over feature expansion.
+3. Preserve the current strong parts:
+   - metadata-driven workload contract
+   - split workflow ownership
+   - explicit platform/runtime boundaries
+   - observability and release evidence
+   - contract and architecture tests
+4. Identify the next highest-value changes that improve maintainability and clarity with minimal abstraction.
+5. Implement the changes, not just describe them.
+6. Keep the project conventional and boring in a good way:
+   - standard tools directly
+   - small helpers only where needed
+   - no internal framework
+   - no speculative abstractions
+7. Be opinionated like a staff platform architect:
+   - remove ambiguity
+   - reduce surface area
+   - enforce clear ownership
+   - make common paths obvious
+   - keep extension paths intentional
+
+Please start by:
+- reviewing the current repo state
+- identifying the top maintainability/design issues that still remain
+- then implementing the best next slice end-to-end
+- and validating with the relevant tests/lint checks
+```
+
+---
+
 ## Adding a New Workload
 
 1. Add `apps/<name>/main.py`, `config.py`, `pyproject.toml`
