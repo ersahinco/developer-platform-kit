@@ -133,7 +133,7 @@ lint-docs: ## Check Markdown links
 		docker run --rm \
 			-v "$(CURDIR):/repo" \
 			-w /repo \
-			lycheeverse/lychee:v0.20.1 \
+			lycheeverse/lychee:latest@sha256:64bdc8e45d47634ca6a40f29ae48f1916fb7901ffe0eb929e1229590aba27668 \
 			README.md 'docs/**/*.md'; \
 	fi
 
