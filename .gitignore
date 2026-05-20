@@ -41,10 +41,9 @@ terraform.tfvars
 # IDE/editor
 .vscode/
 .idea/
-.kiro/
+#.kiro/
 *.swp
 *~
 .logs.txt
 .ruff_cache
-#.kiro
 .hypothesis
