@@ -1,90 +1,69 @@
 # Platform Capabilities
 
-This document is the current capability inventory for the platform monorepo
-seed.
+Current capability inventory for the platform monorepo seed.
 
-Use it to answer:
+Use:
 
-- what the platform currently standardizes
-- which layer owns each capability today
-- where to extend the repo when a new workload needs more
+- [Platform Contract](platform-contract.md) for workload-facing rules
+- [Architecture](architecture.md) for placement and ownership
 
-This is a companion to [Platform Contract](platform-contract.md):
-
-- `platform-contract.md` says what workloads must expose
-- this doc says what the repository currently implements around that contract
-
-Use [Architecture](architecture.md) when the question is where code belongs.
-
-To inspect the current declared workload capability matrix directly from the
-contract:
+Inspect the current implementation directly:
 
 ```bash
 make workload-capability-matrix
-```
-
-To inspect the current runtime implementation seams for those capabilities:
-
-```bash
 make capability-implementation-matrix
 ```
 
-## Current Capabilities
+## Capability Map
 
 | Capability | Workload-facing contract | Current owner |
 |---|---|---|
 | HTTP service edge | `/health`, `/ready`, `/metrics`, structured logs, immutable image rollout | `apps/api`, `platform/workloads.json`, `infra/app/edge.tf`, workflows |
 | Internal async service | long-running internal service shape, direct DB access, Dapr-backed event handling | `apps/order_event_consumer`, `platform/workloads.json`, `infra/app/workload_jobs.tf`, `infra/app/messaging.tf` |
 | Dapr pub/sub | app id, pub/sub name, topic, resiliency semantics | `platform/concerns/dapr/`, `platform/workloads.json`, `packages/infrastructure/dapr` |
-| Operator job execution | one-off job shape, idempotent rerun expectation, structured completion events | `apps/backfill_worker`, workflows, `infra/app/workload_jobs.tf` |
-| Scheduled job execution | recurring job shape, scheduler-driven run pattern, export success expectations | `apps/data_export_job`, `infra/app/workload_jobs.tf`, `infra/app/object_storage.tf` |
-| Database rollout safety | runtime read/write mode switches, backfill, contract migration flow | `db/`, `apps/api`, `packages/application`, runbooks |
+| Operator job execution | one-off job shape, rerun expectation, structured completion events | `apps/backfill_worker`, workflows, `infra/app/workload_jobs.tf` |
+| Scheduled job execution | recurring job shape, scheduler-driven run, export success expectations | `apps/data_export_job`, `infra/app/workload_jobs.tf`, `infra/app/object_storage.tf` |
+| Database rollout safety | read/write mode switches, backfill, contract migration flow | `db/`, `apps/api`, `packages/application`, runbooks |
 | Local observability | Prometheus, Loki, Tempo, Grafana, Promtail | `platform/concerns/observability/`, `compose.yaml` |
 | Cloud observability signals | CloudWatch logs, CloudWatch alarms, optional ADOT sidecar | `infra/app`, `scripts/observability/`, runbooks |
 | Release evidence | portable release event, artifact upload, optional Loki push | workflows, `scripts/observability/release_event.py` |
 | Incident evidence | portable bundle with ECS, alarms, release context, query hints | `scripts/observability/incident_evidence_bundle.py` |
 | Runtime conformance | external proof that workloads satisfy the declared contract | `platform/runtime-conformance.json`, `tests/runtime/`, `make runtime-conformance` |
 
-## Current AWS Implementation Seams
+## AWS Runtime Seams
 
-The current runtime target is still intentionally `aws-ecs`. The point is not
-to hide that, but to make replacement seams explicit:
+Current runtime target: `aws-ecs`.
 
-```bash
-make capability-implementation-matrix
-```
+Rule:
 
-Those seams are where a future cheaper or different implementation should plug
-in, for example a different PostgreSQL host, broker, object store, or hosting
-runtime, without moving provider details into workloads or turning the workload
-contract into deployment choreography.
+- keep provider details visible at the platform edge
+- keep the workload contract portable
+- do not turn the contract into deployment choreography
+
+Future runtime replacements should plug in at the seams shown by
+`make capability-implementation-matrix`.
 
 ## Ownership Rules
 
-- Add workload need to `platform/workloads.json`
-- Add shared runtime concern to `platform/concerns/`
-- Add provider/runtime implementation to `infra/`, workflows, or scripts
-- Add reusable workflow or adapter logic only after repetition is proven
+- add workload need to `platform/workloads.json`
+- add shared runtime concern to `platform/concerns/`
+- add provider/runtime implementation to `infra/`, workflows, or scripts
+- add reusable adapter logic only after repetition is proven
 
 If a capability belongs to all runtimes, prefer the contract. If it exists only
 because the current AWS runtime implements it, keep it out of the contract and
-record it here or in runtime-facing docs instead.
+record it here or in runtime-facing docs.
 
-## Admission Rule For New Capabilities
+## Admission Rule
 
-- Standardize a new capability only when a real workload needs it.
-- First decide whether it belongs in the portable contract, the current
-  capability inventory, or the AWS runtime only.
-- Do not add provider-neutral abstraction layers speculatively.
+- standardize a new capability only when a real workload needs it
+- decide first: portable contract, current capability inventory, or AWS runtime only
+- do not add provider-neutral abstraction layers speculatively
 
 ## Not Yet Platform Capabilities
-
-These are intentionally not standardized yet:
 
 - Dapr state store, bindings, workflows, actors, or secrets
 - analytics orchestration or data transformation stacks
 - hosted Grafana/Loki/Tempo/Prometheus runtime modules
 - a second cloud/runtime target
 - generic provider-neutral infrastructure modules
-
-Add them only when a real workload or operating need appears.

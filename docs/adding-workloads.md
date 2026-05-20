@@ -1,50 +1,36 @@
 # Adding Workloads
 
-Use this guide when adding a new reference workload under `apps/`.
+Task guide for adding one workload under `apps/` with the smallest complete
+platform footprint.
 
-The goal is to add one workload with the smallest complete platform footprint,
-not to introduce a new abstraction layer.
+Canonical design truth lives in:
 
-This is a task guide, not the source of truth for platform design.
+- [Platform Contract](platform-contract.md)
+- [Architecture](architecture.md)
+- [Platform Capabilities](platform-capabilities.md)
 
-Use companion docs when needed:
+## Order
 
-- [Platform Contract](platform-contract.md) for the portable workload contract
-- [Architecture](architecture.md) for repo placement and ownership rules
-- [Platform Capabilities](platform-capabilities.md) for the currently available
-  runtime patterns
+1. Declare workload intent in `platform/workloads.json`.
+2. Add the host under `apps/`.
+3. Reuse `packages/` only for truly shared behavior.
+4. Wire local and runtime concerns.
+5. Wire AWS runtime inventory.
+6. Add tests and docs.
 
-## Onboarding Order
+## Pick The Operational Class First
 
-Follow this order so workload intent stays canonical:
+| Class | Use |
+|---|---|
+| `edge-service` | externally routed HTTP workload |
+| `internal-service` | long-running internal service |
+| `operator-job` | manually or CI-triggered task |
+| `scheduled-job` | recurring scheduler-triggered task |
 
-1. declare workload intent in `platform/workloads.json`
-2. add the host under `apps/`
-3. add reusable behavior in `packages/` only if it is truly shared
-4. wire local and runtime concerns
-5. wire AWS runtime inventory
-6. add tests and docs
+This choice drives `platform/workloads.json`, health/readiness/metrics,
+Compose/workflow/Terraform ownership, and alarm/evidence expectations.
 
-## Decide The Operational Class First
-
-Pick the workload role before writing code:
-
-- `edge-service`: externally routed HTTP workload
-- `internal-service`: long-running internal service
-- `operator-job`: manually or CI-triggered task
-- `scheduled-job`: recurring scheduler-triggered task
-
-This choice affects:
-
-- `platform/workloads.json`
-- health/readiness/metrics expectations
-- runtime ownership in Compose, workflows, and Terraform
-- alarm and evidence expectations
-
-The contract meaning of each class lives in
-[Platform Contract](platform-contract.md#operational-class).
-
-Before adding a new workload, inspect the existing declared shapes:
+Inspect current declared shapes:
 
 ```bash
 make workload-capability-matrix
@@ -58,18 +44,19 @@ Create:
 - `apps/<name>/config.py`
 - `apps/<name>/pyproject.toml`
 
-The host should stay thin:
+Host rules:
 
+- keep the host thin
 - read settings
 - wire adapters
 - expose routes or a process entrypoint
 - emit workload-level operational events
 
-Move reusable behavior into:
+Put shared behavior in:
 
-- `packages/domain` for pure business concepts
-- `packages/application` for use cases and workflow logic
-- `packages/infrastructure` for SQL, Dapr, storage, and runtime adapters
+- `packages/domain`
+- `packages/application`
+- `packages/infrastructure`
 
 ## Update The Workload Contract
 
@@ -86,50 +73,39 @@ Add the workload to `platform/workloads.json` with:
 - `job` for jobs
 - `dapr` only when a real Dapr capability is needed
 
-Keep this file focused on workload need and portable behavior. Do not add:
+Do not add:
 
 - AWS resource names
 - ECS service/task family details
 - queue URLs, topic ARNs, bucket ARNs
 - Terraform wiring
 
-## Choose The Runtime Pattern
+## Choose The Smallest Existing Pattern
 
-Use the smallest existing pattern that fits:
+| Need | Pattern |
+|---|---|
+| public HTTP API | `apps/api` |
+| internal Dapr-backed service | `apps/order_event_consumer` |
+| operator-triggered job | `apps/backfill_worker` |
+| scheduled export job | `apps/data_export_job` |
 
-- public HTTP API pattern: `apps/api`
-- internal Dapr-backed service pattern: `apps/order_event_consumer`
-- operator-triggered job pattern: `apps/backfill_worker`
-- scheduled export job pattern: `apps/data_export_job`
+Reuse `platform/workload.Dockerfile` unless there is a concrete reason not to.
 
-Reuse the shared workload Dockerfile unless there is a concrete reason not to.
+## Wire Only Needed Concerns
 
-## Wire Platform Concerns
+- `platform/concerns/dapr/`
+- `platform/concerns/observability/`
+- `platform/runtime-conformance.json`
+- `compose.yaml`
+- `infra/app/workload_inventory.tf`
 
-Only wire the concerns the workload actually needs:
+Touch GitHub workflows, `infra/app`, and observability scripts only when the
+workload changes build/deploy inventory, runtime resources, or platform-visible
+signals.
 
-- Dapr under `platform/concerns/dapr/`
-- observability under `platform/concerns/observability/`
-- runtime conformance fixtures in `platform/runtime-conformance.json`
-
-Keep platform concerns declarative and environment-owned. Do not create a
-custom host framework or bespoke workload DSL.
-
-## Add Delivery And Runtime Coverage
-
-Update the smallest set of delivery/runtime surfaces needed:
-
-- `compose.yaml` for local runtime
-- `infra/app/workload_inventory.tf` for AWS runtime values derived from the workload contract
-- GitHub workflows only if the workload changes build/deploy inventory
-- `infra/app` only when runtime resources must change
-- observability scripts only when the workload changes platform-visible signals
-
-Prefer extending metadata-driven paths over adding new handwritten inventories.
+Rule: extend metadata-driven paths before adding handwritten inventory.
 
 ## Verify
-
-At minimum, run the relevant checks:
 
 ```bash
 uv run pytest tests/contracts -q
@@ -139,17 +115,15 @@ make runtime-conformance
 
 Add narrower tests when possible:
 
-- workload host tests under `tests/apps/`
-- application/use-case tests under `tests/application/`
-- infrastructure adapter tests under `tests/infrastructure/`
+- `tests/apps/`
+- `tests/application/`
+- `tests/infrastructure/`
 
-## Review Questions
+## Done Checklist
 
-Before considering the workload complete, answer these:
-
-- Is the operational class explicit in the workload spec?
-- Did the host stay thin?
-- Did provider details remain at the platform edge?
-- Did I reuse existing Dapr, observability, and delivery patterns?
-- Did I avoid adding a second source of workload truth?
-- Did I update the smallest complete set of tests and docs?
+- operational class is explicit in `platform/workloads.json`
+- host stayed thin
+- provider details stayed at the platform edge
+- existing Dapr, observability, and delivery patterns were reused
+- no second source of workload truth was added
+- smallest complete set of tests and docs was updated

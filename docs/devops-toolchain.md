@@ -1,56 +1,62 @@
 # DevOps Toolchain
 
-Quality-gate and workflow toolchain view. For rollout flow, use
-[Deployment](deployment.md). For boundaries, use [Architecture](architecture.md).
+Quality-gate and workflow toolchain map.
 
-## Current Toolchain
+Use [Deployment](deployment.md) for rollout flow and
+[Architecture](architecture.md) for repo boundaries.
+
+## Toolchain
 
 | Concern | Tool |
 |---|---|
-| Local orchestration | Docker Compose |
+| local orchestration | Docker Compose |
 | Python workspace | `uv` |
-| Tests | pytest |
-| Python lint/format | Ruff |
-| Python type checking | Pyright |
-| Database migrations | Liquibase |
-| Infrastructure as code | Terraform |
-| Workflow linting | actionlint |
+| tests | pytest |
+| lint and format | Ruff |
+| type checking | Pyright |
+| database migrations | Liquibase |
+| infrastructure as code | Terraform |
+| workflow linting | actionlint |
 | Dockerfile linting | hadolint |
-| Docs link checking | lychee |
-| Policy as code | OPA / Conftest |
-| Secret scanning | Gitleaks |
-| Dependency audit | `pip-audit` |
+| docs link checking | lychee |
+| policy as code | OPA / Conftest |
+| secret scanning | Gitleaks |
+| dependency audit | `pip-audit` |
 | SAST | Semgrep CE |
-| Image scanning | Trivy |
+| image scanning | Trivy |
 | CI/CD | GitHub Actions |
-| Cloud auth | GitHub OIDC |
+| cloud auth | GitHub OIDC |
 
 ## Standard Gates
 
 | Scope | Gate |
 |---|---|
-| App and scripts | Ruff, Pyright, pytest |
-| Contract and repo shape | Focused pytest contract checks |
-| Runtime conformance | `make runtime-conformance` |
-| Workflows | `make lint-workflows` |
-| Docs | `make lint-docs` |
-| Policy | `make lint-policy` |
+| app and scripts | Ruff, Pyright, pytest |
+| contract and repo shape | focused pytest contract checks |
+| runtime conformance | `make runtime-conformance` |
+| workflows | `make lint-workflows` |
+| docs | `make lint-docs` |
+| policy | `make lint-policy` |
 | Dockerfiles | `make lint-dockerfiles` |
-| Secrets | `make secret-scan` |
-| Dependencies | `make dependency-audit` |
+| secrets | `make secret-scan` |
+| dependencies | `make dependency-audit` |
 | Terraform | `terraform fmt`, `terraform validate`, TFLint, Checkov, reviewed plan, separate apply |
 
-Rule: pull requests validate before cloud change. Build before deploy. Plan
-before apply. Cloud-changing workflows emit release evidence.
+Rules:
+
+- pull requests validate before cloud change
+- build before deploy
+- plan before apply
+- cloud-changing workflows emit release evidence
 
 ## GitHub Gate Matrix
 
 | Workflow | Pull request role | Owned gates |
 |---|---|---|
-| `app-build.yml` | App and workload validation | Ruff format check, Ruff lint, Pyright, shell script syntax, pytest, runtime conformance |
-| `security.yml` | Repo hygiene and dependency safety | `make secret-scan`, `make lint-docs`, `make lint-policy`, `make lint-workflows`, `make lint-dockerfiles`, `make dependency-audit` |
-| `semgrep.yml` | Static application security testing | Semgrep CE scan for `apps/`, `packages/`, and `scripts/` |
-| `infra-plan.yml` | Infrastructure validation and review evidence | `terraform fmt`, `terraform validate`, TFLint, Checkov, reviewed Terraform plan artifact/comment |
+| `app-build.yml` | app and workload validation | Ruff format check, Ruff lint, Pyright, shell script syntax, pytest, runtime conformance |
+| `security.yml` | repo hygiene and dependency safety | `make secret-scan`, `make lint-docs`, `make lint-policy`, `make lint-workflows`, `make lint-dockerfiles`, `make dependency-audit` |
+| `semgrep.yml` | static application security testing | Semgrep CE scan for `apps/`, `packages/`, and `scripts/` |
+| `infra-plan.yml` | infrastructure validation and review evidence | `terraform fmt`, `terraform validate`, TFLint, Checkov, reviewed Terraform plan artifact/comment |
 
-`app-deploy.yml` and `infra-apply.yml` are intentionally not pull-request
-gates. They remain separate, reviewed, cloud-changing workflows.
+`app-deploy.yml` and `infra-apply.yml` remain separate reviewed cloud-changing
+workflows, not pull-request gates.

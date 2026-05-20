@@ -1,7 +1,7 @@
 # aws-sdlc-containers - Agent Rules
 
-Cross-tool base rules for Codex, OpenCode, and other agents in this repo.
-Kiro reads `.kiro/steering/` for the richer scoped layer.
+Canonical shared agent-memory surface for Codex, OpenCode, Claude Code, Kiro,
+and other agents in this repo.
 
 Short form: standardize the delivery workflow, do not replace the tools.
 
@@ -10,7 +10,8 @@ Short form: standardize the delivery workflow, do not replace the tools.
 - `AGENTS.md` is the canonical shared agent-memory surface.
 - `CLAUDE.md` is a shim that imports this file for Claude Code / Kiro.
 - `opencode.json` only points OpenCode at this file.
-- `.kiro/steering/` exists only for Kiro file-scoped rules and Kiro skill files.
+- Nested `AGENTS.md` files provide scoped rules by subtree.
+- `.kiro/steering/` is kept only for manual skill files.
 
 ## Vocabulary
 
@@ -175,7 +176,7 @@ Codex loads these automatically in the relevant subtree:
 | `db/` | `db/AGENTS.md` |
 | `.github/workflows/` | `.github/AGENTS.md` |
 
-## On-Demand Skills
+## Manual Skills
 
 | Skill file | Load when |
 |---|---|

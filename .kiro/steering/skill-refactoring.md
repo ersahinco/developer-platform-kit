@@ -2,62 +2,48 @@
 inclusion: manual
 ---
 
-# Skill: Refactoring (Martin Fowler) + A Philosophy of Software Design (Ousterhout)
+# Skill: Refactoring
 
-Load this when: doing a refactoring pass, cleaning up technical debt, improving module boundaries, or when code feels awkward to change.
+Load for refactoring passes, module-boundary cleanup, or when code feels harder
+to change than it should.
 
----
+## Core Rule
 
-## Primary Bias to Correct
+Refactoring is behavior-preserving. Simplicity means lower cognitive load, not
+more files or more names.
 
-Working code, small pieces, familiar patterns, and extra documentation do not make a design simple when they increase cognitive load or leak knowledge. Refactoring is behavior-preserving — keep it separate from feature changes.
+## Rules
 
----
+- Refactor in small safe steps; keep tests passing.
+- Keep refactoring commits separate from feature or bug-fix commits.
+- Add characterization tests first when behavior is unprotected.
+- Diagnose the smell before choosing the refactor.
+- Prefer deep modules over pass-through wrappers.
+- Hide volatile details and internal representations behind small semantic
+  interfaces.
+- Combine or split modules by total complexity, not size or habit.
 
-## Refactoring Rules (Fowler)
+## Common Smells
 
-- Refactor in small, safe steps. Each step must leave the tests passing.
-- Keep refactoring commits separate from feature or bug-fix commits — do not mix behavior changes with structural changes.
-- Before refactoring, ensure the code under change has tests that protect its observable behavior. If tests are missing, add characterization tests first.
-- Use code smells as diagnostic signals, not as automatic refactoring triggers. Diagnose before treating.
-- Common smells in this codebase to watch for:
-  - **Long method / large class**: extract to use case, domain service, or value object
-  - **Feature envy**: a method in `apps/` or `packages/infrastructure/` that does domain work — move it inward
-  - **Data clumps**: repeated groups of parameters that should be a value object
-  - **Primitive obsession**: raw strings/ints for domain concepts — promote to value objects
-  - **Divergent change**: one class changes for multiple unrelated reasons — split by responsibility
-  - **Shotgun surgery**: one change requires edits in many places — consolidate the knowledge
-  - **Inappropriate intimacy**: `apps/` code reaching into `packages/domain/` internals — restore the boundary
+- long method or large class
+- feature envy
+- data clumps
+- primitive obsession
+- divergent change
+- shotgun surgery
+- inappropriate intimacy across boundaries
 
-## Module Design Rules (Ousterhout)
+## Repo Rules
 
-- Prefer deep modules: small, semantic interfaces that hide meaningful internal complexity.
-- Reject pass-through services, thin wrappers, and tiny split-outs that add names without reducing reader burden.
-- Design interfaces around what callers need to know, not how the implementation works.
-- Hide volatile decisions, internal representations, storage shape, and messy edge handling inside the module that owns the knowledge.
-- Pull complexity downward when the lower module owns the detail.
-- Combine or split by total complexity, not by size or habit.
+- preserve dependency direction in `packages/`
+- new modules must hide more complexity than they add
+- rename toward `docs/ubiquitous-language.md`
+- verify complexity was removed, not pushed to the caller
 
-## Applied to This Repo
+## Checklist
 
-- When refactoring `packages/`: verify the dependency direction is preserved after the refactor
-- When extracting a new module: prove it hides more complexity than it adds
-- When renaming: use the ubiquitous language from `docs/ubiquitous-language.md` as the target vocabulary
-- When simplifying a use case: check whether the complexity moved to the caller or was genuinely eliminated
-
-## Trigger Rules
-
-- When a feature feels awkward or one change spreads across files, look for missing information hiding, shallow modules, or complexity pushed to callers.
-- When adding a module, layer, helper, or wrapper, prove that it hides more complexity than it adds.
-- When splitting or extracting, check whether the new boundary captures meaning or only adds jumps and pass-through state.
-- When naming is vague, mechanism-focused, or inconsistent, reconsider the abstraction boundary.
-
-## Final Checklist
-
-- [ ] Refactoring commits are separate from feature/fix commits?
-- [ ] Tests pass before and after each refactoring step?
-- [ ] Observable behavior is unchanged?
-- [ ] Dependency direction preserved — no new inward-to-outward imports introduced?
-- [ ] Names match the ubiquitous language?
-- [ ] New boundaries hide more complexity than they add?
-- [ ] Code smells diagnosed and treated, not just moved?
+- observable behavior unchanged
+- tests pass before and after
+- dependency direction preserved
+- names match the ubiquitous language
+- new boundaries hide more complexity than they add

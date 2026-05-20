@@ -2,45 +2,41 @@
 inclusion: manual
 ---
 
-# Skill: Clean Architecture (Robert C. Martin)
+# Skill: Clean Architecture
 
-Load this when: adding, changing, reviewing, or refactoring code whose business rules should survive changes in frameworks, databases, delivery mechanisms, or schedule pressure.
+Load when changing `packages/`, `apps/`, or the boundary between them.
 
-In this repo that means: any change to `packages/`, `apps/`, or the boundary between them.
+## Core Rule
 
----
+Do not let details become the architecture. Business policy stays independent;
+dependencies point inward.
 
-## Primary Bias to Correct
+## Rules
 
-Do not let details become the architecture. Business policy stays independent, dependencies point inward, and volatile mechanisms remain replaceable.
+- `packages/domain` and `packages/application` must not import frameworks,
+  databases, queues, SDKs, or runtime details.
+- Put invariants in domain objects and orchestration in focused use cases.
+- Pass plain request and response models across use-case boundaries.
+- Treat FastAPI, SQLAlchemy, Dapr, boto3, and provider SDKs as outer details
+  behind ports and adapters in `packages/infrastructure`.
+- Inner layers own ports; `packages/infrastructure` implements them.
+- Wiring belongs in `apps/*/`.
+- Adapters translate formats only; they do not own business decisions.
+- Organize by use case or business capability, not generic technical buckets.
+- Test domain and application code without real database, Dapr, or AWS.
 
----
+## Triggers
 
-## Decision Rules
+- framework or SDK types enter `packages/domain` or `packages/application`
+- a use case instantiates SQLAlchemy, Dapr, or boto3 directly
+- a route handler or Dapr subscriber owns business branching
+- a shared utility becomes an escape hatch for misplaced logic
+- business-rule tests require real infrastructure
 
-- Source dependencies must point inward toward higher-level policy. `packages/domain` and `packages/application` must not import frameworks, databases, web handlers, queues, external service clients, or other details.
-- Put enterprise rules and invariants in domain objects; put application-specific orchestration in focused use cases in `packages/application/`.
-- Pass plain request and response models across use-case boundaries. Do not pass FastAPI `Request` objects, SQLAlchemy rows, or Dapr response types into or out of `packages/application/`.
-- Treat FastAPI, SQLAlchemy, Dapr, boto3, and all provider SDKs as outer-layer details behind ports, gateways, or adapters in `packages/infrastructure/`.
-- Inner layers own the interfaces (ports) they need; `packages/infrastructure/` implements them. Concrete wiring belongs in `apps/*/` composition roots.
-- Keep adapters humble. HTTP route handlers, Dapr pub/sub adapters, S3 adapters, and SQL repositories translate external formats to use-case calls and back — they do not own business decisions.
-- Organize by use case or business capability, not by generic technical buckets. The structure should reveal domain intent.
-- Test domain objects and use cases first, without real database, Dapr, or AWS. Test adapters separately at the seam.
-- Preserve behavior while improving dependency direction. Prefer incremental boundary extraction over rewrites.
+## Checklist
 
-## Trigger Rules
-
-- When framework annotations, ORM rows, Dapr types, or AWS SDK types enter `packages/domain/` or `packages/application/`, move translation outward to `packages/infrastructure/`.
-- When a use case directly instantiates a SQLAlchemy session, Dapr client, or boto3 resource, introduce a port.
-- When an HTTP route handler or Dapr subscriber contains business branching or validation, move the rule into `packages/application/` or `packages/domain/`.
-- When a `*Service`, utility folder, or shared module becomes an escape hatch for misplaced logic, split by use case and restore dependency direction.
-- When tests need a real database or Dapr to verify business rules, move tests to use cases with fakes.
-
-## Final Checklist
-
-- [ ] Business rules independent from FastAPI, SQLAlchemy, Dapr, and AWS?
-- [ ] Dependencies point inward — ports owned by `packages/application/`, implementations in `packages/infrastructure/`?
-- [ ] Domain objects guard invariants; use cases orchestrate one application action?
-- [ ] Route handlers, Dapr adapters, and SQL repositories are humble?
-- [ ] Core tests run fast without real database, Dapr, or AWS?
-- [ ] Details remain replaceable without rewriting business rules?
+- business rules independent from FastAPI, SQLAlchemy, Dapr, and AWS
+- dependencies point inward
+- domain objects guard invariants
+- route handlers and adapters stay humble
+- core tests run fast without real infrastructure
