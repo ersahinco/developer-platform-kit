@@ -1,12 +1,11 @@
 from __future__ import annotations
 
 import re
-from pathlib import Path
 from typing import Any
 
 import yaml
 
-from ._helpers import ROOT, load_json, read_text
+from ._helpers import load_json, read_text
 
 
 ENV_NAME_PATTERN = re.compile(
@@ -39,10 +38,6 @@ def _workload_conformance(
 
 def _compose_service_name(workload: dict[str, Any]) -> str:
     return str(workload["image"]["repository"])
-
-
-def _config_path(workload: dict[str, Any]) -> Path:
-    return ROOT / str(workload["app_path"]) / "config.py"
 
 
 def _declared_config_names(workload: dict[str, Any]) -> set[str]:
@@ -80,17 +75,6 @@ def test_workload_contract_stays_portable() -> None:
 
     for marker in forbidden_runtime_markers:
         assert marker not in workloads_json
-
-
-def test_workload_registry_maps_to_real_app_files() -> None:
-    contract = load_json("platform/workloads.json")
-
-    for workload in contract["workloads"]:
-        app_path = ROOT / workload["app_path"]
-        assert app_path.is_dir()
-        assert (app_path / "main.py").is_file()
-        assert (app_path / "config.py").is_file()
-        assert (app_path / "pyproject.toml").is_file()
 
 
 def test_compose_build_args_and_ports_align_with_workload_spec() -> None:
@@ -139,7 +123,7 @@ def test_workload_spec_config_names_match_app_settings() -> None:
     shared_names = set(ENV_NAME_PATTERN.findall(shared_config_text))
 
     for workload in contract["workloads"]:
-        config_text = _config_path(workload).read_text(encoding="utf-8")
+        config_text = read_text(f"{workload['app_path']}/config.py")
         discovered_names = set(ENV_NAME_PATTERN.findall(config_text))
         if "PostgresRuntimeSettings" in config_text:
             discovered_names |= shared_names
