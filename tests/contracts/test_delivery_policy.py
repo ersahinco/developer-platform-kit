@@ -118,6 +118,7 @@ def test_security_and_semgrep_workflows_own_repo_hygiene_gates() -> None:
     assert {
         "Run secret scan",
         "Check Markdown links",
+        "Run policy checks",
         "Lint GitHub workflows",
         "Lint Dockerfiles",
         "Run Python dependency audit",
@@ -167,3 +168,22 @@ def test_canonical_delivery_docs_own_review_commands() -> None:
         "`infra-plan.yml`",
     ]:
         assert expected in toolchain_doc
+
+
+def test_policy_concern_is_wired_into_standard_tooling() -> None:
+    makefile = read_text("Makefile")
+    security_workflow = load_workflow(".github/workflows/security.yml")
+    policy_readme = read_text("platform/concerns/policy/README.md")
+    toolchain_doc = read_text("docs/devops-toolchain.md")
+
+    assert "lint-policy:" in makefile
+    assert "conftest test --policy platform/concerns/policy/conftest" in makefile
+    assert "Run policy checks" in step_names(
+        workflow_job(security_workflow, "security-scan")
+    )
+    assert "make lint-policy" in step_run_text(
+        workflow_job(security_workflow, "security-scan")
+    )
+    assert "OPA / Conftest" in toolchain_doc
+    assert "`make lint-policy`" in toolchain_doc
+    assert "Current tool: OPA via Conftest." in policy_readme

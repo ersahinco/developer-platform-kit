@@ -38,6 +38,9 @@ jobs:
       - name: Check Markdown links
         run: make lint-docs
 
+      - name: Run policy checks
+        run: make lint-policy
+
       - name: Lint GitHub workflows
         run: make lint-workflows
 

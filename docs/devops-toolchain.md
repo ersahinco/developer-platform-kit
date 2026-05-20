@@ -17,6 +17,7 @@ Quality-gate and workflow toolchain view. For rollout flow, use
 | Workflow linting | actionlint |
 | Dockerfile linting | hadolint |
 | Docs link checking | lychee |
+| Policy as code | OPA / Conftest |
 | Secret scanning | Gitleaks |
 | Dependency audit | `pip-audit` |
 | SAST | Semgrep CE |
@@ -33,6 +34,7 @@ Quality-gate and workflow toolchain view. For rollout flow, use
 | Runtime conformance | `make runtime-conformance` |
 | Workflows | `make lint-workflows` |
 | Docs | `make lint-docs` |
+| Policy | `make lint-policy` |
 | Dockerfiles | `make lint-dockerfiles` |
 | Secrets | `make secret-scan` |
 | Dependencies | `make dependency-audit` |
@@ -46,7 +48,7 @@ before apply. Cloud-changing workflows emit release evidence.
 | Workflow | Pull request role | Owned gates |
 |---|---|---|
 | `app-build.yml` | App and workload validation | Ruff format check, Ruff lint, Pyright, shell script syntax, pytest, runtime conformance |
-| `security.yml` | Repo hygiene and dependency safety | `make secret-scan`, `make lint-docs`, `make lint-workflows`, `make lint-dockerfiles`, `make dependency-audit` |
+| `security.yml` | Repo hygiene and dependency safety | `make secret-scan`, `make lint-docs`, `make lint-policy`, `make lint-workflows`, `make lint-dockerfiles`, `make dependency-audit` |
 | `semgrep.yml` | Static application security testing | Semgrep CE scan for `apps/`, `packages/`, and `scripts/` |
 | `infra-plan.yml` | Infrastructure validation and review evidence | `terraform fmt`, `terraform validate`, TFLint, Checkov, reviewed Terraform plan artifact/comment |
 

@@ -114,7 +114,7 @@ runtime-conformance: ## Build/run workload containers against the portable runti
 # ── Lint & format ─────────────────────────────────────────────────────────────
 
 .PHONY: lint
-lint: secret-scan dependency-audit lint-app lint-scripts lint-docs lint-workflows lint-dockerfiles lint-infra ## Run all linters
+lint: secret-scan dependency-audit lint-app lint-scripts lint-docs lint-workflows lint-dockerfiles lint-policy lint-infra ## Run all linters
 
 .PHONY: lint-app
 lint-app: ## Lint and type-check Python
@@ -158,6 +158,18 @@ lint-dockerfiles: ## Lint Dockerfiles
 			-w /repo \
 			hadolint/hadolint:v2.14.0-debian@sha256:158cd0184dcaa18bd8ec20b61f4c1cabdf8b32a592d062f57bdcb8e4c1d312e2 \
 			hadolint db/Dockerfile db/pgbouncer/Dockerfile platform/workload.Dockerfile; \
+	fi
+
+.PHONY: lint-policy
+lint-policy: ## Check repo policy with OPA/Conftest
+	@if command -v conftest >/dev/null 2>&1; then \
+		conftest test --policy platform/concerns/policy/conftest .github/workflows/*.yml platform/workloads.json; \
+	else \
+		docker run --rm \
+			-v "$(CURDIR):/project" \
+			-w /project \
+			openpolicyagent/conftest:v0.64.0 \
+			test --policy platform/concerns/policy/conftest .github/workflows/*.yml platform/workloads.json; \
 	fi
 
 .PHONY: secret-scan
