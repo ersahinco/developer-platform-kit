@@ -1,22 +1,21 @@
 # Documentation
 
-This is the canonical documentation map. Use it to find the owning doc for a
-topic before adding a new page.
+Canonical doc map. Find the owner before adding a new page.
 
-## Canonical Docs
+## Canonical Owners
 
 | Topic | Owning doc | Use it for |
 |---|---|---|
 | Repo shape and ownership boundaries | [Architecture](architecture.md) | Where code, Terraform, scripts, and docs belong |
-| Portable workload expectations | [Platform Contract](platform-contract.md) | What workloads must expose and what `platform/workloads.json` owns |
-| Current standardized capability surface | [Platform Capabilities](platform-capabilities.md) | What the platform currently provides and where to extend it |
-| Runtime-target evaluation | [Runtime Toolkit](runtime-toolkit.md) | When and how to add another hosting runtime |
-| Local workflow | [Local Development](local-development.md) | Day-to-day setup and migration walkthrough |
-| AWS delivery and rollout | [Deployment](deployment.md) | Bootstrap, pipeline shape, and rollout sequence |
-| Operational telemetry | [Observability](observability.md) | Local/cloud observability wiring and validation |
-| Current work state | [Roadmaps](roadmaps.md) | Continuation notes, deferred work, and project status |
+| Portable workload expectations | [Platform Contract](platform-contract.md) | Workload contract, metadata ownership, external contract rules |
+| Current platform capability surface | [Platform Capabilities](platform-capabilities.md) | What exists today and where to extend it |
+| Runtime-target evaluation | [Runtime Toolkit](runtime-toolkit.md) | When and how to add another runtime target |
+| Local workflow | [Local Development](local-development.md) | Setup, migrations, local services |
+| AWS delivery and operator flow | [Deployment](deployment.md) | Workflow ownership, rollout sequence, review loop |
+| Operational telemetry | [Observability](observability.md) | Local and cloud telemetry wiring and checks |
+| Current work state | [Roadmaps](roadmaps.md) | Continuation notes, deferred work, project status |
 
-## Reading Paths
+## Fast Paths
 
 | Task | Read |
 |---|---|
@@ -29,33 +28,10 @@ topic before adding a new page.
 | Add or evaluate another runtime | [Runtime Toolkit](runtime-toolkit.md) |
 | Work on telemetry or release evidence | [Observability](observability.md), [Platform Contract](platform-contract.md#observability) |
 
-## Operator Quick Path
-
-For deploy review, rollback review, or incident triage, start here:
-
-```bash
-make post-deploy-verify
-make incident-evidence
-make release-evidence-runs
-GH_RUN_ID=<workflow-run-id> make release-evidence-download
-RELEASE_EVENTS_DIR=/tmp/aws-sdlc-containers-release-evidence/<workflow-run-id> \
-make incident-evidence
-```
-
-Then use [Deployment](deployment.md), [Observability](observability.md), and
-[Runbooks](runbooks/README.md) for the deeper workflow-specific path.
-
-## Ownership Rules
+## Rules
 
 - `README.md` is the short project entrypoint.
-- `docs/README.md` is the canonical map; prefer linking to it from summary docs.
-- `docs/architecture.md` owns repo boundaries and placement rules.
-- `docs/platform-contract.md` owns portable workload expectations.
-- `docs/platform-capabilities.md` owns the current capability inventory, not the
-  abstract contract.
-- `docs/runtime-toolkit.md` owns multi-runtime evaluation rules, not current
-  AWS rollout details.
-- `docs/roadmaps.md` owns current state, continuation notes, and deferred work.
-- Runbooks and drills describe operator action, not platform design.
-- Do not add a new doc when one of the canonical docs above already owns the
-  topic.
+- `docs/README.md` is the doc map.
+- `docs/deployment.md` owns shared deploy, apply, and evidence review commands.
+- `docs/runbooks/` owns operator action, not platform design.
+- Do not add a new doc when an owner above already covers the topic.

@@ -1,35 +1,26 @@
-# db/ — Schema and Migration Rules
+# db/ Rules
 
-Scoped rules for `db/` (Liquibase, PgBouncer, bootstrap SQL).
-The cross-tool base rules in root `AGENTS.md` apply here too.
+Root `AGENTS.md` applies here too.
 
----
+## Expand / Contract
 
-## Expand/Contract — Always
+1. Expand
+2. Dual-write
+3. Backfill via `apps/backfill_worker/`
+4. Switch
+5. Contract
 
-Never make a breaking schema change in a single migration. The sequence is:
+Each step is a separate changeset and deployment.
 
-1. **Expand** — add nullable columns/tables; old code still works
-2. **Dual-write** — new code writes both old and new shape
-3. **Backfill** — migrate existing data via `apps/backfill_worker/`
-4. **Switch** — new code reads new shape only
-5. **Contract** — remove old columns/tables
+## Liquibase
 
-Each step is a separate changeset and a separate deployment.
+- Changesets in `db/changelog/` are append-only.
+- IDs use `{YYYY-MM-DD}-{author}-{description}`.
+- Include `rollback` where safe.
+- Keep `runOnChange: false` for DDL.
+- Liquibase connects directly to PostgreSQL, not PgBouncer.
 
----
-
-## Liquibase Rules
-
-- Every schema change is a changeset in `db/changelog/` — append-only, never modify applied changesets
-- Changeset IDs: `{YYYY-MM-DD}-{author}-{description}` — unique and descriptive
-- Include a `rollback` block for every changeset that can be safely reversed
-- `runOnChange: false` (the default) for all DDL changesets
-- Liquibase connects directly to PostgreSQL — not through PgBouncer
-
----
-
-## Database Capability Ownership
+## Ownership
 
 | Capability | Tables | Primary writers |
 |---|---|---|
@@ -38,12 +29,4 @@ Each step is a separate changeset and a separate deployment.
 | Outbox and receipts | `outbox_messages`, `order_event_receipts`, `idempotency_keys` | API, order event runtime |
 | Migration and backfill control | `backfill_progress`, `DATABASECHANGELOG`, `DATABASECHANGELOGLOCK` | Liquibase, backfill worker |
 
-Do not write to tables owned by another capability without a documented reason.
-
----
-
-## PgBouncer
-
-- Long-running services connect through PgBouncer
-- Liquibase connects directly — not through PgBouncer
-- PgBouncer assets live in `db/pgbouncer/`
+Do not write across capability ownership without a documented reason.
