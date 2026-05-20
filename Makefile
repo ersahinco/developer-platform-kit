@@ -127,7 +127,15 @@ lint-scripts: ## Syntax-check shell scripts
 
 .PHONY: lint-docs
 lint-docs: ## Check Markdown links
-	lychee README.md 'docs/**/*.md'
+	@if command -v lychee >/dev/null 2>&1; then \
+		lychee README.md 'docs/**/*.md'; \
+	else \
+		docker run --rm \
+			-v "$(CURDIR):/repo" \
+			-w /repo \
+			lycheeverse/lychee:v0.20.1@sha256:6c4392ea845b9db2dbad5b85aafcd4ebce8ddaed012be1444d5a2f272e0707d2 \
+			README.md 'docs/**/*.md'; \
+	fi
 
 .PHONY: lint-workflows
 lint-workflows: ## Lint GitHub workflows
