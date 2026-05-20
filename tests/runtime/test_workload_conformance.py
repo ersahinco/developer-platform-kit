@@ -23,6 +23,15 @@ SERVICE_HTTP_PATHS = {
     "metrics": "/metrics",
 }
 RUNTIME_LABELS = ("stack", "environment", "service", "container")
+TRANSIENT_DOCKER_BUILD_ERRORS = (
+    "504 Gateway Time-out",
+    "502 Bad Gateway",
+    "503 Service Unavailable",
+    "TLS handshake timeout",
+    "i/o timeout",
+    "EOF",
+    "connection reset by peer",
+)
 
 
 def _run(args: list[str]) -> subprocess.CompletedProcess[str]:
@@ -33,6 +42,26 @@ def _run(args: list[str]) -> subprocess.CompletedProcess[str]:
         capture_output=True,
         text=True,
     )
+
+
+def _run_docker_build(
+    args: list[str], retries: int = 2
+) -> subprocess.CompletedProcess[str]:
+    attempts = retries + 1
+    for attempt in range(1, attempts + 1):
+        try:
+            return _run(args)
+        except subprocess.CalledProcessError as exc:
+            if (
+                args[:2] != ["docker", "build"]
+                or attempt == attempts
+                or not any(
+                    marker in exc.stderr for marker in TRANSIENT_DOCKER_BUILD_ERRORS
+                )
+            ):
+                raise
+            time.sleep(attempt)
+    raise AssertionError("unreachable")
 
 
 def _docker_available() -> bool:
@@ -260,7 +289,7 @@ def _build_image(workload: dict[str, object], prefix: str) -> str:
     for key, value in build_args.items():
         args.extend(["--build-arg", f"{key}={value}"])
     args.append(".")
-    _run(args)
+    _run_docker_build(args)
     return image
 
 
