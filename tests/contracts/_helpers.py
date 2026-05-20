@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import json
 from pathlib import Path
 import re
 from typing import Any
@@ -12,6 +13,12 @@ ROOT = Path(__file__).resolve().parents[2]
 
 def read_text(path: str) -> str:
     return (ROOT / path).read_text(encoding="utf-8")
+
+
+def load_json(path: str) -> dict[str, Any]:
+    data = json.loads(read_text(path))
+    assert isinstance(data, dict)
+    return data
 
 
 def load_yaml(path: str) -> dict[str, Any]:

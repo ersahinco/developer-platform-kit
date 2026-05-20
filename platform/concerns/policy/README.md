@@ -8,6 +8,7 @@ Current scope:
 
 - `.github/workflows/*.yml`
 - `platform/workloads.json`
+- `platform/runtime-conformance.json`
 
 Command:
 

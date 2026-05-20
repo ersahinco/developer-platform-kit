@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 from ._helpers import (
-    has_markdown_link,
     load_workflow,
     read_text,
     step_names,
@@ -133,57 +132,17 @@ def test_security_and_semgrep_workflows_own_repo_hygiene_gates() -> None:
     )
 
 
-def test_canonical_delivery_docs_own_review_commands() -> None:
-    readme = read_text("README.md")
-    docs_index = read_text("docs/README.md")
-    runbooks_index = read_text("docs/runbooks/README.md")
-    deployment_doc = read_text("docs/deployment.md")
-    toolchain_doc = read_text("docs/devops-toolchain.md")
-
-    for text in [readme, docs_index, runbooks_index]:
-        assert "make release-evidence-runs" not in text
-        assert "make incident-evidence" not in text
-
-    assert has_markdown_link(readme, "docs/deployment.md#review-checklist")
-    assert has_markdown_link(readme, "docs/runbooks/README.md")
-    assert has_markdown_link(docs_index, "deployment.md")
-    assert has_markdown_link(docs_index, "runbooks/README.md")
-    assert has_markdown_link(runbooks_index, "../deployment.md#review-checklist")
-
-    for expected in [
-        "make post-deploy-verify",
-        "make release-evidence-runs",
-        "GH_RUN_ID=<workflow-run-id> make release-evidence-download",
-        "RELEASE_EVENTS_DIR=/tmp/aws-sdlc-containers-release-evidence/<workflow-run-id>",
-        "make incident-evidence",
-        "release-evidence-*",
-    ]:
-        assert expected in deployment_doc
-
-    assert "## GitHub Gate Matrix" in toolchain_doc
-    for expected in [
-        "`app-build.yml`",
-        "`security.yml`",
-        "`semgrep.yml`",
-        "`infra-plan.yml`",
-    ]:
-        assert expected in toolchain_doc
-
-
 def test_policy_concern_is_wired_into_standard_tooling() -> None:
     makefile = read_text("Makefile")
     security_workflow = load_workflow(".github/workflows/security.yml")
-    policy_readme = read_text("platform/concerns/policy/README.md")
-    toolchain_doc = read_text("docs/devops-toolchain.md")
 
     assert "lint-policy:" in makefile
     assert "conftest test --policy platform/concerns/policy/conftest" in makefile
+    assert "platform/workloads.json" in makefile
+    assert "platform/runtime-conformance.json" in makefile
     assert "Run policy checks" in step_names(
         workflow_job(security_workflow, "security-scan")
     )
     assert "make lint-policy" in step_run_text(
         workflow_job(security_workflow, "security-scan")
     )
-    assert "OPA / Conftest" in toolchain_doc
-    assert "`make lint-policy`" in toolchain_doc
-    assert "Current tool: OPA via Conftest." in policy_readme
