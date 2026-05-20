@@ -1,12 +1,10 @@
 # Platform Terraform Root
 
-This root owns AWS-bound platform/bootstrap resources with a lifecycle
-independent of the app workload:
+`infra/platform/` owns bootstrap resources with an app-independent lifecycle:
 
-- VPC, subnet tiers, NAT, and AWS service endpoints.
-- GitHub Actions OIDC role identity, Terraform state access, and CI IAM policies.
-- Account/domain lookups used by app-owned DNS records.
+- VPC, subnets, NAT, service endpoints
+- GitHub Actions OIDC identity, Terraform state access, CI IAM policies
+- account and domain lookups used by app-owned DNS
 
-It intentionally does not own RDS, ECS compute, ALB/API edge, workload queues,
-data buckets, jobs, ALB access logs, or ADOT sidecar wiring. Those belong in the
-app root.
+It does not own RDS, ECS, ALB/API edge, queues, data buckets, jobs, logs, or
+ADOT wiring.
