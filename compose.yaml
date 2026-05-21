@@ -24,7 +24,7 @@ x-data-export-database-url: &data_export_database_url ${DATA_EXPORT_DATABASE_URL
 x-event-consumer-app-id: &event_consumer_app_id event-consumer
 x-event-consumer-app-port: &event_consumer_app_port "8081"
 x-event-consumer-pubsub-name: &event_consumer_pubsub_name async-events-pubsub
-x-event-consumer-topic: &event_consumer_topic order-created-v1.fifo
+x-event-consumer-topic: &event_consumer_topic async-events-v1.fifo
 
 services:
 

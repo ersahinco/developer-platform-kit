@@ -83,7 +83,7 @@
         "app_id": "event-consumer",
         "scope": "pubsub",
         "pubsub_name": "async-events-pubsub",
-        "topic": "order-created-v1.fifo",
+        "topic": "async-events-v1.fifo",
         "subscription_route": "/internal/events/consume"
       },
       "config": {

@@ -126,7 +126,7 @@ def test_dapr_publisher_posts_cloud_event(monkeypatch):
     publisher = DaprOrderEventPublisher(
         endpoint="http://localhost:3500/",
         pubsub_name="async-events-pubsub",
-        topic="order-created-v1.fifo",
+        topic="async-events-v1.fifo",
     )
 
     publisher.publish(_outbox_message())
@@ -134,7 +134,7 @@ def test_dapr_publisher_posts_cloud_event(monkeypatch):
     req, timeout = calls[0]
     assert timeout == 10.0
     assert req.full_url == (
-        "http://localhost:3500/v1.0/publish/async-events-pubsub/order-created-v1.fifo"
+        "http://localhost:3500/v1.0/publish/async-events-pubsub/async-events-v1.fifo"
     )
     body = req.data.decode()
     event = json.loads(body)
@@ -376,12 +376,12 @@ def test_metrics_endpoint_exposes_prometheus_text(monkeypatch):
 def test_dapr_subscribe_declares_order_topic(monkeypatch):
     monkeypatch.setattr(settings, "event_consumer_worker_mode", "both")
     monkeypatch.setattr(settings, "event_consumer_pubsub_name", "async-events-pubsub")
-    monkeypatch.setattr(settings, "event_consumer_topic", "order-created-v1.fifo")
+    monkeypatch.setattr(settings, "event_consumer_topic", "async-events-v1.fifo")
 
     assert consumer_main.dapr_subscribe() == [
         {
             "pubsubname": "async-events-pubsub",
-            "topic": "order-created-v1.fifo",
+            "topic": "async-events-v1.fifo",
             "route": "/internal/events/consume",
         }
     ]

@@ -82,7 +82,7 @@ CloudWatch namespaces:
 |---|---|
 | `AWS/ApplicationELB` | unhealthy targets, target 5xx, target latency |
 | `AWS/RDS` | CPU, storage, connection pressure |
-| `AWS/SQS` | order-event DLQ visibility |
+| `AWS/SQS` | async-eventing DLQ visibility |
 | `AWS/Scheduler` | scheduled export delivery failures |
 | `<stack-name>/DataExport` | export freshness |
 | `ECS/ContainerInsights` | ECS troubleshooting |

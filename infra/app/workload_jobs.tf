@@ -328,8 +328,8 @@ resource "aws_cloudwatch_metric_alarm" "data_export_scheduler_target_errors" {
 
 ################################################################################
 # Event consumer — one small async runtime that relays durable outbox messages
-# through Dapr pub/sub and records current order.created.v1 deliveries into an
-# idempotent receipt table.
+# through Dapr pub/sub and records consumed deliveries into an idempotent
+# receipt table.
 ################################################################################
 
 resource "aws_iam_role" "event_consumer" {

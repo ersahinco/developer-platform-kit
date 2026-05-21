@@ -37,7 +37,7 @@
         "EVENT_CONSUMER_WORKER_MODE": "consumer",
         "EVENT_CONSUMER_WORKER_RUN_ONCE": "false",
         "EVENT_CONSUMER_PUBSUB_NAME": "async-events-pubsub",
-        "EVENT_CONSUMER_TOPIC": "order-created-v1.fifo",
+        "EVENT_CONSUMER_TOPIC": "async-events-v1.fifo",
         "EVENT_CONSUMER_RELAY_BATCH_SIZE": "10",
         "EVENT_CONSUMER_IDLE_SLEEP_SECONDS": "1"
       },

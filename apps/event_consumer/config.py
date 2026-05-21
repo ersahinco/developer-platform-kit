@@ -39,7 +39,7 @@ class Settings(PostgresRuntimeSettings):
     )
     event_consumer_topic: str = field(
         default_factory=lambda: require_value(
-            env_str("EVENT_CONSUMER_TOPIC", "order-created-v1.fifo"),
+            env_str("EVENT_CONSUMER_TOPIC", "async-events-v1.fifo"),
             "EVENT_CONSUMER_TOPIC",
         )
     )

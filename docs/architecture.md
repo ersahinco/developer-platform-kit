@@ -44,7 +44,7 @@ Current runtime realization roots:
 - Split Terraform ownership: `infra/platform` for bootstrap, `infra/app` for the current AWS runtime resources
 - One public API edge protected by WAF
 - One PostgreSQL database with Liquibase-managed history
-- One scheduled export path and one async order-event path
+- One scheduled export path and one async eventing path
 
 These are runtime defaults, not portable guarantees. Keep portable behavior in
 the contract and runtime mechanics at the platform edge.
@@ -120,7 +120,7 @@ Rules:
 |---|---|---|
 | Order write model | `customers`, `orders`, `order_contact_email` | API and backfill worker |
 | Runtime configuration | `app_runtime_config` | API admin endpoints and Liquibase seed data |
-| Outbox and receipts | `outbox_messages`, `order_event_receipts`, `idempotency_keys` | API and order event runtime |
+| Outbox and receipts | `outbox_messages`, `order_event_receipts`, `idempotency_keys` | API and event consumer |
 | Migration and backfill control | `backfill_progress`, `DATABASECHANGELOG`, `DATABASECHANGELOGLOCK` | Liquibase and backfill worker |
 | Export outputs | S3 data hub objects | data export job |
 
