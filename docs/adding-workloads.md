@@ -38,6 +38,19 @@ make workload-capability-matrix
 make workload-use-case-matrix
 ```
 
+Preview or apply a starter workload bundle from the stable-center patterns:
+
+```bash
+make scaffold-workload ARGS='--name inventory_dashboard --pattern edge-service --use-case dashboard --service-port 8092'
+make scaffold-workload ARGS='--name inventory_dashboard --pattern edge-service --use-case dashboard --service-port 8092 --apply'
+```
+
+The scaffold command creates a thin host under `apps/`, a starter app test,
+updates `platform/workloads.json`, updates `platform/runtime-conformance.json`,
+adds a Backstage component, and inserts a local Compose service block. Treat it
+as the starting point, then keep the host thin and finish any bespoke business
+behavior or runtime wiring explicitly.
+
 ## Add The Host
 
 Create:

@@ -353,6 +353,11 @@ adapter-seam-matrix: ## Print contract-to-adapter-to-runtime seams for portable 
 platform-inventory-json: ## Print machine-readable platform inventory for workloads, runtime seams, and adapter seams
 	python3 -m scripts.platform.workload_metadata inventory-json
 
+.PHONY: scaffold-workload
+scaffold-workload: ## Preview or apply a workload scaffold; pass CLI flags via ARGS='--name ... --pattern ...'
+	@[ -n "$(ARGS)" ] || (echo "Set ARGS='--name <workload> --pattern <pattern> --use-case <use-case> [--apply]'" >&2; exit 1)
+	python3 -m scripts.platform.scaffold_workload $(ARGS)
+
 .PHONY: observability-cloud-traffic
 observability-cloud-traffic: ## Generate live API traffic for Grafana/CloudWatch observation
 	@AWS_REGION="$(AWS_REGION)" \
