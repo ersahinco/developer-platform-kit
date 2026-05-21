@@ -19,10 +19,22 @@ Short form: standardize the delivery workflow, do not replace the tools.
 |---|---|
 | delivery toolkit | framework, custom framework |
 | workload | microservice |
+| platform catalog | internal framework, magic scaffolding |
 | portable by boundary | cloud-neutral |
 | platform edge | cloud abstraction layer |
 | runtime target | cloud provider |
 | app host | service, microservice |
+
+## Stable Center
+
+The stable center of the platform is the workload contract and the platform
+catalog.
+
+- The workload contract defines what a workload is, what it needs, and what guarantees it must satisfy.
+- The platform catalog provides reusable building blocks, templates, modules, policies, and delivery paths that realize those needs.
+- A runtime target is a pluggable implementation choice at the platform edge, such as AWS ECS, managed Kubernetes, jobs, or future data runtimes.
+- Runtime targets must realize the contract, not redefine workload identity, portability rules, or shared delivery policy.
+- The current primary runtime target is AWS/ECS. Additional runtime targets need a real workload reason and clear ownership.
 
 ## Layer Map
 
@@ -32,11 +44,11 @@ Short form: standardize the delivery workflow, do not replace the tools.
 | `packages/application/` | Use cases, ports, workflow logic | SQL, Dapr internals, AWS SDK |
 | `packages/infrastructure/` | SQLAlchemy, Dapr, S3, runtime adapters | Domain/application policy |
 | `apps/*/` | Workload host: settings, routes, lifecycle, wiring | Business logic that belongs in `packages/` |
-| `platform/workloads.json` | Workload identity, operational class, ports, config/secret names | Deployment choreography |
+| `platform/workloads.json` | Workload identity, operational class, use-case tags, ports, config/secret names | Deployment choreography or runtime-specific wiring |
 | `platform/concerns/` | Shared runtime capabilities: Dapr, observability, security | App-specific business rules |
 | `infra/platform/` | Bootstrap, network, GitHub OIDC | Workload identity |
 | `infra/app/` | RDS, ECS, ALB, jobs, messaging | Domain/application logic |
-| `infra/catalog/` | Reusable AWS building blocks | Deploy-root orchestration |
+| `infra/catalog/` | Reusable catalog building blocks for runtime targets; current AWS catalog lives here | Deploy-root orchestration or workload identity |
 | `db/` | Liquibase changelog, bootstrap SQL, PgBouncer assets | App logic |
 | `scripts/` | CI, release, operator, observability, data helpers | Hidden framework layers |
 | `tests/` | API, application, runtime, infrastructure, contract checks | Production code |
@@ -89,13 +101,15 @@ Jobs must provide:
 
 1. `platform/workloads.json` - what the workload is
 2. `platform/runtime-conformance.json` - local/CI fixture data only
-3. `infra/app/workload_inventory.tf` - how AWS fulfills the contract
+3. `infra/app/workload_inventory.tf` - how the current AWS runtime fulfills the contract
 
 Rules:
 
 - Do not grow `platform/workloads.json` into a deployment DSL.
-- Do not let `infra/app/workload_inventory.tf` redefine workload identity.
+- Do not let runtime realization layers such as `infra/app/workload_inventory.tf` redefine workload identity.
 - Do not let `platform/runtime-conformance.json` grow second application-spec semantics.
+- Use target-neutral `use_cases` to classify workload intent for catalog, templates, and self-service discovery.
+- Add future runtime targets as parallel realization layers, not by rewriting the stable center.
 
 ## Eventing Boundary
 
@@ -159,8 +173,8 @@ plan, separate apply.
 Do not add without a real workload need:
 
 - Dapr state store, bindings, workflows, actors, or secrets
-- Kubernetes, Helm, Kustomize, or Crossplane
-- A second cloud/runtime target
+- Self-managed Kubernetes control planes, Helm/Kustomize packaging, or Crossplane
+- A runtime target added only to prove portability
 - Generic provider-neutral infrastructure modules
 
 ## Scoped Rules

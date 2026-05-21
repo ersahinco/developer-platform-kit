@@ -1,0 +1,17 @@
+apiVersion: backstage.io/v1alpha1
+kind: Location
+metadata:
+  name: aws-sdlc-containers-catalog
+  description: Root Backstage catalog location for platform monorepo entities.
+spec:
+  type: file
+  targets:
+    - ./catalog/platform-engineering-group.yaml
+    - ./catalog/platform-engineering-domain.yaml
+    - ./catalog/aws-sdlc-containers-system.yaml
+    - ./catalog/runtime-target-aws-ecs.yaml
+    - ./catalog/platform-monorepo-component.yaml
+    - ./catalog/api-component.yaml
+    - ./catalog/order-event-consumer-component.yaml
+    - ./catalog/backfill-worker-component.yaml
+    - ./catalog/data-export-job-component.yaml

@@ -4,14 +4,19 @@ Opinionated cloud-native delivery toolkit monorepo.
 
 Short form: standardize the delivery workflow, do not replace the tools.
 
-The current runtime target is AWS/ECS. The portable value lives in the
+The stable center of the repo is the workload contract and the platform
+catalog. Runtime targets are pluggable implementations at the platform edge.
+The current primary runtime target is AWS/ECS. Portable value lives in the
 workload contract, package boundaries, container builds, config and secrets,
 observability, CI gates, rollout safety, and operator evidence.
+The repo also ships a conventional Backstage descriptor in `catalog-info.yaml`
+so a portal or software catalog can ingest the monorepo without custom glue.
 
 ## What This Repo Standardizes
 
+- Platform center: workload contract plus reusable catalog and concern definitions
 - Workload contract: `platform/workloads.json`, `platform/runtime-conformance.json`
-- Boundaries: thin `apps/*` hosts, reusable `packages/*`, AWS runtime edge in `infra/*`
+- Boundaries: thin `apps/*` hosts, reusable `packages/*`, pluggable runtime targets realized in `infra/*`
 - Delivery: build before deploy, plan before apply, immutable image tags, release evidence
 - Operations: observability baseline, runbooks, contract and architecture tests
 
@@ -22,11 +27,12 @@ observability, CI gates, rollout safety, and operator evidence.
 | `apps/` | Reference workload hosts |
 | `packages/` | Domain, application, infrastructure packages |
 | `db/` | Liquibase changelog and Postgres assets |
-| `infra/` | AWS platform and app Terraform roots plus reusable catalog parts |
-| `platform/` | Workload metadata, shared image, shared runtime concerns |
+| `infra/` | Runtime-target Terraform roots plus reusable catalog parts; current primary target is AWS |
+| `platform/` | Workload contract, shared image, and shared runtime concerns |
 | `scripts/` | CI, release, operator, observability, data helpers |
 | `tests/` | API, contract, runtime, infrastructure checks |
 | `docs/` | Canonical operator and design docs |
+| `catalog-info.yaml` | Optional Backstage catalog entities for self-service discovery |
 
 ## Start Here
 
@@ -57,6 +63,14 @@ Common checks:
 uv sync --all-packages --group dev --group scripts --group test
 make lint
 uv run pytest tests/ -v
+```
+
+Useful inventory views:
+
+```bash
+make workload-capability-matrix
+make workload-use-case-matrix
+make platform-inventory-json
 ```
 
 Optional local extras:

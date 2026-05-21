@@ -1,8 +1,14 @@
 # Infrastructure Catalog
 
-`infra/catalog/` is the extraction boundary for reusable infrastructure building
+`infra/catalog/` is the extraction boundary for reusable runtime-target building
 blocks.
 
 Do not force module creation for its own sake. Extract into the catalog only
 when a cloud primitive or runtime pattern is stable enough to reuse without
 hiding the underlying standard tool.
+
+Growth rule:
+
+- Organize the catalog by runtime target under `infra/catalog/<runtime-target>/`
+- Keep shared workload meaning in `platform/`; do not move contract semantics into catalog modules
+- Reserve `infra/catalog/managed-kubernetes/` for future managed-Kubernetes modules when a real workload needs them

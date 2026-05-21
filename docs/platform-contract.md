@@ -2,23 +2,32 @@
 
 Portable workload contract for this repo.
 
-Goal: workloads run on the current platform shape without leaking provider
-details into app code. This is a platform monorepo seed, not a private
-framework. Use standard tools directly and keep provider details at the
-platform edge.
+Goal: keep the workload contract as part of the stable center of the platform so
+workloads run on current and future runtime targets without leaking provider
+details into app code. Use standard tools directly and keep provider details at
+the platform edge.
 
-`platform/workloads.json` is the machine-readable application specification.
+`platform/workloads.json` is the machine-readable workload contract.
 Focused pytest checks plus `make runtime-conformance` are the main proof that
 declared workloads still satisfy the contract.
 
-## Application Specification
+## Stable Center
+
+- The workload contract is the canonical definition of workload intent.
+- The platform catalog supplies reusable capabilities that realize that intent.
+- Runtime targets may vary, but they must realize the contract instead of
+  redefining workload meaning.
+
+## Canonical Contract
 
 `platform/workloads.json` owns:
 
 - workload identity and kind
+- target-neutral workload use cases for discovery and templates
 - host location under `apps/`
 - operational class
 - service port declarations
+- optional capability declarations such as database or Dapr when the workload actually needs them
 - Dapr app identity and component mappings
 - shared image package and command metadata
 - portable health, metrics, traces, and idempotency expectations
@@ -26,26 +35,33 @@ declared workloads still satisfy the contract.
 
 It does not own:
 
-- provider resource names
-- AWS queue, topic, bucket, ALB, ECS, IAM, or RDS details
+- provider and runtime resource names
+- AWS queue, topic, bucket, ALB, ECS, IAM, or RDS details for the current target
 - Dapr component backing implementations for an environment profile
 - Terraform composition or GitHub Actions deployment choreography
 - `platform/runtime-conformance.json` fixture values
 
 ## Metadata Ownership
 
-Three layers only:
+Three ownership layers for the current AWS target:
 
 1. `platform/workloads.json`: what the workload is
 2. `platform/runtime-conformance.json`: local/CI fixture data only
-3. `infra/app/workload_inventory.tf`: how AWS fulfills the contract
+3. `infra/app/workload_inventory.tf`: how the current AWS runtime fulfills the contract
 
 Rules:
 
 - Do not let `platform/runtime-conformance.json` grow second application-spec semantics.
-- Do not let `infra/app/workload_inventory.tf` redefine workload identity or capability intent.
+- Do not let runtime realization layers such as `infra/app/workload_inventory.tf` redefine workload identity or capability intent.
+- Future runtime targets add parallel realization layers; they do not replace
+  the stable center.
 
 ## Workload Shape
+
+In addition to `kind` and operational class, each workload declares one or more
+target-neutral `use_cases`. These help catalog, template, and self-service
+surfaces distinguish workloads like `http-api`, `event-consumer`, `dashboard`,
+`connector`, or `data-pipeline` without encoding runtime details.
 
 Service workloads must provide:
 
@@ -93,13 +109,13 @@ Current mapping:
 - `backfill_worker`: `operator-job`
 - `data_export_job`: `scheduled-job`
 
-Runtime details like ALB, ECS service count, EventBridge Scheduler, or manual
-operator flow stay at the platform edge.
+Runtime details like ALB, ECS service count, EventBridge Scheduler, managed
+Kubernetes manifests, or manual operator flow stay at the platform edge.
 
 ## Workload Checklist
 
 - Add `apps/<name>/main.py`, `config.py`, and `pyproject.toml`
-- Add the workload to `platform/workloads.json` before runtime-specific infrastructure
+- Add the workload to `platform/workloads.json` before runtime-target-specific infrastructure
 - Reuse the shared workload Dockerfile unless there is a real reason not to
 - Services expose `/health`, `/ready`, and `/metrics`
 - Jobs emit structured success and progress events and document idempotency
@@ -111,7 +127,7 @@ operator flow stay at the platform edge.
 - `packages/application`: use cases and stable ports
 - `packages/infrastructure`: SQL, storage, Dapr, provider adapters
 - `apps/*`: workload wiring, settings, routes, entrypoints
-- `infra/`, `scripts/`, workflows: provider and delivery edges
+- `infra/`, `scripts/`, workflows: runtime-target and delivery edges
 
 Provider resource names such as buckets, queues, task definitions, and IAM
 roles belong at the platform edge, not in domain or application code.
@@ -124,9 +140,11 @@ roles belong at the platform edge, not in domain or application code.
 - Keep `Settings` aligned with declared environment variables
 - Use full URLs where they simplify local and test ergonomics
 
-Database expectations are PostgreSQL-compatible behavior, Liquibase
-migrations, PgBouncer expectations, and runtime secret injection. RDS is the
-current implementation, not the portable contract.
+Database expectations apply only to workloads that declare the database
+capability. For those workloads, the portable contract is PostgreSQL-compatible
+behavior, Liquibase migrations, PgBouncer expectations where needed, and
+runtime secret injection. RDS is the current AWS implementation, not the
+portable contract.
 
 ## Eventing
 

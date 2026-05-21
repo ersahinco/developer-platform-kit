@@ -14,6 +14,11 @@ def workload_contract() -> dict[str, Any]:
     return json.loads((ROOT / "platform" / "workloads.json").read_text())
 
 
+@lru_cache(maxsize=1)
+def platform_inventory_document() -> dict[str, Any]:
+    return json.loads((ROOT / "platform" / "platform-inventory.json").read_text())
+
+
 def workloads() -> list[dict[str, Any]]:
     values = workload_contract().get("workloads", [])
     return values if isinstance(values, list) else []
@@ -33,9 +38,33 @@ def workload_repository(workload: dict[str, Any]) -> str:
     return image["repository"] if isinstance(image, dict) else ""
 
 
+def workload_image_dockerfile(workload: dict[str, Any]) -> str:
+    image = workload.get("image", {})
+    if not isinstance(image, dict):
+        return "platform/workload.Dockerfile"
+    return str(image.get("dockerfile", "platform/workload.Dockerfile"))
+
+
+def workload_image_context(workload: dict[str, Any]) -> str:
+    image = workload.get("image", {})
+    if not isinstance(image, dict):
+        return "."
+    return str(image.get("context", "."))
+
+
 def workload_operational_class(workload: dict[str, Any]) -> str:
     operational = workload.get("operational", {})
     return operational.get("class", "") if isinstance(operational, dict) else ""
+
+
+def workload_database(workload: dict[str, Any]) -> dict[str, Any] | None:
+    database = workload.get("database")
+    return database if isinstance(database, dict) else None
+
+
+def workload_use_cases(workload: dict[str, Any]) -> list[str]:
+    values = workload.get("use_cases", [])
+    return [value for value in values if isinstance(value, str)]
 
 
 def build_image_matrix(tag: str, pgbouncer_tag: str) -> list[dict[str, Any]]:
@@ -43,8 +72,8 @@ def build_image_matrix(tag: str, pgbouncer_tag: str) -> list[dict[str, Any]]:
         {
             "name": workload["name"],
             "repository": workload_repository(workload),
-            "dockerfile": "platform/workload.Dockerfile",
-            "context": ".",
+            "dockerfile": workload_image_dockerfile(workload),
+            "context": workload_image_context(workload),
             "tag": tag,
             "build_args": {
                 "APP_PATH": workload["app_path"],
@@ -77,7 +106,7 @@ def build_image_matrix(tag: str, pgbouncer_tag: str) -> list[dict[str, Any]]:
 
 def workload_capabilities(workload: dict[str, Any]) -> dict[str, Any]:
     operational = workload.get("operational", {})
-    database = workload.get("database", {})
+    database = workload_database(workload)
     traces = workload.get("traces", {})
 
     return {
@@ -109,7 +138,7 @@ def workload_capability_rows() -> list[dict[str, str]]:
     rows: list[dict[str, str]] = []
     for workload in workloads():
         operational = workload.get("operational", {})
-        database = workload.get("database", {})
+        database = workload_database(workload)
         service = workload.get("service", {})
         capabilities = workload_capabilities(workload)
         rows.append(
@@ -117,6 +146,7 @@ def workload_capability_rows() -> list[dict[str, str]]:
                 "name": str(workload.get("name", "")),
                 "kind": str(workload.get("kind", "")),
                 "class": workload_operational_class(workload),
+                "use_cases": ",".join(workload_use_cases(workload)),
                 "repository": workload_repository(workload),
                 "edge_exposure": (
                     str(operational.get("exposure", ""))
@@ -144,71 +174,25 @@ def workload_capability_rows() -> list[dict[str, str]]:
 
 
 def current_runtime_capability_rows() -> list[dict[str, str]]:
-    return [
-        {
-            "capability": "edge_http",
-            "contract_surface": "edge-service, /health, /ready, /metrics",
-            "runtime_target": "aws-ecs",
-            "implementation": "ALB + ECS service + ACM/WAF",
-            "replacement_seam": "infra/app/edge.tf + .github/workflows/app-deploy.yml",
-        },
-        {
-            "capability": "relational_database",
-            "contract_surface": "PostgreSQL semantics, DATABASE_URL, DB_* config names",
-            "runtime_target": "aws-ecs",
-            "implementation": "RDS PostgreSQL + PgBouncer sidecar",
-            "replacement_seam": "infra/app/database.tf + infra/app/workload_inventory.tf",
-        },
-        {
-            "capability": "async_eventing",
-            "contract_surface": "Dapr pubsub name, topic, CloudEvents, outbox",
-            "runtime_target": "aws-ecs",
-            "implementation": "SNS FIFO + SQS FIFO behind Dapr components",
-            "replacement_seam": "platform/concerns/dapr/ + infra/app/messaging.tf",
-        },
-        {
-            "capability": "scheduled_execution",
-            "contract_surface": "scheduled-job operational class",
-            "runtime_target": "aws-ecs",
-            "implementation": "EventBridge Scheduler + ECS run-task",
-            "replacement_seam": "infra/app/workload_jobs.tf",
-        },
-        {
-            "capability": "operator_job_execution",
-            "contract_surface": "operator-job operational class",
-            "runtime_target": "aws-ecs",
-            "implementation": "manual/CI ECS run-task",
-            "replacement_seam": ".github/workflows/app-deploy.yml + infra/app/workload_jobs.tf",
-        },
-        {
-            "capability": "object_storage",
-            "contract_surface": "workload config names such as DATA_EXPORT_S3_BUCKET",
-            "runtime_target": "aws-ecs",
-            "implementation": "S3 data hub bucket",
-            "replacement_seam": "infra/app/object_storage.tf",
-        },
-        {
-            "capability": "secrets_injection",
-            "contract_surface": "declared config secrets in platform/workloads.json",
-            "runtime_target": "aws-ecs",
-            "implementation": "Secrets Manager + ECS secret injection",
-            "replacement_seam": "infra/app/workload_inventory.tf + ECS task definitions",
-        },
-        {
-            "capability": "tracing",
-            "contract_surface": "OTLP/HTTP traces when enabled",
-            "runtime_target": "aws-ecs",
-            "implementation": "ADOT sidecar or direct OTLP endpoint",
-            "replacement_seam": "infra/app/observability.tf + infra/app/workload_inventory.tf",
-        },
-        {
-            "capability": "release_evidence",
-            "contract_surface": "portable release-event contract",
-            "runtime_target": "aws-ecs",
-            "implementation": "GitHub artifact upload + optional Loki push",
-            "replacement_seam": "scripts/observability/release_event.py + workflows",
-        },
-    ]
+    rows = platform_inventory_document().get("runtime_capabilities", [])
+    return [row for row in rows if isinstance(row, dict)]
+
+
+def adapter_seam_rows() -> list[dict[str, str]]:
+    rows = platform_inventory_document().get("adapter_seams", [])
+    return [row for row in rows if isinstance(row, dict)]
+
+
+def platform_inventory() -> dict[str, Any]:
+    document = platform_inventory_document()
+    return {
+        "schema_version": int(str(document.get("schema_version", "1"))),
+        "stable_center": dict(document.get("stable_center", {})),
+        "current_runtime_target": str(document.get("current_runtime_target", "")),
+        "workloads": workload_capability_rows(),
+        "runtime_capabilities": current_runtime_capability_rows(),
+        "adapter_seams": adapter_seam_rows(),
+    }
 
 
 def internal_service_workloads() -> list[dict[str, Any]]:
@@ -305,6 +289,7 @@ def _print_capability_matrix() -> int:
         "name",
         "kind",
         "class",
+        "use_cases",
         "repository",
         "edge_exposure",
         "trigger",
@@ -313,6 +298,14 @@ def _print_capability_matrix() -> int:
         "async_eventing",
         "tracing",
     ]
+    print("\t".join(headers))
+    for row in workload_capability_rows():
+        print("\t".join(row[header] for header in headers))
+    return 0
+
+
+def _print_use_case_matrix() -> int:
+    headers = ["name", "kind", "class", "use_cases", "repository"]
     print("\t".join(headers))
     for row in workload_capability_rows():
         print("\t".join(row[header] for header in headers))
@@ -333,12 +326,32 @@ def _print_implementation_matrix() -> int:
     return 0
 
 
+def _print_adapter_seam_matrix() -> int:
+    headers = [
+        "capability",
+        "contract_surface",
+        "adapter_seam",
+        "runtime_target",
+        "current_implementation",
+        "runtime_seam",
+    ]
+    print("\t".join(headers))
+    for row in adapter_seam_rows():
+        print("\t".join(row[header] for header in headers))
+    return 0
+
+
+def _print_inventory_json() -> int:
+    print(json.dumps(platform_inventory(), separators=(",", ":")))
+    return 0
+
+
 def main(argv: list[str] | None = None) -> int:
     argv = sys.argv[1:] if argv is None else argv
     if not argv:
         print(
             "usage: python -m scripts.platform.workload_metadata "
-            "<repositories|primary-edge|internal-services|job-workloads|image-matrix|capability-matrix|implementation-matrix>",
+            "<repositories|primary-edge|internal-services|job-workloads|image-matrix|capability-matrix|use-case-matrix|implementation-matrix|adapter-seam-matrix|inventory-json>",
             file=sys.stderr,
         )
         return 1
@@ -351,7 +364,10 @@ def main(argv: list[str] | None = None) -> int:
         "job-workloads": lambda _args: _print_job_workloads(),
         "image-matrix": _print_image_matrix,
         "capability-matrix": lambda _args: _print_capability_matrix(),
+        "use-case-matrix": lambda _args: _print_use_case_matrix(),
         "implementation-matrix": lambda _args: _print_implementation_matrix(),
+        "adapter-seam-matrix": lambda _args: _print_adapter_seam_matrix(),
+        "inventory-json": lambda _args: _print_inventory_json(),
     }
     handler = handlers.get(command)
     if handler is None:

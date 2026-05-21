@@ -1,0 +1,15 @@
+apiVersion: backstage.io/v1alpha1
+kind: Component
+metadata:
+  name: order_event_consumer
+  description: Internal-service workload host for Dapr-backed async event handling.
+  tags:
+    - event-consumer
+    - integration
+spec:
+  type: service
+  lifecycle: experimental
+  owner: group:default/platform-engineering
+  system: aws-sdlc-containers
+  dependsOn:
+    - resource:default/runtime-target-aws-ecs

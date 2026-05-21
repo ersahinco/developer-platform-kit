@@ -7,6 +7,10 @@ The goal is not to maximize module count. The goal is to extract only the
 infrastructure slices that are stable enough to reuse without hiding standard
 Terraform or AWS concepts.
 
+This is the extraction map for the current AWS runtime target. Future runtime
+targets should follow the same pattern under `infra/catalog/<runtime-target>/`
+rather than changing the stable-center workload contract.
+
 ## Current Candidates
 
 | Candidate | Current owner | Extract when |
@@ -40,5 +44,7 @@ proves they are really reusable:
   wrappers.
 - Keep lifecycle boundaries intact: bootstrap/platform modules stay separate
   from runtime/app modules.
+- Keep workload meaning in `platform/workloads.json` and `platform/concerns/`;
+  catalog extraction should not become a second contract surface.
 - If extraction would obscure the repo’s teaching value, leave the code in the
   assembly root and document the candidate here instead.

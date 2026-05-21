@@ -16,7 +16,6 @@ import pytest
 ROOT = Path(__file__).resolve().parents[2]
 POSTGRES_IMAGE = "postgres:18.3"
 PGBOUNCER_IMAGE = "edoburu/pgbouncer:v1.25.1-p0"
-WORKLOAD_DOCKERFILE = "platform/workload.Dockerfile"
 SERVICE_HTTP_PATHS = {
     "health": "/health",
     "ready": "/ready",
@@ -90,13 +89,14 @@ def _load_workloads() -> list[dict[str, object]]:
     for workload in workloads:
         item = dict(workload)
         workload_conformance = dict(conformance["workloads"][workload["name"]])
-        workload_env = dict(default_env)
-        database = cast(dict[str, object], workload["database"])
-        workload_env["DB_HOST"] = (
-            "pgbouncer" if database["pooling"] == "transaction_pool" else "db"
-        )
+        database = workload.get("database")
+        workload_env = dict(default_env) if isinstance(database, dict) else {}
+        if isinstance(database, dict):
+            workload_env["DB_HOST"] = (
+                "pgbouncer" if database["pooling"] == "transaction_pool" else "db"
+            )
         workload_env.update(dict(workload_conformance.get("env", {})))
-        workload_secrets = dict(default_secrets)
+        workload_secrets = dict(default_secrets) if isinstance(database, dict) else {}
         workload_secrets.update(dict(workload_conformance.get("secrets", {})))
         workload_conformance["env"] = workload_env
         workload_conformance["secrets"] = workload_secrets
@@ -284,11 +284,13 @@ def _build_image(workload: dict[str, object], prefix: str) -> str:
         "UV_PACKAGE": str(image_spec["package"]),
         "WORKLOAD_CMD": str(image_spec["command"]),
     }
+    dockerfile = str(image_spec.get("dockerfile", "platform/workload.Dockerfile"))
+    context = str(image_spec.get("context", "."))
     image = f"{prefix}-{name}:local"
-    args = ["docker", "build", "-f", WORKLOAD_DOCKERFILE, "-t", image]
+    args = ["docker", "build", "-f", dockerfile, "-t", image]
     for key, value in build_args.items():
         args.extend(["--build-arg", f"{key}={value}"])
-    args.append(".")
+    args.append(context)
     _run_docker_build(args)
     return image
 

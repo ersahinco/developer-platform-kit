@@ -17,6 +17,7 @@ If code imports outward, stop and invert through a port.
 - `packages/domain/`: entities, value objects, domain events, domain services. No SQLAlchemy, FastAPI, Dapr, boto3, `Settings`, or env reads.
 - `packages/application/`: use cases, ports, workflow logic. No SQL, Dapr calls, AWS SDK, or FastAPI types.
 - `packages/infrastructure/`: repositories, Dapr adapters, S3 and HTTP clients, provider SDK usage. No business rules.
+- Future runtime replacements should prefer adding or swapping infrastructure adapters and platform-edge realization code before changing domain or application behavior.
 
 ## Design Rules
 
@@ -25,6 +26,7 @@ If code imports outward, stop and invert through a port.
 - Repositories return domain objects, not ORM rows.
 - Same domain name across layers is fine when the layer meaning differs.
 - Use the ubiquitous language from `docs/ubiquitous-language.md`.
+- Treat `packages/infrastructure/` as the first adapter seam for database, pub/sub, object storage, and HTTP client portability.
 
 ## Testing
 

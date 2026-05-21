@@ -2,10 +2,10 @@
 
 Repo shape and placement rules.
 
-`aws-sdlc-containers` is a platform monorepo seed first and an AWS/ECS runtime
-second. Portable value lives in the contract around OCI images, explicit
-workload hosts, inward package boundaries, Terraform-owned runtime resources,
-delivery gates, and portable observability and evidence.
+`aws-sdlc-containers` is a platform monorepo whose stable center is the
+workload contract and the platform catalog. Runtime targets are pluggable
+realizations at the platform edge. The current primary runtime target is
+AWS/ECS.
 
 Use companion docs for detail:
 
@@ -17,32 +17,31 @@ Use companion docs for detail:
 
 ## Model
 
-Three layers:
+The stable center:
 
-- `infra/catalog/`: reusable cloud building blocks
-- `platform/concerns/`: shared runtime capabilities
-- `apps/`: reference consumers of the platform contract
+- `platform/workloads.json`: canonical workload contract
+- `platform/concerns/` plus `infra/catalog/`: reusable platform catalog
+- `apps/`: reference consumers of the contract and catalog
 
-Current assembly roots stay explicit:
+Current runtime realization roots:
 
 - `infra/platform`
 - `infra/app`
-- `platform/workloads.json`
 
 ## Target Shape
 
 - `apps/`: workload hosts
 - `packages/`: reusable behavior and adapters
-- `platform/`: shared contract and concern definitions
-- `infra/`: runtime-specific implementation and catalog
+- `platform/`: stable-center contract and concern definitions
+- `infra/`: runtime-specific implementation and runtime-target catalog
 - `scripts/`: explicit edge automation, never hidden orchestration
 
 ## Current Defaults
 
-- One repo, one platform monorepo seed, one shared database reference
+- One repo, one stable center, one shared database reference
 - Multiple reference workloads under `apps/`
 - Explicit operational classes: edge service, internal service, operator job, scheduled job
-- Split Terraform ownership: `infra/platform` for bootstrap, `infra/app` for runtime resources
+- Split Terraform ownership: `infra/platform` for bootstrap, `infra/app` for the current AWS runtime resources
 - One public API edge protected by WAF
 - One PostgreSQL database with Liquibase-managed history
 - One scheduled export path and one async order-event path
@@ -91,11 +90,11 @@ Portable meaning lives in
 | `packages/application` | use cases and stable ports |
 | `packages/infrastructure` | SQL, Dapr, storage, runtime adapters |
 | `db/` | Liquibase, bootstrap SQL, PgBouncer assets |
-| `infra/catalog` | reusable AWS infrastructure building blocks |
+| `infra/catalog` | reusable catalog building blocks for runtime targets; current AWS catalog lives here |
 | `infra/platform` | shared platform and bootstrap resources |
-| `infra/app` | runtime resources |
+| `infra/app` | current AWS runtime resources |
 | `platform/concerns/` | Dapr, observability, security, policy, networking |
-| `platform/workloads.json` | temporary application specification |
+| `platform/workloads.json` | canonical workload contract |
 | `platform/runtime-conformance.json` | local/CI runtime fixture data |
 | `scripts/` | CI, operator, release, observability, data helpers |
 | `tests/` | API, application, runtime, infra, contract checks |
@@ -110,6 +109,7 @@ Rules:
 
 - Use standard tools directly.
 - Prefer metadata plus tests over wrappers.
+- Keep the workload contract and platform catalog recognizable as the stable center.
 - Keep delivery ownership split where review matters.
 - Add shared abstractions only after repeated need is proven.
 - Every supported workload must be operable, observable, and testable by default.
@@ -129,6 +129,8 @@ Detailed rollout and eventing rules live in [Data](data.md) and
 
 ## Runtime Split
 
+Current AWS runtime split:
+
 - `infra/platform`: bootstrap, network, GitHub OIDC
 - `infra/app`: RDS, ECS, ALB edge, jobs, messaging, observability wiring
 
@@ -142,8 +144,8 @@ environment-promotion demo.
 - PgBouncer exhaustion mitigation beyond current pool sizing
 - Snapshot/restore automation before destructive contract migrations
 - Broader Dapr capabilities beyond pub/sub
-- A second runtime target without a real operating reason
+- A runtime target without a concrete workload need and clear owner
 
 When one becomes real, decide whether it changes the portable contract, the
-current capability inventory, or only the AWS runtime implementation, then edit
-the owning doc for that layer.
+platform catalog, or only a runtime-target implementation, then edit the owning
+doc for that layer.

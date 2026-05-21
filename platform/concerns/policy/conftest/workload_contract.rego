@@ -10,8 +10,8 @@ deny contains msg if {
 
 deny contains msg if {
   data.conftest.file.name == "workloads.json"
-  input.schema_version != "4"
-  msg := "platform/workloads.json schema_version must be 4"
+  input.schema_version != "5"
+  msg := "platform/workloads.json schema_version must be 5"
 }
 
 deny contains msg if {
@@ -38,6 +38,31 @@ deny contains msg if {
   some workload in input.workloads
   not workload.kind in {"service", "job"}
   msg := sprintf("workload %q kind must be service or job", [workload.name])
+}
+
+deny contains msg if {
+  data.conftest.file.name == "workloads.json"
+  some workload in input.workloads
+  not is_array(workload.use_cases)
+  msg := sprintf("workload %q use_cases must be an array", [workload.name])
+}
+
+deny contains msg if {
+  data.conftest.file.name == "workloads.json"
+  some workload in input.workloads
+  count(workload.use_cases) == 0
+  msg := sprintf("workload %q must declare at least one use case", [workload.name])
+}
+
+deny contains msg if {
+  data.conftest.file.name == "workloads.json"
+  some workload in input.workloads
+  some use_case in workload.use_cases
+  not regex.match("^[a-z0-9]+(-[a-z0-9]+)*$", use_case)
+  msg := sprintf(
+    "workload %q use case %q must use lowercase kebab-case",
+    [workload.name, use_case],
+  )
 }
 
 deny contains msg if {

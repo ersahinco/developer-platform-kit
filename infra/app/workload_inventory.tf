@@ -24,8 +24,9 @@ locals {
       scheduled_execution = workload.kind == "job" && workload.operational.class == "scheduled-job"
       operator_execution  = workload.kind == "job" && workload.operational.class == "operator-job"
       async_eventing      = can(workload.dapr)
-      pooled_database     = workload.database.pooling == "transaction_pool"
-      direct_database     = workload.database.pooling == "direct"
+      has_database        = can(workload.database)
+      pooled_database     = try(workload.database.pooling == "transaction_pool", false)
+      direct_database     = try(workload.database.pooling == "direct", false)
       tracing             = workload.traces.supported
     }
   }
@@ -159,8 +160,8 @@ locals {
   workload_env_values = {
     for name, workload in local.workloads_by_name :
     name => merge(
-      local.database_runtime_defaults,
-      try(local.database_runtime_values_by_pooling[workload.database.pooling], {}),
+      local.workload_capabilities[name].has_database ? local.database_runtime_defaults : {},
+      local.workload_capabilities[name].has_database ? try(local.database_runtime_values_by_pooling[workload.database.pooling], {}) : {},
       local.workload_trace_env_overrides[name],
       local.workload_async_eventing_env_defaults[name],
       lookup(local.workload_static_env_overrides, name, {})

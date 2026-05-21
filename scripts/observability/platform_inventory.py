@@ -2,13 +2,9 @@ from __future__ import annotations
 
 from functools import lru_cache
 import sys
+from typing import Any
 
-from scripts.platform.workload_metadata import async_eventing_workloads
-from scripts.platform.workload_metadata import primary_edge_service_workload
-from scripts.platform.workload_metadata import primary_async_eventing_workload
-from scripts.platform.workload_metadata import scheduled_job_workloads
-from scripts.platform.workload_metadata import workload_repository
-from scripts.platform.workload_metadata import workloads
+from scripts.platform.workload_metadata import platform_inventory
 
 DEFAULT_STACK_NAME = "aws-sdlc-containers"
 DEFAULT_AWS_REGION = "eu-central-1"
@@ -62,8 +58,49 @@ _WORKLOAD_ALARM_SUFFIXES_BY_NAME = {
 }
 
 
+@lru_cache(maxsize=1)
+def _platform_inventory() -> dict[str, Any]:
+    return platform_inventory()
+
+
+def _workload_rows() -> list[dict[str, str]]:
+    rows = _platform_inventory().get("workloads", [])
+    return [row for row in rows if isinstance(row, dict)]
+
+
+def _workload_row_by_name(name: str) -> dict[str, str]:
+    matches = [row for row in _workload_rows() if row.get("name") == name]
+    if len(matches) != 1:
+        raise ValueError(
+            f"expected exactly one workload named {name!r}, found {len(matches)}"
+        )
+    return matches[0]
+
+
+def _edge_service_row() -> dict[str, str]:
+    matches = [
+        row
+        for row in _workload_rows()
+        if row.get("class") == "edge-service" and row.get("edge_exposure") == "public"
+    ]
+    if len(matches) != 1:
+        raise ValueError(
+            f"expected exactly one public edge-service workload, found {len(matches)}"
+        )
+    return matches[0]
+
+
+def _primary_async_eventing_row() -> dict[str, str]:
+    matches = [row for row in _workload_rows() if row.get("async_eventing") == "true"]
+    if len(matches) != 1:
+        raise ValueError(
+            f"expected exactly one async-eventing workload, found {len(matches)}"
+        )
+    return matches[0]
+
+
 def edge_service_repository() -> str:
-    return workload_repository(primary_edge_service_workload()) or "api"
+    return _edge_service_row().get("repository", "") or "api"
 
 
 def api_trace_service_name(stack_name: str) -> str:
@@ -71,19 +108,12 @@ def api_trace_service_name(stack_name: str) -> str:
 
 
 def dapr_workload_service_name() -> str:
-    return (
-        workload_repository(primary_async_eventing_workload()) or "order-event-consumer"
-    )
+    return _primary_async_eventing_row().get("repository", "") or "order-event-consumer"
 
 
 @lru_cache(maxsize=1)
 def workload_log_group_suffixes() -> list[str]:
-    return [
-        workload["image"]["repository"]
-        for workload in workloads()
-        if isinstance(workload.get("image"), dict)
-        and isinstance(workload["image"].get("repository"), str)
-    ]
+    return [row["repository"] for row in _workload_rows() if row.get("repository")]
 
 
 def expected_log_group_suffixes() -> list[str]:
@@ -125,9 +155,9 @@ def edge_symptom_alarm_names(stack_name: str) -> list[str]:
 
 def _workload_alarm_suffixes() -> list[str]:
     present_workload_names = {
-        workload["name"]
-        for workload in [*async_eventing_workloads(), *scheduled_job_workloads()]
-        if isinstance(workload.get("name"), str)
+        row["name"]
+        for row in _workload_rows()
+        if row.get("async_eventing") == "true" or row.get("trigger") == "schedule"
     }
     return [
         suffix

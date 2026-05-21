@@ -1,6 +1,7 @@
 # Platform Capabilities
 
-Current capability inventory for the platform monorepo seed.
+Current capability inventory for the platform monorepo stable center and its
+runtime realizations.
 
 Use:
 
@@ -12,6 +13,7 @@ Inspect the current implementation directly:
 ```bash
 make workload-capability-matrix
 make capability-implementation-matrix
+make adapter-seam-matrix
 ```
 
 ## Capability Map
@@ -38,15 +40,29 @@ Rule:
 
 - keep provider details visible at the platform edge
 - keep the workload contract portable
+- keep the platform catalog recognizable across runtime targets
 - do not turn the contract into deployment choreography
 
 Future runtime replacements should plug in at the seams shown by
-`make capability-implementation-matrix`.
+`make capability-implementation-matrix` and `make adapter-seam-matrix`.
+
+## Adapter Seams
+
+Portable workload behavior should survive runtime-target changes by keeping the
+current realization behind explicit adapter seams:
+
+- database behavior: PostgreSQL-compatible contract in `packages/infrastructure/db/` and runtime-specific data resources in `infra/app/database.tf`
+- pub/sub behavior: Dapr-facing adapter in `packages/infrastructure/dapr/` and current broker backing resources in `infra/app/messaging.tf`
+- object-output behavior: infrastructure adapters in `packages/infrastructure/` and current storage realization in `infra/app/object_storage.tf`
+- secrets and runtime wiring: declared workload config in `platform/workloads.json` and current injection in `infra/app/workload_inventory.tf`
+
+Rule: add or swap adapters and runtime-target realization code before changing
+the workload contract or application core.
 
 ## Ownership Rules
 
 - add workload need to `platform/workloads.json`
-- add shared runtime concern to `platform/concerns/`
+- add shared platform capability to `platform/concerns/` or `infra/catalog/`
 - add provider/runtime implementation to `infra/`, workflows, or scripts
 - add reusable adapter logic only after repetition is proven
 
@@ -65,5 +81,5 @@ record it here or in runtime-facing docs.
 - Dapr state store, bindings, workflows, actors, or secrets
 - analytics orchestration or data transformation stacks
 - hosted Grafana/Loki/Tempo/Prometheus runtime modules
-- a second cloud/runtime target
+- a runtime target added without a concrete workload need and owner
 - generic provider-neutral infrastructure modules

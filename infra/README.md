@@ -4,11 +4,14 @@
 
 | Path | Owns |
 |---|---|
-| `infra/platform/` | Bootstrap, network, GitHub OIDC |
-| `infra/app/` | Runtime resources |
-| `infra/catalog/` | Reusable AWS building blocks |
+| `infra/platform/` | Bootstrap, network, GitHub OIDC for the current AWS runtime |
+| `infra/app/` | Current AWS runtime resources |
+| `infra/catalog/` | Reusable runtime-target catalog building blocks |
 
-Use `infra/catalog/aws/extraction-map.md` before creating a module.
+Use `infra/catalog/<runtime-target>/` for catalog growth. The current catalog
+surface is `infra/catalog/aws/`. `infra/catalog/managed-kubernetes/` is
+reserved for future managed-Kubernetes reusable modules when a real workload
+needs them.
 
 Companion docs:
 

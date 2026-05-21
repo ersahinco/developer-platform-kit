@@ -20,7 +20,7 @@ Canonical doc map. Find the owner before adding a new page.
 | Task | Read |
 |---|---|
 | Learn the vocabulary | [Ubiquitous Language](ubiquitous-language.md) |
-| Understand the monorepo model | [Architecture](architecture.md), [ADR 0001](adr/0001-aws-first-platform-monorepo-seed.md) |
+| Understand the monorepo model | [Architecture](architecture.md), [ADR 0001](adr/0001-aws-first-platform-monorepo-seed.md), [ADR 0002](adr/0002-stable-center-and-pluggable-runtime-targets.md) |
 | Understand the platform itself | [Platform Contract](platform-contract.md), [Platform Capabilities](platform-capabilities.md) |
 | Add a workload | [Adding Workloads](adding-workloads.md), [Platform Contract](platform-contract.md#workload-checklist) |
 | Work locally | [Local Development](local-development.md) |

@@ -1,9 +1,10 @@
 {
-  "schema_version": "4",
+  "schema_version": "5",
   "workloads": [
     {
       "name": "api",
       "kind": "service",
+      "use_cases": ["http-api"],
       "app_path": "apps/api",
       "operational": {
         "class": "edge-service",
@@ -50,6 +51,7 @@
     {
       "name": "order_event_consumer",
       "kind": "service",
+      "use_cases": ["event-consumer", "integration"],
       "app_path": "apps/order_event_consumer",
       "operational": {
         "class": "internal-service",
@@ -107,6 +109,7 @@
     {
       "name": "backfill_worker",
       "kind": "job",
+      "use_cases": ["data-maintenance", "operator-task"],
       "app_path": "apps/backfill_worker",
       "operational": {
         "class": "operator-job",
@@ -144,6 +147,7 @@
     {
       "name": "data_export_job",
       "kind": "job",
+      "use_cases": ["data-export", "scheduled-pipeline"],
       "app_path": "apps/data_export_job",
       "operational": {
         "class": "scheduled-job",

@@ -163,13 +163,13 @@ lint-dockerfiles: ## Lint Dockerfiles
 .PHONY: lint-policy
 lint-policy: ## Check repo policy with OPA/Conftest
 	@if command -v conftest >/dev/null 2>&1; then \
-		conftest test --policy platform/concerns/policy/conftest .github/workflows/*.yml platform/workloads.json platform/runtime-conformance.json; \
+		conftest test --policy platform/concerns/policy/conftest .github/workflows/*.yml platform/workloads.json platform/runtime-conformance.json platform/platform-inventory.json; \
 	else \
 		docker run --rm \
 			-v "$(CURDIR):/project" \
 			-w /project \
 			openpolicyagent/conftest:v0.64.0 \
-			test --policy platform/concerns/policy/conftest .github/workflows/*.yml platform/workloads.json platform/runtime-conformance.json; \
+			test --policy platform/concerns/policy/conftest .github/workflows/*.yml platform/workloads.json platform/runtime-conformance.json platform/platform-inventory.json; \
 	fi
 
 .PHONY: secret-scan
@@ -337,9 +337,21 @@ release-evidence-download: ## Download GitHub release-evidence-* artifacts for G
 workload-capability-matrix: ## Print the declared workload capability matrix from platform/workloads.json
 	python3 -m scripts.platform.workload_metadata capability-matrix
 
+.PHONY: workload-use-case-matrix
+workload-use-case-matrix: ## Print the declared workload use-case matrix from platform/workloads.json
+	python3 -m scripts.platform.workload_metadata use-case-matrix
+
 .PHONY: capability-implementation-matrix
 capability-implementation-matrix: ## Print the current runtime capability-to-implementation matrix
 	python3 -m scripts.platform.workload_metadata implementation-matrix
+
+.PHONY: adapter-seam-matrix
+adapter-seam-matrix: ## Print contract-to-adapter-to-runtime seams for portable capabilities
+	python3 -m scripts.platform.workload_metadata adapter-seam-matrix
+
+.PHONY: platform-inventory-json
+platform-inventory-json: ## Print machine-readable platform inventory for workloads, runtime seams, and adapter seams
+	python3 -m scripts.platform.workload_metadata inventory-json
 
 .PHONY: observability-cloud-traffic
 observability-cloud-traffic: ## Generate live API traffic for Grafana/CloudWatch observation

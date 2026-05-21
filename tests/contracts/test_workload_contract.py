@@ -17,17 +17,25 @@ def _runtime_conformance() -> dict[str, Any]:
     return load_json("platform/runtime-conformance.json")
 
 
+def _declared_database(workload: dict[str, Any]) -> dict[str, Any] | None:
+    database = workload.get("database")
+    return database if isinstance(database, dict) else None
+
+
 def _workload_conformance(
     workload: dict[str, Any], conformance: dict[str, Any]
 ) -> dict[str, Any]:
     defaults = conformance.get("defaults", {})
-    default_env = dict(defaults.get("env", {}))  # type: ignore[union-attr]
-    default_secrets = dict(defaults.get("secrets", {}))  # type: ignore[union-attr]
+    default_env: dict[str, Any] = {}
+    default_secrets: dict[str, Any] = {}
     workload_fixture = dict(conformance["workloads"][workload["name"]])  # type: ignore[index]
-    database = workload["database"]
-    default_env["DB_HOST"] = (
-        "pgbouncer" if database["pooling"] == "transaction_pool" else "db"
-    )
+    database = _declared_database(workload)
+    if database is not None:
+        default_env = dict(defaults.get("env", {}))  # type: ignore[union-attr]
+        default_secrets = dict(defaults.get("secrets", {}))  # type: ignore[union-attr]
+        default_env["DB_HOST"] = (
+            "pgbouncer" if database["pooling"] == "transaction_pool" else "db"
+        )
     workload_fixture["env"] = {**default_env, **dict(workload_fixture.get("env", {}))}
     workload_fixture["secrets"] = {
         **default_secrets,
@@ -56,25 +64,6 @@ def test_workload_registry_has_required_shape() -> None:
             assert "startup_timeout_seconds" in workload_conformance
         else:
             assert "timeout_seconds" in workload_conformance
-
-
-def test_workload_contract_stays_portable() -> None:
-    workloads_json = read_text("platform/workloads.json").lower()
-    forbidden_runtime_markers = [
-        "arn:",
-        ".amazonaws.com",
-        "aws_",
-        '"ecs',
-        '"ecr',
-        '"rds',
-        '"cloudwatch',
-        '"eventbridge',
-        '"wafv2',
-        "s3://",
-    ]
-
-    for marker in forbidden_runtime_markers:
-        assert marker not in workloads_json
 
 
 def test_compose_build_args_and_ports_align_with_workload_spec() -> None:
@@ -149,16 +138,48 @@ def test_compose_database_wiring_matches_declared_pooling_model() -> None:
     for workload in contract["workloads"]:
         compose_name = _compose_service_name(workload)
         env = services[compose_name].get("environment", {})
+        database = _declared_database(workload)
+        if database is None:
+            assert "DB_HOST" not in env
+            assert "DB_PORT" not in env
+            continue
         expected_host = (
-            "pgbouncer"
-            if workload["database"]["pooling"] == "transaction_pool"
-            else "db"
+            "pgbouncer" if database["pooling"] == "transaction_pool" else "db"
         )
 
         assert env["DB_HOST"] == expected_host
         for key, value in env.items():
             if key.endswith("DATABASE_URL"):
                 assert f"@{expected_host}:5432/" in value
+
+
+def test_workload_conformance_defaults_can_skip_database_for_non_database_workloads() -> (
+    None
+):
+    workload = {
+        "name": "analytics_dashboard",
+        "kind": "service",
+        "config": {"env": ["OTEL_TRACES_ENABLED"], "secrets": []},
+    }
+    conformance = {
+        "defaults": {
+            "env": {"DB_PORT": "5432", "DB_USER": "postgres", "DB_NAME": "test"},
+            "secrets": {"DB_PASSWORD": "runtime-secret://postgres-password"},
+        },
+        "workloads": {
+            "analytics_dashboard": {
+                "startup_timeout_seconds": 30,
+                "env": {"OTEL_TRACES_ENABLED": "false"},
+                "expected_log_event": "http_request",
+                "expected_log_fields": ["event"],
+            }
+        },
+    }
+
+    workload_conformance = _workload_conformance(workload, conformance)
+
+    assert workload_conformance["env"] == {"OTEL_TRACES_ENABLED": "false"}
+    assert workload_conformance["secrets"] == {}
 
 
 def test_runtime_conformance_uses_declared_workload_config_names() -> None:

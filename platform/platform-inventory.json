@@ -1,0 +1,116 @@
+{
+  "schema_version": "1",
+  "stable_center": {
+    "workload_contract": "platform/workloads.json",
+    "platform_concerns_root": "platform/concerns",
+    "catalog_root": "infra/catalog"
+  },
+  "current_runtime_target": "aws-ecs",
+  "runtime_capabilities": [
+    {
+      "capability": "edge_http",
+      "contract_surface": "edge-service, /health, /ready, /metrics",
+      "runtime_target": "aws-ecs",
+      "implementation": "ALB + ECS service + ACM/WAF",
+      "replacement_seam": "infra/app/edge.tf + .github/workflows/app-deploy.yml"
+    },
+    {
+      "capability": "relational_database",
+      "contract_surface": "PostgreSQL semantics, DATABASE_URL, DB_* config names",
+      "runtime_target": "aws-ecs",
+      "implementation": "RDS PostgreSQL + PgBouncer sidecar",
+      "replacement_seam": "infra/app/database.tf + infra/app/workload_inventory.tf"
+    },
+    {
+      "capability": "async_eventing",
+      "contract_surface": "Dapr pubsub name, topic, CloudEvents, outbox",
+      "runtime_target": "aws-ecs",
+      "implementation": "SNS FIFO + SQS FIFO behind Dapr components",
+      "replacement_seam": "platform/concerns/dapr/ + infra/app/messaging.tf"
+    },
+    {
+      "capability": "scheduled_execution",
+      "contract_surface": "scheduled-job operational class",
+      "runtime_target": "aws-ecs",
+      "implementation": "EventBridge Scheduler + ECS run-task",
+      "replacement_seam": "infra/app/workload_jobs.tf"
+    },
+    {
+      "capability": "operator_job_execution",
+      "contract_surface": "operator-job operational class",
+      "runtime_target": "aws-ecs",
+      "implementation": "manual/CI ECS run-task",
+      "replacement_seam": ".github/workflows/app-deploy.yml + infra/app/workload_jobs.tf"
+    },
+    {
+      "capability": "object_storage",
+      "contract_surface": "workload config names such as DATA_EXPORT_S3_BUCKET",
+      "runtime_target": "aws-ecs",
+      "implementation": "S3 data hub bucket",
+      "replacement_seam": "infra/app/object_storage.tf"
+    },
+    {
+      "capability": "secrets_injection",
+      "contract_surface": "declared config secrets in platform/workloads.json",
+      "runtime_target": "aws-ecs",
+      "implementation": "Secrets Manager + ECS secret injection",
+      "replacement_seam": "infra/app/workload_inventory.tf + ECS task definitions"
+    },
+    {
+      "capability": "tracing",
+      "contract_surface": "OTLP/HTTP traces when enabled",
+      "runtime_target": "aws-ecs",
+      "implementation": "ADOT sidecar or direct OTLP endpoint",
+      "replacement_seam": "infra/app/observability.tf + infra/app/workload_inventory.tf"
+    },
+    {
+      "capability": "release_evidence",
+      "contract_surface": "portable release-event contract",
+      "runtime_target": "aws-ecs",
+      "implementation": "GitHub artifact upload + optional Loki push",
+      "replacement_seam": "scripts/observability/release_event.py + workflows"
+    }
+  ],
+  "adapter_seams": [
+    {
+      "capability": "relational_database",
+      "contract_surface": "PostgreSQL semantics, DATABASE_URL, DB_* config names",
+      "adapter_seam": "packages/infrastructure/db/ + packages/infrastructure/config.py",
+      "runtime_target": "aws-ecs",
+      "current_implementation": "RDS PostgreSQL + PgBouncer sidecar",
+      "runtime_seam": "infra/app/database.tf + infra/app/workload_inventory.tf"
+    },
+    {
+      "capability": "async_eventing",
+      "contract_surface": "Dapr pubsub name, topic, CloudEvents, outbox",
+      "adapter_seam": "packages/infrastructure/dapr/",
+      "runtime_target": "aws-ecs",
+      "current_implementation": "SNS FIFO + SQS FIFO behind Dapr components",
+      "runtime_seam": "platform/concerns/dapr/ + infra/app/messaging.tf"
+    },
+    {
+      "capability": "object_storage",
+      "contract_surface": "workload config names such as DATA_EXPORT_S3_BUCKET",
+      "adapter_seam": "packages/infrastructure/data_export.py",
+      "runtime_target": "aws-ecs",
+      "current_implementation": "S3 data hub bucket",
+      "runtime_seam": "infra/app/object_storage.tf"
+    },
+    {
+      "capability": "secrets_and_runtime_config",
+      "contract_surface": "declared config and secret names in platform/workloads.json",
+      "adapter_seam": "packages/infrastructure/config.py + app config modules",
+      "runtime_target": "aws-ecs",
+      "current_implementation": "Secrets Manager + ECS env/secret injection",
+      "runtime_seam": "infra/app/workload_inventory.tf + ECS task definitions"
+    },
+    {
+      "capability": "tracing",
+      "contract_surface": "OTLP/HTTP traces when enabled",
+      "adapter_seam": "packages/infrastructure/http_observability.py",
+      "runtime_target": "aws-ecs",
+      "current_implementation": "ADOT sidecar or direct OTLP endpoint",
+      "runtime_seam": "infra/app/observability.tf + infra/app/workload_inventory.tf"
+    }
+  ]
+}

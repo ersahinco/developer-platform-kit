@@ -140,6 +140,7 @@ def test_policy_concern_is_wired_into_standard_tooling() -> None:
     assert "conftest test --policy platform/concerns/policy/conftest" in makefile
     assert "platform/workloads.json" in makefile
     assert "platform/runtime-conformance.json" in makefile
+    assert "platform/platform-inventory.json" in makefile
     assert "Run policy checks" in step_names(
         workflow_job(security_workflow, "security-scan")
     )
