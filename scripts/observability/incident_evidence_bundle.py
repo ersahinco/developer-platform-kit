@@ -27,9 +27,11 @@ from pathlib import Path
 from typing import Any
 from urllib import parse, request
 
-from scripts.observability.platform_inventory import api_trace_service_name
 from scripts.observability.platform_inventory import DEFAULT_STACK_NAME
 from scripts.observability.platform_inventory import dapr_workload_service_name
+from scripts.observability.platform_inventory import edge_service_repository
+from scripts.observability.platform_inventory import edge_service_hostname_label
+from scripts.observability.platform_inventory import edge_trace_service_name
 from scripts.observability.platform_inventory import incident_alarm_names
 
 CORRELATION_FIELDS = [
@@ -339,7 +341,7 @@ def _query_hints(
                 "expr": f'{{{base_labels}}} |= "<request_id>"',
             },
             {
-                "name": "api errors",
+                "name": "edge errors",
                 "expr": f'{{{base_labels}}} |~ "(?i)(error|exception|traceback)"',
             },
             {
@@ -367,13 +369,18 @@ def _query_hints(
         ],
         "tempo": [
             {
-                "service": api_trace_service_name(stack_name),
+                "service": edge_trace_service_name(stack_name),
                 "tags": ["request_id", "http.route", "http.status_code"],
             }
         ],
         "operator_commands": [
             "make observability",
-            f"BASE_URL=https://api.{root_domain} make observability-cloud-traffic",
+            " ".join(
+                [
+                    f"BASE_URL=https://{edge_service_hostname_label()}.{root_domain}",
+                    "make observability-cloud-traffic",
+                ]
+            ),
             "make observability-delivery-verify",
         ],
     }
@@ -608,7 +615,7 @@ def main() -> int:
     parser.add_argument(
         "--stack-name", default=os.environ.get("STACK_NAME", DEFAULT_STACK_NAME)
     )
-    parser.add_argument("--service-name", default="api")
+    parser.add_argument("--service-name", default=edge_service_repository())
     parser.add_argument(
         "--region", default=os.environ.get("AWS_REGION", "eu-central-1")
     )

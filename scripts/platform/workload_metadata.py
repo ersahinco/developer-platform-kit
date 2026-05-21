@@ -57,6 +57,18 @@ def workload_operational_class(workload: dict[str, Any]) -> str:
     return operational.get("class", "") if isinstance(operational, dict) else ""
 
 
+def workload_hostname_label(workload: dict[str, Any]) -> str:
+    edge = workload.get("edge")
+    if isinstance(edge, dict):
+        hostname_label = edge.get("hostname_label")
+        if isinstance(hostname_label, str) and hostname_label:
+            return hostname_label
+    repository = workload_repository(workload)
+    if repository:
+        return repository
+    return str(workload.get("name", "")).replace("_", "-")
+
+
 def workload_database(workload: dict[str, Any]) -> dict[str, Any] | None:
     database = workload.get("database")
     return database if isinstance(database, dict) else None
@@ -254,7 +266,15 @@ def _print_repositories() -> int:
 
 def _print_primary_edge() -> int:
     workload = primary_edge_service_workload()
-    print(f"{workload['name']}\t{workload_repository(workload)}")
+    print(
+        "\t".join(
+            [
+                str(workload["name"]),
+                workload_repository(workload),
+                workload_hostname_label(workload),
+            ]
+        )
+    )
     return 0
 
 

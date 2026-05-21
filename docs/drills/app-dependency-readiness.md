@@ -101,12 +101,12 @@ docker compose logs --tail=100 db
 For an AWS incident with the same symptoms, use the same split:
 
 ```bash
-curl -i "https://$(terraform -chdir=infra/app output -raw api_fqdn)/health"
-curl -i "https://$(terraform -chdir=infra/app output -raw api_fqdn)/ready"
-aws logs tail "/ecs/${STACK_NAME}/api" --since 30m --region "$AWS_REGION"
+curl -i "https://$(terraform -chdir=infra/app output -raw primary_edge_fqdn)/health"
+curl -i "https://$(terraform -chdir=infra/app output -raw primary_edge_fqdn)/ready"
+aws logs tail "/ecs/${STACK_NAME}/$(python3 -m scripts.platform.workload_metadata primary-edge | cut -f2)" --since 30m --region "$AWS_REGION"
 aws ecs describe-services \
   --cluster "$(terraform -chdir=infra/app output -raw ecs_cluster_name)" \
-  --services "$(terraform -chdir=infra/app output -raw api_service_name)" \
+  --services "$(terraform -chdir=infra/app output -raw primary_edge_service_name)" \
   --region "$AWS_REGION"
 aws rds describe-db-instances --region "$AWS_REGION"
 ```

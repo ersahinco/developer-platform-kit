@@ -7,13 +7,19 @@ The goal is to make Grafana/Loki/Prometheus panels visibly move without running
 large data jobs or changing runtime modes.
 
 Environment:
-    BASE_URL         Optional absolute API URL. If absent, ROOT_DOMAIN is used.
-    ROOT_DOMAIN      Optional root domain used to derive https://api.<root-domain>.
+    BASE_URL         Optional absolute primary edge URL.
+    PRIMARY_EDGE_BASE_URL
+                     Optional alias for BASE_URL.
+    ROOT_DOMAIN      Optional root domain used to derive the primary edge URL.
+    PRIMARY_EDGE_HOSTNAME_LABEL
+                     Optional primary edge hostname label. If absent, use
+                     platform workload metadata.
     TOKEN            Optional bearer token. If absent, read from Secrets Manager.
     AUTH_TOKEN       TOKEN alias
     AWS_REGION       Default: eu-central-1
-    STACK_NAME       Used to derive API_TOKEN_SECRET when needed.
-    API_TOKEN_SECRET Optional explicit secret id.
+    STACK_NAME       Used to derive PRIMARY_EDGE_TOKEN_SECRET when needed.
+    PRIMARY_EDGE_TOKEN_SECRET
+                     Optional explicit secret id.
     CUSTOMER_ID      Optional exact customer id.
     CUSTOMER_ID_CANDIDATES
                      Optional comma-separated ids to probe when CUSTOMER_ID is absent.
@@ -33,6 +39,8 @@ from decimal import Decimal
 from urllib.parse import urlparse
 
 import httpx
+from scripts.platform.workload_metadata import primary_edge_service_workload
+from scripts.platform.workload_metadata import workload_hostname_label
 
 
 @dataclass(frozen=True)
@@ -71,12 +79,14 @@ def _aws_secret(secret_id: str, region: str) -> str:
     return result.stdout.strip()
 
 
-def _api_token_secret() -> str:
-    if secret_id := os.environ.get("API_TOKEN_SECRET"):
+def _primary_edge_token_secret() -> str:
+    if secret_id := os.environ.get("PRIMARY_EDGE_TOKEN_SECRET"):
         return secret_id
     if stack_name := os.environ.get("STACK_NAME"):
-        return f"{stack_name}/api-token"
-    raise ValueError("Set API_TOKEN_SECRET or STACK_NAME before reading the API token")
+        return f"{stack_name}/edge-token"
+    raise ValueError(
+        "Set PRIMARY_EDGE_TOKEN_SECRET or STACK_NAME before reading the primary edge token"
+    )
 
 
 def _token() -> str:
@@ -84,16 +94,28 @@ def _token() -> str:
     if token:
         return token
     return _aws_secret(
-        _api_token_secret(), os.environ.get("AWS_REGION", "eu-central-1")
+        _primary_edge_token_secret(), os.environ.get("AWS_REGION", "eu-central-1")
     )
 
 
+def _primary_edge_hostname_label() -> str:
+    if hostname_label := os.environ.get("PRIMARY_EDGE_HOSTNAME_LABEL"):
+        return hostname_label
+    return workload_hostname_label(primary_edge_service_workload())
+
+
 def _base_url() -> str:
-    if base_url := os.environ.get("BASE_URL"):
+    if base_url := os.environ.get("PRIMARY_EDGE_BASE_URL") or os.environ.get(
+        "BASE_URL"
+    ):
         return _validated_base_url(base_url)
     if root_domain := os.environ.get("ROOT_DOMAIN"):
-        return _validated_base_url(f"https://api.{root_domain}")
-    raise ValueError("Set BASE_URL or ROOT_DOMAIN before generating cloud traffic")
+        return _validated_base_url(
+            f"https://{_primary_edge_hostname_label()}.{root_domain}"
+        )
+    raise ValueError(
+        "Set PRIMARY_EDGE_BASE_URL, BASE_URL, or ROOT_DOMAIN before generating cloud traffic"
+    )
 
 
 def _check_response(

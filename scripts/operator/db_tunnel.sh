@@ -26,7 +26,7 @@ terraform init \
   -reconfigure -input=false > /dev/null 2>&1
 
 CLUSTER=$(terraform output -raw ecs_cluster_name)
-SERVICE=$(terraform output -raw api_service_name)
+SERVICE=$(terraform output -raw primary_edge_service_name)
 RDS_HOST=$(terraform output -raw rds_endpoint | cut -d: -f1)
 SECRET_ARN=$(terraform output -raw db_secret_arn)
 cd ../..
@@ -48,11 +48,11 @@ RUNTIME_ID=$(aws ecs describe-tasks \
   --cluster "$CLUSTER" \
   --tasks "$TASK_ARN" \
   --region "$AWS_REGION" \
-  --query 'tasks[0].containers[?name==`api`].runtimeId' \
+  --query "tasks[0].containers[?name==\`${SERVICE}\`].runtimeId" \
   --output text)
 
 [ -n "$RUNTIME_ID" ] \
-  || { echo "ERROR: could not resolve runtimeId for api container in task $TASK_ID"; exit 1; }
+  || { echo "ERROR: could not resolve runtimeId for primary edge container ${SERVICE} in task $TASK_ID"; exit 1; }
 
 echo "→ tunnel localhost:$LOCAL_PORT → $RDS_HOST:5432 via task $TASK_ID"
 echo "  Connect DBeaver/psql to: host=localhost  port=$LOCAL_PORT  dbname=aws_sdlc_containers"

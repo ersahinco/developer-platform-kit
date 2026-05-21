@@ -16,7 +16,7 @@ env:
   AWS_REGION: ${{ vars.AWS_REGION || 'eu-central-1' }}
   STACK_NAME: ${{ vars.STACK_NAME || github.event.repository.name }}
   ROOT_DOMAIN: ${{ vars.ROOT_DOMAIN }}
-  API_TOKEN_SECRET: ${{ vars.API_TOKEN_SECRET || format('{0}/api-token', vars.STACK_NAME || github.event.repository.name) }}
+  PRIMARY_EDGE_TOKEN_SECRET: ${{ vars.PRIMARY_EDGE_TOKEN_SECRET || format('{0}/edge-token', vars.STACK_NAME || github.event.repository.name) }}
   PGBOUNCER_TAG: ${{ vars.PGBOUNCER_TAG || 'v1.25.1-p0' }}
   IMAGE_TAG: ${{ inputs.image_tag }}
 
@@ -175,9 +175,12 @@ jobs:
       - name: Resolve primary edge service
         id: primary-service
         run: |
-          IFS=$'\t' read -r workload_name service < <(python3 -m scripts.platform.workload_metadata primary-edge)
-          echo "service=${service}" >> "$GITHUB_OUTPUT"
-          echo "workload_name=${workload_name}" >> "$GITHUB_OUTPUT"
+          IFS=$'\t' read -r workload_name service hostname_label < <(python3 -m scripts.platform.workload_metadata primary-edge)
+          {
+            echo "service=${service}"
+            echo "workload_name=${workload_name}"
+            echo "hostname_label=${hostname_label}"
+          } >> "$GITHUB_OUTPUT"
 
       - name: Render primary edge task definition
         run: |
@@ -194,15 +197,16 @@ jobs:
       - name: Verify deployed edge service
         id: verify-app
         env:
-          BASE_URL: https://api.${{ env.ROOT_DOMAIN }}
+          BASE_URL: https://${{ steps.primary-service.outputs.hostname_label }}.${{ env.ROOT_DOMAIN }}
           ECS_CLUSTER: ${{ env.STACK_NAME }}
           ECS_SERVICE: ${{ steps.primary-service.outputs.service }}
           EXPECTED_TASK_FAMILY: ${{ env.STACK_NAME }}
           EXPECTED_IMAGE_TAG: ${{ env.IMAGE_TAG }}
+          WORKLOAD_CONTAINER_NAME: ${{ steps.primary-service.outputs.service }}
         run: |
           verify_started_epoch=$(date +%s)
           TOKEN=$(aws secretsmanager get-secret-value \
-            --secret-id "${API_TOKEN_SECRET}" \
+            --secret-id "${PRIMARY_EDGE_TOKEN_SECRET}" \
             --region ${{ env.AWS_REGION }} \
             --query SecretString \
             --output text)

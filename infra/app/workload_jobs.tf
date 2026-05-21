@@ -158,9 +158,9 @@ resource "aws_cloudwatch_log_group" "support_job" {
 }
 
 ################################################################################
-# Data export job — scheduled Fargate task that writes order_contact_email
-# exports to the data hub S3 bucket. The scheduler targets the task definition
-# family so CI-registered revisions become active without a Terraform apply.
+# Data export job — scheduled Fargate task that exports workload-owned data to
+# the data hub S3 bucket. The scheduler targets the task definition family so
+# CI-registered revisions become active without a Terraform apply.
 ################################################################################
 
 resource "aws_iam_role" "data_export_job" {
@@ -191,7 +191,7 @@ resource "aws_cloudwatch_log_metric_filter" "data_export_success" {
 
   name           = "${local.name}-data-export-success"
   log_group_name = aws_cloudwatch_log_group.support_job["data_export_job"].name
-  pattern        = "{ ($.log = *dataset*) && ($.log = *order_contact_email*) && ($.log = *status*) && ($.log = *succeeded*) }"
+  pattern        = "{ ($.log = *event*) && ($.log = *data_export_succeeded*) && ($.log = *status*) && ($.log = *succeeded*) }"
 
   metric_transformation {
     name      = "SuccessCount"

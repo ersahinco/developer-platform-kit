@@ -13,6 +13,9 @@
       "service": {
         "port": 8000
       },
+      "edge": {
+        "hostname_label": "api"
+      },
       "image": {
         "repository": "api",
         "package": "aws-sdlc-containers-api",

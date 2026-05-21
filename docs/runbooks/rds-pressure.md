@@ -49,7 +49,7 @@ aws rds describe-db-instances \
 Check app and PgBouncer logs for connection or timeout symptoms:
 
 ```bash
-aws logs tail "/ecs/${STACK_NAME}/api" \
+aws logs tail "/ecs/${STACK_NAME}/$(python3 -m scripts.platform.workload_metadata primary-edge | cut -f2)" \
   --since 30m \
   --region "$AWS_REGION"
 
@@ -91,7 +91,7 @@ aws cloudwatch describe-alarms \
     "$(terraform -chdir=infra/app output -raw rds_connections_high_alarm_name)" \
   --region "$AWS_REGION"
 
-curl -fsS "https://$(terraform -chdir=infra/app output -raw api_fqdn)/health"
+curl -fsS "https://$(terraform -chdir=infra/app output -raw primary_edge_fqdn)/health"
 ```
 
 The alarms return to `OK` after the next clean evaluation windows.

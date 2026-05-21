@@ -1,26 +1,31 @@
-output "api_fqdn" {
-  description = "Public DNS name for the single API endpoint in Route 53."
-  value       = local.api_fqdn
+output "primary_edge_fqdn" {
+  description = "Public DNS name for the primary edge workload in Route 53."
+  value       = local.primary_edge_fqdn
 }
 
-output "api_unhealthy_targets_alarm_name" {
-  description = "CloudWatch alarm for unhealthy ALB targets behind the api workload."
+output "primary_edge_unhealthy_targets_alarm_name" {
+  description = "CloudWatch alarm for unhealthy ALB targets behind the primary edge workload."
   value       = aws_cloudwatch_metric_alarm.api_unhealthy_targets.alarm_name
 }
 
-output "api_symptom_cloudwatch_alarms_enabled" {
-  description = "Whether api target 5xx and latency CloudWatch alarms are enabled."
-  value       = var.enable_api_symptom_cloudwatch_alarms
+output "primary_edge_symptom_cloudwatch_alarms_enabled" {
+  description = "Whether primary edge target 5xx and latency CloudWatch alarms are enabled."
+  value       = var.enable_primary_edge_symptom_cloudwatch_alarms
 }
 
-output "api_target_5xx_alarm_name" {
-  description = "CloudWatch alarm for target-generated 5xx responses behind the api workload."
-  value       = var.enable_api_symptom_cloudwatch_alarms ? aws_cloudwatch_metric_alarm.api_target_5xx[0].alarm_name : null
+output "primary_edge_target_5xx_alarm_name" {
+  description = "CloudWatch alarm for target-generated 5xx responses behind the primary edge workload."
+  value       = var.enable_primary_edge_symptom_cloudwatch_alarms ? aws_cloudwatch_metric_alarm.api_target_5xx[0].alarm_name : null
 }
 
-output "api_target_latency_alarm_name" {
-  description = "CloudWatch alarm for elevated api target response time behind the ALB."
-  value       = var.enable_api_symptom_cloudwatch_alarms ? aws_cloudwatch_metric_alarm.api_target_latency[0].alarm_name : null
+output "primary_edge_target_latency_alarm_name" {
+  description = "CloudWatch alarm for elevated primary edge target response time behind the ALB."
+  value       = var.enable_primary_edge_symptom_cloudwatch_alarms ? aws_cloudwatch_metric_alarm.api_target_latency[0].alarm_name : null
+}
+
+output "primary_edge_service_name" {
+  description = "ECS service name for the primary public edge workload."
+  value       = aws_ecs_service.api.name
 }
 
 output "event_consumer_service_name" {
@@ -86,11 +91,6 @@ output "data_hub_bucket_name" {
 output "ecs_cluster_name" {
   description = "ECS cluster name for the app stack."
   value       = module.ecs.cluster_name
-}
-
-output "api_service_name" {
-  description = "ECS service name for the api workload."
-  value       = aws_ecs_service.api.name
 }
 
 output "async_eventing_queue_url" {

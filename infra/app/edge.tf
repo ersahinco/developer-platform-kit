@@ -215,8 +215,8 @@ resource "aws_lb_target_group" "api" {
 }
 
 resource "aws_cloudwatch_metric_alarm" "api_unhealthy_targets" {
-  alarm_name          = "${local.name}-api-unhealthy-targets"
-  alarm_description   = "ALB reports unhealthy API targets. Runbook: docs/runbooks/app-service-unhealthy.md"
+  alarm_name          = "${local.name}-${local.primary_edge_repository}-unhealthy-targets"
+  alarm_description   = "ALB reports unhealthy primary edge targets. Runbook: docs/runbooks/app-service-unhealthy.md"
   comparison_operator = "GreaterThanThreshold"
   evaluation_periods  = 3
   datapoints_to_alarm = 2
@@ -237,10 +237,10 @@ resource "aws_cloudwatch_metric_alarm" "api_unhealthy_targets" {
 }
 
 resource "aws_cloudwatch_metric_alarm" "api_target_5xx" {
-  count = var.enable_api_symptom_cloudwatch_alarms ? 1 : 0
+  count = var.enable_primary_edge_symptom_cloudwatch_alarms ? 1 : 0
 
-  alarm_name          = "${local.name}-api-target-5xx"
-  alarm_description   = "API targets returned 5xx responses behind the ALB. Runbook: docs/runbooks/app-edge-errors-latency.md"
+  alarm_name          = "${local.name}-${local.primary_edge_repository}-target-5xx"
+  alarm_description   = "Primary edge targets returned 5xx responses behind the ALB. Runbook: docs/runbooks/app-edge-errors-latency.md"
   comparison_operator = "GreaterThanThreshold"
   evaluation_periods  = 1
   datapoints_to_alarm = 1
@@ -261,10 +261,10 @@ resource "aws_cloudwatch_metric_alarm" "api_target_5xx" {
 }
 
 resource "aws_cloudwatch_metric_alarm" "api_target_latency" {
-  count = var.enable_api_symptom_cloudwatch_alarms ? 1 : 0
+  count = var.enable_primary_edge_symptom_cloudwatch_alarms ? 1 : 0
 
-  alarm_name          = "${local.name}-api-target-latency"
-  alarm_description   = "API target p95 response time exceeded 2 seconds. Runbook: docs/runbooks/app-edge-errors-latency.md"
+  alarm_name          = "${local.name}-${local.primary_edge_repository}-target-latency"
+  alarm_description   = "Primary edge target p95 response time exceeded 2 seconds. Runbook: docs/runbooks/app-edge-errors-latency.md"
   comparison_operator = "GreaterThanThreshold"
   evaluation_periods  = 3
   datapoints_to_alarm = 2
@@ -285,7 +285,7 @@ resource "aws_cloudwatch_metric_alarm" "api_target_latency" {
 }
 
 resource "aws_acm_certificate" "api" {
-  domain_name       = local.api_fqdn
+  domain_name       = local.primary_edge_fqdn
   validation_method = "DNS"
 
   lifecycle {
@@ -358,7 +358,7 @@ resource "aws_lb_listener_rule" "auth" {
   condition {
     http_header {
       http_header_name = "Authorization"
-      values           = ["Bearer ${data.aws_secretsmanager_secret_version.api_token.secret_string}"]
+      values           = ["Bearer ${data.aws_secretsmanager_secret_version.primary_edge_token.secret_string}"]
     }
   }
 
@@ -370,7 +370,7 @@ resource "aws_lb_listener_rule" "auth" {
 
 resource "aws_route53_record" "api_alias" {
   zone_id = local.platform.route53_public_zone_id
-  name    = local.api_fqdn
+  name    = local.primary_edge_fqdn
   type    = "A"
 
   alias {

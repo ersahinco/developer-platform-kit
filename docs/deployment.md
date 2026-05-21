@@ -53,11 +53,11 @@ Prerequisites:
 - public Route 53 hosted zone for `root_domain`
 - GitHub environment named `aws`
 
-Create the API token secret out of band:
+Create the primary edge token secret out of band:
 
 ```bash
 aws secretsmanager create-secret \
-  --name "${STACK_NAME:-aws-sdlc-containers}/api-token" \
+  --name "${STACK_NAME:-aws-sdlc-containers}/edge-token" \
   --region "${AWS_REGION:-eu-central-1}" \
   --secret-string "$(openssl rand -hex 32)"
 ```

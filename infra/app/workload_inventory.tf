@@ -35,11 +35,14 @@ locals {
     for name, capabilities in local.workload_capabilities : name
     if capabilities.edge_service && capabilities.edge_exposure == "public"
   ])
+  primary_edge_workload     = local.workloads_by_name[local.primary_edge_workload_name]
+  primary_edge_repository   = local.primary_edge_workload.image.repository
+  primary_edge_service_port = local.primary_edge_workload.service.port
   primary_async_eventing_workload_name = one([
     for name, capabilities in local.workload_capabilities : name
     if capabilities.async_eventing
   ])
-  api_service_port                  = local.workloads_by_name[local.primary_edge_workload_name].service.port
+  api_service_port                  = local.primary_edge_service_port
   primary_async_eventing_dapr       = local.workloads_by_name[local.primary_async_eventing_workload_name].dapr
   primary_async_eventing_repository = local.workloads_by_name[local.primary_async_eventing_workload_name].image.repository
   primary_async_eventing_service_port = (

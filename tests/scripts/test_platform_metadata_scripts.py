@@ -83,6 +83,7 @@ def test_workload_metadata_cli_reports_declared_workload_groups() -> None:
     assert primary_edge == [
         expected_primary_edge["name"],
         expected_primary_edge["image"]["repository"],
+        expected_primary_edge["edge"]["hostname_label"],
     ]
 
     internal_services = _run_workload_metadata("internal-services").stdout.splitlines()

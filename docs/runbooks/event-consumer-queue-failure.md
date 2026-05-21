@@ -63,7 +63,7 @@ aws sqs get-queue-attributes \
 Inspect app and consumer logs:
 
 ```bash
-aws logs tail "/ecs/${STACK_NAME}/api" \
+aws logs tail "/ecs/${STACK_NAME}/$(python3 -m scripts.platform.workload_metadata primary-edge | cut -f2)" \
   --since 30m \
   --region "$AWS_REGION"
 
@@ -104,7 +104,7 @@ If the consumer cannot relay or consume events, first restore queue access:
 ```bash
 aws ecs describe-services \
   --cluster "$(terraform -chdir=infra/app output -raw ecs_cluster_name)" \
-  --services "$(terraform -chdir=infra/app output -raw api_service_name)" \
+  --services "$(terraform -chdir=infra/app output -raw primary_edge_service_name)" \
   --region "$AWS_REGION"
 
 aws ecs describe-services \

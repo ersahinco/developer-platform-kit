@@ -165,9 +165,9 @@ services:
         UV_PACKAGE: aws-sdlc-containers-open-dataset-pipeline
         WORKLOAD_CMD: python -m open_dataset_pipeline.main
     environment:
-      OPEN_DATASET_URL: file:///app/apps/open_dataset_pipeline/sample_data/iris.csv
-      OPEN_DATASET_NAME: iris
-      OPEN_DATASET_OUTPUT_DIR: /exports
+      OPEN_DATASET_URL: ${OPEN_DATASET_URL:-file:///app/apps/open_dataset_pipeline/sample_data/iris.csv}
+      OPEN_DATASET_NAME: ${OPEN_DATASET_NAME:-iris}
+      OPEN_DATASET_OUTPUT_DIR: ${OPEN_DATASET_OUTPUT_DIR:-/exports}
     volumes:
       - data_exports:/exports
     profiles:

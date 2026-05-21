@@ -24,7 +24,7 @@ env:
   AWS_REGION: ${{ vars.AWS_REGION || 'eu-central-1' }}
   STACK_NAME: ${{ vars.STACK_NAME || github.event.repository.name }}
   ROOT_DOMAIN: ${{ vars.ROOT_DOMAIN }}
-  API_TOKEN_SECRET: ${{ vars.API_TOKEN_SECRET || format('{0}/api-token', vars.STACK_NAME || github.event.repository.name) }}
+  PRIMARY_EDGE_TOKEN_SECRET: ${{ vars.PRIMARY_EDGE_TOKEN_SECRET || format('{0}/edge-token', vars.STACK_NAME || github.event.repository.name) }}
   IMAGE_TAG: ${{ inputs.image_tag }}
   APP_ROLLBACK_ERROR_SLO_SECONDS: "600"
   APP_ROLLBACK_LATENCY_SLO_SECONDS: "900"
@@ -81,9 +81,12 @@ jobs:
       - name: Resolve primary edge service
         id: primary-service
         run: |
-          IFS=$'\t' read -r workload_name service < <(python3 -m scripts.platform.workload_metadata primary-edge)
-          echo "service=${service}" >> "$GITHUB_OUTPUT"
-          echo "workload_name=${workload_name}" >> "$GITHUB_OUTPUT"
+          IFS=$'\t' read -r workload_name service hostname_label < <(python3 -m scripts.platform.workload_metadata primary-edge)
+          {
+            echo "service=${service}"
+            echo "workload_name=${workload_name}"
+            echo "hostname_label=${hostname_label}"
+          } >> "$GITHUB_OUTPUT"
 
       - name: Verify drill images exist
         run: |
@@ -181,14 +184,14 @@ jobs:
       - name: Wait for ECS automatic rollback
         id: wait_rollback
         env:
-          BASE_URL: https://api.${{ env.ROOT_DOMAIN }}
+          BASE_URL: https://${{ steps.primary-service.outputs.hostname_label }}.${{ env.ROOT_DOMAIN }}
           FAULT_MODE: ${{ inputs.fault_mode }}
           DEPLOY_STARTED_EPOCH: ${{ steps.deploy_drill.outputs.deploy_started_epoch }}
           PREVIOUS_TASK_DEFINITION: ${{ steps.current.outputs.task_definition }}
           DRILL_TASK_DEFINITION: ${{ steps.deploy_drill.outputs.task_def_arn }}
         run: |
           TOKEN=$(aws secretsmanager get-secret-value \
-            --secret-id "${API_TOKEN_SECRET}" \
+            --secret-id "${PRIMARY_EDGE_TOKEN_SECRET}" \
             --region ${{ env.AWS_REGION }} \
             --query SecretString \
             --output text)
@@ -256,14 +259,15 @@ jobs:
       - name: Verify restored app revision
         id: verify-restored
         env:
-          BASE_URL: https://api.${{ env.ROOT_DOMAIN }}
+          BASE_URL: https://${{ steps.primary-service.outputs.hostname_label }}.${{ env.ROOT_DOMAIN }}
           ECS_CLUSTER: ${{ env.STACK_NAME }}
           ECS_SERVICE: ${{ steps.primary-service.outputs.service }}
           EXPECTED_TASK_FAMILY: ${{ env.STACK_NAME }}
+          WORKLOAD_CONTAINER_NAME: ${{ steps.primary-service.outputs.service }}
         run: |
           verify_started_epoch=$(date +%s)
           TOKEN=$(aws secretsmanager get-secret-value \
-            --secret-id "${API_TOKEN_SECRET}" \
+            --secret-id "${PRIMARY_EDGE_TOKEN_SECRET}" \
             --region ${{ env.AWS_REGION }} \
             --query SecretString \
             --output text)

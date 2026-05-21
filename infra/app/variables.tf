@@ -30,28 +30,34 @@ variable "alb_ingress_cidr" {
   default     = "0.0.0.0/0"
 }
 
-variable "api_token_secret_name" {
-  description = "Secrets Manager secret name holding the API bearer token. Create it out of band and keep it out of Terraform state and tfvars."
+variable "primary_edge_auth_token_secret_name" {
+  description = "Secrets Manager secret name holding the primary edge bearer token. Create it out of band and keep it out of Terraform state and tfvars."
+  type        = string
+  default     = null
+}
+
+variable "primary_edge_hostname_label" {
+  description = "Optional DNS hostname label for the primary public edge workload. Defaults to the edge workload contract metadata."
   type        = string
   default     = null
 }
 
 # ── ECS ───────────────────────────────────────────────────────────────────────
 
-variable "api_cpu" {
-  description = "Fargate task CPU units for the api workload (256, 512, 1024, 2048, 4096)."
+variable "primary_edge_cpu" {
+  description = "Fargate task CPU units for the primary edge workload (256, 512, 1024, 2048, 4096)."
   type        = number
   default     = 512
 }
 
-variable "api_memory" {
-  description = "Fargate task memory (MiB) for the api workload."
+variable "primary_edge_memory" {
+  description = "Fargate task memory (MiB) for the primary edge workload."
   type        = number
   default     = 1024
 }
 
-variable "api_bootstrap_desired_count" {
-  description = "Bootstrap desired number of running api tasks. Defaults to 0 so fresh infra apply creates a dormant service until the deploy workflow registers a verified image revision and activates it."
+variable "primary_edge_bootstrap_desired_count" {
+  description = "Bootstrap desired number of running primary edge tasks. Defaults to 0 so fresh infra apply creates a dormant service until the deploy workflow registers a verified image revision and activates it."
   type        = number
   default     = 0
 }
@@ -124,8 +130,8 @@ variable "dapr_image" {
 
 # ── CloudWatch edge-runtime reduction toggles ────────────────────────────────
 
-variable "enable_api_symptom_cloudwatch_alarms" {
-  description = "Keep CloudWatch alarms for api target 5xx and latency symptoms. Defaults true because ECS rollback uses AWS-native alarms."
+variable "enable_primary_edge_symptom_cloudwatch_alarms" {
+  description = "Keep CloudWatch alarms for primary edge target 5xx and latency symptoms. Defaults true because ECS rollback uses AWS-native alarms."
   type        = bool
   default     = true
 }
@@ -145,7 +151,7 @@ variable "runtime_config_loader_image" {
 }
 
 variable "enable_adot_sidecar" {
-  description = "Run the AWS Distro for OpenTelemetry Collector as an api-task sidecar. The api workload sends OTLP traces to localhost:4318 when enabled."
+  description = "Run the AWS Distro for OpenTelemetry Collector as a primary-edge task sidecar. The primary edge workload sends OTLP traces to localhost:4318 when enabled."
   type        = bool
   default     = true
 }
@@ -157,7 +163,7 @@ variable "adot_collector_image" {
 }
 
 variable "adot_collector_config" {
-  description = "Optional full ADOT Collector config. Defaults to local api metrics/traces receivers with debug export to CloudWatch logs."
+  description = "Optional full ADOT Collector config. Defaults to local primary-edge metrics/traces receivers with debug export to CloudWatch logs."
   type        = string
   default     = null
 }
@@ -194,13 +200,13 @@ variable "bootstrap_image_tag" {
   default     = "sha-7e0fa31a82d7d2a6e302e0904abb79d1dff3492d"
 }
 
-variable "api_image_tag" {
-  description = "Rare operator override for the documented bootstrap api image tag. Routine api deploys and rollbacks are GitHub Actions-owned task-definition revisions."
+variable "primary_edge_image_tag" {
+  description = "Rare operator override for the documented bootstrap primary-edge image tag. Routine primary-edge deploys and rollbacks are GitHub Actions-owned task-definition revisions."
   type        = string
   default     = null
 
   validation {
-    condition     = var.api_image_tag == null || startswith(var.api_image_tag, "sha-")
-    error_message = "api_image_tag must be null or start with sha-."
+    condition     = var.primary_edge_image_tag == null || startswith(var.primary_edge_image_tag, "sha-")
+    error_message = "primary_edge_image_tag must be null or start with sha-."
   }
 }

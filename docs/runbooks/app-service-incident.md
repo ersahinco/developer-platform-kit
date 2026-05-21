@@ -43,14 +43,14 @@ Confirm alarm and service state:
 ```bash
 aws cloudwatch describe-alarms \
   --alarm-names \
-    "$(terraform -chdir=infra/app output -raw api_unhealthy_targets_alarm_name)" \
-    "$(terraform -chdir=infra/app output -raw api_target_5xx_alarm_name)" \
-    "$(terraform -chdir=infra/app output -raw api_target_latency_alarm_name)" \
+    "$(terraform -chdir=infra/app output -raw primary_edge_unhealthy_targets_alarm_name)" \
+    "$(terraform -chdir=infra/app output -raw primary_edge_target_5xx_alarm_name)" \
+    "$(terraform -chdir=infra/app output -raw primary_edge_target_latency_alarm_name)" \
   --region "$AWS_REGION"
 
 aws ecs describe-services \
   --cluster "$(terraform -chdir=infra/app output -raw ecs_cluster_name)" \
-  --services "$(terraform -chdir=infra/app output -raw api_service_name)" \
+  --services "$(terraform -chdir=infra/app output -raw primary_edge_service_name)" \
   --region "$AWS_REGION"
 ```
 
@@ -59,7 +59,7 @@ Check running and recently stopped tasks:
 ```bash
 aws ecs list-tasks \
   --cluster "$(terraform -chdir=infra/app output -raw ecs_cluster_name)" \
-  --service-name "$(terraform -chdir=infra/app output -raw api_service_name)" \
+  --service-name "$(terraform -chdir=infra/app output -raw primary_edge_service_name)" \
   --desired-status RUNNING \
   --region "$AWS_REGION"
 
@@ -73,9 +73,9 @@ aws ecs list-tasks \
 Check logs and endpoints:
 
 ```bash
-aws logs tail "/ecs/${STACK_NAME}/api" --since 30m --region "$AWS_REGION"
-curl -i "https://$(terraform -chdir=infra/app output -raw api_fqdn)/health"
-curl -i "https://$(terraform -chdir=infra/app output -raw api_fqdn)/ready"
+aws logs tail "/ecs/${STACK_NAME}/$(python3 -m scripts.platform.workload_metadata primary-edge | cut -f2)" --since 30m --region "$AWS_REGION"
+curl -i "https://$(terraform -chdir=infra/app output -raw primary_edge_fqdn)/health"
+curl -i "https://$(terraform -chdir=infra/app output -raw primary_edge_fqdn)/ready"
 ```
 
 If Grafana/Loki/Prometheus are reachable, inspect the same window in the `App
@@ -132,15 +132,15 @@ Confirm the service stabilizes and alarms clear:
 ```bash
 aws ecs wait services-stable \
   --cluster "$(terraform -chdir=infra/app output -raw ecs_cluster_name)" \
-  --services "$(terraform -chdir=infra/app output -raw api_service_name)" \
+  --services "$(terraform -chdir=infra/app output -raw primary_edge_service_name)" \
   --region "$AWS_REGION"
 
-curl -fsS "https://$(terraform -chdir=infra/app output -raw api_fqdn)/health"
+curl -fsS "https://$(terraform -chdir=infra/app output -raw primary_edge_fqdn)/health"
 
 aws cloudwatch describe-alarms \
   --alarm-names \
-    "$(terraform -chdir=infra/app output -raw api_unhealthy_targets_alarm_name)" \
-    "$(terraform -chdir=infra/app output -raw api_target_5xx_alarm_name)" \
-    "$(terraform -chdir=infra/app output -raw api_target_latency_alarm_name)" \
+    "$(terraform -chdir=infra/app output -raw primary_edge_unhealthy_targets_alarm_name)" \
+    "$(terraform -chdir=infra/app output -raw primary_edge_target_5xx_alarm_name)" \
+    "$(terraform -chdir=infra/app output -raw primary_edge_target_latency_alarm_name)" \
   --region "$AWS_REGION"
 ```

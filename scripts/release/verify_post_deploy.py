@@ -1,9 +1,9 @@
 """
-verify_post_deploy.py — Check the api workload after an ECS or local deploy.
+verify_post_deploy.py — Check the primary edge workload after an ECS or local deploy.
 
 The verifier always checks HTTP liveness, dependency readiness, Prometheus
 metrics, and runtime read/write mode endpoints. If ECS_CLUSTER and ECS_SERVICE
-are set, it also checks the active ECS task definition and api image.
+are set, it also checks the active ECS task definition and primary edge image.
 
 Usage:
     python scripts/release/verify_post_deploy.py
@@ -16,9 +16,9 @@ Environment:
     ECS_SERVICE           Optional ECS service name
     AWS_REGION            Default: eu-central-1
     EXPECTED_TASK_FAMILY  Optional task family, default: aws-sdlc-containers
-    API_CONTAINER_NAME    Optional container name, default: api
-    EXPECTED_API_IMAGE    Optional exact api container image
-    EXPECTED_IMAGE_TAG    Optional api image tag, for example sha-<commit>
+    WORKLOAD_CONTAINER_NAME Optional container name for the primary edge workload
+    EXPECTED_WORKLOAD_IMAGE Optional exact primary edge container image
+    EXPECTED_IMAGE_TAG      Optional primary edge image tag, for example sha-<commit>
     TOKEN                 Optional bearer token for the public ALB
     AUTH_TOKEN            Optional bearer token alias
 """
@@ -216,8 +216,8 @@ def _check_ecs() -> list[CheckResult]:
         or cluster
         or "aws-sdlc-containers"
     )
-    api_container_name = os.environ.get("API_CONTAINER_NAME", "api")
-    expected_image = os.environ.get("EXPECTED_API_IMAGE")
+    workload_container_name = os.environ.get("WORKLOAD_CONTAINER_NAME", "api")
+    expected_image = os.environ.get("EXPECTED_WORKLOAD_IMAGE")
     expected_tag = os.environ.get("EXPECTED_IMAGE_TAG")
 
     try:
@@ -244,15 +244,15 @@ def _check_ecs() -> list[CheckResult]:
 
     task_definition = task_response["taskDefinition"]
     containers = task_definition.get("containerDefinitions", [])
-    api_container = next(
+    workload_container = next(
         (
             container
             for container in containers
-            if container.get("name") == api_container_name
+            if container.get("name") == workload_container_name
         ),
         None,
     )
-    api_image = api_container.get("image") if api_container else None
+    workload_image = workload_container.get("image") if workload_container else None
 
     results = [
         CheckResult(
@@ -268,23 +268,24 @@ def _check_ecs() -> list[CheckResult]:
             f"ECS task family={task_definition.get('family')!r}, expected {expected_family!r}",
         ),
         CheckResult(
-            api_container is not None,
-            f"ECS api container {api_container_name!r} is present",
+            workload_container is not None,
+            f"ECS workload container {workload_container_name!r} is present",
         ),
     ]
 
     if expected_image is not None:
         results.append(
             CheckResult(
-                api_image == expected_image,
-                f"ECS api image={api_image!r}, expected {expected_image!r}",
+                workload_image == expected_image,
+                f"ECS workload image={workload_image!r}, expected {expected_image!r}",
             )
         )
     if expected_tag is not None:
         results.append(
             CheckResult(
-                isinstance(api_image, str) and api_image.endswith(f":{expected_tag}"),
-                f"ECS api image={api_image!r}, expected tag {expected_tag!r}",
+                isinstance(workload_image, str)
+                and workload_image.endswith(f":{expected_tag}"),
+                f"ECS workload image={workload_image!r}, expected tag {expected_tag!r}",
             )
         )
 

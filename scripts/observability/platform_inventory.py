@@ -5,6 +5,8 @@ import sys
 from typing import Any
 
 from scripts.platform.workload_metadata import platform_inventory
+from scripts.platform.workload_metadata import primary_edge_service_workload
+from scripts.platform.workload_metadata import workload_hostname_label
 
 DEFAULT_STACK_NAME = "aws-sdlc-containers"
 DEFAULT_AWS_REGION = "eu-central-1"
@@ -103,7 +105,11 @@ def edge_service_repository() -> str:
     return _edge_service_row().get("repository", "") or "api"
 
 
-def api_trace_service_name(stack_name: str) -> str:
+def edge_service_hostname_label() -> str:
+    return workload_hostname_label(primary_edge_service_workload())
+
+
+def edge_trace_service_name(stack_name: str) -> str:
     return f"{stack_name}-{edge_service_repository()}"
 
 

@@ -53,11 +53,15 @@ locals {
       cloudwatch_log_group_name = "/ecs/${local.name}/pgbouncer"
     }
 
-    api = {
+    (local.primary_edge_repository) = {
       # Documentation-only container shape after the ownership migration:
       # GitHub Actions renders and registers real app task-definition
       # revisions. See docs/runbooks/app-infra-ownership.md.
-      image     = format("%s:%s", module.ecr["api"].repository_url, coalesce(var.api_image_tag, var.bootstrap_image_tag))
+      image = format(
+        "%s:%s",
+        module.ecr[local.primary_edge_workload_name].repository_url,
+        coalesce(var.primary_edge_image_tag, var.bootstrap_image_tag)
+      )
       essential = true
 
       # ECS container definition keys are camelCase — they map directly to the ECS API
@@ -67,8 +71,8 @@ locals {
 
       # ECS does not interpolate $(VAR) in environment values. DB_PASSWORD is
       # injected as a secret; the app's config.py composes DATABASE_URL at startup.
-      secrets     = local.workload_secrets["api"]
-      environment = local.workload_environment["api"]
+      secrets     = local.workload_secrets[local.primary_edge_workload_name]
+      environment = local.workload_environment[local.primary_edge_workload_name]
 
       # pgbouncer must be accepting connections before the app starts.
       dependsOn = concat(
@@ -98,7 +102,7 @@ locals {
       cloudwatch_log_group_kms_key_id        = aws_kms_key.cloudwatch_logs.arn
       # Explicit name keeps the log group stack-scoped and readable instead of
       # relying on the module's generic service-key-derived default.
-      cloudwatch_log_group_name = local.workload_log_group_names["api"]
+      cloudwatch_log_group_name = local.workload_log_group_names[local.primary_edge_workload_name]
     }
   })
 
@@ -125,8 +129,8 @@ resource "aws_ecs_task_definition" "api" {
   family                   = local.name
   requires_compatibilities = ["FARGATE"]
   network_mode             = "awsvpc"
-  cpu                      = var.api_cpu
-  memory                   = var.api_memory
+  cpu                      = var.primary_edge_cpu
+  memory                   = var.primary_edge_memory
   execution_role_arn       = aws_iam_role.task_exec.arn
   task_role_arn            = aws_iam_role.api_task.arn
   container_definitions    = jsonencode(local.api_task_definition_containers)
@@ -157,10 +161,10 @@ module "ecs" {
 }
 
 resource "aws_ecs_service" "api" {
-  name            = "api"
+  name            = local.primary_edge_repository
   cluster         = module.ecs.cluster_arn
   task_definition = data.aws_ecs_task_definition.api_current.arn
-  desired_count   = var.api_bootstrap_desired_count
+  desired_count   = var.primary_edge_bootstrap_desired_count
   launch_type     = "FARGATE"
 
   deployment_minimum_healthy_percent = 100
@@ -179,7 +183,7 @@ resource "aws_ecs_service" "api" {
   }
 
   dynamic "alarms" {
-    for_each = var.enable_api_symptom_cloudwatch_alarms ? [1] : []
+    for_each = var.enable_primary_edge_symptom_cloudwatch_alarms ? [1] : []
 
     content {
       alarm_names = [
@@ -193,8 +197,8 @@ resource "aws_ecs_service" "api" {
 
   load_balancer {
     target_group_arn = aws_lb_target_group.api.arn
-    container_name   = "api"
-    container_port   = local.api_service_port
+    container_name   = local.primary_edge_repository
+    container_port   = local.primary_edge_service_port
   }
 
   network_configuration {
