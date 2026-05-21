@@ -35,6 +35,7 @@ from typing import Any
 from urllib.parse import urlparse
 
 import httpx
+from scripts.observability.platform_inventory import edge_service_repository
 
 
 @dataclass
@@ -216,7 +217,9 @@ def _check_ecs() -> list[CheckResult]:
         or cluster
         or "aws-sdlc-containers"
     )
-    workload_container_name = os.environ.get("WORKLOAD_CONTAINER_NAME", "api")
+    workload_container_name = os.environ.get(
+        "WORKLOAD_CONTAINER_NAME", edge_service_repository()
+    )
     expected_image = os.environ.get("EXPECTED_WORKLOAD_IMAGE")
     expected_tag = os.environ.get("EXPECTED_IMAGE_TAG")
 

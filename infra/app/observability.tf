@@ -28,10 +28,10 @@ locals {
       prometheus:
         config:
           scrape_configs:
-            - job_name: api
+            - job_name: ${local.primary_edge_repository}
               metrics_path: /metrics
               static_configs:
-                - targets: ["127.0.0.1:8000"]
+                - targets: ["127.0.0.1:${local.primary_edge_service_port}"]
     exporters:
       debug:
         verbosity: basic

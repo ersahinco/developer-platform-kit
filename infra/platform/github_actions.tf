@@ -112,14 +112,14 @@ locals {
 
   github_actions_compute_role_resources = [
     "arn:aws:iam::${local.account_id}:role/${local.github_actions_stack_scope}",
-    "arn:aws:iam::${local.account_id}:role/api-tasks-*",
+    "arn:aws:iam::${local.account_id}:role/primary-edge-tasks-*",
   ]
 
   github_actions_iam_manage_resources = [
     "arn:aws:iam::${local.account_id}:role/${local.github_actions_stack_scope}",
-    "arn:aws:iam::${local.account_id}:role/api-tasks-*",
+    "arn:aws:iam::${local.account_id}:role/primary-edge-tasks-*",
     "arn:aws:iam::${local.account_id}:policy/${local.github_actions_stack_scope}",
-    "arn:aws:iam::${local.account_id}:policy/api-tasks-*",
+    "arn:aws:iam::${local.account_id}:policy/primary-edge-tasks-*",
   ]
 
   github_actions_alb_manage_resources = [

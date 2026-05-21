@@ -1,9 +1,9 @@
 ################################################################################
-# Api task identity
+# Primary edge task identity
 #
-# The api task role is root-owned so the ECS service module can stop managing
-# api task-definition revisions after bootstrap without also dropping runtime
-# IAM ownership.
+# The primary edge task role is root-owned so the ECS service module can stop
+# managing task-definition revisions after bootstrap without also dropping
+# runtime IAM ownership.
 ################################################################################
 
 data "aws_iam_policy_document" "api_task_assume" {
@@ -31,8 +31,8 @@ data "aws_iam_policy_document" "api_task_assume" {
 }
 
 resource "aws_iam_role" "api_task" {
-  name_prefix = "api-tasks-"
-  description = "IAM role for ECS tasks in Service api"
+  name_prefix = "primary-edge-tasks-"
+  description = "IAM role for ECS tasks in the primary edge workload"
 
   assume_role_policy    = data.aws_iam_policy_document.api_task_assume.json
   force_detach_policies = true
@@ -54,7 +54,7 @@ data "aws_iam_policy_document" "api_task" {
 }
 
 resource "aws_iam_policy" "api_task" {
-  name_prefix = "api-tasks-"
+  name_prefix = "primary-edge-tasks-"
   description = "Task role IAM policy"
   policy      = data.aws_iam_policy_document.api_task.json
 
