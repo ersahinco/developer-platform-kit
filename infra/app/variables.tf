@@ -98,20 +98,20 @@ variable "data_export_schedule_expression" {
   default     = "rate(1 day)"
 }
 
-variable "order_event_consumer_cpu" {
-  description = "Fargate task CPU units for the order event relay/consumer service."
+variable "event_consumer_cpu" {
+  description = "Fargate task CPU units for the event consumer service."
   type        = number
   default     = 512
 }
 
-variable "order_event_consumer_memory" {
-  description = "Fargate task memory (MiB) for the order event relay/consumer service."
+variable "event_consumer_memory" {
+  description = "Fargate task memory (MiB) for the event consumer service."
   type        = number
   default     = 1024
 }
 
-variable "order_event_consumer_bootstrap_desired_count" {
-  description = "Bootstrap desired number of running order event relay/consumer tasks. Defaults to 0 so fresh infra apply creates a dormant service until the deploy workflow registers a verified image revision and activates it."
+variable "event_consumer_bootstrap_desired_count" {
+  description = "Bootstrap desired number of running event consumer tasks. Defaults to 0 so fresh infra apply creates a dormant service until the deploy workflow registers a verified image revision and activates it."
   type        = number
   default     = 0
 }

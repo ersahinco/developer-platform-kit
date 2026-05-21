@@ -11,7 +11,8 @@ members = [
     "aws-sdlc-containers-data-export-job",
     "aws-sdlc-containers-domain",
     "aws-sdlc-containers-infrastructure",
-    "aws-sdlc-containers-order-event-consumer",
+    "aws-sdlc-containers-open-dataset-pipeline",
+    "aws-sdlc-containers-event-consumer",
 ]
 
 [[package]]
@@ -70,6 +71,7 @@ scripts = [
     { name = "sqlalchemy" },
 ]
 test = [
+    { name = "duckdb" },
     { name = "httpx" },
     { name = "hypothesis" },
     { name = "pytest" },
@@ -90,6 +92,7 @@ scripts = [
     { name = "sqlalchemy", specifier = ">=2.0.30" },
 ]
 test = [
+    { name = "duckdb", specifier = ">=1.4.2" },
     { name = "httpx", specifier = ">=0.27.0" },
     { name = "hypothesis", specifier = ">=6.152.7" },
     { name = "pytest", specifier = ">=9.0.3" },
@@ -190,6 +193,7 @@ source = { editable = "packages/infrastructure" }
 dependencies = [
     { name = "aws-sdlc-containers-application" },
     { name = "aws-sdlc-containers-domain" },
+    { name = "duckdb" },
     { name = "psycopg2-binary" },
     { name = "sqlalchemy" },
 ]
@@ -198,14 +202,30 @@ dependencies = [
 requires-dist = [
     { name = "aws-sdlc-containers-application", editable = "packages/application" },
     { name = "aws-sdlc-containers-domain", editable = "packages/domain" },
+    { name = "duckdb", specifier = ">=1.4.2" },
     { name = "psycopg2-binary", specifier = ">=2.9.9" },
     { name = "sqlalchemy", specifier = ">=2.0.30" },
 ]
 
 [[package]]
-name = "aws-sdlc-containers-order-event-consumer"
+name = "aws-sdlc-containers-open-dataset-pipeline"
 version = "0.1.0"
-source = { editable = "apps/order_event_consumer" }
+source = { editable = "apps/open_dataset_pipeline" }
+dependencies = [
+    { name = "aws-sdlc-containers-application" },
+    { name = "aws-sdlc-containers-infrastructure" },
+]
+
+[package.metadata]
+requires-dist = [
+    { name = "aws-sdlc-containers-application", editable = "packages/application" },
+    { name = "aws-sdlc-containers-infrastructure", editable = "packages/infrastructure" },
+]
+
+[[package]]
+name = "aws-sdlc-containers-event-consumer"
+version = "0.1.0"
+source = { editable = "apps/event_consumer" }
 dependencies = [
     { name = "aws-sdlc-containers-application" },
     { name = "aws-sdlc-containers-infrastructure" },
@@ -371,6 +391,21 @@ source = { registry = "https://pypi.org/simple" }
 sdist = { url = "https://files.pythonhosted.org/packages/0f/d5/c66da9b79e5bdb124974bfe172b4daf3c984ebd9c2a06e2b8a4dc7331c72/defusedxml-0.7.1.tar.gz", hash = "sha256:1bb3032db185915b62d7c6209c5a8792be6a32ab2fedacc84e01b52c51aa3e69", size = 75520, upload-time = "2021-03-08T10:59:26.269Z" }
 wheels = [
     { url = "https://files.pythonhosted.org/packages/07/6c/aa3f2f849e01cb6a001cd8554a88d4c77c5c1a31c95bdf1cf9301e6d9ef4/defusedxml-0.7.1-py2.py3-none-any.whl", hash = "sha256:a352e7e428770286cc899e2542b6cdaedb2b4953ff269a210103ec58f6198a61", size = 25604, upload-time = "2021-03-08T10:59:24.45Z" },
+]
+
+[[package]]
+name = "duckdb"
+version = "1.5.3"
+source = { registry = "https://pypi.org/simple" }
+sdist = { url = "https://files.pythonhosted.org/packages/69/00/d579dcb2a536b6ea3a2563cdad6844f77d81a9b2d4b22a858097f2468acf/duckdb-1.5.3.tar.gz", hash = "sha256:df39428eb130faa35ae96fd35245bdeae6ecf43936250b116b5fead568eb9f16", size = 18026640, upload-time = "2026-05-20T11:55:31.901Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/a5/c2/d4b6f8a5e4d3bc25773be6da76a99d9661ebbf3552c007c460d2dd59dbf8/duckdb-1.5.3-cp314-cp314-macosx_10_15_universal2.whl", hash = "sha256:4bfa9a4dadf71e83e2c4eaca2f9421c82a54defecc1b0b4c0be95e2389dec4fe", size = 32636685, upload-time = "2026-05-20T11:55:13.158Z" },
+    { url = "https://files.pythonhosted.org/packages/42/58/e835c8298979d29db7a62cb5acc29e9b57aeaca7cdde2fcd3ac980f5cb18/duckdb-1.5.3-cp314-cp314-macosx_10_15_x86_64.whl", hash = "sha256:aea7baf67ad7e1829ac76f67d7dcbd7fb1f57c3eb179d55ac30952df4709ae30", size = 17308134, upload-time = "2026-05-20T11:55:16.194Z" },
+    { url = "https://files.pythonhosted.org/packages/c9/46/617b51363f5613418c8b224b3cce16b58e6dde80904566bec232579c1d4e/duckdb-1.5.3-cp314-cp314-macosx_11_0_arm64.whl", hash = "sha256:0b0b4f088a65d77e1217ce5d7eff889e63fedc44281200d899ff47c84d8ff836", size = 15449891, upload-time = "2026-05-20T11:55:18.687Z" },
+    { url = "https://files.pythonhosted.org/packages/b3/72/354146656e8d9ba3853d3a5ee80a481b8c5f70edfc3d5ae80a8c4479c967/duckdb-1.5.3-cp314-cp314-manylinux_2_26_aarch64.manylinux_2_28_aarch64.whl", hash = "sha256:fe8d0c1f6a120aa03fa6e0d03897c71a1842e6cf7afd31d181348391f7108fe1", size = 19338499, upload-time = "2026-05-20T11:55:21.34Z" },
+    { url = "https://files.pythonhosted.org/packages/56/8f/65fc623b51448f2bfba1a9ec6ab3debb4664c0876c0113a5e782600b53ac/duckdb-1.5.3-cp314-cp314-manylinux_2_26_x86_64.manylinux_2_28_x86_64.whl", hash = "sha256:d0405eae18ec6e8210a471c97dbfe87a7e4d605274b7fe572a1f276e92158f13", size = 21455828, upload-time = "2026-05-20T11:55:23.847Z" },
+    { url = "https://files.pythonhosted.org/packages/2b/db/d0274cbe9f5fe219f77c0bdf900ac77103569e83c102a4225ce04cbc607d/duckdb-1.5.3-cp314-cp314-win_amd64.whl", hash = "sha256:33ae08b3e818d7613d8936744b67718c2062c2f530376895bfd89efb51b81538", size = 13640011, upload-time = "2026-05-20T11:55:26.276Z" },
+    { url = "https://files.pythonhosted.org/packages/07/5d/8f1899b8bef291caf953992fcd6c24df9f29387a35645e58c2504a5ca473/duckdb-1.5.3-cp314-cp314-win_arm64.whl", hash = "sha256:746433e49bbc667b4df283153415fbe37e9083e0eff6c3cd6e54de7536869cd4", size = 14411554, upload-time = "2026-05-20T11:55:29.037Z" },
 ]
 
 [[package]]

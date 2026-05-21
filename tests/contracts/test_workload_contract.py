@@ -89,11 +89,11 @@ def test_compose_build_args_and_ports_align_with_workload_spec() -> None:
     order_consumer = next(
         workload
         for workload in contract["workloads"]
-        if workload["name"] == "order_event_consumer"
+        if workload["name"] == "event_consumer"
     )
     dapr = order_consumer["dapr"]
-    dapr_service = services["order-event-consumer-dapr"]
-    workload_service = services["order-event-consumer"]
+    dapr_service = services["event-consumer-dapr"]
+    workload_service = services["event-consumer"]
     command = dapr_service["command"]
     env = workload_service["environment"]
 
@@ -101,9 +101,9 @@ def test_compose_build_args_and_ports_align_with_workload_spec() -> None:
     assert command[command.index("--app-port") + 1] == str(
         order_consumer["service"]["port"]
     )
-    assert env["ORDER_EVENTS_APP_PORT"] == str(order_consumer["service"]["port"])
-    assert env["ORDER_EVENTS_PUBSUB_NAME"] == dapr["pubsub_name"]
-    assert env["ORDER_EVENTS_TOPIC"] == dapr["topic"]
+    assert env["EVENT_CONSUMER_APP_PORT"] == str(order_consumer["service"]["port"])
+    assert env["EVENT_CONSUMER_PUBSUB_NAME"] == dapr["pubsub_name"]
+    assert env["EVENT_CONSUMER_TOPIC"] == dapr["topic"]
 
 
 def test_workload_spec_config_names_match_app_settings() -> None:

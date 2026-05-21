@@ -73,7 +73,7 @@ packages/infrastructure -> packages/application + packages/domain
 Operational classes point outward:
 
 - `api`: public edge service
-- `order_event_consumer`: internal async service
+- `event_consumer`: internal async service
 - `backfill_worker`: operator-triggered job
 - `data_export_job`: scheduler-triggered job
 

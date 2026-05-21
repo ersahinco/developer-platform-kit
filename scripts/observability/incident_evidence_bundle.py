@@ -343,7 +343,7 @@ def _query_hints(
                 "expr": f'{{{base_labels}}} |~ "(?i)(error|exception|traceback)"',
             },
             {
-                "name": "order event relay",
+                "name": "event consumer relay",
                 "expr": f'{{stack="{stack_name}",environment="aws",service="{relay_service_name}"}} |= "<event_id>"',
             },
             {

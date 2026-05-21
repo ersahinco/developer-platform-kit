@@ -12,6 +12,7 @@ spec:
     - ./catalog/runtime-target-aws-ecs.yaml
     - ./catalog/platform-monorepo-component.yaml
     - ./catalog/api-component.yaml
-    - ./catalog/order-event-consumer-component.yaml
+    - ./catalog/event-consumer-component.yaml
     - ./catalog/backfill-worker-component.yaml
     - ./catalog/data-export-job-component.yaml
+    - ./catalog/open-dataset-pipeline-component.yaml

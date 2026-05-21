@@ -32,19 +32,19 @@ from infrastructure.http_health import (
     health_payload,
 )
 from infrastructure.http_observability import request_observability_middleware
-from order_event_consumer.config import settings
+from event_consumer.config import settings
 
 
-ORDER_EVENTS_CALLBACK_ROUTE = "/internal/events/order-created"
+EVENT_CONSUMER_CALLBACK_ROUTE = "/internal/events/consume"
 
 REQUEST_COUNT = Counter(
-    "order_event_consumer_http_requests_total",
-    "Order event consumer HTTP requests by method, route, and status code.",
+    "event_consumer_http_requests_total",
+    "Event consumer HTTP requests by method, route, and status code.",
     ["method", "route", "status_code"],
 )
 REQUEST_LATENCY = Histogram(
-    "order_event_consumer_http_request_duration_seconds",
-    "Order event consumer HTTP request latency by method and route.",
+    "event_consumer_http_request_duration_seconds",
+    "Event consumer HTTP request latency by method and route.",
     ["method", "route"],
 )
 
@@ -105,8 +105,8 @@ def _engine_and_session_factory() -> tuple[Any, Any]:
 def _publisher() -> DaprOrderEventPublisher:
     return DaprOrderEventPublisher(
         endpoint=settings.dapr_publish_endpoint,
-        pubsub_name=settings.order_events_pubsub_name,
-        topic=settings.order_events_topic,
+        pubsub_name=settings.event_consumer_pubsub_name,
+        topic=settings.event_consumer_topic,
     )
 
 
@@ -139,14 +139,14 @@ def relay_forever(
             run_order_event_relay(
                 outbox=SQLAlchemyOutboxRepository(session),
                 publisher=publisher,
-                limit=settings.order_events_relay_batch_size,
+                limit=settings.event_consumer_relay_batch_size,
                 stop_requested=stop.is_set,
                 wait_for_retry=stop.wait,
-                idle_sleep_seconds=settings.order_events_idle_sleep_seconds,
-                run_once=settings.order_events_worker_run_once,
+                idle_sleep_seconds=settings.event_consumer_idle_sleep_seconds,
+                run_once=settings.event_consumer_worker_run_once,
                 on_result=_log_relay_result,
             )
-        if settings.order_events_worker_run_once:
+        if settings.event_consumer_worker_run_once:
             return
 
 
@@ -156,7 +156,7 @@ async def lifespan(app: FastAPI):
     app.state.SessionLocal = SessionLocal
     app.state.relay_stop = threading.Event()
     app.state.relay_thread = None
-    if settings.order_events_worker_mode in ("relay", "both"):
+    if settings.event_consumer_worker_mode in ("relay", "both"):
         thread = threading.Thread(
             target=relay_forever,
             kwargs={
@@ -164,7 +164,7 @@ async def lifespan(app: FastAPI):
                 "publisher": _publisher(),
                 "stop": app.state.relay_stop,
             },
-            name="order-events-outbox-relay",
+            name="event-consumer-outbox-relay",
             daemon=True,
         )
         app.state.relay_thread = thread
@@ -179,7 +179,7 @@ async def lifespan(app: FastAPI):
         engine.dispose()
 
 
-app = FastAPI(title="aws-sdlc-containers-order-event-consumer", lifespan=lifespan)
+app = FastAPI(title="aws-sdlc-containers-event-consumer", lifespan=lifespan)
 
 
 def _http_request_event(
@@ -235,19 +235,19 @@ def metrics() -> Response:
 
 @app.get("/dapr/subscribe")
 def dapr_subscribe() -> list[dict[str, object]]:
-    if settings.order_events_worker_mode not in ("consumer", "both"):
+    if settings.event_consumer_worker_mode not in ("consumer", "both"):
         return []
     return [
         {
-            "pubsubname": settings.order_events_pubsub_name,
-            "topic": settings.order_events_topic,
-            "route": ORDER_EVENTS_CALLBACK_ROUTE,
+            "pubsubname": settings.event_consumer_pubsub_name,
+            "topic": settings.event_consumer_topic,
+            "route": EVENT_CONSUMER_CALLBACK_ROUTE,
         }
     ]
 
 
-@app.post(ORDER_EVENTS_CALLBACK_ROUTE)
-async def handle_order_created(request: Request) -> dict[str, str]:
+@app.post(EVENT_CONSUMER_CALLBACK_ROUTE)
+async def handle_event(request: Request) -> dict[str, str]:
     try:
         body = await request.json()
         payload = payload_from_cloud_event(body)
@@ -295,7 +295,7 @@ def main() -> None:
     uvicorn.run(
         app,
         host="0.0.0.0",
-        port=settings.order_events_app_port,
+        port=settings.event_consumer_app_port,
     )
 
 

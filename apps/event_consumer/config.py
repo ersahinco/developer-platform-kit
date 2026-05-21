@@ -17,34 +17,34 @@ load_env_file()
 class Settings(PostgresRuntimeSettings):
     database_url: str | None = field(default_factory=lambda: env_str("DATABASE_URL"))
     db_host: str | None = field(default_factory=lambda: env_str("DB_HOST", "localhost"))
-    order_events_worker_mode: str = field(
+    event_consumer_worker_mode: str = field(
         default_factory=lambda: require_value(
-            env_str("ORDER_EVENTS_WORKER_MODE", "both"), "ORDER_EVENTS_WORKER_MODE"
+            env_str("EVENT_CONSUMER_WORKER_MODE", "both"), "EVENT_CONSUMER_WORKER_MODE"
         )
     )
-    order_events_worker_run_once: bool = field(
-        default_factory=lambda: env_bool("ORDER_EVENTS_WORKER_RUN_ONCE")
+    event_consumer_worker_run_once: bool = field(
+        default_factory=lambda: env_bool("EVENT_CONSUMER_WORKER_RUN_ONCE")
     )
-    order_events_relay_batch_size: int = field(
-        default_factory=lambda: env_int("ORDER_EVENTS_RELAY_BATCH_SIZE", 10)
+    event_consumer_relay_batch_size: int = field(
+        default_factory=lambda: env_int("EVENT_CONSUMER_RELAY_BATCH_SIZE", 10)
     )
-    order_events_idle_sleep_seconds: float = field(
-        default_factory=lambda: env_float("ORDER_EVENTS_IDLE_SLEEP_SECONDS", 1.0)
+    event_consumer_idle_sleep_seconds: float = field(
+        default_factory=lambda: env_float("EVENT_CONSUMER_IDLE_SLEEP_SECONDS", 1.0)
     )
-    order_events_pubsub_name: str = field(
+    event_consumer_pubsub_name: str = field(
         default_factory=lambda: require_value(
-            env_str("ORDER_EVENTS_PUBSUB_NAME", "order-events-pubsub"),
-            "ORDER_EVENTS_PUBSUB_NAME",
+            env_str("EVENT_CONSUMER_PUBSUB_NAME", "async-events-pubsub"),
+            "EVENT_CONSUMER_PUBSUB_NAME",
         )
     )
-    order_events_topic: str = field(
+    event_consumer_topic: str = field(
         default_factory=lambda: require_value(
-            env_str("ORDER_EVENTS_TOPIC", "order-created-v1.fifo"),
-            "ORDER_EVENTS_TOPIC",
+            env_str("EVENT_CONSUMER_TOPIC", "order-created-v1.fifo"),
+            "EVENT_CONSUMER_TOPIC",
         )
     )
-    order_events_app_port: int = field(
-        default_factory=lambda: env_int("ORDER_EVENTS_APP_PORT", 8081)
+    event_consumer_app_port: int = field(
+        default_factory=lambda: env_int("EVENT_CONSUMER_APP_PORT", 8081)
     )
     dapr_http_port: int = field(default_factory=lambda: env_int("DAPR_HTTP_PORT", 3500))
     dapr_http_endpoint: str | None = field(
@@ -52,9 +52,9 @@ class Settings(PostgresRuntimeSettings):
     )
 
     def __post_init__(self) -> None:
-        if self.order_events_worker_mode not in {"relay", "consumer", "both"}:
+        if self.event_consumer_worker_mode not in {"relay", "consumer", "both"}:
             raise ValueError(
-                "ORDER_EVENTS_WORKER_MODE must be relay, consumer, or both"
+                "EVENT_CONSUMER_WORKER_MODE must be relay, consumer, or both"
             )
         self.database_url = self.resolve_database_url(
             database_url=self.database_url,

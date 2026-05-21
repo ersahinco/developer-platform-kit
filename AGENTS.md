@@ -76,7 +76,7 @@ Declare one class in `platform/workloads.json` for every workload:
 | `operator-job` | One-off task triggered manually or by CI/operator |
 | `scheduled-job` | Recurring task triggered by a scheduler |
 
-Current: `api` -> `edge-service`; `order_event_consumer` -> `internal-service`;
+Current: `api` -> `edge-service`; `event_consumer` -> `internal-service`;
 `backfill_worker` -> `operator-job`; `data_export_job` -> `scheduled-job`
 
 ## Workload Contract

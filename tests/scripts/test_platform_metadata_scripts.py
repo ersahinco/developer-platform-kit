@@ -37,14 +37,12 @@ def test_workload_metadata_capability_matrix_reports_declared_workloads() -> Non
     assert rows[0]["async_eventing"] == "false"
     assert rows[0]["tracing"] == "true"
 
-    order_event_consumer = next(
-        row for row in rows if row["name"] == "order_event_consumer"
-    )
-    assert order_event_consumer["class"] == "internal-service"
-    assert order_event_consumer["use_cases"] == "event-consumer,integration"
-    assert order_event_consumer["service_port"] == "8081"
-    assert order_event_consumer["async_eventing"] == "true"
-    assert order_event_consumer["tracing"] == "false"
+    event_consumer = next(row for row in rows if row["name"] == "event_consumer")
+    assert event_consumer["class"] == "internal-service"
+    assert event_consumer["use_cases"] == "event-consumer,integration"
+    assert event_consumer["service_port"] == "8081"
+    assert event_consumer["async_eventing"] == "true"
+    assert event_consumer["tracing"] == "false"
 
     data_export_job = next(row for row in rows if row["name"] == "data_export_job")
     assert data_export_job["kind"] == "job"
@@ -91,27 +89,19 @@ def test_workload_metadata_cli_reports_declared_workload_groups() -> None:
     assert internal_services == [
         "\t".join(
             [
-                workloads_by_name["order_event_consumer"]["name"],
-                workloads_by_name["order_event_consumer"]["image"]["repository"],
+                workloads_by_name["event_consumer"]["name"],
+                workloads_by_name["event_consumer"]["image"]["repository"],
             ]
         )
     ]
 
     job_workloads = _run_workload_metadata("job-workloads").stdout.splitlines()
-    assert job_workloads == [
-        "\t".join(
-            [
-                workloads_by_name["backfill_worker"]["name"],
-                workloads_by_name["backfill_worker"]["image"]["repository"],
-            ]
-        ),
-        "\t".join(
-            [
-                workloads_by_name["data_export_job"]["name"],
-                workloads_by_name["data_export_job"]["image"]["repository"],
-            ]
-        ),
+    expected_job_workloads = [
+        "\t".join([workload["name"], workload["image"]["repository"]])
+        for workload in contract["workloads"]
+        if workload["kind"] == "job"
     ]
+    assert job_workloads == expected_job_workloads
 
 
 def test_workload_metadata_use_case_matrix_reports_declared_workload_intent() -> None:

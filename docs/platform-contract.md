@@ -86,7 +86,7 @@ Job workloads must provide:
 Current long-running workloads:
 
 - `apps/api`
-- `apps/order_event_consumer`
+- `apps/event_consumer`
 
 Current jobs:
 
@@ -105,7 +105,7 @@ Current jobs:
 Current mapping:
 
 - `api`: `edge-service`
-- `order_event_consumer`: `internal-service`
+- `event_consumer`: `internal-service`
 - `backfill_worker`: `operator-job`
 - `data_export_job`: `scheduled-job`
 

@@ -1,6 +1,6 @@
-# Order Event Queue Failure
+# Event Consumer Queue Failure
 
-Use this runbook when the order-events-dlq-visible CloudWatch alarm is in
+Use this runbook when the async-events-dlq-visible CloudWatch alarm is in
 `ALARM`, or when consumer logs show failed
 `order.created.v1` relay or consume attempts.
 
@@ -13,8 +13,8 @@ export STACK_NAME="${STACK_NAME:-<stack-name>}"
 
 ## What The Alarm Means
 
-The Dapr-enabled order event consumer relays `order.created.v1` messages from
-the outbox through the `order-events-pubsub` component. In AWS that maps to SNS
+The Dapr-enabled event consumer relays `order.created.v1` messages from the
+outbox through the `async-events-pubsub` component. In AWS that maps to SNS
 FIFO plus SQS FIFO and ends in `order_event_receipts`.
 
 Each message uses:
@@ -33,7 +33,7 @@ Confirm the alarm:
 
 ```bash
 aws cloudwatch describe-alarms \
-  --alarm-names "$(terraform -chdir=infra/app output -raw order_events_dlq_visible_alarm_name)" \
+  --alarm-names "$(terraform -chdir=infra/app output -raw async_eventing_dlq_visible_alarm_name)" \
   --region "$AWS_REGION"
 ```
 
@@ -41,12 +41,12 @@ Inspect the source queue and DLQ:
 
 ```bash
 aws sqs get-queue-attributes \
-  --queue-url "$(terraform -chdir=infra/app output -raw order_events_queue_url)" \
+  --queue-url "$(terraform -chdir=infra/app output -raw async_eventing_queue_url)" \
   --attribute-names All \
   --region "$AWS_REGION"
 
 DLQ_URL="$(aws sqs get-queue-url \
-  --queue-name "$(terraform -chdir=infra/app output -raw order_events_dlq_name)" \
+  --queue-name "$(terraform -chdir=infra/app output -raw async_eventing_dlq_name)" \
   --query QueueUrl \
   --output text \
   --region "$AWS_REGION")"
@@ -64,7 +64,7 @@ aws logs tail "/ecs/${STACK_NAME}/api" \
   --since 30m \
   --region "$AWS_REGION"
 
-aws logs tail "/ecs/${STACK_NAME}/order-event-consumer" \
+aws logs tail "/ecs/${STACK_NAME}/event-consumer" \
   --since 30m \
   --region "$AWS_REGION"
 ```
@@ -79,7 +79,7 @@ window:
 ```
 
 ```logql
-{stack="<stack-name>", service="order-event-consumer"}
+{stack="<stack-name>", service="event-consumer"}
 ```
 
 Keep the SQS DLQ CloudWatch alarm in the flow because Dapr delegates queue and
@@ -89,7 +89,7 @@ parking behavior to SNS/SQS in this stack.
 
 - The Dapr subscriber callback failed the same message five times.
 - A deploy changed event payload handling without preserving idempotency.
-- The order event consumer task role lost SNS/SQS permissions required by Dapr.
+- The event consumer task role lost SNS/SQS permissions required by Dapr.
 - The Dapr component config points at the wrong topic, queue, or DLQ name.
 - AWS SNS/SQS API calls from the private task cannot reach AWS through NAT or
   VPC endpoints.
@@ -107,7 +107,7 @@ aws ecs describe-services \
 
 aws ecs describe-services \
   --cluster "$(terraform -chdir=infra/app output -raw ecs_cluster_name)" \
-  --services "$(terraform -chdir=infra/app output -raw order_event_consumer_service_name)" \
+  --services "$(terraform -chdir=infra/app output -raw event_consumer_service_name)" \
   --region "$AWS_REGION"
 ```
 

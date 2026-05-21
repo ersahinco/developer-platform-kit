@@ -9,7 +9,7 @@
 #   make help                — list all targets
 #   make dev                 — start local Postgres + PgBouncer
 #   make local-up            — build/start app + local observability
-#   make dapr-up             — build/start local Dapr order event runtime
+#   make dapr-up             — build/start local Dapr event consumer runtime
 #   make test                — run test suite
 #   make runtime-conformance — build/run workload images against platform contract
 #   make lint                — run all linters (app + infra)
@@ -74,14 +74,14 @@ local-up: ## Build/start local app + Prometheus + Loki + Promtail + Grafana
 	docker compose --profile observability ps
 
 .PHONY: dapr-up
-dapr-up: ## Build/start local Dapr order event runtime with LocalStack SNS/SQS
-	docker compose build order-event-consumer
-	docker compose --profile dapr up -d db localstack order-event-consumer order-event-consumer-dapr
+dapr-up: ## Build/start local Dapr event consumer runtime with LocalStack SNS/SQS
+	docker compose build event-consumer
+	docker compose --profile dapr up -d db localstack event-consumer event-consumer-dapr
 	docker compose --profile dapr ps
 
 .PHONY: local-down
 local-down: ## Stop local app and observability services without deleting volumes
-	docker compose --profile observability --profile dapr stop app prometheus loki tempo promtail grafana order-event-consumer order-event-consumer-dapr localstack
+	docker compose --profile observability --profile dapr stop app prometheus loki tempo promtail grafana event-consumer event-consumer-dapr localstack
 
 .PHONY: local-reset
 local-reset: ## Stop all local services and delete Compose volumes

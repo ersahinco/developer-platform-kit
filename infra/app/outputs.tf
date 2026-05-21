@@ -23,9 +23,9 @@ output "api_target_latency_alarm_name" {
   value       = var.enable_api_symptom_cloudwatch_alarms ? aws_cloudwatch_metric_alarm.api_target_latency[0].alarm_name : null
 }
 
-output "order_event_consumer_service_name" {
-  description = "ECS service name for the order event relay/consumer."
-  value       = aws_ecs_service.order_event_consumer.name
+output "event_consumer_service_name" {
+  description = "ECS service name for the event consumer workload."
+  value       = aws_ecs_service.event_consumer.name
 }
 
 output "data_export_schedule_name" {
@@ -93,17 +93,17 @@ output "api_service_name" {
   value       = aws_ecs_service.api.name
 }
 
-output "order_events_queue_url" {
-  description = "Dapr subscriber SQS FIFO queue URL for order.created.v1 events."
-  value       = aws_sqs_queue.order_events.url
+output "async_eventing_queue_url" {
+  description = "Dapr subscriber SQS FIFO queue URL for async event deliveries."
+  value       = aws_sqs_queue.async_eventing.url
 }
 
-output "order_events_dlq_name" {
-  description = "SQS DLQ name for order event messages that exceed the receive retry policy."
-  value       = aws_sqs_queue.order_events_dlq.name
+output "async_eventing_dlq_name" {
+  description = "SQS DLQ name for async event messages that exceed the receive retry policy."
+  value       = aws_sqs_queue.async_eventing_dlq.name
 }
 
-output "order_events_dlq_visible_alarm_name" {
-  description = "CloudWatch alarm for visible messages in the order events DLQ."
-  value       = aws_cloudwatch_metric_alarm.order_events_dlq_visible.alarm_name
+output "async_eventing_dlq_visible_alarm_name" {
+  description = "CloudWatch alarm for visible messages in the async eventing DLQ."
+  value       = aws_cloudwatch_metric_alarm.async_eventing_dlq_visible.alarm_name
 }

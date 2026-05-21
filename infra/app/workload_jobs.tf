@@ -39,9 +39,9 @@ locals {
   liquibase_log_group_name = "/ecs/${local.name}/liquibase"
 
   async_eventing_runtime_files = {
-    "components/order-events-pubsub.yaml" = aws_s3_object.order_events_dapr_component.key
-    "components/resiliency.yaml"          = aws_s3_object.order_events_dapr_resiliency.key
-    "config/config.yaml"                  = aws_s3_object.order_events_dapr_config.key
+    "components/async-events-pubsub.yaml" = aws_s3_object.async_eventing_dapr_component.key
+    "components/resiliency.yaml"          = aws_s3_object.async_eventing_dapr_resiliency.key
+    "config/config.yaml"                  = aws_s3_object.async_eventing_dapr_config.key
   }
 
   async_eventing_dapr_config_volume_name = "dapr-config"
@@ -327,20 +327,20 @@ resource "aws_cloudwatch_metric_alarm" "data_export_scheduler_target_errors" {
 }
 
 ################################################################################
-# Order event consumer — one small async runtime that relays durable outbox
-# messages through Dapr pub/sub and records order.created.v1 deliveries into an
+# Event consumer — one small async runtime that relays durable outbox messages
+# through Dapr pub/sub and records current order.created.v1 deliveries into an
 # idempotent receipt table.
 ################################################################################
 
-resource "aws_iam_role" "order_event_consumer" {
-  name               = "${local.name}-order-event-consumer"
+resource "aws_iam_role" "event_consumer" {
+  name               = "${local.name}-event-consumer"
   assume_role_policy = data.aws_iam_policy_document.task_exec_assume.json
   tags               = local.tags
 }
 
-data "aws_iam_policy_document" "order_event_consumer_sqs" {
+data "aws_iam_policy_document" "event_consumer_sqs" {
   statement {
-    sid = "PublishAndConsumeDaprOrderEvents"
+    sid = "PublishAndConsumeDaprAsyncEvents"
     actions = [
       "sqs:ChangeMessageVisibility",
       "sqs:DeleteMessage",
@@ -352,8 +352,8 @@ data "aws_iam_policy_document" "order_event_consumer_sqs" {
       "sns:Publish",
     ]
     resources = [
-      aws_sns_topic.order_events.arn,
-      aws_sqs_queue.order_events.arn,
+      aws_sns_topic.async_eventing.arn,
+      aws_sqs_queue.async_eventing.arn,
     ]
   }
 
@@ -364,13 +364,13 @@ data "aws_iam_policy_document" "order_event_consumer_sqs" {
   }
 
   statement {
-    sid = "UseOrderEventsSnsKms"
+    sid = "UseAsyncEventingSnsKms"
     actions = [
       "kms:Decrypt",
       "kms:DescribeKey",
       "kms:GenerateDataKey",
     ]
-    resources = [aws_kms_key.order_events_sns.arn]
+    resources = [aws_kms_key.async_eventing_sns.arn]
 
     condition {
       test     = "StringEquals"
@@ -386,20 +386,20 @@ data "aws_iam_policy_document" "order_event_consumer_sqs" {
   }
 }
 
-resource "aws_iam_role_policy" "order_event_consumer_sqs" {
-  name   = "order-events-relay-consume"
-  role   = aws_iam_role.order_event_consumer.id
-  policy = data.aws_iam_policy_document.order_event_consumer_sqs.json
+resource "aws_iam_role_policy" "event_consumer_sqs" {
+  name   = "async-events-relay-consume"
+  role   = aws_iam_role.event_consumer.id
+  policy = data.aws_iam_policy_document.event_consumer_sqs.json
 }
 
-resource "aws_ecs_task_definition" "order_event_consumer" {
-  family                   = "${local.name}-order-event-consumer"
+resource "aws_ecs_task_definition" "event_consumer" {
+  family                   = "${local.name}-event-consumer"
   requires_compatibilities = local.support_task_definition_defaults.requires_compatibilities
   network_mode             = local.support_task_definition_defaults.network_mode
-  cpu                      = var.order_event_consumer_cpu
-  memory                   = var.order_event_consumer_memory
+  cpu                      = var.event_consumer_cpu
+  memory                   = var.event_consumer_memory
   execution_role_arn       = local.support_task_definition_defaults.execution_role_arn
-  task_role_arn            = aws_iam_role.order_event_consumer.arn
+  task_role_arn            = aws_iam_role.event_consumer.arn
 
   volume {
     name = local.async_eventing_dapr_config_volume_name
@@ -428,33 +428,33 @@ resource "aws_ecs_task_definition" "order_event_consumer" {
       logConfiguration = local.sidecar_log_configuration["daprd"]
     }),
     merge(local.ecs_container_defaults, {
-      name             = "order-event-consumer"
-      image            = format("%s:%s", module.ecr["order_event_consumer"].repository_url, var.bootstrap_image_tag)
+      name             = "event-consumer"
+      image            = format("%s:%s", module.ecr["event_consumer"].repository_url, var.bootstrap_image_tag)
       essential        = true
       portMappings     = local.primary_async_eventing_port_mappings
-      secrets          = local.workload_secrets["order_event_consumer"]
-      environment      = local.workload_environment["order_event_consumer"]
+      secrets          = local.workload_secrets["event_consumer"]
+      environment      = local.workload_environment["event_consumer"]
       dependsOn        = local.async_eventing_dapr_loader_dependency
       healthCheck      = local.primary_async_eventing_health_check
-      logConfiguration = local.workload_log_configuration["order_event_consumer"]
+      logConfiguration = local.workload_log_configuration["event_consumer"]
     })
   ])
 
   tags = local.tags
 }
 
-resource "aws_cloudwatch_log_group" "order_event_consumer" {
-  name              = local.workload_log_group_names["order_event_consumer"]
+resource "aws_cloudwatch_log_group" "event_consumer" {
+  name              = local.workload_log_group_names["event_consumer"]
   kms_key_id        = local.support_workload_log_group_defaults.kms_key_id
   retention_in_days = local.support_workload_log_group_defaults.retention_in_days
   tags              = local.support_workload_log_group_defaults.tags
 }
 
-resource "aws_ecs_service" "order_event_consumer" {
-  name            = "order-event-consumer"
+resource "aws_ecs_service" "event_consumer" {
+  name            = "event-consumer"
   cluster         = module.ecs.cluster_arn
-  task_definition = aws_ecs_task_definition.order_event_consumer.arn
-  desired_count   = var.order_event_consumer_bootstrap_desired_count
+  task_definition = aws_ecs_task_definition.event_consumer.arn
+  desired_count   = var.event_consumer_bootstrap_desired_count
   launch_type     = "FARGATE"
 
   deployment_minimum_healthy_percent = 100

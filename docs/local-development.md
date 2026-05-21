@@ -10,7 +10,7 @@ Reference workloads:
 - `apps/api`
 - `apps/backfill_worker`
 - `apps/data_export_job`
-- `apps/order_event_consumer`
+- `apps/event_consumer`
 
 ## Preferred Setup
 

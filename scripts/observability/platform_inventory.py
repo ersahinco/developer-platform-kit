@@ -50,7 +50,7 @@ _RUNTIME_INCIDENT_ONLY_ALARM_SUFFIXES = [
 ]
 
 _WORKLOAD_ALARM_SUFFIXES_BY_NAME = {
-    "order_event_consumer": ["order-events-dlq-visible"],
+    "event_consumer": ["async-events-dlq-visible"],
     "data_export_job": [
         "data-export-scheduler-target-errors",
         "data-export-success-missing",
@@ -108,7 +108,7 @@ def api_trace_service_name(stack_name: str) -> str:
 
 
 def dapr_workload_service_name() -> str:
-    return _primary_async_eventing_row().get("repository", "") or "order-event-consumer"
+    return _primary_async_eventing_row().get("repository", "") or "event-consumer"
 
 
 @lru_cache(maxsize=1)

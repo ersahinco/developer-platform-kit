@@ -60,10 +60,10 @@ resource "aws_kms_alias" "cloudwatch_logs" {
 }
 
 ################################################################################
-# Order event SNS encryption
+# Async eventing SNS encryption
 ################################################################################
 
-data "aws_iam_policy_document" "order_events_sns_kms" {
+data "aws_iam_policy_document" "async_eventing_sns_kms" {
   #checkov:skip=CKV_AWS_109:KMS key policy needs an account-root administration path to avoid lockout; SNS use is constrained by source account/topic below.
   statement {
     sid = "AllowAccountKeyAdministration"
@@ -78,7 +78,7 @@ data "aws_iam_policy_document" "order_events_sns_kms" {
   }
 
   statement {
-    sid = "AllowSnsUseForOrderEvents"
+    sid = "AllowSnsUseForAsyncEventing"
 
     principals {
       type        = "Service"
@@ -108,17 +108,17 @@ data "aws_iam_policy_document" "order_events_sns_kms" {
   }
 }
 
-resource "aws_kms_key" "order_events_sns" {
-  description         = "Encrypt SNS order event topic for ${local.name}"
+resource "aws_kms_key" "async_eventing_sns" {
+  description         = "Encrypt SNS async eventing topic for ${local.name}"
   enable_key_rotation = true
-  policy              = data.aws_iam_policy_document.order_events_sns_kms.json
+  policy              = data.aws_iam_policy_document.async_eventing_sns_kms.json
 
   tags = merge(local.tags, {
-    Purpose = "order-events-sns"
+    Purpose = "async-eventing-sns"
   })
 }
 
-resource "aws_kms_alias" "order_events_sns" {
-  name          = "alias/${local.name}/order-events-sns"
-  target_key_id = aws_kms_key.order_events_sns.key_id
+resource "aws_kms_alias" "async_eventing_sns" {
+  name          = "alias/${local.name}/async-eventing-sns"
+  target_key_id = aws_kms_key.async_eventing_sns.key_id
 }

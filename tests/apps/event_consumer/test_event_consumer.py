@@ -11,11 +11,11 @@ from application.outbox import OutboxDispatchResult  # noqa: E402
 from application.outbox import OutboxMessage  # noqa: E402
 from infrastructure.dapr import pubsub as dapr_pubsub  # noqa: E402
 from infrastructure.dapr.pubsub import DaprOrderEventPublisher  # noqa: E402
-from order_event_consumer.config import settings  # noqa: E402
-from order_event_consumer import main as consumer_main  # noqa: E402
-from order_event_consumer.main import app  # noqa: E402
-from order_event_consumer.main import consume_order_event_payload  # noqa: E402
-from order_event_consumer.main import relay_outbox_once  # noqa: E402
+from event_consumer.config import settings  # noqa: E402
+from event_consumer import main as consumer_main  # noqa: E402
+from event_consumer.main import app  # noqa: E402
+from event_consumer.main import consume_order_event_payload  # noqa: E402
+from event_consumer.main import relay_outbox_once  # noqa: E402
 
 
 class _Publisher:
@@ -50,7 +50,7 @@ class _FailingSession:
 
 
 def _set_lifespan_session(monkeypatch, session: object) -> None:
-    monkeypatch.setattr(settings, "order_events_worker_mode", "consumer")
+    monkeypatch.setattr(settings, "event_consumer_worker_mode", "consumer")
     monkeypatch.setattr(
         consumer_main,
         "_engine_and_session_factory",
@@ -125,7 +125,7 @@ def test_dapr_publisher_posts_cloud_event(monkeypatch):
     monkeypatch.setattr(dapr_pubsub.request, "urlopen", urlopen)
     publisher = DaprOrderEventPublisher(
         endpoint="http://localhost:3500/",
-        pubsub_name="order-events-pubsub",
+        pubsub_name="async-events-pubsub",
         topic="order-created-v1.fifo",
     )
 
@@ -134,7 +134,7 @@ def test_dapr_publisher_posts_cloud_event(monkeypatch):
     req, timeout = calls[0]
     assert timeout == 10.0
     assert req.full_url == (
-        "http://localhost:3500/v1.0/publish/order-events-pubsub/order-created-v1.fifo"
+        "http://localhost:3500/v1.0/publish/async-events-pubsub/order-created-v1.fifo"
     )
     body = req.data.decode()
     event = json.loads(body)
@@ -223,9 +223,9 @@ def test_relay_forever_delegates_loop_to_application_layer(monkeypatch):
     monkeypatch.setattr(
         consumer_main, "run_order_event_relay", fake_run_order_event_relay
     )
-    monkeypatch.setattr(settings, "order_events_relay_batch_size", 7)
-    monkeypatch.setattr(settings, "order_events_idle_sleep_seconds", 1.5)
-    monkeypatch.setattr(settings, "order_events_worker_run_once", True)
+    monkeypatch.setattr(settings, "event_consumer_relay_batch_size", 7)
+    monkeypatch.setattr(settings, "event_consumer_idle_sleep_seconds", 1.5)
+    monkeypatch.setattr(settings, "event_consumer_worker_run_once", True)
 
     stop = _Stop()
     publisher = _Publisher()
@@ -289,7 +289,7 @@ def test_consumer_callback_records_delivery(committed_db_session):
     client = TestClient(app)
     payload = _payload("order.created.v1:callback")
 
-    response = client.post("/internal/events/order-created", json=_cloud_event(payload))
+    response = client.post("/internal/events/consume", json=_cloud_event(payload))
 
     assert response.status_code == 200
     assert response.json() == {"status": "SUCCESS"}
@@ -301,7 +301,7 @@ def test_consumer_callback_logs_request_id(committed_db_session, capsys):
     payload = _payload("order.created.v1:callback-request-id")
 
     response = client.post(
-        "/internal/events/order-created",
+        "/internal/events/consume",
         json=_cloud_event(payload),
         headers={"X-Request-ID": "consumer-trace-123"},
     )
@@ -325,7 +325,7 @@ def test_consumer_callback_retries_malformed_message(committed_db_session):
     client = TestClient(app, raise_server_exceptions=False)
 
     response = client.post(
-        "/internal/events/order-created",
+        "/internal/events/consume",
         json={"specversion": "1.0", "data": "not-an-object"},
     )
 
@@ -369,19 +369,19 @@ def test_metrics_endpoint_exposes_prometheus_text(monkeypatch):
     assert health_response.headers["x-request-id"] == "consumer-health-123"
     assert metrics_response.status_code == 200
     assert "text/plain" in metrics_response.headers["content-type"]
-    assert "order_event_consumer_http_requests_total" in metrics_response.text
+    assert "event_consumer_http_requests_total" in metrics_response.text
     assert 'route="/health"' in metrics_response.text
 
 
 def test_dapr_subscribe_declares_order_topic(monkeypatch):
-    monkeypatch.setattr(settings, "order_events_worker_mode", "both")
-    monkeypatch.setattr(settings, "order_events_pubsub_name", "order-events-pubsub")
-    monkeypatch.setattr(settings, "order_events_topic", "order-created-v1.fifo")
+    monkeypatch.setattr(settings, "event_consumer_worker_mode", "both")
+    monkeypatch.setattr(settings, "event_consumer_pubsub_name", "async-events-pubsub")
+    monkeypatch.setattr(settings, "event_consumer_topic", "order-created-v1.fifo")
 
     assert consumer_main.dapr_subscribe() == [
         {
-            "pubsubname": "order-events-pubsub",
+            "pubsubname": "async-events-pubsub",
             "topic": "order-created-v1.fifo",
-            "route": "/internal/events/order-created",
+            "route": "/internal/events/consume",
         }
     ]

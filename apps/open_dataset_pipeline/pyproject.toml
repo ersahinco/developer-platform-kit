@@ -1,13 +1,10 @@
 [project]
-name = "aws-sdlc-containers-order-event-consumer"
+name = "aws-sdlc-containers-open-dataset-pipeline"
 version = "0.1.0"
 requires-python = ">=3.14"
 dependencies = [
     "aws-sdlc-containers-application",
     "aws-sdlc-containers-infrastructure",
-    "fastapi>=0.111.0",
-    "prometheus-client>=0.20.0",
-    "uvicorn>=0.29.0",
 ]
 
 [build-system]
@@ -15,5 +12,5 @@ requires = ["setuptools>=69"]
 build-backend = "setuptools.build_meta"
 
 [tool.setuptools]
-packages = ["order_event_consumer"]
-package-dir = { order_event_consumer = "." }
+packages = ["open_dataset_pipeline"]
+package-dir = { open_dataset_pipeline = "." }

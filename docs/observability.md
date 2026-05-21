@@ -71,7 +71,7 @@ Cloud log groups:
 | `/ecs/<stack-name>/api` | edge-service container |
 | `/ecs/<stack-name>/adot` | ADOT sidecar when enabled |
 | `/ecs/<stack-name>/pgbouncer` | PgBouncer sidecar |
-| `/ecs/<stack-name>/order-event-consumer` | consumer, `daprd`, config loader |
+| `/ecs/<stack-name>/event-consumer` | consumer, `daprd`, config loader |
 | `/ecs/<stack-name>/data-export-job` | scheduled export task |
 | `/ecs/<stack-name>/liquibase` | migration task |
 | `/ecs/<stack-name>/backfill-worker` | backfill worker |

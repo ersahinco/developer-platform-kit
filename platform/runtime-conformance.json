@@ -27,19 +27,19 @@
       "expected_log_event": "http_request",
       "expected_log_fields": ["event", "request_id", "route", "status_code"]
     },
-    "order_event_consumer": {
+    "event_consumer": {
       "startup_timeout_seconds": 60,
       "env": {
         "DATABASE_URL": "postgresql://postgres:postgres@db:5432/aws_sdlc_containers",
         "DAPR_HTTP_ENDPOINT": "http://127.0.0.1:3500",
         "DAPR_HTTP_PORT": "3500",
-        "ORDER_EVENTS_APP_PORT": "8081",
-        "ORDER_EVENTS_WORKER_MODE": "consumer",
-        "ORDER_EVENTS_WORKER_RUN_ONCE": "false",
-        "ORDER_EVENTS_PUBSUB_NAME": "order-events-pubsub",
-        "ORDER_EVENTS_TOPIC": "order-created-v1.fifo",
-        "ORDER_EVENTS_RELAY_BATCH_SIZE": "10",
-        "ORDER_EVENTS_IDLE_SLEEP_SECONDS": "1"
+        "EVENT_CONSUMER_APP_PORT": "8081",
+        "EVENT_CONSUMER_WORKER_MODE": "consumer",
+        "EVENT_CONSUMER_WORKER_RUN_ONCE": "false",
+        "EVENT_CONSUMER_PUBSUB_NAME": "async-events-pubsub",
+        "EVENT_CONSUMER_TOPIC": "order-created-v1.fifo",
+        "EVENT_CONSUMER_RELAY_BATCH_SIZE": "10",
+        "EVENT_CONSUMER_IDLE_SLEEP_SECONDS": "1"
       },
       "expected_log_event": "http_request",
       "expected_log_fields": ["event", "event_id", "request_id", "route", "status_code"]
@@ -66,6 +66,18 @@
       },
       "expected_success_event": "data_export_succeeded",
       "expected_log_fields": ["event", "job_name", "dataset", "run_id", "status"]
+    },
+    "open_dataset_pipeline": {
+      "timeout_seconds": 60,
+      "env": {
+        "OPEN_DATASET_URL": "file:///app/apps/open_dataset_pipeline/sample_data/iris.csv",
+        "OPEN_DATASET_NAME": "iris",
+        "OPEN_DATASET_OUTPUT_DIR": "/exports",
+        "OPEN_DATASET_RUN_ID": "conformance",
+        "OPEN_DATASET_DATE": "2026-05-13"
+      },
+      "expected_success_event": "open_dataset_pipeline_succeeded",
+      "expected_log_fields": ["event", "job_name", "dataset", "run_id", "status", "row_count"]
     }
   }
 }

@@ -19,7 +19,7 @@ os.environ.setdefault("DATA_EXPORT_DATABASE_URL", _TEST_DATABASE_URL)
 from api.config import Settings as ApiSettings  # noqa: E402
 from backfill_worker.config import Settings as BackfillSettings  # noqa: E402
 from data_export_job.config import Settings as DataExportSettings  # noqa: E402
-from order_event_consumer.config import Settings as ConsumerSettings  # noqa: E402
+from event_consumer.config import Settings as ConsumerSettings  # noqa: E402
 
 # Columns that must survive the full migration sequence unchanged.
 _ORDERS_STABLE_COLUMNS = {

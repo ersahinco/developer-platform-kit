@@ -1,7 +1,7 @@
 apiVersion: backstage.io/v1alpha1
 kind: Component
 metadata:
-  name: order_event_consumer
+  name: event_consumer
   description: Internal-service workload host for Dapr-backed async event handling.
   tags:
     - event-consumer

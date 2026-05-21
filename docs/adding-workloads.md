@@ -100,7 +100,7 @@ Do not add:
 | Need | Pattern |
 |---|---|
 | public HTTP API | `apps/api` |
-| internal Dapr-backed service | `apps/order_event_consumer` |
+| internal Dapr-backed service | `apps/event_consumer` |
 | operator-triggered job | `apps/backfill_worker` |
 | scheduled export job | `apps/data_export_job` |
 

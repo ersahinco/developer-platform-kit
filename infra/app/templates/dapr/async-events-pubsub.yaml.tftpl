@@ -1,28 +1,24 @@
 apiVersion: dapr.io/v1alpha1
 kind: Component
 metadata:
-  name: order-events-pubsub
+  name: async-events-pubsub
 spec:
   type: pubsub.aws.snssqs
   version: v1
   metadata:
-    - name: accessKey
-      value: "local"
-    - name: secretKey
-      value: "local"
-    - name: endpoint
-      value: "http://localstack:4566"
     - name: region
-      value: "eu-central-1"
+      value: "${aws_region}"
     - name: consumerID
-      value: "aws-sdlc-containers-order-events.fifo"
+      value: "${subscriber_queue_name}"
     - name: fifo
       value: "true"
     - name: fifoMessageGroupID
-      value: "order-events"
+      value: "async-events"
     - name: concurrencyMode
       value: "single"
     - name: messageReceiveLimit
       value: "5"
     - name: sqsDeadLettersQueueName
-      value: "aws-sdlc-containers-order-events-dlq.fifo"
+      value: "${dlq_name}"
+    - name: disableEntityManagement
+      value: "true"

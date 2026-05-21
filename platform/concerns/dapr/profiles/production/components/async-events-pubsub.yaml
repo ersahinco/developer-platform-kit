@@ -1,7 +1,7 @@
 apiVersion: dapr.io/v1alpha1
 kind: Component
 metadata:
-  name: order-events-pubsub
+  name: async-events-pubsub
 spec:
   type: pubsub.aws.snssqs
   version: v1
@@ -9,7 +9,7 @@ spec:
     # SNS topic and SQS queue names are injected at deploy time from Terraform
     # outputs via the S3 runtime config bucket (infra/app/messaging.tf).
     # This file is a reference template — the authoritative rendered version
-    # is infra/app/templates/dapr/order-events-pubsub.yaml.tftpl.
+    # is infra/app/templates/dapr/async-events-pubsub.yaml.tftpl.
     - name: region
       value: "${aws_region}"
     - name: consumerID
@@ -17,7 +17,7 @@ spec:
     - name: fifo
       value: "true"
     - name: fifoMessageGroupID
-      value: "order-events"
+      value: "async-events"
     - name: concurrencyMode
       value: "single"
     - name: messageReceiveLimit

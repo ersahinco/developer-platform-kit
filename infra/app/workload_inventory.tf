@@ -146,10 +146,12 @@ locals {
       DATA_EXPORT_S3_BUCKET  = aws_s3_bucket.data_hub.bucket
     }
     (local.primary_async_eventing_workload_name) = {
-      ORDER_EVENTS_APP_PORT    = tostring(local.primary_async_eventing_service_port)
-      ORDER_EVENTS_WORKER_MODE = "both"
-      ORDER_EVENTS_PUBSUB_NAME = local.primary_async_eventing_pubsub_name
-      ORDER_EVENTS_TOPIC       = local.primary_async_eventing_topic_name
+      EVENT_CONSUMER_APP_PORT           = tostring(local.primary_async_eventing_service_port)
+      EVENT_CONSUMER_WORKER_MODE        = "both"
+      EVENT_CONSUMER_PUBSUB_NAME        = local.primary_async_eventing_pubsub_name
+      EVENT_CONSUMER_TOPIC              = local.primary_async_eventing_topic_name
+      EVENT_CONSUMER_RELAY_BATCH_SIZE   = "10"
+      EVENT_CONSUMER_IDLE_SLEEP_SECONDS = "1"
     }
   }
 
