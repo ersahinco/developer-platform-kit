@@ -21,6 +21,13 @@ def test_workload_contract_docs_name_workloads_json_as_canonical_intent_source()
         platform_contract
     )
     assert "`workloads.json`: canonical workload contract" in platform_readme
+    assert (
+        "`platform/workload-patterns.json` is the machine-readable reusable pattern"
+        in platform_contract
+    )
+    assert "`workload-patterns.json`: reusable workload pattern contract" in (
+        platform_readme
+    )
 
 
 def test_platform_inventory_file_is_part_of_stable_center() -> None:

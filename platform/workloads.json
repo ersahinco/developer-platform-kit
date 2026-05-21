@@ -4,6 +4,7 @@
     {
       "name": "api",
       "kind": "service",
+      "patterns": ["edge-service"],
       "use_cases": ["http-api"],
       "app_path": "apps/api",
       "operational": {
@@ -14,7 +15,16 @@
         "port": 8000
       },
       "edge": {
-        "hostname_label": "api"
+        "hostname_label": "api",
+        "hostname_label_convention": "explicit-label",
+        "auth_mode": "static-bearer-token"
+      },
+      "verification": {
+        "profile": "primary-edge-runtime-modes",
+        "runtime_mode_endpoints": {
+          "read": "/admin/read-mode",
+          "write": "/admin/write-mode"
+        }
       },
       "image": {
         "repository": "api",
@@ -54,6 +64,7 @@
     {
       "name": "event_consumer",
       "kind": "service",
+      "patterns": ["internal-async-service"],
       "use_cases": ["event-consumer", "integration"],
       "app_path": "apps/event_consumer",
       "operational": {
@@ -112,6 +123,7 @@
     {
       "name": "backfill_worker",
       "kind": "job",
+      "patterns": ["operator-job"],
       "use_cases": ["data-maintenance", "operator-task"],
       "app_path": "apps/backfill_worker",
       "operational": {
@@ -150,6 +162,7 @@
     {
       "name": "data_export_job",
       "kind": "job",
+      "patterns": ["scheduled-job", "export-job"],
       "use_cases": ["data-export", "scheduled-pipeline"],
       "app_path": "apps/data_export_job",
       "operational": {
@@ -189,6 +202,7 @@
     {
       "name": "open_dataset_pipeline",
       "kind": "job",
+      "patterns": ["scheduled-job", "data-pipeline"],
       "use_cases": ["data-pipeline", "data-ingestion", "transformation"],
       "app_path": "apps/open_dataset_pipeline",
       "operational": {

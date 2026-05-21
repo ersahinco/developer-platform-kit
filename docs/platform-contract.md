@@ -8,6 +8,8 @@ details into app code. Use standard tools directly and keep provider details at
 the platform edge.
 
 `platform/workloads.json` is the machine-readable workload contract.
+`platform/workload-patterns.json` is the machine-readable reusable pattern
+contract for stable-center workload shapes.
 Focused pytest checks plus `make runtime-conformance` are the main proof that
 declared workloads still satisfy the contract.
 
@@ -32,6 +34,12 @@ declared workloads still satisfy the contract.
 - shared image package and command metadata
 - portable health, metrics, traces, and idempotency expectations
 - workload-facing config and secret names
+
+`platform/workload-patterns.json` owns:
+
+- reusable workload shape names such as `edge-service`, `internal-async-service`, `scheduled-job`, and `export-job`
+- required stable-center fields for each pattern
+- the portable meaning of those patterns for templates, selectors, and contract tests
 
 It does not own:
 
@@ -62,6 +70,10 @@ In addition to `kind` and operational class, each workload declares one or more
 target-neutral `use_cases`. These help catalog, template, and self-service
 surfaces distinguish workloads like `http-api`, `event-consumer`, `dashboard`,
 `connector`, or `data-pipeline` without encoding runtime details.
+
+Each workload also declares one or more stable-center `patterns`. These drive
+metadata selectors and keep reusable workload shapes explicit instead of hiding
+them in Terraform locals or workflow conditionals.
 
 Service workloads must provide:
 

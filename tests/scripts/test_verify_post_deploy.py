@@ -12,6 +12,21 @@ import scripts.release.verify_post_deploy as verify_post_deploy  # noqa: E402
 
 
 def test_http_checks_require_health_ready_and_metrics(monkeypatch) -> None:
+    monkeypatch.setattr(
+        verify_post_deploy,
+        "primary_edge_contract",
+        lambda: {
+            "metrics_required_names": [
+                "http_requests_total",
+                "http_request_duration_seconds",
+            ],
+            "runtime_mode_endpoints": {
+                "read": "/admin/read-mode",
+                "write": "/admin/write-mode",
+            },
+        },
+    )
+
     def fake_get_json(base_url: str, path: str) -> tuple[int, dict[str, Any]]:
         responses = {
             "/health": (200, {"status": "ok"}),
@@ -43,6 +58,54 @@ def test_runtime_mode_check_compares_expected_value(monkeypatch) -> None:
     assert not verify_post_deploy._check_runtime_mode(
         "http://app.local", "/admin/write-mode", "new", "WRITE_MODE"
     ).ok
+
+
+def test_runtime_mode_checks_follow_declared_metadata(monkeypatch) -> None:
+    monkeypatch.setattr(
+        verify_post_deploy,
+        "primary_edge_contract",
+        lambda: {
+            "metrics_required_names": [
+                "http_requests_total",
+                "http_request_duration_seconds",
+            ],
+            "runtime_mode_endpoints": {
+                "read": "/admin/read-mode",
+                "write": "/admin/write-mode",
+            },
+        },
+    )
+
+    def fake_get_json(base_url: str, path: str) -> tuple[int, dict[str, Any]]:
+        return 200, {"mode": "legacy" if path.endswith("read-mode") else "dual"}
+
+    monkeypatch.setattr(verify_post_deploy, "_get_json", fake_get_json)
+    monkeypatch.setenv("EXPECTED_READ_MODE", "legacy")
+    monkeypatch.setenv("EXPECTED_WRITE_MODE", "dual")
+
+    results = verify_post_deploy._runtime_mode_checks("http://app.local")
+
+    assert [result.ok for result in results] == [True, True]
+
+
+def test_runtime_mode_checks_skip_when_not_declared(monkeypatch) -> None:
+    monkeypatch.setattr(
+        verify_post_deploy,
+        "primary_edge_contract",
+        lambda: {
+            "metrics_required_names": [
+                "http_requests_total",
+                "http_request_duration_seconds",
+            ],
+            "runtime_mode_endpoints": {},
+        },
+    )
+
+    results = verify_post_deploy._runtime_mode_checks("http://app.local")
+
+    assert len(results) == 1
+    assert results[0].ok
+    assert "skipped" in results[0].message
 
 
 def test_ecs_checks_are_skipped_without_service_env(monkeypatch) -> None:

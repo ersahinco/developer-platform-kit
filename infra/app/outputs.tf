@@ -5,7 +5,7 @@ output "primary_edge_fqdn" {
 
 output "primary_edge_unhealthy_targets_alarm_name" {
   description = "CloudWatch alarm for unhealthy ALB targets behind the primary edge workload."
-  value       = aws_cloudwatch_metric_alarm.api_unhealthy_targets.alarm_name
+  value       = aws_cloudwatch_metric_alarm.primary_edge_unhealthy_targets.alarm_name
 }
 
 output "primary_edge_symptom_cloudwatch_alarms_enabled" {
@@ -15,17 +15,17 @@ output "primary_edge_symptom_cloudwatch_alarms_enabled" {
 
 output "primary_edge_target_5xx_alarm_name" {
   description = "CloudWatch alarm for target-generated 5xx responses behind the primary edge workload."
-  value       = var.enable_primary_edge_symptom_cloudwatch_alarms ? aws_cloudwatch_metric_alarm.api_target_5xx[0].alarm_name : null
+  value       = var.enable_primary_edge_symptom_cloudwatch_alarms ? aws_cloudwatch_metric_alarm.primary_edge_target_5xx[0].alarm_name : null
 }
 
 output "primary_edge_target_latency_alarm_name" {
   description = "CloudWatch alarm for elevated primary edge target response time behind the ALB."
-  value       = var.enable_primary_edge_symptom_cloudwatch_alarms ? aws_cloudwatch_metric_alarm.api_target_latency[0].alarm_name : null
+  value       = var.enable_primary_edge_symptom_cloudwatch_alarms ? aws_cloudwatch_metric_alarm.primary_edge_target_latency[0].alarm_name : null
 }
 
 output "primary_edge_service_name" {
   description = "ECS service name for the primary public edge workload."
-  value       = aws_ecs_service.api.name
+  value       = aws_ecs_service.primary_edge.name
 }
 
 output "event_consumer_service_name" {

@@ -42,7 +42,6 @@ locals {
     for name, capabilities in local.workload_capabilities : name
     if capabilities.async_eventing
   ])
-  api_service_port                  = local.primary_edge_service_port
   primary_async_eventing_dapr       = local.workloads_by_name[local.primary_async_eventing_workload_name].dapr
   primary_async_eventing_repository = local.workloads_by_name[local.primary_async_eventing_workload_name].image.repository
   primary_async_eventing_service_port = (
@@ -134,7 +133,7 @@ locals {
   }
 
   workload_static_env_overrides = {
-    api = {
+    (local.primary_edge_workload_name) = {
       ROLLOUT_DRILL_FAULT_MODE          = "off"
       ROLLOUT_DRILL_FAULT_PATHS         = "/ready"
       ROLLOUT_DRILL_FAULT_DELAY_SECONDS = "3"

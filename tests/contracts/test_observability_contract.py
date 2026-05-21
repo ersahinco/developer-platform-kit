@@ -39,9 +39,9 @@ def test_cloud_observability_is_adot_sidecar_not_hosted_lgtm() -> None:
     assert "adot_collector_container" in observability_tf
     assert 'command   = ["--config=env:ADOT_COLLECTOR_CONFIG"]' in (observability_tf)
     assert "http://127.0.0.1:4318/v1/traces" in workload_inventory_tf
-    assert 'local.workload_environment["api"]' in compute_tf
+    assert "local.workload_environment[local.primary_edge_workload_name]" in compute_tf
     assert "default_adot_collector_config" in observability_tf
-    assert "job_name: api" in observability_tf
+    assert "job_name: ${local.primary_edge_repository}" in observability_tf
 
     for retired in [
         'resource "aws_ecs_service" "grafana"',

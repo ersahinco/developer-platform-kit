@@ -10,7 +10,7 @@ SUBNET_ID=$(aws ec2 describe-subnets \
   --output text)
 
 SG_ID=$(aws ec2 describe-security-groups \
-  --filters "Name=group-name,Values=${STACK_NAME}-api-*" \
+  --filters "Name=group-name,Values=${STACK_NAME}-primary-edge-*" \
   --query 'SecurityGroups[0].GroupId' \
   --output text)
 
@@ -20,7 +20,7 @@ if [ -z "$SUBNET_ID" ] || [ "$SUBNET_ID" = "None" ]; then
 fi
 
 if [ -z "$SG_ID" ] || [ "$SG_ID" = "None" ]; then
-  echo "Failed to resolve api security group for stack ${STACK_NAME}" >&2
+  echo "Failed to resolve primary edge security group for stack ${STACK_NAME}" >&2
   exit 1
 fi
 

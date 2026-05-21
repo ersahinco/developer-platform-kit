@@ -24,7 +24,7 @@ locals {
       family         = "${local.name}-backfill-worker"
       cpu            = var.backfill_worker_cpu
       memory         = var.backfill_worker_memory
-      task_role_arn  = aws_iam_role.api_task.arn
+      task_role_arn  = aws_iam_role.primary_edge_task.arn
       container_name = "backfill-worker"
     }
     data_export_job = {
@@ -291,7 +291,7 @@ resource "aws_scheduler_schedule" "data_export_job" {
 
       network_configuration {
         assign_public_ip = false
-        security_groups  = [aws_security_group.api.id]
+        security_groups  = [aws_security_group.primary_edge.id]
         subnets          = local.platform.private_subnet_ids
       }
     }
@@ -467,7 +467,7 @@ resource "aws_ecs_service" "event_consumer" {
 
   network_configuration {
     assign_public_ip = false
-    security_groups  = [aws_security_group.api.id]
+    security_groups  = [aws_security_group.primary_edge.id]
     subnets          = local.platform.private_subnet_ids
   }
 

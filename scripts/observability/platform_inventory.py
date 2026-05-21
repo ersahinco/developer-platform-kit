@@ -102,7 +102,11 @@ def _primary_async_eventing_row() -> dict[str, str]:
 
 
 def edge_service_repository() -> str:
-    return _edge_service_row().get("repository", "") or "api"
+    row = _edge_service_row()
+    repository = row.get("repository", "")
+    if repository:
+        return repository
+    return str(row.get("name", "")).replace("_", "-")
 
 
 def edge_service_hostname_label() -> str:
@@ -114,7 +118,11 @@ def edge_trace_service_name(stack_name: str) -> str:
 
 
 def dapr_workload_service_name() -> str:
-    return _primary_async_eventing_row().get("repository", "") or "event-consumer"
+    row = _primary_async_eventing_row()
+    repository = row.get("repository", "")
+    if repository:
+        return repository
+    return str(row.get("name", "")).replace("_", "-")
 
 
 @lru_cache(maxsize=1)

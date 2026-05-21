@@ -36,11 +36,11 @@ resource "aws_security_group" "alb" {
   tags = local.tags
 }
 
-resource "aws_security_group" "api" {
+resource "aws_security_group" "primary_edge" {
   # name_prefix + create_before_destroy: same reason as alb SG — description
   # changes force replacement and a fixed name collides in the same VPC.
-  name_prefix = "${local.name}-api-"
-  description = "API tasks: inbound from ALB only, HTTPS egress to AWS APIs, Postgres to RDS"
+  name_prefix = "${local.name}-primary-edge-"
+  description = "Primary edge tasks: inbound from ALB only, HTTPS egress to AWS APIs, Postgres to RDS"
   vpc_id      = local.platform.vpc_id
 
   lifecycle {
@@ -49,8 +49,8 @@ resource "aws_security_group" "api" {
 
   ingress {
     description     = "From ALB on container port"
-    from_port       = local.api_service_port
-    to_port         = local.api_service_port
+    from_port       = local.primary_edge_service_port
+    to_port         = local.primary_edge_service_port
     protocol        = "tcp"
     security_groups = [aws_security_group.alb.id]
   }
@@ -102,7 +102,7 @@ resource "aws_lb" "this" {
 
 resource "aws_wafv2_web_acl" "edge" {
   name        = "${local.name}-edge"
-  description = "Managed-rule WAF protection for the public API ALB"
+  description = "Managed-rule WAF protection for the public primary edge ALB"
   scope       = "REGIONAL"
 
   default_action {
@@ -189,9 +189,9 @@ resource "aws_wafv2_web_acl_association" "edge_alb" {
   web_acl_arn  = aws_wafv2_web_acl.edge.arn
 }
 
-resource "aws_lb_target_group" "api" {
+resource "aws_lb_target_group" "primary_edge" {
   name        = local.name
-  port        = local.api_service_port
+  port        = local.primary_edge_service_port
   protocol    = "HTTP"
   vpc_id      = local.platform.vpc_id
   target_type = "ip" # required for Fargate — each task gets its own ENI
@@ -214,7 +214,7 @@ resource "aws_lb_target_group" "api" {
   tags = local.tags
 }
 
-resource "aws_cloudwatch_metric_alarm" "api_unhealthy_targets" {
+resource "aws_cloudwatch_metric_alarm" "primary_edge_unhealthy_targets" {
   alarm_name          = "${local.name}-${local.primary_edge_repository}-unhealthy-targets"
   alarm_description   = "ALB reports unhealthy primary edge targets. Runbook: docs/runbooks/app-service-unhealthy.md"
   comparison_operator = "GreaterThanThreshold"
@@ -230,13 +230,13 @@ resource "aws_cloudwatch_metric_alarm" "api_unhealthy_targets" {
 
   dimensions = {
     LoadBalancer = aws_lb.this.arn_suffix
-    TargetGroup  = aws_lb_target_group.api.arn_suffix
+    TargetGroup  = aws_lb_target_group.primary_edge.arn_suffix
   }
 
   tags = local.tags
 }
 
-resource "aws_cloudwatch_metric_alarm" "api_target_5xx" {
+resource "aws_cloudwatch_metric_alarm" "primary_edge_target_5xx" {
   count = var.enable_primary_edge_symptom_cloudwatch_alarms ? 1 : 0
 
   alarm_name          = "${local.name}-${local.primary_edge_repository}-target-5xx"
@@ -254,13 +254,13 @@ resource "aws_cloudwatch_metric_alarm" "api_target_5xx" {
 
   dimensions = {
     LoadBalancer = aws_lb.this.arn_suffix
-    TargetGroup  = aws_lb_target_group.api.arn_suffix
+    TargetGroup  = aws_lb_target_group.primary_edge.arn_suffix
   }
 
   tags = local.tags
 }
 
-resource "aws_cloudwatch_metric_alarm" "api_target_latency" {
+resource "aws_cloudwatch_metric_alarm" "primary_edge_target_latency" {
   count = var.enable_primary_edge_symptom_cloudwatch_alarms ? 1 : 0
 
   alarm_name          = "${local.name}-${local.primary_edge_repository}-target-latency"
@@ -278,13 +278,13 @@ resource "aws_cloudwatch_metric_alarm" "api_target_latency" {
 
   dimensions = {
     LoadBalancer = aws_lb.this.arn_suffix
-    TargetGroup  = aws_lb_target_group.api.arn_suffix
+    TargetGroup  = aws_lb_target_group.primary_edge.arn_suffix
   }
 
   tags = local.tags
 }
 
-resource "aws_acm_certificate" "api" {
+resource "aws_acm_certificate" "primary_edge" {
   domain_name       = local.primary_edge_fqdn
   validation_method = "DNS"
 
@@ -295,9 +295,9 @@ resource "aws_acm_certificate" "api" {
   tags = local.tags
 }
 
-resource "aws_route53_record" "api_cert_validation" {
+resource "aws_route53_record" "primary_edge_cert_validation" {
   for_each = {
-    for dvo in aws_acm_certificate.api.domain_validation_options : dvo.domain_name => {
+    for dvo in aws_acm_certificate.primary_edge.domain_validation_options : dvo.domain_name => {
       name   = dvo.resource_record_name
       record = dvo.resource_record_value
       type   = dvo.resource_record_type
@@ -312,9 +312,9 @@ resource "aws_route53_record" "api_cert_validation" {
   allow_overwrite = true
 }
 
-resource "aws_acm_certificate_validation" "api" {
-  certificate_arn         = aws_acm_certificate.api.arn
-  validation_record_fqdns = [for record in aws_route53_record.api_cert_validation : record.fqdn]
+resource "aws_acm_certificate_validation" "primary_edge" {
+  certificate_arn         = aws_acm_certificate.primary_edge.arn
+  validation_record_fqdns = [for record in aws_route53_record.primary_edge_cert_validation : record.fqdn]
 }
 
 ################################################################################
@@ -329,7 +329,7 @@ resource "aws_lb_listener" "https" {
   port              = 443
   protocol          = "HTTPS"
   ssl_policy        = "ELBSecurityPolicy-TLS13-1-2-2021-06"
-  certificate_arn   = aws_acm_certificate_validation.api.certificate_arn
+  certificate_arn   = aws_acm_certificate_validation.primary_edge.certificate_arn
 
   # Default action: deny — safety net for any request that misses rule 1.
   default_action {
@@ -364,11 +364,11 @@ resource "aws_lb_listener_rule" "auth" {
 
   action {
     type             = "forward"
-    target_group_arn = aws_lb_target_group.api.arn
+    target_group_arn = aws_lb_target_group.primary_edge.arn
   }
 }
 
-resource "aws_route53_record" "api_alias" {
+resource "aws_route53_record" "primary_edge_alias" {
   zone_id = local.platform.route53_public_zone_id
   name    = local.primary_edge_fqdn
   type    = "A"

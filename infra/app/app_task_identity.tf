@@ -6,7 +6,7 @@
 # runtime IAM ownership.
 ################################################################################
 
-data "aws_iam_policy_document" "api_task_assume" {
+data "aws_iam_policy_document" "primary_edge_task_assume" {
   statement {
     sid     = "ECSTasksAssumeRole"
     actions = ["sts:AssumeRole"]
@@ -30,17 +30,17 @@ data "aws_iam_policy_document" "api_task_assume" {
   }
 }
 
-resource "aws_iam_role" "api_task" {
+resource "aws_iam_role" "primary_edge_task" {
   name_prefix = "primary-edge-tasks-"
   description = "IAM role for ECS tasks in the primary edge workload"
 
-  assume_role_policy    = data.aws_iam_policy_document.api_task_assume.json
+  assume_role_policy    = data.aws_iam_policy_document.primary_edge_task_assume.json
   force_detach_policies = true
 
   tags = local.tags
 }
 
-data "aws_iam_policy_document" "api_task" {
+data "aws_iam_policy_document" "primary_edge_task" {
   statement {
     sid = "ECSExec"
     actions = [
@@ -53,15 +53,15 @@ data "aws_iam_policy_document" "api_task" {
   }
 }
 
-resource "aws_iam_policy" "api_task" {
+resource "aws_iam_policy" "primary_edge_task" {
   name_prefix = "primary-edge-tasks-"
   description = "Task role IAM policy"
-  policy      = data.aws_iam_policy_document.api_task.json
+  policy      = data.aws_iam_policy_document.primary_edge_task.json
 
   tags = local.tags
 }
 
-resource "aws_iam_role_policy_attachment" "api_task_internal" {
-  role       = aws_iam_role.api_task.name
-  policy_arn = aws_iam_policy.api_task.arn
+resource "aws_iam_role_policy_attachment" "primary_edge_task_internal" {
+  role       = aws_iam_role.primary_edge_task.name
+  policy_arn = aws_iam_policy.primary_edge_task.arn
 }

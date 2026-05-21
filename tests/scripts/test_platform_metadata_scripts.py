@@ -31,14 +31,22 @@ def test_workload_metadata_capability_matrix_reports_declared_workloads() -> Non
         workload["name"] for workload in contract["workloads"]
     ]
     assert rows[0]["class"] == "edge-service"
+    assert rows[0]["patterns"] == "edge-service"
     assert rows[0]["use_cases"] == "http-api"
     assert rows[0]["edge_exposure"] == "public"
+    assert rows[0]["edge_auth_mode"] == "static-bearer-token"
     assert rows[0]["database_pooling"] == "transaction_pool"
     assert rows[0]["async_eventing"] == "false"
     assert rows[0]["tracing"] == "true"
+    assert rows[0]["verification_profile"] == "primary-edge-runtime-modes"
+    assert (
+        rows[0]["runtime_mode_endpoints"]
+        == "read:/admin/read-mode,write:/admin/write-mode"
+    )
 
     event_consumer = next(row for row in rows if row["name"] == "event_consumer")
     assert event_consumer["class"] == "internal-service"
+    assert event_consumer["patterns"] == "internal-async-service"
     assert event_consumer["use_cases"] == "event-consumer,integration"
     assert event_consumer["service_port"] == "8081"
     assert event_consumer["async_eventing"] == "true"
@@ -46,6 +54,7 @@ def test_workload_metadata_capability_matrix_reports_declared_workloads() -> Non
 
     data_export_job = next(row for row in rows if row["name"] == "data_export_job")
     assert data_export_job["kind"] == "job"
+    assert data_export_job["patterns"] == "scheduled-job,export-job"
     assert data_export_job["use_cases"] == "data-export,scheduled-pipeline"
     assert data_export_job["trigger"] == "schedule"
     assert data_export_job["service_port"] == ""
@@ -65,6 +74,7 @@ def test_workload_metadata_usage_lists_capability_matrix_command() -> None:
     assert "implementation-matrix" in completed.stderr
     assert "adapter-seam-matrix" in completed.stderr
     assert "inventory-json" in completed.stderr
+    assert "primary-edge-contract" in completed.stderr
 
 
 def test_workload_metadata_cli_reports_declared_workload_groups() -> None:
@@ -85,6 +95,21 @@ def test_workload_metadata_cli_reports_declared_workload_groups() -> None:
         expected_primary_edge["image"]["repository"],
         expected_primary_edge["edge"]["hostname_label"],
     ]
+
+    primary_edge_contract = json.loads(
+        _run_workload_metadata("primary-edge-contract").stdout
+    )
+    assert primary_edge_contract == {
+        "name": expected_primary_edge["name"],
+        "repository": expected_primary_edge["image"]["repository"],
+        "hostname_label": expected_primary_edge["edge"]["hostname_label"],
+        "auth_mode": expected_primary_edge["edge"]["auth_mode"],
+        "verification_profile": expected_primary_edge["verification"]["profile"],
+        "runtime_mode_endpoints": expected_primary_edge["verification"][
+            "runtime_mode_endpoints"
+        ],
+        "metrics_required_names": expected_primary_edge["metrics"]["required_names"],
+    }
 
     internal_services = _run_workload_metadata("internal-services").stdout.splitlines()
     assert internal_services == [
@@ -150,6 +175,9 @@ def test_workload_metadata_image_matrix_matches_declared_apps() -> None:
 
 def test_workload_metadata_inventory_json_reports_stable_center_and_seams() -> None:
     contract = json.loads((ROOT / "platform" / "workloads.json").read_text())
+    workload_patterns = json.loads(
+        (ROOT / "platform" / "workload-patterns.json").read_text()
+    )
     platform_inventory = json.loads(
         (ROOT / "platform" / "platform-inventory.json").read_text()
     )
@@ -161,11 +189,13 @@ def test_workload_metadata_inventory_json_reports_stable_center_and_seams() -> N
     assert inventory["stable_center"]["platform_concerns_root"] == "platform/concerns"
     assert inventory["stable_center"]["catalog_root"] == "infra/catalog"
     assert inventory["current_runtime_target"] == "aws-ecs"
+    assert inventory["workload_patterns"] == workload_patterns["patterns"]
 
     assert [row["name"] for row in inventory["workloads"]] == [
         workload["name"] for workload in contract["workloads"]
     ]
     assert inventory["workloads"][0]["use_cases"] == "http-api"
+    assert inventory["workloads"][0]["patterns"] == "edge-service"
     assert any(
         row["capability"] == "relational_database"
         for row in inventory["runtime_capabilities"]

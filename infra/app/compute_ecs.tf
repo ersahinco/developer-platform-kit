@@ -3,7 +3,7 @@
 ################################################################################
 
 locals {
-  api_task_container_definitions = merge(local.adot_collector_container, {
+  primary_edge_task_container_definitions = merge(local.adot_collector_container, {
     # PgBouncer sidecar — runs in the same task network namespace as the app.
     # The app's DATABASE_URL points to localhost:5432 (pgbouncer), not RDS directly.
     # transaction mode: server connections are returned to the pool after each
@@ -65,7 +65,7 @@ locals {
       essential = true
 
       # ECS container definition keys are camelCase — they map directly to the ECS API
-      portMappings   = [{ containerPort = local.api_service_port, hostPort = local.api_service_port, protocol = "tcp" }]
+      portMappings   = [{ containerPort = local.primary_edge_service_port, hostPort = local.primary_edge_service_port, protocol = "tcp" }]
       systemControls = []
       volumesFrom    = []
 
@@ -81,7 +81,7 @@ locals {
       )
 
       healthCheck = {
-        command = ["CMD-SHELL", "python -c \"import urllib.request; urllib.request.urlopen('http://localhost:${local.api_service_port}/health')\""]
+        command = ["CMD-SHELL", "python -c \"import urllib.request; urllib.request.urlopen('http://localhost:${local.primary_edge_service_port}/health')\""]
         # 5s interval, startPeriod covers Fargate cold start (~15s).
         # After startPeriod, 2 × 5s = 10s to mark healthy.
         interval    = 5
@@ -106,8 +106,8 @@ locals {
     }
   })
 
-  api_task_definition_containers = [
-    for name, definition in local.api_task_container_definitions :
+  primary_edge_task_definition_containers = [
+    for name, definition in local.primary_edge_task_container_definitions :
     merge(definition, { name = name })
   ]
 }
@@ -125,21 +125,21 @@ locals {
 # family only for create/read purposes and ignores service task-definition drift.
 ################################################################################
 
-resource "aws_ecs_task_definition" "api" {
+resource "aws_ecs_task_definition" "primary_edge" {
   family                   = local.name
   requires_compatibilities = ["FARGATE"]
   network_mode             = "awsvpc"
   cpu                      = var.primary_edge_cpu
   memory                   = var.primary_edge_memory
   execution_role_arn       = aws_iam_role.task_exec.arn
-  task_role_arn            = aws_iam_role.api_task.arn
-  container_definitions    = jsonencode(local.api_task_definition_containers)
+  task_role_arn            = aws_iam_role.primary_edge_task.arn
+  container_definitions    = jsonencode(local.primary_edge_task_definition_containers)
 
   tags = local.tags
 }
 
-data "aws_ecs_task_definition" "api_current" {
-  depends_on      = [aws_ecs_task_definition.api]
+data "aws_ecs_task_definition" "primary_edge_current" {
+  depends_on      = [aws_ecs_task_definition.primary_edge]
   task_definition = local.name
 }
 
@@ -160,10 +160,10 @@ module "ecs" {
   tags = local.tags
 }
 
-resource "aws_ecs_service" "api" {
+resource "aws_ecs_service" "primary_edge" {
   name            = local.primary_edge_repository
   cluster         = module.ecs.cluster_arn
-  task_definition = data.aws_ecs_task_definition.api_current.arn
+  task_definition = data.aws_ecs_task_definition.primary_edge_current.arn
   desired_count   = var.primary_edge_bootstrap_desired_count
   launch_type     = "FARGATE"
 
@@ -187,8 +187,8 @@ resource "aws_ecs_service" "api" {
 
     content {
       alarm_names = [
-        aws_cloudwatch_metric_alarm.api_target_5xx[0].alarm_name,
-        aws_cloudwatch_metric_alarm.api_target_latency[0].alarm_name,
+        aws_cloudwatch_metric_alarm.primary_edge_target_5xx[0].alarm_name,
+        aws_cloudwatch_metric_alarm.primary_edge_target_latency[0].alarm_name,
       ]
       enable   = true
       rollback = true
@@ -196,14 +196,14 @@ resource "aws_ecs_service" "api" {
   }
 
   load_balancer {
-    target_group_arn = aws_lb_target_group.api.arn
+    target_group_arn = aws_lb_target_group.primary_edge.arn
     container_name   = local.primary_edge_repository
     container_port   = local.primary_edge_service_port
   }
 
   network_configuration {
     assign_public_ip = false
-    security_groups  = [aws_security_group.api.id]
+    security_groups  = [aws_security_group.primary_edge.id]
     subnets          = local.platform.private_subnet_ids
   }
 
@@ -224,9 +224,9 @@ resource "aws_ecs_service" "api" {
 # to RDS without a bastion host.
 ################################################################################
 
-resource "aws_iam_role_policy" "task_ssm_exec" {
+resource "aws_iam_role_policy" "primary_edge_task_ssm_exec" {
   name = "ssm-exec"
-  role = aws_iam_role.api_task.name
+  role = aws_iam_role.primary_edge_task.name
 
   policy = jsonencode({
     Version = "2012-10-17"

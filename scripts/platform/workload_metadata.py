@@ -19,6 +19,11 @@ def platform_inventory_document() -> dict[str, Any]:
     return json.loads((ROOT / "platform" / "platform-inventory.json").read_text())
 
 
+@lru_cache(maxsize=1)
+def workload_pattern_contract() -> dict[str, Any]:
+    return json.loads((ROOT / "platform" / "workload-patterns.json").read_text())
+
+
 def workloads() -> list[dict[str, Any]]:
     values = workload_contract().get("workloads", [])
     return values if isinstance(values, list) else []
@@ -77,6 +82,46 @@ def workload_database(workload: dict[str, Any]) -> dict[str, Any] | None:
 def workload_use_cases(workload: dict[str, Any]) -> list[str]:
     values = workload.get("use_cases", [])
     return [value for value in values if isinstance(value, str)]
+
+
+def workload_patterns(workload: dict[str, Any]) -> list[str]:
+    values = workload.get("patterns", [])
+    return [value for value in values if isinstance(value, str)]
+
+
+def workload_edge_auth_mode(workload: dict[str, Any]) -> str:
+    edge = workload.get("edge", {})
+    if not isinstance(edge, dict):
+        return ""
+    auth_mode = edge.get("auth_mode")
+    return auth_mode if isinstance(auth_mode, str) else ""
+
+
+def workload_verification(workload: dict[str, Any]) -> dict[str, Any] | None:
+    verification = workload.get("verification")
+    return verification if isinstance(verification, dict) else None
+
+
+def workload_verification_profile(workload: dict[str, Any]) -> str:
+    verification = workload_verification(workload)
+    if not isinstance(verification, dict):
+        return ""
+    profile = verification.get("profile")
+    return profile if isinstance(profile, str) else ""
+
+
+def workload_runtime_mode_endpoints(workload: dict[str, Any]) -> dict[str, str]:
+    verification = workload_verification(workload)
+    if not isinstance(verification, dict):
+        return {}
+    endpoints = verification.get("runtime_mode_endpoints")
+    if not isinstance(endpoints, dict):
+        return {}
+    return {
+        key: value
+        for key, value in endpoints.items()
+        if isinstance(key, str) and isinstance(value, str)
+    }
 
 
 def build_image_matrix(tag: str, pgbouncer_tag: str) -> list[dict[str, Any]]:
@@ -158,6 +203,7 @@ def workload_capability_rows() -> list[dict[str, str]]:
                 "name": str(workload.get("name", "")),
                 "kind": str(workload.get("kind", "")),
                 "class": workload_operational_class(workload),
+                "patterns": ",".join(workload_patterns(workload)),
                 "use_cases": ",".join(workload_use_cases(workload)),
                 "repository": workload_repository(workload),
                 "edge_exposure": (
@@ -165,6 +211,7 @@ def workload_capability_rows() -> list[dict[str, str]]:
                     if isinstance(operational, dict)
                     else ""
                 ),
+                "edge_auth_mode": workload_edge_auth_mode(workload),
                 "trigger": (
                     str(operational.get("trigger", ""))
                     if isinstance(operational, dict)
@@ -180,6 +227,15 @@ def workload_capability_rows() -> list[dict[str, str]]:
                 ),
                 "async_eventing": str(capabilities["async_eventing"]).lower(),
                 "tracing": str(capabilities["tracing"]).lower(),
+                "verification_profile": workload_verification_profile(workload),
+                "runtime_mode_endpoints": ",".join(
+                    [
+                        f"{name}:{path}"
+                        for name, path in sorted(
+                            workload_runtime_mode_endpoints(workload).items()
+                        )
+                    ]
+                ),
             }
         )
     return rows
@@ -201,6 +257,7 @@ def platform_inventory() -> dict[str, Any]:
         "schema_version": int(str(document.get("schema_version", "1"))),
         "stable_center": dict(document.get("stable_center", {})),
         "current_runtime_target": str(document.get("current_runtime_target", "")),
+        "workload_patterns": workload_pattern_contract().get("patterns", []),
         "workloads": workload_capability_rows(),
         "runtime_capabilities": current_runtime_capability_rows(),
         "adapter_seams": adapter_seam_rows(),
@@ -258,6 +315,19 @@ def primary_edge_service_workload() -> dict[str, Any]:
     return matches[0]
 
 
+def primary_edge_contract() -> dict[str, Any]:
+    workload = primary_edge_service_workload()
+    return {
+        "name": str(workload["name"]),
+        "repository": workload_repository(workload),
+        "hostname_label": workload_hostname_label(workload),
+        "auth_mode": workload_edge_auth_mode(workload),
+        "verification_profile": workload_verification_profile(workload),
+        "runtime_mode_endpoints": workload_runtime_mode_endpoints(workload),
+        "metrics_required_names": workload["metrics"]["required_names"],
+    }
+
+
 def _print_repositories() -> int:
     for workload in workloads():
         print(workload_repository(workload))
@@ -275,6 +345,11 @@ def _print_primary_edge() -> int:
             ]
         )
     )
+    return 0
+
+
+def _print_primary_edge_contract() -> int:
+    print(json.dumps(primary_edge_contract(), separators=(",", ":")))
     return 0
 
 
@@ -309,14 +384,18 @@ def _print_capability_matrix() -> int:
         "name",
         "kind",
         "class",
+        "patterns",
         "use_cases",
         "repository",
         "edge_exposure",
+        "edge_auth_mode",
         "trigger",
         "service_port",
         "database_pooling",
         "async_eventing",
         "tracing",
+        "verification_profile",
+        "runtime_mode_endpoints",
     ]
     print("\t".join(headers))
     for row in workload_capability_rows():
@@ -371,7 +450,7 @@ def main(argv: list[str] | None = None) -> int:
     if not argv:
         print(
             "usage: python -m scripts.platform.workload_metadata "
-            "<repositories|primary-edge|internal-services|job-workloads|image-matrix|capability-matrix|use-case-matrix|implementation-matrix|adapter-seam-matrix|inventory-json>",
+            "<repositories|primary-edge|primary-edge-contract|internal-services|job-workloads|image-matrix|capability-matrix|use-case-matrix|implementation-matrix|adapter-seam-matrix|inventory-json>",
             file=sys.stderr,
         )
         return 1
@@ -380,6 +459,7 @@ def main(argv: list[str] | None = None) -> int:
     handlers = {
         "repositories": lambda _args: _print_repositories(),
         "primary-edge": lambda _args: _print_primary_edge(),
+        "primary-edge-contract": lambda _args: _print_primary_edge_contract(),
         "internal-services": lambda _args: _print_internal_services(),
         "job-workloads": lambda _args: _print_job_workloads(),
         "image-matrix": _print_image_matrix,

@@ -12,11 +12,12 @@ Canonical design truth lives in:
 ## Order
 
 1. Declare workload intent in `platform/workloads.json`.
-2. Add the host under `apps/`.
-3. Reuse `packages/` only for truly shared behavior.
-4. Wire local and shared platform concerns.
-5. Wire the current runtime-target realization.
-6. Add tests and docs.
+2. Choose one or more existing workload patterns from `platform/workload-patterns.json`.
+3. Add the host under `apps/`.
+4. Reuse `packages/` only for truly shared behavior.
+5. Wire local and shared platform concerns.
+6. Wire the current runtime-target realization.
+7. Add tests and docs.
 
 ## Pick The Operational Class First
 
@@ -71,6 +72,7 @@ Add the workload to `platform/workloads.json` with:
 
 - `name`
 - `kind`
+- `patterns`
 - `use_cases`
 - `app_path`
 - `operational`
@@ -80,6 +82,7 @@ Add the workload to `platform/workloads.json` with:
 - `service` for HTTP workloads
 - `job` for jobs
 - `dapr` only when a real Dapr capability is needed
+- `edge.auth_mode` and `verification` when the workload is the primary edge
 
 Do not add:
 
@@ -99,10 +102,11 @@ Do not add:
 
 | Need | Pattern |
 |---|---|
-| public HTTP API | `apps/api` |
-| internal Dapr-backed service | `apps/event_consumer` |
-| operator-triggered job | `apps/backfill_worker` |
-| scheduled export job | `apps/data_export_job` |
+| public HTTP API | pattern `edge-service`, reference host `apps/api` |
+| internal Dapr-backed service | pattern `internal-async-service`, reference host `apps/event_consumer` |
+| operator-triggered job | pattern `operator-job`, reference host `apps/backfill_worker` |
+| scheduled export job | patterns `scheduled-job` + `export-job`, reference host `apps/data_export_job` |
+| scheduled data pipeline | patterns `scheduled-job` + `data-pipeline`, reference host `apps/open_dataset_pipeline` |
 
 Reuse `platform/workload.Dockerfile` unless there is a concrete reason not to.
 If a workload needs a different container shape, declare `image.dockerfile`
@@ -122,6 +126,7 @@ workload changes build/deploy inventory, runtime resources, or platform-visible
 signals.
 
 Rule: extend metadata-driven paths before adding handwritten inventory.
+Rule: prefer selecting runtime behavior from `patterns`, edge metadata, or workload capability metadata before adding new workload-name branches.
 Rule: reserve new runtime-target seams in docs and ownership before inventing a
 second workload specification.
 

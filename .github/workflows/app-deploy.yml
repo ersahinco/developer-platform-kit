@@ -172,14 +172,16 @@ jobs:
         id: net
         run: scripts/ci/ci_resolve_ecs_network.sh "${{ env.STACK_NAME }}"
 
-      - name: Resolve primary edge service
+      - name: Resolve primary edge contract
         id: primary-service
         run: |
-          IFS=$'\t' read -r workload_name service hostname_label < <(python3 -m scripts.platform.workload_metadata primary-edge)
+          primary_edge_contract=$(python3 -m scripts.platform.workload_metadata primary-edge-contract)
           {
-            echo "service=${service}"
-            echo "workload_name=${workload_name}"
-            echo "hostname_label=${hostname_label}"
+            echo "service=$(jq -r '.repository' <<< "${primary_edge_contract}")"
+            echo "workload_name=$(jq -r '.name' <<< "${primary_edge_contract}")"
+            echo "hostname_label=$(jq -r '.hostname_label' <<< "${primary_edge_contract}")"
+            echo "auth_mode=$(jq -r '.auth_mode' <<< "${primary_edge_contract}")"
+            echo "verification_profile=$(jq -r '.verification_profile' <<< "${primary_edge_contract}")"
           } >> "$GITHUB_OUTPUT"
 
       - name: Render primary edge task definition
@@ -188,11 +190,11 @@ jobs:
             "${STACK_NAME}" \
             "${{ steps.primary-service.outputs.service }}" \
             "${{ steps.aws-context.outputs.ecr_registry }}/${STACK_NAME}/${{ steps.primary-service.outputs.service }}:${IMAGE_TAG}" \
-            /tmp/api-task-definition.json
+            /tmp/primary-edge-task-definition.json
 
       - name: Deploy primary edge service
         id: deploy-app
-        run: scripts/ci/ci_deploy_ecs_service.sh "${STACK_NAME}" "${{ steps.primary-service.outputs.service }}" /tmp/api-task-definition.json 1
+        run: scripts/ci/ci_deploy_ecs_service.sh "${STACK_NAME}" "${{ steps.primary-service.outputs.service }}" /tmp/primary-edge-task-definition.json 1
 
       - name: Verify deployed edge service
         id: verify-app
@@ -205,12 +207,16 @@ jobs:
           WORKLOAD_CONTAINER_NAME: ${{ steps.primary-service.outputs.service }}
         run: |
           verify_started_epoch=$(date +%s)
-          TOKEN=$(aws secretsmanager get-secret-value \
-            --secret-id "${PRIMARY_EDGE_TOKEN_SECRET}" \
-            --region ${{ env.AWS_REGION }} \
-            --query SecretString \
-            --output text)
-          TOKEN="$TOKEN" uv run python scripts/release/verify_post_deploy.py
+          if [[ "${{ steps.primary-service.outputs.auth_mode }}" == "static-bearer-token" ]]; then
+            TOKEN=$(aws secretsmanager get-secret-value \
+              --secret-id "${PRIMARY_EDGE_TOKEN_SECRET}" \
+              --region ${{ env.AWS_REGION }} \
+              --query SecretString \
+              --output text)
+            TOKEN="$TOKEN" uv run python scripts/release/verify_post_deploy.py
+          else
+            uv run python scripts/release/verify_post_deploy.py
+          fi
           verify_seconds=$(($(date +%s) - verify_started_epoch))
           echo "verify_seconds=${verify_seconds}" >> "$GITHUB_OUTPUT"
 
