@@ -43,6 +43,8 @@ def test_create_order_records_order_created_outbox_message(http_client, db_sessi
     assert row.event_id == f"order.created.v1:{order_id}"
     assert row.message_group_id == "customer-1"
     assert row.message_deduplication_id == f"order.created.v1:{order_id}"
+    assert row.payload["aggregate_type"] == "order"
+    assert row.payload["aggregate_id"] == order_id
     assert row.payload["event_id"] == f"order.created.v1:{order_id}"
     assert row.status == "pending"
 

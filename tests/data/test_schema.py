@@ -65,7 +65,7 @@ _IDEMPOTENCY_TABLE_COLUMNS = {
     "updated_at",
 }
 
-_ORDER_EVENT_RECEIPT_TABLE_COLUMNS = {
+_EVENT_RECEIPT_TABLE_COLUMNS = {
     "event_id",
     "event_type",
     "aggregate_type",
@@ -157,18 +157,18 @@ def test_idempotency_keys_table_exists_with_expected_contract(db_engine):
     assert "chk_idempotency_keys_completed_has_response" in check_constraints
 
 
-def test_order_event_receipts_table_exists_with_expected_contract(db_engine):
-    """order_event_receipts records consumed async events and duplicate counts."""
+def test_event_receipts_table_exists_with_expected_contract(db_engine):
+    """event_receipts records consumed async events and duplicate counts."""
     inspector = inspect(db_engine)
-    cols = {c["name"] for c in inspector.get_columns("order_event_receipts")}
-    missing = _ORDER_EVENT_RECEIPT_TABLE_COLUMNS - cols
+    cols = {c["name"] for c in inspector.get_columns("event_receipts")}
+    missing = _EVENT_RECEIPT_TABLE_COLUMNS - cols
     assert not missing, f"missing columns: {missing}"
 
     check_constraints = {
-        c["name"] for c in inspector.get_check_constraints("order_event_receipts")
+        c["name"] for c in inspector.get_check_constraints("event_receipts")
     }
-    assert "chk_order_event_receipts_status_known" in check_constraints
-    assert "chk_order_event_receipts_duplicate_count_non_negative" in check_constraints
+    assert "chk_event_receipts_status_known" in check_constraints
+    assert "chk_event_receipts_duplicate_count_non_negative" in check_constraints
 
 
 @pytest.mark.require_phase("post_contract")

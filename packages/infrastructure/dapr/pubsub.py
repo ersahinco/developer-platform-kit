@@ -3,10 +3,10 @@ from urllib import error, parse, request
 
 from application.outbox import OutboxMessage
 
-ORDER_EVENTS_SOURCE = "aws-sdlc-containers/orders"
+EVENT_SOURCE = "aws-sdlc-containers/events"
 
 
-class DaprOrderEventPublisher:
+class DaprEventPublisher:
     def __init__(
         self,
         *,
@@ -53,7 +53,7 @@ def cloud_event_from_outbox_message(message: OutboxMessage) -> dict[str, object]
     cloud_event: dict[str, object] = {
         "specversion": "1.0",
         "id": message.event_id,
-        "source": ORDER_EVENTS_SOURCE,
+        "source": EVENT_SOURCE,
         "type": message.event_type,
         "subject": f"{message.aggregate_type}/{message.aggregate_id}",
         "datacontenttype": "application/json",

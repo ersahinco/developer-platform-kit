@@ -120,7 +120,7 @@ Rules:
 |---|---|---|
 | Order write model | `customers`, `orders`, `order_contact_email` | API and backfill worker |
 | Runtime configuration | `app_runtime_config` | API admin endpoints and Liquibase seed data |
-| Outbox and receipts | `outbox_messages`, `order_event_receipts`, `idempotency_keys` | API and event consumer |
+| Outbox and receipts | `outbox_messages`, `event_receipts`, `idempotency_keys` | API and event consumer |
 | Migration and backfill control | `backfill_progress`, `DATABASECHANGELOG`, `DATABASECHANGELOGLOCK` | Liquibase and backfill worker |
 | Export outputs | S3 data hub objects | data export job |
 

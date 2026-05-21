@@ -8,6 +8,8 @@ from infrastructure.config import require_value
 
 load_env_file()
 
+_DEFAULT_OUTPUT_DIR = "/tmp/aws-sdlc-containers-open-datasets"
+
 
 @dataclass
 class Settings:
@@ -19,9 +21,7 @@ class Settings:
     )
     open_dataset_output_dir: str = field(
         default_factory=lambda: require_value(
-            env_str(
-                "OPEN_DATASET_OUTPUT_DIR", "/tmp/aws-sdlc-containers-open-datasets"
-            ),
+            env_str("OPEN_DATASET_OUTPUT_DIR", _DEFAULT_OUTPUT_DIR),
             "OPEN_DATASET_OUTPUT_DIR",
         )
     )

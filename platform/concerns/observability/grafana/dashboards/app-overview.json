@@ -380,7 +380,7 @@
             "uid": "Loki"
           },
           "editorMode": "code",
-          "expr": "sum by (event) (count_over_time({stack=\"$stack\", environment=\"$environment\", service=\"event-consumer\"} | json | event=~\"outbox_relay|order_event_consumed|order_event_consume_failed\" [$__rate_interval]))",
+          "expr": "sum by (event) (count_over_time({stack=\"$stack\", environment=\"$environment\", service=\"event-consumer\"} | json | event=~\"outbox_relay|event_consumed|event_consume_failed\" [$__rate_interval]))",
           "legendFormat": "{{event}}",
           "queryType": "range",
           "refId": "A"

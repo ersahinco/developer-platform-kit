@@ -26,7 +26,7 @@ Each step is a separate changeset and deployment.
 |---|---|---|
 | Order write model | `customers`, `orders`, `order_contact_email` | API, backfill worker |
 | Runtime configuration | `app_runtime_config` | API admin endpoints, Liquibase seed |
-| Outbox and receipts | `outbox_messages`, `order_event_receipts`, `idempotency_keys` | API, order event runtime |
+| Outbox and receipts | `outbox_messages`, `event_receipts`, `idempotency_keys` | API, event consumer |
 | Migration and backfill control | `backfill_progress`, `DATABASECHANGELOG`, `DATABASECHANGELOGLOCK` | Liquibase, backfill worker |
 
 Do not write across capability ownership without a documented reason.

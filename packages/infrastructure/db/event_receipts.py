@@ -3,14 +3,14 @@ import datetime
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
-from application.order_event_receipts import OrderEventReceiptResult
-from infrastructure.db.models import OrderEventReceiptModel
+from application.event_receipts import EventReceiptResult
+from infrastructure.db.models import EventReceiptModel
 
 
 def _required_str(payload: dict[str, object], key: str) -> str:
     value = payload.get(key)
     if not isinstance(value, str) or not value:
-        raise ValueError(f"order event payload must include {key}")
+        raise ValueError(f"event payload must include {key}")
     return value
 
 
@@ -21,7 +21,14 @@ def _parse_event_time(value: str) -> datetime.datetime:
     return parsed.astimezone(datetime.UTC)
 
 
-class SQLAlchemyOrderEventReceiptRepository:
+def _required_int(payload: dict[str, object], key: str) -> int:
+    value = payload.get(key)
+    if not isinstance(value, int):
+        raise ValueError(f"event payload must include integer {key}")
+    return value
+
+
+class SQLAlchemyEventReceiptRepository:
     def __init__(self, session: Session) -> None:
         self._session = session
 
@@ -30,41 +37,39 @@ class SQLAlchemyOrderEventReceiptRepository:
         payload: dict[str, object],
         *,
         now: datetime.datetime,
-    ) -> OrderEventReceiptResult:
+    ) -> EventReceiptResult:
         event_id = _required_str(payload, "event_id")
         event_type = _required_str(payload, "event_type")
         idempotency_key = _required_str(payload, "idempotency_key")
+        aggregate_type = _required_str(payload, "aggregate_type")
+        aggregate_id = _required_int(payload, "aggregate_id")
         occurred_at = _parse_event_time(_required_str(payload, "occurred_at"))
-        order_payload = payload.get("order")
-        if not isinstance(order_payload, dict):
-            raise ValueError("order event payload must include an order object")
-        aggregate_id = int(order_payload["id"])
 
-        existing = self._session.get(OrderEventReceiptModel, event_id)
+        existing = self._session.get(EventReceiptModel, event_id)
         if existing is not None:
             existing.duplicate_count += 1
             existing.last_seen_at = now
             self._session.commit()
-            return OrderEventReceiptResult(status="duplicate", event_id=event_id)
+            return EventReceiptResult(status="duplicate", event_id=event_id)
 
         later_processed = self._session.execute(
-            select(OrderEventReceiptModel.event_id)
+            select(EventReceiptModel.event_id)
             .where(
-                OrderEventReceiptModel.event_type == event_type,
-                OrderEventReceiptModel.aggregate_type == "order",
-                OrderEventReceiptModel.aggregate_id == aggregate_id,
-                OrderEventReceiptModel.status == "processed",
-                OrderEventReceiptModel.occurred_at > occurred_at,
+                EventReceiptModel.event_type == event_type,
+                EventReceiptModel.aggregate_type == aggregate_type,
+                EventReceiptModel.aggregate_id == aggregate_id,
+                EventReceiptModel.status == "processed",
+                EventReceiptModel.occurred_at > occurred_at,
             )
             .limit(1)
         ).scalar_one_or_none()
         receipt_status = "ignored_stale" if later_processed else "processed"
 
         self._session.add(
-            OrderEventReceiptModel(
+            EventReceiptModel(
                 event_id=event_id,
                 event_type=event_type,
-                aggregate_type="order",
+                aggregate_type=aggregate_type,
                 aggregate_id=aggregate_id,
                 idempotency_key=idempotency_key,
                 occurred_at=occurred_at,
@@ -76,7 +81,7 @@ class SQLAlchemyOrderEventReceiptRepository:
             )
         )
         self._session.commit()
-        return OrderEventReceiptResult(
+        return EventReceiptResult(
             status="ignored_stale"
             if receipt_status == "ignored_stale"
             else "processed",

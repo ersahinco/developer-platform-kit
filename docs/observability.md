@@ -107,16 +107,16 @@ Use one correlation key, then follow it:
 
 - `X-Request-ID`
 - `Idempotency-Key`
-- order id
-- unique `billing_email`
+- aggregate id or domain identifier
+- unique business key when the workload exposes one
 - image tag
 
 Path:
 
-1. Send a request with `X-Request-ID`, `Idempotency-Key`, and a unique email.
+1. Send a request with `X-Request-ID`, `Idempotency-Key`, and a unique domain key when the flow has one.
 2. Check app logs or Loki.
 3. Check traces if enabled.
-4. Query Postgres for the order, idempotency record, outbox row, and receipt.
+4. Query Postgres for the domain row, idempotency record, outbox row, and receipt.
 5. Inspect the export manifest or raw CSV if the symptom reaches the data hub.
 6. Inspect ALB access logs for edge timing or status-code forensics.
 

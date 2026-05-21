@@ -29,3 +29,7 @@ databaseChangeLog:
   # 006 — Application reliability: request idempotency and consumed event receipts.
   - include:
       file: changelog/006-application-reliability.yaml
+
+  # 007 — Event consumer contract: rename consumed event receipts to generic event receipts.
+  - include:
+      file: changelog/007-event-receipts-contract.yaml

@@ -2,9 +2,9 @@ import datetime
 from collections.abc import Callable
 from typing import Any
 
-from application.order_event_receipts import (
-    OrderEventReceiptRepository,
-    OrderEventReceiptResult,
+from application.event_receipts import (
+    EventReceiptRepository,
+    EventReceiptResult,
 )
 from application.outbox import (
     OutboxDispatchResult,
@@ -14,7 +14,7 @@ from application.outbox import (
 )
 
 
-def relay_order_outbox_once(
+def dispatch_outbox_once(
     *,
     outbox: OutboxRepository,
     publisher: OutboxPublisher,
@@ -27,7 +27,7 @@ def relay_order_outbox_once(
     )
 
 
-def run_order_event_relay(
+def run_event_relay(
     *,
     outbox: OutboxRepository,
     publisher: OutboxPublisher,
@@ -39,7 +39,7 @@ def run_order_event_relay(
     on_result: Callable[[OutboxDispatchResult], None] | None = None,
 ) -> None:
     while not stop_requested():
-        result = relay_order_outbox_once(
+        result = dispatch_outbox_once(
             outbox=outbox,
             publisher=publisher,
             limit=limit,
@@ -52,10 +52,10 @@ def run_order_event_relay(
             wait_for_retry(idle_sleep_seconds)
 
 
-def record_order_event_receipt(
+def record_event_receipt(
     *,
-    receipts: OrderEventReceiptRepository,
+    receipts: EventReceiptRepository,
     payload: dict[str, Any],
     now: datetime.datetime | None = None,
-) -> OrderEventReceiptResult:
+) -> EventReceiptResult:
     return receipts.record(payload, now=now or datetime.datetime.now(tz=datetime.UTC))

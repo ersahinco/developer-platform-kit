@@ -1,0 +1,39 @@
+databaseChangeLog:
+  - changeSet:
+      id: 007-rename-order-event-receipts
+      author: aws-sdlc-containers
+      comment: "Rename consumed event receipt storage to the generic event_consumer contract."
+      changes:
+        - sql:
+            sql: |
+              ALTER TABLE order_event_receipts
+                RENAME TO event_receipts;
+
+              ALTER INDEX ix_order_event_receipts_aggregate
+                RENAME TO ix_event_receipts_aggregate;
+
+              ALTER TABLE event_receipts
+                RENAME CONSTRAINT chk_order_event_receipts_status_known
+                TO chk_event_receipts_status_known;
+
+              ALTER TABLE event_receipts
+                RENAME CONSTRAINT chk_order_event_receipts_duplicate_count_non_negative
+                TO chk_event_receipts_duplicate_count_non_negative;
+            splitStatements: false
+      rollback:
+        - sql:
+            sql: |
+              ALTER TABLE event_receipts
+                RENAME CONSTRAINT chk_event_receipts_status_known
+                TO chk_order_event_receipts_status_known;
+
+              ALTER TABLE event_receipts
+                RENAME CONSTRAINT chk_event_receipts_duplicate_count_non_negative
+                TO chk_order_event_receipts_duplicate_count_non_negative;
+
+              ALTER INDEX ix_event_receipts_aggregate
+                RENAME TO ix_order_event_receipts_aggregate;
+
+              ALTER TABLE event_receipts
+                RENAME TO order_event_receipts;
+            splitStatements: false

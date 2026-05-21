@@ -11,20 +11,20 @@ from prometheus_client import CONTENT_TYPE_LATEST, Counter, Histogram, generate_
 from starlette.responses import JSONResponse, Response
 import uvicorn
 
-from application.order_event_processing import (
-    record_order_event_receipt,
-    run_order_event_relay,
-    relay_order_outbox_once,
+from application.event_processing import (
+    dispatch_outbox_once,
+    record_event_receipt,
+    run_event_relay,
 )
-from application.order_event_receipts import OrderEventReceiptResult
+from application.event_receipts import EventReceiptResult
 from application.outbox import OutboxMessage
 from infrastructure.db.repository import (
-    SQLAlchemyOrderEventReceiptRepository,
+    SQLAlchemyEventReceiptRepository,
     SQLAlchemyOutboxRepository,
 )
 from infrastructure.db.session import engine_and_session_factory, ping_database
 from infrastructure.dapr.pubsub import (
-    DaprOrderEventPublisher,
+    DaprEventPublisher,
     payload_from_cloud_event,
 )
 from infrastructure.http_health import (
@@ -49,7 +49,7 @@ REQUEST_LATENCY = Histogram(
 )
 
 
-class OrderEventPublisher(Protocol):
+class EventPublisher(Protocol):
     def publish(self, message: OutboxMessage) -> None: ...
 
 
@@ -62,10 +62,10 @@ class StopSignal(Protocol):
 def relay_outbox_once(
     session: Any,
     *,
-    publisher: OrderEventPublisher,
+    publisher: EventPublisher,
     limit: int,
 ) -> int:
-    result = relay_order_outbox_once(
+    result = dispatch_outbox_once(
         outbox=SQLAlchemyOutboxRepository(session),
         publisher=publisher,
         limit=limit,
@@ -85,14 +85,14 @@ def relay_outbox_once(
     return result.published + result.failed
 
 
-def consume_order_event_payload(
+def consume_event_payload(
     session: Any,
     payload: dict[str, object],
     *,
     now: datetime.datetime | None = None,
-) -> OrderEventReceiptResult:
-    return record_order_event_receipt(
-        receipts=SQLAlchemyOrderEventReceiptRepository(session),
+) -> EventReceiptResult:
+    return record_event_receipt(
+        receipts=SQLAlchemyEventReceiptRepository(session),
         payload=payload,
         now=now,
     )
@@ -102,8 +102,8 @@ def _engine_and_session_factory() -> tuple[Any, Any]:
     return engine_and_session_factory(str(settings.database_url))
 
 
-def _publisher() -> DaprOrderEventPublisher:
-    return DaprOrderEventPublisher(
+def _publisher() -> DaprEventPublisher:
+    return DaprEventPublisher(
         endpoint=settings.dapr_publish_endpoint,
         pubsub_name=settings.event_consumer_pubsub_name,
         topic=settings.event_consumer_topic,
@@ -131,12 +131,12 @@ def _log_relay_result(result: object) -> None:
 def relay_forever(
     SessionLocal: Any,
     *,
-    publisher: OrderEventPublisher,
+    publisher: EventPublisher,
     stop: StopSignal,
 ) -> None:
     while not stop.is_set():
         with SessionLocal() as session:
-            run_order_event_relay(
+            run_event_relay(
                 outbox=SQLAlchemyOutboxRepository(session),
                 publisher=publisher,
                 limit=settings.event_consumer_relay_batch_size,
@@ -252,11 +252,11 @@ async def handle_event(request: Request) -> dict[str, str]:
         body = await request.json()
         payload = payload_from_cloud_event(body)
         with request.app.state.SessionLocal() as session:
-            result = consume_order_event_payload(session, payload)
+            result = consume_event_payload(session, payload)
         print(
             json.dumps(
                 {
-                    "event": "order_event_consumed",
+                    "event": "event_consumed",
                     "event_id": result.event_id,
                     "request_id": request.state.request_id,
                     "status": result.status,
@@ -269,7 +269,7 @@ async def handle_event(request: Request) -> dict[str, str]:
         print(
             json.dumps(
                 {
-                    "event": "order_event_consume_failed",
+                    "event": "event_consume_failed",
                     "error": str(exc),
                     "request_id": request.state.request_id,
                     "retry": True,
@@ -282,7 +282,7 @@ async def handle_event(request: Request) -> dict[str, str]:
     return {"status": "SUCCESS"}
 
 
-def run_worker(publisher: OrderEventPublisher | None = None) -> None:
+def run_worker(publisher: EventPublisher | None = None) -> None:
     engine, SessionLocal = _engine_and_session_factory()
     stop = threading.Event()
     try:

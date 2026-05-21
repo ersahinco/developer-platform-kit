@@ -2,7 +2,7 @@
 
 Use this runbook when the async-events-dlq-visible CloudWatch alarm is in
 `ALARM`, or when consumer logs show failed
-`order.created.v1` relay or consume attempts.
+relay or consume attempts for the current async event flow.
 
 Use Terraform outputs and environment variables in examples:
 
@@ -13,16 +13,19 @@ export STACK_NAME="${STACK_NAME:-<stack-name>}"
 
 ## What The Alarm Means
 
-The Dapr-enabled event consumer relays `order.created.v1` messages from the
-outbox through the `async-events-pubsub` component. In AWS that maps to SNS
-FIFO plus SQS FIFO and ends in `order_event_receipts`.
+The Dapr-enabled event consumer relays domain events from the outbox through
+the `async-events-pubsub` component. In AWS that maps to SNS FIFO plus SQS
+FIFO and ends in `event_receipts`.
+
+The current bespoke workload publishes `order.created.v1`, so examples below
+use that event type and its current payload shape.
 
 Each message uses:
 
 - `event_id`: `order.created.v1:<order_id>`
 - `idempotency_key`: `order.created.v1:<order_id>`
 - Dapr CloudEvent `id`: same as `event_id`
-- Dapr CloudEvent `data`: the existing order event payload
+- Dapr CloudEvent `data`: the current domain event payload
 
 The DLQ alarm watches `AWS/SQS` `ApproximateNumberOfMessagesVisible` for the
 DLQ. It fires when any message is visible there.
@@ -96,8 +99,7 @@ parking behavior to SNS/SQS in this stack.
 
 ## Recovery
 
-If the consumer cannot relay or consume order events, first restore queue
-access:
+If the consumer cannot relay or consume events, first restore queue access:
 
 ```bash
 aws ecs describe-services \
@@ -138,8 +140,8 @@ detection key.
 ## Success Criteria
 
 - Consumer logs contain `outbox_relay` entries only when messages are published
-  or fail, and `order_event_consumed` entries when messages are consumed.
+  or fail, and `event_consumed` entries when messages are consumed.
 - `outbox_messages` rows move from `pending` or `processing` to `published`.
-- `order_event_receipts` records the consumed `event_id`.
+- `event_receipts` records the consumed `event_id`.
 - The DLQ has zero visible messages.
 - The CloudWatch alarm returns to `OK`.

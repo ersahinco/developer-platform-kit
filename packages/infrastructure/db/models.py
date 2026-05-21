@@ -136,11 +136,11 @@ class IdempotencyKeyModel(Base):
     )
 
 
-class OrderEventReceiptModel(Base):
-    __tablename__ = "order_event_receipts"
+class EventReceiptModel(Base):
+    __tablename__ = "event_receipts"
     __table_args__ = (
         Index(
-            "ix_order_event_receipts_aggregate",
+            "ix_event_receipts_aggregate",
             "aggregate_type",
             "aggregate_id",
             "event_type",

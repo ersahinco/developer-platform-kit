@@ -10,11 +10,11 @@ from sqlalchemy import text
 from application.outbox import OutboxDispatchResult  # noqa: E402
 from application.outbox import OutboxMessage  # noqa: E402
 from infrastructure.dapr import pubsub as dapr_pubsub  # noqa: E402
-from infrastructure.dapr.pubsub import DaprOrderEventPublisher  # noqa: E402
+from infrastructure.dapr.pubsub import DaprEventPublisher  # noqa: E402
 from event_consumer.config import settings  # noqa: E402
 from event_consumer import main as consumer_main  # noqa: E402
 from event_consumer.main import app  # noqa: E402
-from event_consumer.main import consume_order_event_payload  # noqa: E402
+from event_consumer.main import consume_event_payload  # noqa: E402
 from event_consumer.main import relay_outbox_once  # noqa: E402
 
 
@@ -69,6 +69,8 @@ def _payload(
         "event_version": 1,
         "event_id": event_id,
         "idempotency_key": event_id,
+        "aggregate_type": "order",
+        "aggregate_id": order_id,
         "occurred_at": occurred_at,
         "order": {
             "id": order_id,
@@ -85,7 +87,7 @@ def _cloud_event(payload: object) -> dict[str, object]:
     return {
         "specversion": "1.0",
         "id": "event-id",
-        "source": "aws-sdlc-containers/orders",
+        "source": "aws-sdlc-containers/events",
         "type": "order.created.v1",
         "data": payload,
     }
@@ -123,7 +125,7 @@ def test_dapr_publisher_posts_cloud_event(monkeypatch):
         return _Response()
 
     monkeypatch.setattr(dapr_pubsub.request, "urlopen", urlopen)
-    publisher = DaprOrderEventPublisher(
+    publisher = DaprEventPublisher(
         endpoint="http://localhost:3500/",
         pubsub_name="async-events-pubsub",
         topic="async-events-v1.fifo",
@@ -141,22 +143,20 @@ def test_dapr_publisher_posts_cloud_event(monkeypatch):
     assert event["specversion"] == "1.0"
     assert event["id"] == "order.created.v1:publish"
     assert event["type"] == "order.created.v1"
-    assert event["source"] == "aws-sdlc-containers/orders"
+    assert event["source"] == "aws-sdlc-containers/events"
     assert event["data"]["event_id"] == "order.created.v1:publish"
 
 
 def test_consumer_records_first_delivery(committed_db_session):
     payload = _payload("order.created.v1:consumer-first")
 
-    result = consume_order_event_payload(
+    result = consume_event_payload(
         committed_db_session,
         payload,
     )
 
     row = committed_db_session.execute(
-        text(
-            "SELECT status, duplicate_count FROM order_event_receipts WHERE event_id=:id"
-        ),
+        text("SELECT status, duplicate_count FROM event_receipts WHERE event_id=:id"),
         {"id": payload["event_id"]},
     ).one()
     assert result.status == "processed"
@@ -170,7 +170,7 @@ def test_relay_outbox_suppresses_empty_result_log(
     def dispatch_empty(**kwargs: object) -> OutboxDispatchResult:
         return OutboxDispatchResult(published=0, failed=0)
 
-    monkeypatch.setattr(consumer_main, "relay_order_outbox_once", dispatch_empty)
+    monkeypatch.setattr(consumer_main, "dispatch_outbox_once", dispatch_empty)
 
     result = relay_outbox_once(
         committed_db_session,
@@ -186,7 +186,7 @@ def test_relay_outbox_logs_non_empty_result(committed_db_session, monkeypatch, c
     def dispatch_published(**kwargs: object) -> OutboxDispatchResult:
         return OutboxDispatchResult(published=1, failed=0)
 
-    monkeypatch.setattr(consumer_main, "relay_order_outbox_once", dispatch_published)
+    monkeypatch.setattr(consumer_main, "dispatch_outbox_once", dispatch_published)
 
     result = relay_outbox_once(
         committed_db_session,
@@ -217,12 +217,10 @@ def test_relay_forever_delegates_loop_to_application_layer(monkeypatch):
         def __call__(self) -> _SessionContext:
             return _SessionContext(session)
 
-    def fake_run_order_event_relay(**kwargs: object) -> None:
+    def fake_run_event_relay(**kwargs: object) -> None:
         captured.update(kwargs)
 
-    monkeypatch.setattr(
-        consumer_main, "run_order_event_relay", fake_run_order_event_relay
-    )
+    monkeypatch.setattr(consumer_main, "run_event_relay", fake_run_event_relay)
     monkeypatch.setattr(settings, "event_consumer_relay_batch_size", 7)
     monkeypatch.setattr(settings, "event_consumer_idle_sleep_seconds", 1.5)
     monkeypatch.setattr(settings, "event_consumer_worker_run_once", True)
@@ -249,12 +247,10 @@ def test_consumer_deduplicates_repeated_delivery(committed_db_session):
     payload = _payload("order.created.v1:consumer-duplicate")
 
     for _ in range(2):
-        consume_order_event_payload(committed_db_session, payload)
+        consume_event_payload(committed_db_session, payload)
 
     row = committed_db_session.execute(
-        text(
-            "SELECT status, duplicate_count FROM order_event_receipts WHERE event_id=:id"
-        ),
+        text("SELECT status, duplicate_count FROM event_receipts WHERE event_id=:id"),
         {"id": payload["event_id"]},
     ).one()
     assert row.status == "processed"
@@ -274,11 +270,11 @@ def test_consumer_records_late_stale_event_without_reprocessing(committed_db_ses
         occurred_at="2026-04-29T12:00:00Z",
     )
 
-    consume_order_event_payload(committed_db_session, newer)
-    consume_order_event_payload(committed_db_session, older)
+    consume_event_payload(committed_db_session, newer)
+    consume_event_payload(committed_db_session, older)
 
     row = committed_db_session.execute(
-        text("SELECT status FROM order_event_receipts WHERE event_id=:id"),
+        text("SELECT status FROM event_receipts WHERE event_id=:id"),
         {"id": older["event_id"]},
     ).one()
     assert row.status == "ignored_stale"
@@ -313,7 +309,7 @@ def test_consumer_callback_logs_request_id(committed_db_session, capsys):
         if line.strip()
     ]
     assert {
-        "event": "order_event_consumed",
+        "event": "event_consumed",
         "event_id": "order.created.v1:callback-request-id",
         "request_id": "consumer-trace-123",
         "status": "processed",
