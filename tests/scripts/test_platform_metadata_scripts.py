@@ -168,9 +168,16 @@ def test_workload_metadata_image_matrix_matches_declared_apps() -> None:
         )
         assert image["context"] == workload["image"].get("context", ".")
         assert image["tag"] == "sha-test"
+        assert image["publish_strategy"] == "push"
         assert image["build_args"]["APP_PATH"] == workload["app_path"]
         assert image["build_args"]["UV_PACKAGE"] == workload["image"]["package"]
         assert image["build_args"]["WORKLOAD_CMD"] == workload["image"]["command"]
+
+    liquibase = next(image for image in images if image["name"] == "liquibase")
+    assert liquibase["publish_strategy"] == "push"
+
+    pgbouncer = next(image for image in images if image["name"] == "pgbouncer")
+    assert pgbouncer["publish_strategy"] == "reuse-if-present"
 
 
 def test_workload_metadata_inventory_json_reports_stable_center_and_seams() -> None:

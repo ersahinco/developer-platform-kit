@@ -238,7 +238,22 @@ jobs:
             --exit-code 1 --severity CRITICAL --no-progress \
             "${{ steps.image.outputs.image }}"
 
+      - name: Check existing immutable image tag
+        id: existing-image
+        if: matrix.image.publish_strategy == 'reuse-if-present'
+        env:
+          REPOSITORY: ${{ env.STACK_NAME }}/${{ matrix.image.repository }}
+          IMAGE_TAG: ${{ matrix.image.tag }}
+        run: |
+          if aws ecr describe-images --repository-name "$REPOSITORY" --image-ids imageTag="$IMAGE_TAG" >/dev/null 2>&1; then
+            echo "exists=true" >> "$GITHUB_OUTPUT"
+            echo "Immutable image tag already exists in ECR; reusing the published artifact."
+          else
+            echo "exists=false" >> "$GITHUB_OUTPUT"
+          fi
+
       - name: Push image
+        if: matrix.image.publish_strategy != 'reuse-if-present' || steps.existing-image.outputs.exists != 'true'
         run: docker push "${{ steps.image.outputs.image }}"
 
       - name: Resolve pushed image digest

@@ -132,6 +132,7 @@ def build_image_matrix(tag: str, pgbouncer_tag: str) -> list[dict[str, Any]]:
             "dockerfile": workload_image_dockerfile(workload),
             "context": workload_image_context(workload),
             "tag": tag,
+            "publish_strategy": "push",
             "build_args": {
                 "APP_PATH": workload["app_path"],
                 "UV_PACKAGE": workload["image"]["package"],
@@ -148,6 +149,7 @@ def build_image_matrix(tag: str, pgbouncer_tag: str) -> list[dict[str, Any]]:
             "dockerfile": "db/Dockerfile",
             "context": "db",
             "tag": tag,
+            "publish_strategy": "push",
             "build_args": {},
         },
         {
@@ -156,6 +158,7 @@ def build_image_matrix(tag: str, pgbouncer_tag: str) -> list[dict[str, Any]]:
             "dockerfile": "db/pgbouncer/Dockerfile",
             "context": "db/pgbouncer",
             "tag": pgbouncer_tag,
+            "publish_strategy": "reuse-if-present",
             "build_args": {"PGBOUNCER_TAG": pgbouncer_tag},
         },
     ]
