@@ -43,7 +43,7 @@ def test_app_build_workflow_has_structured_build_promotion_gates() -> None:
         "Attest image provenance",
         "Upload build evidence",
     } <= set(step_names(build_job))
-    assert "python3 scripts/observability/release_event.py" in step_run_text(build_job)
+    assert "python3 -m scripts.observability.release_event" in step_run_text(build_job)
 
 
 def test_app_deploy_and_infra_apply_keep_review_boundary_split() -> None:

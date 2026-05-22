@@ -56,19 +56,28 @@ moved {
   to   = aws_cloudwatch_metric_alarm.primary_edge_target_latency[0]
 }
 
-moved {
+removed {
   from = aws_acm_certificate.api
-  to   = aws_acm_certificate.primary_edge
+
+  lifecycle {
+    destroy = false
+  }
 }
 
-moved {
+removed {
   from = aws_route53_record.api_cert_validation
-  to   = aws_route53_record.primary_edge_cert_validation
+
+  lifecycle {
+    destroy = false
+  }
 }
 
-moved {
+removed {
   from = aws_acm_certificate_validation.api
-  to   = aws_acm_certificate_validation.primary_edge
+
+  lifecycle {
+    destroy = false
+  }
 }
 
 moved {
@@ -131,14 +140,20 @@ moved {
   to   = aws_sns_topic.async_eventing
 }
 
-moved {
+removed {
   from = aws_sqs_queue.order_events_dlq
-  to   = aws_sqs_queue.async_eventing_dlq
+
+  lifecycle {
+    destroy = false
+  }
 }
 
-moved {
+removed {
   from = aws_sqs_queue.order_events
-  to   = aws_sqs_queue.async_eventing
+
+  lifecycle {
+    destroy = false
+  }
 }
 
 moved {
@@ -151,19 +166,28 @@ moved {
   to   = aws_sns_topic_subscription.async_eventing_consumer
 }
 
-moved {
+removed {
   from = aws_s3_object.order_events_dapr_component
-  to   = aws_s3_object.async_eventing_dapr_component
+
+  lifecycle {
+    destroy = false
+  }
 }
 
-moved {
+removed {
   from = aws_s3_object.order_events_dapr_config
-  to   = aws_s3_object.async_eventing_dapr_config
+
+  lifecycle {
+    destroy = false
+  }
 }
 
-moved {
+removed {
   from = aws_s3_object.order_events_dapr_resiliency
-  to   = aws_s3_object.async_eventing_dapr_resiliency
+
+  lifecycle {
+    destroy = false
+  }
 }
 
 moved {
