@@ -270,7 +270,7 @@ jobs:
 
       - name: Write build evidence
         run: |
-          python3 scripts/observability/release_event.py \
+          python3 -m scripts.observability.release_event \
             --event-type app_build \
             --status success \
             --summary "Image built, scanned, and pushed for later deployment approval." \

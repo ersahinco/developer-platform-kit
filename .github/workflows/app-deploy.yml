@@ -307,7 +307,7 @@ jobs:
             status="${{ needs.migrate.result }}"
           fi
           summary="App deploy workflow completed with migrate=${{ needs.migrate.result }}, deploy=${{ needs.deploy.result }}"
-          python3 scripts/observability/release_event.py \
+          python3 -m scripts.observability.release_event \
             --event-type app_deploy \
             --status "${status}" \
             --summary "${summary}" \

@@ -292,7 +292,7 @@ jobs:
           LOKI_PUSH_URL: ${{ secrets.LOKI_PUSH_URL || vars.LOKI_PUSH_URL }}
           LOKI_URL: ${{ vars.LOKI_URL }}
         run: |
-          python3 scripts/observability/release_event.py \
+          python3 -m scripts.observability.release_event \
             --event-type app_rollback_drill \
             --status "${{ job.status }}" \
             --summary "App rollback drill completed with status ${{ job.status }}" \
