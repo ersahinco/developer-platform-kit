@@ -17,18 +17,14 @@ data "terraform_remote_state" "platform" {
 }
 
 ################################################################################
-# Primary edge token - read from Secrets Manager (created out-of-band, never in
-# state).
+# Primary edge token - created out-of-band and injected into the workload at
+# runtime.
 # Create it once before applying:
 #   aws secretsmanager create-secret \
 #     --name <stack-name>/edge-token \
 #     --secret-string "$(openssl rand -hex 32)"
-# Keep the secret out of Terraform state and tfvars.
+# Terraform keeps only the secret identifier so plan does not need the payload.
 ################################################################################
-
-data "aws_secretsmanager_secret_version" "primary_edge_token" {
-  secret_id = local.primary_edge_auth_token_secret_name
-}
 
 locals {
   name       = var.stack_name

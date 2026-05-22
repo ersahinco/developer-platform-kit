@@ -25,7 +25,7 @@ variable "platform_state_key" {
 # ── Edge ──────────────────────────────────────────────────────────────────────
 
 variable "alb_ingress_cidr" {
-  description = "CIDR allowed to reach the ALB on port 443. Open to 0.0.0.0/0 because HTTPS plus the fixed-token check is the access control layer."
+  description = "CIDR allowed to reach the ALB on port 443. Open to 0.0.0.0/0 because HTTPS plus workload-level bearer auth is the access control layer."
   type        = string
   default     = "0.0.0.0/0"
 }

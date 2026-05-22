@@ -58,7 +58,7 @@
           "ROLLOUT_DRILL_FAULT_STATUS_CODE",
           "ROLLOUT_DRILL_FAULT_DELAY_SECONDS"
         ],
-        "secrets": ["DB_PASSWORD"]
+        "secrets": ["DB_PASSWORD", "PRIMARY_EDGE_AUTH_TOKEN"]
       }
     },
     {

@@ -318,10 +318,9 @@ resource "aws_acm_certificate_validation" "primary_edge" {
 }
 
 ################################################################################
-# HTTPS listener — fixed-token auth on all routes.
-# The ALB evaluates rules top-to-bottom. Rule 1 checks the Authorization header
-# against the token stored in Secrets Manager. Any request without the exact
-# header value receives a 401 before it reaches the app.
+# HTTPS listener — forwards the platform edge to the workload host.
+# Workload auth mode is declared in platform/workloads.json and enforced by the
+# runtime, which keeps Terraform plan independent from secret payload reads.
 ################################################################################
 
 resource "aws_lb_listener" "https" {
@@ -331,38 +330,7 @@ resource "aws_lb_listener" "https" {
   ssl_policy        = "ELBSecurityPolicy-TLS13-1-2-2021-06"
   certificate_arn   = aws_acm_certificate_validation.primary_edge.certificate_arn
 
-  # Default action: deny — safety net for any request that misses rule 1.
   default_action {
-    type = "fixed-response"
-    fixed_response {
-      content_type = "application/json"
-      message_body = "{\"detail\":\"Unauthorized\"}"
-      status_code  = "401"
-    }
-  }
-}
-
-resource "aws_lb_listener_rule" "auth" {
-  listener_arn = aws_lb_listener.https.arn
-  priority     = 1
-
-  # Match all paths — auth applies to every route.
-  condition {
-    path_pattern {
-      values = ["/*"]
-    }
-  }
-
-  # Forward only if the Authorization header matches the token exactly.
-  # ALB evaluates both conditions with AND logic — path AND header must match.
-  condition {
-    http_header {
-      http_header_name = "Authorization"
-      values           = ["Bearer ${data.aws_secretsmanager_secret_version.primary_edge_token.secret_string}"]
-    }
-  }
-
-  action {
     type             = "forward"
     target_group_arn = aws_lb_target_group.primary_edge.arn
   }

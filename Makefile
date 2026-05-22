@@ -35,7 +35,7 @@ AWS_REGION             ?= eu-central-1
 ACCOUNT_ID             ?= $(shell aws sts get-caller-identity --query Account --output text 2>/dev/null)
 TF_STATE_BUCKET        ?= $(STACK_NAME)-tfstate-$(ACCOUNT_ID)
 ROOT_DOMAIN            ?=
-API_TOKEN_SECRET       ?= $(STACK_NAME)/api-token
+PRIMARY_EDGE_TOKEN_SECRET ?= $(STACK_NAME)/edge-token
 TF_PLATFORM_STATE_KEY  ?= $(STACK_NAME)/platform.tfstate
 TF_APP_STATE_KEY       ?= $(STACK_NAME)/app.tfstate
 TF_PLATFORM_VARS_FILE  := stack.tfvars
@@ -296,7 +296,7 @@ app-deploy: ## Force new deployment of the declared primary edge ECS service
 .PHONY: post-deploy-verify
 post-deploy-verify: ## Verify deployed app readiness, metrics, modes, and ECS image
 	@TOKEN="$${TOKEN:-$$(aws secretsmanager get-secret-value \
-		--secret-id $(API_TOKEN_SECRET) \
+		--secret-id $(PRIMARY_EDGE_TOKEN_SECRET) \
 		--region $(AWS_REGION) \
 		--query SecretString --output text)}" \
 	BASE_URL="$${BASE_URL:-https://api.$(ROOT_DOMAIN)}" \
@@ -403,8 +403,9 @@ db-seed: ## Seed DB — run make db-tunnel first for remote DBs  (SEED_NUM_CUSTO
 
 # ── API smoke query ───────────────────────────────────────────────────────────
 #
-# Fetches a single order from the live API and prints the full response or a
-# single field. Requires the single HTTPS entrypoint and fixed-token auth.
+# Fetches a single order from the live primary edge and prints the full
+# response or a single field. Requires the single HTTPS entrypoint and
+# bearer-token auth.
 #
 # Usage:
 #   make api-get-order ORDER_ID=1           — full order JSON
@@ -423,7 +424,7 @@ api-get-order: ## Query a live order by ID  (ORDER_ID=1, FIELD=billing_email)
 	AUTH_TOKEN="$${TOKEN:-}" && \
 	if [ -z "$$AUTH_TOKEN" ]; then \
 		AUTH_TOKEN=$$(aws secretsmanager get-secret-value \
-			--secret-id $(API_TOKEN_SECRET) \
+			--secret-id $(PRIMARY_EDGE_TOKEN_SECRET) \
 			--region $(AWS_REGION) \
 			--query SecretString --output text); \
 	fi && \

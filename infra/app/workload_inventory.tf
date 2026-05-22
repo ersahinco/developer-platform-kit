@@ -158,7 +158,8 @@ locals {
   }
 
   shared_secret_value_from = {
-    DB_PASSWORD = "${module.rds.db_instance_master_user_secret_arn}:password::"
+    DB_PASSWORD             = "${module.rds.db_instance_master_user_secret_arn}:password::"
+    PRIMARY_EDGE_AUTH_TOKEN = local.primary_edge_auth_token_secret_name
   }
 
   workload_env_values = {
