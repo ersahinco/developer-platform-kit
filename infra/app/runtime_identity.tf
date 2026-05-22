@@ -43,14 +43,17 @@ data "aws_iam_policy_document" "task_exec_secrets" {
   }
 
   statement {
-    sid = "ReadPrimaryEdgeAuthTokenParameter"
-    actions = [
-      "ssm:GetParameter",
-      "ssm:GetParameters",
-    ]
+    sid     = "ReadPrimaryEdgeAuthTokenParameter"
+    actions = ["ssm:GetParameter"]
     resources = [
       "arn:aws:ssm:${local.region}:${local.account_id}:parameter/${local.primary_edge_auth_token_secret_name}"
     ]
+  }
+
+  statement {
+    sid       = "ReadPrimaryEdgeAuthTokenParametersBatch"
+    actions   = ["ssm:GetParameters"]
+    resources = ["*"] # ECS task secret resolution calls GetParameters against "*" — AWS API limitation
   }
 }
 

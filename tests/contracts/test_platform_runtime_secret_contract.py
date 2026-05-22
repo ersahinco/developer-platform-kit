@@ -35,3 +35,4 @@ def test_task_execution_role_can_read_parameter_backed_primary_edge_runtime_secr
         "arn:aws:ssm:${local.region}:${local.account_id}:parameter/${local.primary_edge_auth_token_secret_name}"
         in runtime_identity
     )
+    assert 'resources = ["*"]' in runtime_identity
