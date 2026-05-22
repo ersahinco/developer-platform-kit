@@ -33,9 +33,41 @@ fi
 aws ecs update-service "${update_args[@]}" > /dev/null
 
 if [[ "${ECS_DEPLOY_WAIT_FOR_STABLE:-true}" == "true" ]]; then
-  aws ecs wait services-stable \
+  if ! aws ecs wait services-stable \
     --cluster "$CLUSTER" \
-    --services "$SERVICE"
+    --services "$SERVICE"; then
+    echo "ECS service ${SERVICE} failed to reach stable state. Recent rollout context:" >&2
+    aws ecs describe-services \
+      --cluster "$CLUSTER" \
+      --services "$SERVICE" \
+      --output json | jq '
+        .services[0] | {
+          serviceName,
+          desiredCount,
+          runningCount,
+          pendingCount,
+          deployments: [
+            .deployments[] | {
+              status,
+              rolloutState,
+              rolloutStateReason,
+              taskDefinition,
+              desiredCount,
+              pendingCount,
+              runningCount,
+              failedTasks
+            }
+          ],
+          events: [
+            .events[:10][] | {
+              createdAt,
+              message
+            }
+          ]
+        }
+      ' >&2 || true
+    exit 1
+  fi
 fi
 
 echo "Service ${SERVICE} updated to ${TASK_DEF_ARN}"
