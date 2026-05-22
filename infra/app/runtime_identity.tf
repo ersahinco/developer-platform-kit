@@ -50,6 +50,7 @@ data "aws_iam_policy_document" "task_exec_secrets" {
     ]
   }
 
+  #checkov:skip=CKV_AWS_108:ECS task secret resolution calls ssm:GetParameters against "*" when batching runtime parameter lookup, so this action cannot be resource-scoped.
   statement {
     sid       = "ReadPrimaryEdgeAuthTokenParametersBatch"
     actions   = ["ssm:GetParameters"]
