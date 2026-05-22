@@ -61,6 +61,7 @@ def test_app_deploy_and_infra_apply_keep_review_boundary_split() -> None:
 
     assert deploy_job["environment"] == "aws"
     assert {
+        "Resolve root domain",
         "Validate image tag",
         "Deploy primary edge service",
         "Verify deployed edge service",
@@ -68,7 +69,7 @@ def test_app_deploy_and_infra_apply_keep_review_boundary_split() -> None:
         "Deploy service task definitions",
         "Run backfill worker",
     } <= set(step_names(deploy_job))
-    assert "Run Liquibase" in step_names(migrate_job)
+    assert {"Resolve root domain", "Run Liquibase"} <= set(step_names(migrate_job))
     assert "Upload app deploy evidence" in step_names(deploy_evidence_job)
 
     deploy_runs = "\n".join(

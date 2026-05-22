@@ -46,6 +46,9 @@ jobs:
           fetch-depth: 0
           persist-credentials: false
 
+      - name: Resolve root domain
+        run: scripts/ci/ci_resolve_root_domain.sh
+
       - name: Validate image tag
         env:
           CI_REQUIRE_ROOT_DOMAIN: "true"
@@ -147,6 +150,9 @@ jobs:
         with:
           fetch-depth: 0
           persist-credentials: false
+
+      - name: Resolve root domain
+        run: scripts/ci/ci_resolve_root_domain.sh
 
       - uses: astral-sh/setup-uv@08807647e7069bb48b6ef5acd8ec9567f424441b # v8.1.0
         with:
