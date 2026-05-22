@@ -97,6 +97,14 @@ moved {
   to   = aws_route53_record.primary_edge_alias
 }
 
+removed {
+  from = aws_lb_listener_rule.auth
+
+  lifecycle {
+    destroy = false
+  }
+}
+
 moved {
   from = aws_ecs_task_definition.api
   to   = aws_ecs_task_definition.primary_edge

@@ -321,8 +321,8 @@ resource "aws_acm_certificate_validation" "primary_edge" {
 # HTTPS listener — forwards the platform edge to the workload host.
 # Workload auth mode is declared in platform/workloads.json and enforced by the
 # runtime, which keeps Terraform plan independent from secret payload reads.
-# The all-path listener rule stays in place so the runtime cleanup remains an
-# in-place update instead of a permission-heavy listener-rule delete.
+# The legacy auth listener rule remains unmanaged because the GitHub delivery
+# role is intentionally not allowed to mutate rule-level auth wiring.
 ################################################################################
 
 resource "aws_lb_listener" "https" {
@@ -333,26 +333,6 @@ resource "aws_lb_listener" "https" {
   certificate_arn   = aws_acm_certificate_validation.primary_edge.certificate_arn
 
   default_action {
-    type = "fixed-response"
-    fixed_response {
-      content_type = "application/json"
-      message_body = "{\"detail\":\"Not Found\"}"
-      status_code  = "404"
-    }
-  }
-}
-
-resource "aws_lb_listener_rule" "auth" {
-  listener_arn = aws_lb_listener.https.arn
-  priority     = 1
-
-  condition {
-    path_pattern {
-      values = ["/*"]
-    }
-  }
-
-  action {
     type             = "forward"
     target_group_arn = aws_lb_target_group.primary_edge.arn
   }
