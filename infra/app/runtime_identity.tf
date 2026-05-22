@@ -41,21 +41,6 @@ data "aws_iam_policy_document" "task_exec_secrets" {
       "arn:aws:secretsmanager:${local.region}:${local.account_id}:secret:${local.primary_edge_auth_token_secret_name}*"
     ]
   }
-
-  statement {
-    sid     = "ReadPrimaryEdgeAuthTokenParameter"
-    actions = ["ssm:GetParameter"]
-    resources = [
-      "arn:aws:ssm:${local.region}:${local.account_id}:parameter/${local.primary_edge_auth_token_secret_name}"
-    ]
-  }
-
-  #checkov:skip=CKV_AWS_108:ECS task secret resolution calls ssm:GetParameters against "*" when batching runtime parameter lookup, so this action cannot be resource-scoped.
-  statement {
-    sid       = "ReadPrimaryEdgeAuthTokenParametersBatch"
-    actions   = ["ssm:GetParameters"]
-    resources = ["*"] # ECS task secret resolution calls GetParameters against "*" — AWS API limitation
-  }
 }
 
 resource "aws_iam_role_policy" "task_exec_secrets" {
