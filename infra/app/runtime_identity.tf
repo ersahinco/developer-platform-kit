@@ -41,6 +41,17 @@ data "aws_iam_policy_document" "task_exec_secrets" {
       "arn:aws:secretsmanager:${local.region}:${local.account_id}:secret:${local.primary_edge_auth_token_secret_name}*"
     ]
   }
+
+  statement {
+    sid = "ReadPrimaryEdgeAuthTokenParameter"
+    actions = [
+      "ssm:GetParameter",
+      "ssm:GetParameters",
+    ]
+    resources = [
+      "arn:aws:ssm:${local.region}:${local.account_id}:parameter/${local.primary_edge_auth_token_secret_name}"
+    ]
+  }
 }
 
 resource "aws_iam_role_policy" "task_exec_secrets" {
