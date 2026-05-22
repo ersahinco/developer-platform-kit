@@ -6,24 +6,36 @@
 # deploy ownership boundary with unnecessary cloud deletes.
 ################################################################################
 
-moved {
+removed {
   from = aws_iam_role.api_task
-  to   = aws_iam_role.primary_edge_task
+
+  lifecycle {
+    destroy = false
+  }
 }
 
-moved {
+removed {
   from = aws_iam_policy.api_task
-  to   = aws_iam_policy.primary_edge_task
+
+  lifecycle {
+    destroy = false
+  }
 }
 
-moved {
+removed {
   from = aws_iam_role_policy_attachment.api_task_internal
-  to   = aws_iam_role_policy_attachment.primary_edge_task_internal
+
+  lifecycle {
+    destroy = false
+  }
 }
 
-moved {
+removed {
   from = aws_iam_role_policy.task_ssm_exec
-  to   = aws_iam_role_policy.primary_edge_task_ssm_exec
+
+  lifecycle {
+    destroy = false
+  }
 }
 
 moved {
