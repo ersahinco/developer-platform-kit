@@ -16,6 +16,10 @@ data "terraform_remote_state" "platform" {
   }
 }
 
+data "aws_secretsmanager_secret" "primary_edge_auth_token" {
+  name = local.primary_edge_auth_token_secret_name
+}
+
 ################################################################################
 # Primary edge token - created out-of-band and injected into the workload at
 # runtime.
