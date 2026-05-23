@@ -529,7 +529,10 @@ data "aws_iam_policy_document" "github_actions_logs_secrets" {
       "secretsmanager:ListSecrets",
       "secretsmanager:ListSecretVersionIds",
     ]
-    resources = ["*"]
+    resources = [
+      "arn:aws:secretsmanager:${local.region}:${local.account_id}:secret:rds!db-*",
+      "arn:aws:secretsmanager:${local.region}:${local.account_id}:secret:${local.name}/grafana-admin*",
+    ]
   }
 
   statement {
