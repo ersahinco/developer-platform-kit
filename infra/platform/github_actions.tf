@@ -532,6 +532,7 @@ data "aws_iam_policy_document" "github_actions_logs_secrets" {
     resources = [
       "arn:aws:secretsmanager:${local.region}:${local.account_id}:secret:rds!db-*",
       "arn:aws:secretsmanager:${local.region}:${local.account_id}:secret:${local.name}/grafana-admin*",
+      "arn:aws:secretsmanager:${local.region}:${local.account_id}:secret:${local.name}/edge-token*",
     ]
   }
 
