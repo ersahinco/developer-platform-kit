@@ -25,10 +25,19 @@ def test_app_runtime_surfaces_do_not_read_primary_edge_secret_payloads_in_plan()
 def test_task_execution_role_can_read_secrets_manager_backed_primary_edge_runtime_secret() -> (
     None
 ):
+    workload_inventory = (ROOT / "infra/app/workload_inventory.tf").read_text(
+        encoding="utf-8"
+    )
     runtime_identity = (ROOT / "infra/app/runtime_identity.tf").read_text(
         encoding="utf-8"
     )
 
+    assert "PRIMARY_EDGE_AUTH_TOKEN = local.primary_edge_auth_token_secret_name" in (
+        workload_inventory
+    )
+    assert 'PRIMARY_EDGE_AUTH_TOKEN = "arn:aws:secretsmanager:' not in (
+        workload_inventory
+    )
     assert "secretsmanager:GetSecretValue" in runtime_identity
     assert (
         "arn:aws:secretsmanager:${local.region}:${local.account_id}:secret:${local.primary_edge_auth_token_secret_name}*"
