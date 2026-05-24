@@ -46,3 +46,16 @@ def test_task_execution_role_can_read_secrets_manager_backed_primary_edge_runtim
     )
     assert "ssm:GetParameter" not in runtime_identity
     assert "ssm:GetParameters" not in runtime_identity
+
+
+def test_github_actions_oidc_role_can_describe_primary_edge_runtime_secret() -> None:
+    platform_identity = (ROOT / "infra/platform/github_actions.tf").read_text(
+        encoding="utf-8"
+    )
+
+    assert "SecretsManagerDescribe" in platform_identity
+    assert (
+        '"arn:aws:secretsmanager:${local.region}:${local.account_id}:secret:${local.name}/edge-token*"'
+        in platform_identity
+    )
+    assert '"secretsmanager:GetResourcePolicy"' in platform_identity
