@@ -303,7 +303,7 @@ post-deploy-verify: ## Verify deployed app readiness, metrics, modes, and ECS im
 	ECS_CLUSTER="$${ECS_CLUSTER:-$(STACK_NAME)}" \
 	ECS_SERVICE="$${ECS_SERVICE:-$(PRIMARY_EDGE_SERVICE)}" \
 	EXPECTED_TASK_FAMILY="$${EXPECTED_TASK_FAMILY:-$(STACK_NAME)}" \
-	uv run python scripts/release/verify_post_deploy.py
+	uv run python -m scripts.release.verify_post_deploy
 
 .PHONY: observability-delivery-verify
 observability-delivery-verify: ## Verify CloudWatch/Loki log delivery inventory and freshness

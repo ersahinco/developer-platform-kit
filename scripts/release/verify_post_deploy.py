@@ -6,7 +6,7 @@ metrics, and runtime read/write mode endpoints. If ECS_CLUSTER and ECS_SERVICE
 are set, it also checks the active ECS task definition and primary edge image.
 
 Usage:
-    python scripts/release/verify_post_deploy.py
+    python -m scripts.release.verify_post_deploy
 
 Environment:
     BASE_URL              Default: http://localhost:8000
