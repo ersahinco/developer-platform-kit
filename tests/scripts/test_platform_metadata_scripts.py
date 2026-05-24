@@ -129,6 +129,20 @@ def test_workload_metadata_cli_reports_declared_workload_groups() -> None:
     ]
     assert job_workloads == expected_job_workloads
 
+    support_task_workloads = _run_workload_metadata(
+        "support-task-workloads"
+    ).stdout.splitlines()
+    expected_support_task_workloads = [
+        "\t".join([workload["name"], workload["image"]["repository"]])
+        for workload in contract["workloads"]
+        if workload["kind"] == "job"
+        and (
+            "operator-job" in workload["patterns"]
+            or "export-job" in workload["patterns"]
+        )
+    ]
+    assert support_task_workloads == expected_support_task_workloads
+
 
 def test_workload_metadata_use_case_matrix_reports_declared_workload_intent() -> None:
     contract = json.loads((ROOT / "platform" / "workloads.json").read_text())

@@ -279,6 +279,15 @@ def job_workloads() -> list[dict[str, Any]]:
     return [workload for workload in workloads() if workload.get("kind") == "job"]
 
 
+def support_task_workloads() -> list[dict[str, Any]]:
+    return [
+        workload
+        for workload in job_workloads()
+        if "operator-job" in workload_patterns(workload)
+        or "export-job" in workload_patterns(workload)
+    ]
+
+
 def async_eventing_workloads() -> list[dict[str, Any]]:
     return [
         workload
@@ -368,6 +377,12 @@ def _print_job_workloads() -> int:
     return 0
 
 
+def _print_support_task_workloads() -> int:
+    for workload in support_task_workloads():
+        print(f"{workload['name']}\t{workload_repository(workload)}")
+    return 0
+
+
 def _print_image_matrix(args: list[str]) -> int:
     if len(args) != 2:
         print(
@@ -453,7 +468,7 @@ def main(argv: list[str] | None = None) -> int:
     if not argv:
         print(
             "usage: python -m scripts.platform.workload_metadata "
-            "<repositories|primary-edge|primary-edge-contract|internal-services|job-workloads|image-matrix|capability-matrix|use-case-matrix|implementation-matrix|adapter-seam-matrix|inventory-json>",
+            "<repositories|primary-edge|primary-edge-contract|internal-services|job-workloads|support-task-workloads|image-matrix|capability-matrix|use-case-matrix|implementation-matrix|adapter-seam-matrix|inventory-json>",
             file=sys.stderr,
         )
         return 1
@@ -465,6 +480,7 @@ def main(argv: list[str] | None = None) -> int:
         "primary-edge-contract": lambda _args: _print_primary_edge_contract(),
         "internal-services": lambda _args: _print_internal_services(),
         "job-workloads": lambda _args: _print_job_workloads(),
+        "support-task-workloads": lambda _args: _print_support_task_workloads(),
         "image-matrix": _print_image_matrix,
         "capability-matrix": lambda _args: _print_capability_matrix(),
         "use-case-matrix": lambda _args: _print_use_case_matrix(),

@@ -231,7 +231,7 @@ jobs:
         env:
           ECR_REGISTRY: ${{ steps.aws-context.outputs.ecr_registry }}
         run: |
-          python3 -m scripts.platform.workload_metadata job-workloads | while IFS=$'\t' read -r workload_name container; do
+          python3 -m scripts.platform.workload_metadata support-task-workloads | while IFS=$'\t' read -r workload_name container; do
             task_definition="/tmp/${container}-task-definition.json"
             scripts/ci/ci_render_ecs_task_definition.sh \
               "${STACK_NAME}-${container}" \
