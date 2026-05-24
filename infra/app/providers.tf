@@ -6,6 +6,10 @@ provider "aws" {
 
 data "aws_caller_identity" "current" {}
 
+data "aws_secretsmanager_secret" "primary_edge_auth_token" {
+  name = local.primary_edge_auth_token_secret_name
+}
+
 data "terraform_remote_state" "platform" {
   backend = "s3"
 

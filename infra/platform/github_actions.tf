@@ -536,8 +536,11 @@ data "aws_iam_policy_document" "github_actions_logs_secrets" {
   }
 
   statement {
-    sid     = "SecretsManagerAPIToken"
-    actions = ["secretsmanager:GetSecretValue"]
+    sid = "SecretsManagerAPIToken"
+    actions = [
+      "secretsmanager:DescribeSecret",
+      "secretsmanager:GetSecretValue",
+    ]
     resources = [
       "arn:aws:secretsmanager:${local.region}:${local.account_id}:secret:${local.name}/edge-token*",
     ]

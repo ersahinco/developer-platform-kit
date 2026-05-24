@@ -28,21 +28,21 @@ def test_task_execution_role_can_read_secrets_manager_backed_primary_edge_runtim
     workload_inventory = (ROOT / "infra/app/workload_inventory.tf").read_text(
         encoding="utf-8"
     )
+    providers = (ROOT / "infra/app/providers.tf").read_text(encoding="utf-8")
     runtime_identity = (ROOT / "infra/app/runtime_identity.tf").read_text(
         encoding="utf-8"
     )
 
     assert (
-        'PRIMARY_EDGE_AUTH_TOKEN = "arn:aws:secretsmanager:${local.region}:${local.account_id}:secret:${local.primary_edge_auth_token_secret_name}"'
+        "data.aws_secretsmanager_secret.primary_edge_auth_token.arn"
         in workload_inventory
     )
-    assert "data.aws_secretsmanager_secret.primary_edge_auth_token" not in (
-        workload_inventory + runtime_identity
+    assert "data.aws_secretsmanager_secret.primary_edge_auth_token" in (
+        providers + workload_inventory + runtime_identity
     )
     assert "secretsmanager:GetSecretValue" in runtime_identity
     assert (
-        "arn:aws:secretsmanager:${local.region}:${local.account_id}:secret:${local.primary_edge_auth_token_secret_name}*"
-        in runtime_identity
+        "data.aws_secretsmanager_secret.primary_edge_auth_token.arn" in runtime_identity
     )
     assert "ssm:GetParameter" not in runtime_identity
     assert "ssm:GetParameters" not in runtime_identity
