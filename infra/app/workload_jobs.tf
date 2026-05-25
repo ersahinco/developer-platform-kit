@@ -410,6 +410,10 @@ resource "aws_ecs_task_definition" "event_consumer" {
       name      = "dapr-config-loader"
       image     = var.runtime_config_loader_image
       essential = false
+      environment = [
+        { name = "AWS_REGION", value = local.region },
+        { name = "AWS_DEFAULT_REGION", value = local.region },
+      ]
       command = [
         "sh",
         "-c",
@@ -422,6 +426,7 @@ resource "aws_ecs_task_definition" "event_consumer" {
       name             = "daprd"
       image            = var.dapr_image
       essential        = true
+      environment      = [{ name = "AWS_REGION", value = local.region }]
       command          = local.primary_async_eventing_daprd_command
       mountPoints      = local.async_eventing_dapr_readonly_mount_points
       dependsOn        = local.async_eventing_dapr_loader_dependency
