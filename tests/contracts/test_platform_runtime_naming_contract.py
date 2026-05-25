@@ -62,13 +62,9 @@ def test_primary_edge_runtime_identity_uses_deterministic_repo_owned_names() -> 
 
     assert 'resource "aws_iam_role" "primary_edge_task_deploy"' in task_identity
     assert 'name        = "${local.name}-primary-edge-task"' in task_identity
-    assert (
-        'resource "aws_iam_policy" "primary_edge_task_deploy"'
-        in task_identity
-        in task_identity
-    )
+    assert 'resource "aws_iam_policy" "primary_edge_task_deploy"' in task_identity
     assert 'name        = "${local.name}-primary-edge-task-policy"' in task_identity
-    assert 'resource "aws_iam_role" "primary_edge_task"' in task_identity
-    assert 'name_prefix = "primary-edge-tasks-"' in task_identity
+    assert 'resource "aws_iam_role" "primary_edge_task"' not in task_identity
+    assert 'name_prefix = "primary-edge-tasks-"' not in task_identity
     assert "describe-task-definition" not in renderer
     assert "_primary_edge_task_role_name" in renderer
