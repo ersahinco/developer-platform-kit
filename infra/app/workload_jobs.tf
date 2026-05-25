@@ -410,15 +410,14 @@ resource "aws_ecs_task_definition" "event_consumer" {
       name      = "dapr-config-loader"
       image     = var.runtime_config_loader_image
       essential = false
+      # The AWS CLI image ships with an `aws` entrypoint. Override it so ECS
+      # runs the copy script via a shell instead of attempting `aws sh -c ...`.
+      entryPoint = ["/bin/sh", "-c"]
       environment = [
         { name = "AWS_REGION", value = local.region },
         { name = "AWS_DEFAULT_REGION", value = local.region },
       ]
-      command = [
-        "sh",
-        "-c",
-        local.async_eventing_dapr_config_loader_command,
-      ]
+      command          = [local.async_eventing_dapr_config_loader_command]
       mountPoints      = local.async_eventing_dapr_writable_mount_points
       logConfiguration = local.sidecar_log_configuration["dapr_config_loader"]
     }),
