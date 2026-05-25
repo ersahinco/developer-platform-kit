@@ -1,0 +1,168 @@
+name: Data Support Deploy
+
+on:
+  workflow_dispatch:
+    inputs:
+      image_tag:
+        description: "Approved immutable image tag from the App build run, for example sha-<commit>."
+        required: true
+        type: string
+      target_workload:
+        description: "Support workload to promote."
+        required: true
+        default: backfill_worker
+        type: choice
+        options:
+          - backfill_worker
+          - data_export_job
+          - all
+      confirm_data_support_deploy:
+        description: "Type deploy-data-support to confirm support job image promotion."
+        required: true
+        type: string
+
+env:
+  AWS_REGION: ${{ vars.AWS_REGION || 'eu-central-1' }}
+  STACK_NAME: ${{ vars.STACK_NAME || github.event.repository.name }}
+  IMAGE_TAG: ${{ inputs.image_tag }}
+
+concurrency:
+  group: data-support-deploy-aws
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+jobs:
+  deploy_support:
+    name: Deploy Data Support Revisions
+    if: >
+      inputs.confirm_data_support_deploy == 'deploy-data-support' &&
+      github.ref_name == github.event.repository.default_branch
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    environment: aws
+    permissions:
+      contents: read
+      id-token: write
+    outputs:
+      promoted_workloads: ${{ steps.register-support.outputs.promoted_workloads }}
+
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Validate image tag
+        run: scripts/ci/ci_validate_image_tag.sh "$IMAGE_TAG" "${{ github.event.repository.default_branch }}"
+
+      - uses: aws-actions/configure-aws-credentials@a89a83ec143615402a01f672b6e172b7b1875000 # v6
+        with:
+          role-to-assume: ${{ secrets.AWS_ROLE_ARN }}
+          aws-region: ${{ env.AWS_REGION }}
+
+      - name: Resolve AWS image registry
+        id: aws-context
+        run: scripts/ci/ci_resolve_aws_context.sh
+
+      - name: Register support task definitions
+        id: register-support
+        env:
+          ECR_REGISTRY: ${{ steps.aws-context.outputs.ecr_registry }}
+        run: |
+          promoted_workloads=()
+          while IFS=$'\t' read -r workload_name container; do
+            [[ -z "$workload_name" || -z "$container" ]] && continue
+            if [[ "${{ inputs.target_workload }}" != "all" && "${{ inputs.target_workload }}" != "${workload_name}" ]]; then
+              continue
+            fi
+            aws ecr describe-images \
+              --repository-name "${STACK_NAME}/${container}" \
+              --image-ids "imageTag=${IMAGE_TAG}"
+            task_definition="/tmp/${container}-task-definition.json"
+            scripts/ci/ci_render_ecs_task_definition.sh \
+              "${STACK_NAME}-${container}" \
+              "$container" \
+              "${ECR_REGISTRY}/${STACK_NAME}/${container}:${IMAGE_TAG}" \
+              "$task_definition"
+            task_def_arn=$(aws ecs register-task-definition \
+              --cli-input-json "file://${task_definition}" \
+              --query 'taskDefinition.taskDefinitionArn' \
+              --output text)
+            if [[ -z "$task_def_arn" || "$task_def_arn" == "None" ]]; then
+              echo "Failed to register task definition for ${container}." >&2
+              exit 1
+            fi
+            echo "Promoted ${workload_name} to ${task_def_arn}"
+            promoted_workloads+=("${workload_name}")
+          done < <(python3 -m scripts.platform.workload_metadata support-task-workloads)
+          if [[ "${#promoted_workloads[@]}" -eq 0 ]]; then
+            echo "No support workloads were promoted." >&2
+            exit 1
+          fi
+          echo "promoted_workloads=$(IFS=,; echo "${promoted_workloads[*]}")" >> "$GITHUB_OUTPUT"
+          {
+            echo "### Data support image promotion"
+            echo ""
+            echo "- Target workload: ${{ inputs.target_workload }}"
+            echo "- Promoted workloads: $(IFS=', '; echo "${promoted_workloads[*]}")"
+            echo "- Image tag: ${IMAGE_TAG}"
+          } >> "$GITHUB_STEP_SUMMARY"
+
+  evidence:
+    name: Evidence
+    needs:
+      - deploy_support
+    if: >
+      always() &&
+      inputs.confirm_data_support_deploy == 'deploy-data-support' &&
+      github.ref_name == github.event.repository.default_branch
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    environment: aws
+    permissions:
+      contents: read
+      id-token: write
+
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
+        with:
+          persist-credentials: false
+
+      - uses: aws-actions/configure-aws-credentials@a89a83ec143615402a01f672b6e172b7b1875000 # v6
+        with:
+          role-to-assume: ${{ secrets.AWS_ROLE_ARN }}
+          aws-region: ${{ env.AWS_REGION }}
+
+      - name: Write data support deploy evidence
+        env:
+          LOKI_PUSH_URL: ${{ secrets.LOKI_PUSH_URL || vars.LOKI_PUSH_URL }}
+          LOKI_URL: ${{ vars.LOKI_URL }}
+        run: |
+          python3 -m scripts.observability.release_event \
+            --event-type data_support_deploy \
+            --status "${{ needs.deploy_support.result }}" \
+            --summary "Data support deploy completed for target ${{ inputs.target_workload }} with status ${{ needs.deploy_support.result }}" \
+            --service-name data-support \
+            --workload-id support-tasks \
+            --image-tag "${{ env.IMAGE_TAG }}" \
+            --include-alarms \
+            --push-loki \
+            --loki-push-best-effort \
+            --output-dir /tmp/release-evidence/data-support-deploy
+          cat /tmp/release-evidence/data-support-deploy/release-event.md >> "$GITHUB_STEP_SUMMARY"
+          if [[ -n "${{ needs.deploy_support.outputs.promoted_workloads }}" ]]; then
+            {
+              echo ""
+              echo "- Promoted workloads: ${{ needs.deploy_support.outputs.promoted_workloads }}"
+            } >> "$GITHUB_STEP_SUMMARY"
+          fi
+
+      - name: Upload data support deploy evidence
+        if: ${{ always() }}
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
+        with:
+          name: release-evidence-data-support-deploy-${{ github.run_id }}
+          path: /tmp/release-evidence/data-support-deploy
+          retention-days: 30

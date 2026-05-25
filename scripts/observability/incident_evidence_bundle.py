@@ -29,6 +29,7 @@ from urllib import parse, request
 
 from scripts.observability.platform_inventory import DEFAULT_STACK_NAME
 from scripts.observability.platform_inventory import dapr_workload_service_name
+from scripts.observability.platform_inventory import delivery_event_selector
 from scripts.observability.platform_inventory import edge_service_repository
 from scripts.observability.platform_inventory import edge_service_hostname_label
 from scripts.observability.platform_inventory import edge_trace_service_name
@@ -274,11 +275,7 @@ def _load_loki_release_events(
     if not loki_url:
         return [], None
 
-    query = (
-        f'{{stack="{stack_name}",environment="aws",'
-        'event_type=~"app_build|app_deploy|app_rollback_drill|'
-        'data_runtime_rollback_drill|infra_apply"}}'
-    )
+    query = delivery_event_selector(stack_name)
     try:
         response = _loki_json(
             loki_url,
@@ -350,7 +347,7 @@ def _query_hints(
             },
             {
                 "name": "delivery events",
-                "expr": f'{{stack="{stack_name}",environment="aws",event_type=~"app_build|app_deploy|app_rollback_drill|data_runtime_rollback_drill|infra_apply"}}',
+                "expr": delivery_event_selector(stack_name),
             },
         ],
         "prometheus": [

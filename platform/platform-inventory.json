@@ -33,14 +33,14 @@
       "contract_surface": "scheduled-job operational class",
       "runtime_target": "aws-ecs",
       "implementation": "EventBridge Scheduler + ECS run-task",
-      "replacement_seam": "infra/app/workload_jobs.tf"
+      "replacement_seam": "infra/app/workload_jobs.tf + .github/workflows/data-support-deploy.yml"
     },
     {
       "capability": "operator_job_execution",
       "contract_surface": "operator-job operational class",
       "runtime_target": "aws-ecs",
       "implementation": "manual/CI ECS run-task",
-      "replacement_seam": ".github/workflows/app-deploy.yml + infra/app/workload_jobs.tf"
+      "replacement_seam": ".github/workflows/data-backfill.yml + infra/app/workload_jobs.tf"
     },
     {
       "capability": "object_storage",

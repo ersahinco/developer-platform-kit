@@ -34,19 +34,11 @@ def test_task_execution_role_can_read_secrets_manager_backed_primary_edge_runtim
         encoding="utf-8"
     )
 
-    assert re.search(
-        r"data\.aws_secretsmanager_secret\.primary_edge_auth_token\.arn",
-        workload_inventory,
-    )
-    assert re.search(
-        r'data\s+"aws_secretsmanager_secret"\s+"primary_edge_auth_token"',
-        providers + workload_inventory + runtime_identity,
-    )
+    assert "local.primary_edge_auth_token_secret_arn" in workload_inventory
+    assert "local.primary_edge_auth_token_secret_arn" in providers
+    assert "primary_edge_auth_token_secret_arn_wildcard" in providers
     assert "secretsmanager:GetSecretValue" in runtime_identity
-    assert re.search(
-        r"data\.aws_secretsmanager_secret\.primary_edge_auth_token\.arn",
-        runtime_identity,
-    )
+    assert "local.primary_edge_auth_token_secret_arn_wildcard" in runtime_identity
     assert "ssm:GetParameter" not in runtime_identity
     assert "ssm:GetParameters" not in runtime_identity
 

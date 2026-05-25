@@ -58,5 +58,6 @@ Rules:
 | `semgrep.yml` | static application security testing | Semgrep CE scan for `apps/`, `packages/`, and `scripts/` |
 | `infra-plan.yml` | infrastructure validation and review evidence | `terraform fmt`, `terraform validate`, TFLint, Checkov, reviewed Terraform plan artifact/comment |
 
-`app-deploy.yml` and `infra-apply.yml` remain separate reviewed cloud-changing
-workflows, not pull-request gates.
+`app-deploy.yml`, `data-support-deploy.yml`, `data-schema-apply.yml`,
+`data-backfill.yml`, and `infra-apply.yml` remain separate reviewed
+cloud-changing workflows, not pull-request gates.

@@ -89,6 +89,30 @@ Terraform will perform the following actions:
     assert result.stderr == ""
 
 
+def test_infra_plan_guard_blocks_service_desired_count_changes(
+    tmp_path: Path,
+) -> None:
+    plan = tmp_path / "plan.txt"
+    plan.write_text(
+        """
+Terraform will perform the following actions:
+
+  # aws_ecs_service.primary_edge will be updated in-place
+  ~ resource "aws_ecs_service" "primary_edge" {
+      ~ desired_count = 1 -> 0
+    }
+""",
+        encoding="utf-8",
+    )
+
+    result = _run_guard(plan)
+
+    assert result.returncode == 1
+    assert "Reviewed app plan changes ECS service desired_count." in result.stderr
+    assert "Desired rollout settings belong to app deploy" in result.stderr
+    assert 'resource "aws_ecs_service" "primary_edge"' in result.stderr
+
+
 def test_infra_plan_guard_allows_reviewed_override(tmp_path: Path) -> None:
     plan = tmp_path / "plan.txt"
     plan.write_text(

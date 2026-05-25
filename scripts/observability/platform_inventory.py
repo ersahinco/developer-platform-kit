@@ -25,9 +25,29 @@ DELIVERY_EVENT_TYPES = [
     "app_build",
     "app_deploy",
     "app_rollback_drill",
+    "data_backfill",
+    "data_runtime_switch",
+    "data_schema_apply",
+    "data_support_deploy",
     "data_runtime_rollback_drill",
     "infra_apply",
 ]
+
+
+def delivery_event_pattern() -> str:
+    return "|".join(DELIVERY_EVENT_TYPES)
+
+
+def delivery_event_selector(
+    stack_name: str,
+    *,
+    environment: str = DEFAULT_ENVIRONMENT,
+) -> str:
+    return (
+        f'{{stack="{stack_name}",environment="{environment}",'
+        f'event_type=~"{delivery_event_pattern()}"}}'
+    )
+
 
 _EDGE_SYMPTOM_ALARM_SUFFIX_ENDINGS = [
     "target-5xx",
