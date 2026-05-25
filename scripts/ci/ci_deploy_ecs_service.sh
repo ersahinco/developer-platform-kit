@@ -20,6 +20,12 @@ if [[ -n "${GITHUB_OUTPUT:-}" ]]; then
   echo "task_def_arn=${TASK_DEF_ARN}" >> "$GITHUB_OUTPUT"
 fi
 
+echo "Deploying ${SERVICE} with task definition ${TASK_DEF_ARN}"
+aws ecs describe-task-definition \
+  --task-definition "$TASK_DEF_ARN" \
+  --query 'taskDefinition.containerDefinitions[].{name:name,image:image}' \
+  --output json
+
 update_args=(
   --cluster "$CLUSTER"
   --service "$SERVICE"
@@ -66,6 +72,46 @@ if [[ "${ECS_DEPLOY_WAIT_FOR_STABLE:-true}" == "true" ]]; then
           ]
         }
       ' >&2 || true
+
+    stopped_tasks=$(
+      aws ecs list-tasks \
+        --cluster "$CLUSTER" \
+        --service-name "$SERVICE" \
+        --desired-status STOPPED \
+        --max-items 5 \
+        --query 'taskArns' \
+        --output text 2>/dev/null || true
+    )
+    if [[ -n "$stopped_tasks" && "$stopped_tasks" != "None" ]]; then
+      echo "Recent stopped tasks for ${SERVICE}:" >&2
+      aws ecs describe-tasks \
+        --cluster "$CLUSTER" \
+        --tasks $stopped_tasks \
+        --output json | jq '
+          {
+            tasks: [
+              .tasks[] | {
+                taskArn,
+                taskDefinitionArn,
+                lastStatus,
+                desiredStatus,
+                stopCode,
+                stoppedReason,
+                stoppedAt,
+                containers: [
+                  .containers[] | {
+                    name,
+                    image,
+                    lastStatus,
+                    reason,
+                    exitCode
+                  }
+                ]
+              }
+            ]
+          }
+        ' >&2 || true
+    fi
     exit 1
   fi
 fi
