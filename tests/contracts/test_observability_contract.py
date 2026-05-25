@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import re
 import sys
 from pathlib import Path
 
@@ -37,7 +38,10 @@ def test_cloud_observability_is_adot_sidecar_not_hosted_lgtm() -> None:
     assert "enable_adot_sidecar" in variables_tf
     assert "aws-otel-collector:v0.47.0" in variables_tf
     assert "adot_collector_container" in observability_tf
-    assert 'command   = ["--config=env:ADOT_COLLECTOR_CONFIG"]' in (observability_tf)
+    assert re.search(
+        r'command\s*=\s*\["--config=env:ADOT_COLLECTOR_CONFIG"\]',
+        observability_tf,
+    )
     assert "http://127.0.0.1:4318/v1/traces" in workload_inventory_tf
     assert "local.workload_environment[local.primary_edge_workload_name]" in compute_tf
     assert "default_adot_collector_config" in observability_tf
@@ -76,5 +80,5 @@ def test_alb_access_logs_are_not_coupled_to_observability_stack() -> None:
 
     assert "local.alb_access_logs_bucket_name" in edge_tf
     assert "aws_s3_bucket_policy.alb_access_logs" in edge_tf
-    assert 'resource "aws_s3_bucket" "alb_access_logs"' in edge_logs_tf
+    assert re.search(r'resource\s+"aws_s3_bucket"\s+"alb_access_logs"', edge_logs_tf)
     assert "observability_bucket_name" not in edge_tf

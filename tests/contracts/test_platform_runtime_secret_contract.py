@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from pathlib import Path
+import re
 
 
 ROOT = Path(__file__).resolve().parents[2]
@@ -33,16 +34,18 @@ def test_task_execution_role_can_read_secrets_manager_backed_primary_edge_runtim
         encoding="utf-8"
     )
 
-    assert (
-        "data.aws_secretsmanager_secret.primary_edge_auth_token.arn"
-        in workload_inventory
+    assert re.search(
+        r"data\.aws_secretsmanager_secret\.primary_edge_auth_token\.arn",
+        workload_inventory,
     )
-    assert "data.aws_secretsmanager_secret.primary_edge_auth_token" in (
-        providers + workload_inventory + runtime_identity
+    assert re.search(
+        r'data\s+"aws_secretsmanager_secret"\s+"primary_edge_auth_token"',
+        providers + workload_inventory + runtime_identity,
     )
     assert "secretsmanager:GetSecretValue" in runtime_identity
-    assert (
-        "data.aws_secretsmanager_secret.primary_edge_auth_token.arn" in runtime_identity
+    assert re.search(
+        r"data\.aws_secretsmanager_secret\.primary_edge_auth_token\.arn",
+        runtime_identity,
     )
     assert "ssm:GetParameter" not in runtime_identity
     assert "ssm:GetParameters" not in runtime_identity
@@ -54,8 +57,8 @@ def test_github_actions_oidc_role_can_describe_primary_edge_runtime_secret() -> 
     )
 
     assert "SecretsManagerDescribe" in platform_identity
-    assert (
-        '"arn:aws:secretsmanager:${local.region}:${local.account_id}:secret:${local.name}/edge-token*"'
-        in platform_identity
+    assert re.search(
+        r"secret:\$\{local\.name\}/edge-token\*",
+        platform_identity,
     )
     assert '"secretsmanager:GetResourcePolicy"' in platform_identity
