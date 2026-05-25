@@ -110,16 +110,10 @@ locals {
     "arn:aws:rds:${local.region}:${local.account_id}:pg:${local.github_actions_stack_scope}",
   ]
 
-  github_actions_compute_role_resources = [
-    "arn:aws:iam::${local.account_id}:role/${local.github_actions_stack_scope}",
-    "arn:aws:iam::${local.account_id}:role/primary-edge-tasks-*",
-  ]
-
   github_actions_iam_manage_resources = [
     "arn:aws:iam::${local.account_id}:role/${local.github_actions_stack_scope}",
-    "arn:aws:iam::${local.account_id}:role/primary-edge-tasks-*",
     "arn:aws:iam::${local.account_id}:policy/${local.github_actions_stack_scope}",
-    "arn:aws:iam::${local.account_id}:policy/primary-edge-tasks-*",
+    "arn:aws:iam::${local.account_id}:policy/${local.name}-primary-edge-task-policy",
   ]
 
   github_actions_alb_manage_resources = [
@@ -188,9 +182,19 @@ data "aws_iam_policy_document" "github_actions_compute_deploy" {
   }
 
   statement {
-    sid       = "PassRoleToECS"
-    actions   = ["iam:PassRole"]
-    resources = local.github_actions_compute_role_resources
+    sid     = "PassRoleToECS"
+    actions = ["iam:PassRole"]
+    # Any role in this account may be passed to ECS tasks.
+    # Scoped by iam:PassedToService so this cannot be used to pass roles
+    # to other services (e.g. Lambda, EC2). Avoids brittle name-prefix
+    # enumeration that breaks when Terraform generates random suffixes.
+    resources = ["arn:aws:iam::${local.account_id}:role/*"]
+
+    condition {
+      test     = "StringEquals"
+      variable = "iam:PassedToService"
+      values   = ["ecs-tasks.amazonaws.com"]
+    }
   }
 
   statement {

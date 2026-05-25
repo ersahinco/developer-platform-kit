@@ -132,7 +132,7 @@ resource "aws_ecs_task_definition" "primary_edge" {
   cpu                      = var.primary_edge_cpu
   memory                   = var.primary_edge_memory
   execution_role_arn       = aws_iam_role.task_exec.arn
-  task_role_arn            = aws_iam_role.primary_edge_task.arn
+  task_role_arn            = aws_iam_role.primary_edge_task_deploy.arn
   container_definitions    = jsonencode(local.primary_edge_task_definition_containers)
 
   tags = local.tags
@@ -208,9 +208,13 @@ resource "aws_ecs_service" "primary_edge" {
   }
 
   # Terraform bootstraps the service shape. The deploy workflow owns later
-  # task-definition revisions and activates the service with a verified image.
+  # task-definition revisions, desired rollout settings, and activates the
+  # service with a verified image.
   lifecycle {
-    ignore_changes = [task_definition]
+    ignore_changes = [
+      desired_count,
+      task_definition,
+    ]
   }
 
   tags = local.tags
@@ -224,9 +228,9 @@ resource "aws_ecs_service" "primary_edge" {
 # to RDS without a bastion host.
 ################################################################################
 
-resource "aws_iam_role_policy" "primary_edge_task_ssm_exec" {
+resource "aws_iam_role_policy" "primary_edge_task_deploy_ssm_exec" {
   name = "ssm-exec"
-  role = aws_iam_role.primary_edge_task.name
+  role = aws_iam_role.primary_edge_task_deploy.name
 
   policy = jsonencode({
     Version = "2012-10-17"
@@ -238,7 +242,7 @@ resource "aws_iam_role_policy" "primary_edge_task_ssm_exec" {
         "ssmmessages:OpenControlChannel",
         "ssmmessages:OpenDataChannel",
       ]
-      Resource = "*" # ssmmessages has no resource-level scope — AWS API limitation
+      Resource = "*"
     }]
   })
 }

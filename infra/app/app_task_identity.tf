@@ -1,9 +1,9 @@
 ################################################################################
 # Primary edge task identity
 #
-# The primary edge task role is root-owned so the ECS service module can stop
-# managing task-definition revisions after bootstrap without also dropping
-# runtime IAM ownership.
+# Single deterministic role used by all repo-sourced task definitions.
+# The legacy name_prefix role (primary-edge-tasks-*) was retired after the
+# live service rolled onto this role via app-deploy.
 ################################################################################
 
 data "aws_iam_policy_document" "primary_edge_task_assume" {
@@ -30,16 +30,6 @@ data "aws_iam_policy_document" "primary_edge_task_assume" {
   }
 }
 
-resource "aws_iam_role" "primary_edge_task" {
-  name_prefix = "primary-edge-tasks-"
-  description = "IAM role for ECS tasks in the primary edge workload"
-
-  assume_role_policy    = data.aws_iam_policy_document.primary_edge_task_assume.json
-  force_detach_policies = true
-
-  tags = local.tags
-}
-
 data "aws_iam_policy_document" "primary_edge_task" {
   statement {
     sid = "ECSExec"
@@ -53,15 +43,25 @@ data "aws_iam_policy_document" "primary_edge_task" {
   }
 }
 
-resource "aws_iam_policy" "primary_edge_task" {
-  name_prefix = "primary-edge-tasks-"
-  description = "Task role IAM policy"
+resource "aws_iam_role" "primary_edge_task_deploy" {
+  name        = "${local.name}-primary-edge-task"
+  description = "IAM role for primary edge ECS task definitions"
+
+  assume_role_policy    = data.aws_iam_policy_document.primary_edge_task_assume.json
+  force_detach_policies = true
+
+  tags = local.tags
+}
+
+resource "aws_iam_policy" "primary_edge_task_deploy" {
+  name        = "${local.name}-primary-edge-task-policy"
+  description = "Task role IAM policy for primary edge task definitions"
   policy      = data.aws_iam_policy_document.primary_edge_task.json
 
   tags = local.tags
 }
 
-resource "aws_iam_role_policy_attachment" "primary_edge_task_internal" {
-  role       = aws_iam_role.primary_edge_task.name
-  policy_arn = aws_iam_policy.primary_edge_task.arn
+resource "aws_iam_role_policy_attachment" "primary_edge_task_deploy_internal" {
+  role       = aws_iam_role.primary_edge_task_deploy.name
+  policy_arn = aws_iam_policy.primary_edge_task_deploy.arn
 }

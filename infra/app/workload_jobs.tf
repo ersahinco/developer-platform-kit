@@ -24,7 +24,7 @@ locals {
       family         = "${local.name}-backfill-worker"
       cpu            = var.backfill_worker_cpu
       memory         = var.backfill_worker_memory
-      task_role_arn  = aws_iam_role.primary_edge_task.arn
+      task_role_arn  = aws_iam_role.primary_edge_task_deploy.arn
       container_name = "backfill-worker"
     }
     data_export_job = {
@@ -476,9 +476,13 @@ resource "aws_ecs_service" "event_consumer" {
   }
 
   # Terraform bootstraps the service shape. The deploy workflow owns later
-  # task-definition revisions and activates the service with a verified image.
+  # task-definition revisions, desired rollout settings, and activates the
+  # service with a verified image.
   lifecycle {
-    ignore_changes = [task_definition]
+    ignore_changes = [
+      desired_count,
+      task_definition,
+    ]
   }
 
   tags = local.tags

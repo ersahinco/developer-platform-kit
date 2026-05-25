@@ -8,7 +8,7 @@ on:
         required: true
         type: string
       confirm_deploy:
-        description: "Type deploy to confirm migration, deployment, verification, and backfill run."
+        description: "Type deploy to confirm image rollout and post-deploy verification."
         required: true
         type: string
 
@@ -28,109 +28,8 @@ permissions:
   contents: read
 
 jobs:
-  migrate:
-    name: Migrate
-    if: >
-      inputs.confirm_deploy == 'deploy' &&
-      github.ref_name == github.event.repository.default_branch
-    runs-on: ubuntu-latest
-    timeout-minutes: 15
-    environment: aws
-    permissions:
-      contents: read
-      id-token: write
-
-    steps:
-      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
-        with:
-          fetch-depth: 0
-          persist-credentials: false
-
-      - name: Resolve root domain
-        run: scripts/ci/ci_resolve_root_domain.sh
-
-      - name: Validate image tag
-        env:
-          CI_REQUIRE_ROOT_DOMAIN: "true"
-        run: scripts/ci/ci_validate_image_tag.sh "$IMAGE_TAG" "${{ github.event.repository.default_branch }}"
-
-      - uses: aws-actions/configure-aws-credentials@a89a83ec143615402a01f672b6e172b7b1875000 # v6
-        with:
-          role-to-assume: ${{ secrets.AWS_ROLE_ARN }}
-          aws-region: ${{ env.AWS_REGION }}
-
-      - name: Resolve AWS image registry
-        id: aws-context
-        run: scripts/ci/ci_resolve_aws_context.sh
-
-      - name: Verify approved images exist
-        run: |
-          for repo in $(python3 -m scripts.platform.workload_metadata repositories); do
-            aws ecr describe-images \
-              --repository-name "${STACK_NAME}/${repo}" \
-              --image-ids "imageTag=${IMAGE_TAG}"
-          done
-          aws ecr describe-images \
-            --repository-name "${STACK_NAME}/pgbouncer" \
-            --image-ids "imageTag=${{ env.PGBOUNCER_TAG }}"
-
-      - name: Resolve network config
-        id: net
-        run: scripts/ci/ci_resolve_ecs_network.sh "${{ env.STACK_NAME }}"
-
-      - name: Render liquibase task definition
-        run: |
-          scripts/ci/ci_render_ecs_task_definition.sh \
-            "${STACK_NAME}-liquibase" \
-            liquibase \
-            "${{ steps.aws-context.outputs.ecr_registry }}/${STACK_NAME}/liquibase:${IMAGE_TAG}" \
-            /tmp/liquibase-task-definition.json
-          tmp_path="$(mktemp)"
-          jq '
-            .containerDefinitions |= map(
-              if .name == "liquibase" then
-                .workingDirectory = "/liquibase"
-                | .command = [
-                    "--search-path=/liquibase",
-                    "--changelog-file=changelog/db.changelog-master.yaml",
-                    "update"
-                  ]
-              else
-                .
-              end
-            )
-          ' /tmp/liquibase-task-definition.json > "$tmp_path"
-          mv "$tmp_path" /tmp/liquibase-task-definition.json
-
-      - name: Register liquibase task definition
-        id: register-liquibase
-        run: |
-          task_def_arn=$(aws ecs register-task-definition \
-            --cli-input-json file:///tmp/liquibase-task-definition.json \
-            --query 'taskDefinition.taskDefinitionArn' \
-            --output text)
-          if [[ -z "$task_def_arn" || "$task_def_arn" == "None" ]]; then
-            echo "Failed to register Liquibase task definition." >&2
-            exit 1
-          fi
-          echo "task_def_arn=${task_def_arn}" >> "$GITHUB_OUTPUT"
-
-      - name: Run Liquibase
-        env:
-          ECS_RUN_TASK_WAIT_FOR_STOPPED: "true"
-          ECS_RUN_TASK_ASSERT_SUCCESS: "true"
-          ECS_RUN_TASK_LABEL: "Liquibase"
-        run: |
-          TASK_ARN=$(scripts/ci/ci_run_ecs_task.sh \
-            "${STACK_NAME}" \
-            "${{ steps.register-liquibase.outputs.task_def_arn }}" \
-            "${{ steps.net.outputs.subnet_id }}" \
-            "${{ steps.net.outputs.sg_id }}")
-          echo "Liquibase task: $TASK_ARN"
-
   deploy:
     name: Deploy
-    needs: migrate
     if: >
       inputs.confirm_deploy == 'deploy' &&
       github.ref_name == github.event.repository.default_branch
@@ -174,10 +73,6 @@ jobs:
         id: aws-context
         run: scripts/ci/ci_resolve_aws_context.sh
 
-      - name: Resolve network config
-        id: net
-        run: scripts/ci/ci_resolve_ecs_network.sh "${{ env.STACK_NAME }}"
-
       - name: Resolve primary edge contract
         id: primary-service
         run: |
@@ -190,7 +85,30 @@ jobs:
             echo "verification_profile=$(jq -r '.verification_profile' <<< "${primary_edge_contract}")"
           } >> "$GITHUB_OUTPUT"
 
+      - name: Verify approved primary edge image exists
+        run: |
+          aws ecr describe-images \
+            --repository-name "${STACK_NAME}/${{ steps.primary-service.outputs.service }}" \
+            --image-ids "imageTag=${IMAGE_TAG}"
+
+      - name: Verify approved internal service images exist
+        run: |
+          python3 -m scripts.platform.workload_metadata internal-services | while IFS=$'\t' read -r _workload_name service; do
+            [[ -z "$service" ]] && continue
+            aws ecr describe-images \
+              --repository-name "${STACK_NAME}/${service}" \
+              --image-ids "imageTag=${IMAGE_TAG}"
+          done
+
+      - name: Verify approved sidecar image exists
+        run: |
+          aws ecr describe-images \
+            --repository-name "${STACK_NAME}/pgbouncer" \
+            --image-ids "imageTag=${{ env.PGBOUNCER_TAG }}"
+
       - name: Render primary edge task definition
+        env:
+          PRIMARY_EDGE_TASK_ROLE_ARN: "arn:aws:iam::${{ steps.aws-context.outputs.account_id }}:role/${{ env.STACK_NAME }}-primary-edge-task"
         run: |
           scripts/ci/ci_render_ecs_task_definition.sh \
             "${STACK_NAME}" \
@@ -201,6 +119,20 @@ jobs:
       - name: Deploy primary edge service
         id: deploy-app
         run: scripts/ci/ci_deploy_ecs_service.sh "${STACK_NAME}" "${{ steps.primary-service.outputs.service }}" /tmp/primary-edge-task-definition.json 1
+
+      - name: Deploy service task definitions
+        env:
+          ECR_REGISTRY: ${{ steps.aws-context.outputs.ecr_registry }}
+        run: |
+          python3 -m scripts.platform.workload_metadata internal-services | while IFS=$'\t' read -r _workload_name service; do
+            task_definition="/tmp/${service}-task-definition.json"
+            scripts/ci/ci_render_ecs_task_definition.sh \
+              "${STACK_NAME}-${service}" \
+              "$service" \
+              "${ECR_REGISTRY}/${STACK_NAME}/${service}:${IMAGE_TAG}" \
+              "$task_definition"
+            scripts/ci/ci_deploy_ecs_service.sh "${STACK_NAME}" "$service" "$task_definition" 1
+          done
 
       - name: Verify deployed edge service
         id: verify-app
@@ -226,61 +158,9 @@ jobs:
           verify_seconds=$(($(date +%s) - verify_started_epoch))
           echo "verify_seconds=${verify_seconds}" >> "$GITHUB_OUTPUT"
 
-      - name: Register support task definitions
-        id: support-tasks
-        env:
-          ECR_REGISTRY: ${{ steps.aws-context.outputs.ecr_registry }}
-        run: |
-          python3 -m scripts.platform.workload_metadata support-task-workloads | while IFS=$'\t' read -r workload_name container; do
-            task_definition="/tmp/${container}-task-definition.json"
-            scripts/ci/ci_render_ecs_task_definition.sh \
-              "${STACK_NAME}-${container}" \
-              "$container" \
-              "${ECR_REGISTRY}/${STACK_NAME}/${container}:${IMAGE_TAG}" \
-              "$task_definition"
-            task_def_arn=$(aws ecs register-task-definition \
-              --cli-input-json "file://${task_definition}" \
-              --query 'taskDefinition.taskDefinitionArn' \
-              --output text)
-            if [[ -z "$task_def_arn" || "$task_def_arn" == "None" ]]; then
-              echo "Failed to register task definition for ${container}." >&2
-              exit 1
-            fi
-            echo "${workload_name}_task_def_arn=${task_def_arn}" >> "$GITHUB_OUTPUT"
-          done
-
-      - name: Deploy service task definitions
-        env:
-          ECR_REGISTRY: ${{ steps.aws-context.outputs.ecr_registry }}
-        run: |
-          python3 -m scripts.platform.workload_metadata internal-services | while IFS=$'\t' read -r _workload_name service; do
-            task_definition="/tmp/${service}-task-definition.json"
-            scripts/ci/ci_render_ecs_task_definition.sh \
-              "${STACK_NAME}-${service}" \
-              "$service" \
-              "${ECR_REGISTRY}/${STACK_NAME}/${service}:${IMAGE_TAG}" \
-              "$task_definition"
-            scripts/ci/ci_deploy_ecs_service.sh "${STACK_NAME}" "$service" "$task_definition" 1
-          done
-
-      - name: Run backfill worker
-        env:
-          ECS_RUN_TASK_WAIT_FOR_STOPPED: "true"
-          ECS_RUN_TASK_ASSERT_SUCCESS: "true"
-          ECS_RUN_TASK_LABEL: "Backfill worker"
-        run: |
-          TASK_ARN=$(scripts/ci/ci_run_ecs_task.sh \
-            "${STACK_NAME}" \
-            "${{ steps.support-tasks.outputs.backfill_worker_task_def_arn }}" \
-            "${{ steps.net.outputs.subnet_id }}" \
-            "${{ steps.net.outputs.sg_id }}")
-          echo "Backfill task: $TASK_ARN"
-          echo "Monitor: CloudWatch Logs /ecs/${STACK_NAME}/backfill-worker"
-
   evidence:
     name: Evidence
     needs:
-      - migrate
       - deploy
     if: >
       always() &&
@@ -309,10 +189,7 @@ jobs:
           LOKI_URL: ${{ vars.LOKI_URL }}
         run: |
           status="${{ needs.deploy.result }}"
-          if [[ "${{ needs.migrate.result }}" != "success" ]]; then
-            status="${{ needs.migrate.result }}"
-          fi
-          summary="App deploy workflow completed with migrate=${{ needs.migrate.result }}, deploy=${{ needs.deploy.result }}"
+          summary="App deploy workflow completed with deploy=${{ needs.deploy.result }}"
           python3 -m scripts.observability.release_event \
             --event-type app_deploy \
             --status "${status}" \
