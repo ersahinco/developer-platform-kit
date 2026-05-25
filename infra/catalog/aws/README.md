@@ -3,6 +3,9 @@
 This is the home for reusable AWS building blocks as they are extracted from
 the current assembly roots.
 
+It is the current runtime-target catalog root. Future runtime targets should
+follow the same pattern under `infra/catalog/<runtime-target>/`.
+
 Expected candidates over time:
 
 - network baseline

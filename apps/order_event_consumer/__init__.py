@@ -1,1 +1,0 @@
-"""Order event workload host."""

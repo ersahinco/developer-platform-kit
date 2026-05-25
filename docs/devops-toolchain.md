@@ -1,84 +1,63 @@
 # DevOps Toolchain
 
-This project standardizes a delivery toolchain for portable application
-workloads. The current runtime is ECS Fargate; the reusable part is the review
-shape around build, check, scan, deploy, and evidence.
+Quality-gate and workflow toolchain map.
 
-This doc owns the quality-gate and workflow toolchain view. For the actual AWS
-deploy sequence, use [Deployment](deployment.md). For repo and ownership
-boundaries, use [Architecture](architecture.md).
+Use [Deployment](deployment.md) for rollout flow and
+[Architecture](architecture.md) for repo boundaries.
 
-## Current Toolchain
+## Toolchain
 
 | Concern | Tool |
 |---|---|
-| Local orchestration | Docker Compose |
+| local orchestration | Docker Compose |
 | Python workspace | `uv` |
-| Tests | pytest |
-| Python lint/format | Ruff |
-| Python type checking | Pyright |
-| Database migrations | Liquibase |
-| Infrastructure as code | Terraform |
-| Workflow linting | actionlint |
+| tests | pytest |
+| lint and format | Ruff |
+| type checking | Pyright |
+| database migrations | Liquibase |
+| infrastructure as code | Terraform |
+| workflow linting | actionlint |
 | Dockerfile linting | hadolint |
-| Docs link checking | lychee |
-| Secret scanning | Gitleaks |
-| Dependency audit | `pip-audit` |
+| docs link checking | lychee |
+| policy as code | OPA / Conftest |
+| secret scanning | Gitleaks |
+| dependency audit | `pip-audit` |
 | SAST | Semgrep CE |
-| Image scanning | Trivy |
+| image scanning | Trivy |
 | CI/CD | GitHub Actions |
-| Cloud auth | GitHub OIDC |
+| cloud auth | GitHub OIDC |
 
 ## Standard Gates
 
 | Scope | Gate |
 |---|---|
-| App and scripts | Ruff, Pyright, pytest |
-| Contract and repo shape | Focused pytest contract checks |
-| Runtime conformance | `make runtime-conformance` |
-| Workflows | `make lint-workflows` |
-| Docs | `make lint-docs` |
+| app and scripts | Ruff, Pyright, pytest |
+| contract and repo shape | focused pytest contract checks |
+| runtime conformance | `make runtime-conformance` |
+| workflows | `make lint-workflows` |
+| docs | `make lint-docs` |
+| policy | `make lint-policy` |
 | Dockerfiles | `make lint-dockerfiles` |
-| Secrets | `make secret-scan` |
-| Dependencies | `make dependency-audit` |
+| secrets | `make secret-scan` |
+| dependencies | `make dependency-audit` |
 | Terraform | `terraform fmt`, `terraform validate`, TFLint, Checkov, reviewed plan, separate apply |
 
-## Delivery Shape
+Rules:
 
-- Pull requests validate before any cloud change.
-- App build runs checks before image push.
-- App deploy is manual and emits release evidence.
-- Infra plan is reviewed before infra apply.
-- Runtime-specific details may change later, but this gate shape should stay
-  recognizable.
+- pull requests validate before cloud change
+- build before deploy
+- plan before apply
+- cloud-changing workflows emit release evidence
 
-## Approved Default Enterprise Delivery Shape
+## GitHub Gate Matrix
 
-- Build immutable artifacts once, then deploy those exact image references.
-- Keep deploy and apply triggers reviewed and intentionally separate.
-- Emit evidence for every cloud-changing action.
-- Treat contract and runtime checks as first-class gates, not optional
-  follow-up verification.
+| Workflow | Pull request role | Owned gates |
+|---|---|---|
+| `app-build.yml` | app and workload validation | Ruff format check, Ruff lint, Pyright, shell script syntax, pytest, runtime conformance |
+| `security.yml` | repo hygiene and dependency safety | `make secret-scan`, `make lint-docs`, `make lint-policy`, `make lint-workflows`, `make lint-dockerfiles`, `make dependency-audit` |
+| `semgrep.yml` | static application security testing | Semgrep CE scan for `apps/`, `packages/`, and `scripts/` |
+| `infra-plan.yml` | infrastructure validation and review evidence | `terraform fmt`, `terraform validate`, TFLint, Checkov, reviewed Terraform plan artifact/comment |
 
-## Local Quality Commands
-
-```bash
-make lint
-make secret-scan
-make dependency-audit
-uv run pytest tests/ -v
-```
-
-Prefer the dev container for the most reproducible workstation. Native host
-setup is allowed; install only the tools you need and keep them aligned with CI.
-
-## Conventions
-
-- Keep workflows split by ownership: app build, app deploy, infra plan, infra
-  apply, security, semgrep.
-- Keep scripts small and explicit.
-- Prefer metadata-driven behavior over repeated YAML logic.
-- Keep workload intent in `platform/workloads.json`, but keep deploy sequence,
-  cloud resource decisions, and operator choreography in workflows, scripts,
-  and Terraform.
-- Do not add a second CI system until there is a real operating need.
+`app-deploy.yml`, `data-support-deploy.yml`, `data-schema-apply.yml`,
+`data-backfill.yml`, and `infra-apply.yml` remain separate reviewed
+cloud-changing workflows, not pull-request gates.

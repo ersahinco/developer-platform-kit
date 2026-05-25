@@ -32,4 +32,4 @@ introducing a provider-neutral framework or speculative multi-cloud layer.
 - `platform/concerns` becomes the home for Dapr, observability, security,
   policy, and networking concerns.
 - `apps/*` remain in place for now, but are treated as reference workloads.
-- `platform/workloads.json` remains the temporary application specification.
+- `platform/workloads.json` remains the canonical workload contract for now.

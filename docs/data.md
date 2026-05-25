@@ -1,20 +1,15 @@
 # Data
 
-This is the canonical data contract for the current reference workload:
+Canonical data contract for the reference workload:
 
-- zero-downtime schema rollout with Liquibase, dual write, backfill, read cutover,
-  and contract
+- zero-downtime schema rollout with Liquibase, dual write, backfill, cutover, contract
 - PostgreSQL portability as the workload database contract
 - stable object-storage paths and manifests for the export job
 
-For request correlation across logs, traces, tables, and exports, use
-[Observability](observability.md).
+See [Platform Contract](platform-contract.md),
+[Architecture](architecture.md), and [Observability](observability.md).
 
-Use [Platform Contract](platform-contract.md) for the portable workload
-contract and [Architecture](architecture.md) for repo boundaries. This document
-owns the current data behavior and rollout shape.
-
-## Current Flow
+## Flow
 
 Application path:
 
@@ -37,50 +32,42 @@ Data export job -> Postgres direct connection -> raw CSV -> manifest -> optional
 ```
 
 Liquibase and jobs connect directly because DDL and batch work need stable
-session behavior. The API uses PgBouncer transaction pooling for runtime
-traffic.
+sessions. The API uses PgBouncer transaction pooling.
 
 ## Database Contract
 
-The application contract is PostgreSQL semantics, not Amazon RDS itself. A
-future runtime may use another managed PostgreSQL implementation if the app and
-jobs do not need code changes.
+The contract is PostgreSQL semantics, not Amazon RDS.
 
 | Area | Contract |
 |---|---|
-| Engine | PostgreSQL-compatible SQL, transactions, constraints, indexes, and Liquibase locking |
-| Connection input | Services accept `DATABASE_URL`; jobs accept their own database URL |
-| Alternate input | Runtimes may compose `DB_HOST`, `DB_PORT`, `DB_USER`, `DB_NAME`, and `DB_PASSWORD` |
+| Engine | PostgreSQL-compatible SQL, transactions, constraints, indexes, Liquibase |
+| Connection input | services accept `DATABASE_URL`; jobs accept their own URL |
+| Alternate input | runtimes may compose `DB_HOST`, `DB_PORT`, `DB_USER`, `DB_NAME`, `DB_PASSWORD` |
 | Pooling | request-serving services use PgBouncer; Liquibase and jobs connect directly |
 | Migrations | Liquibase owns DDL and migration history |
 | Readiness | long-running workloads expose database readiness through `/ready` |
-| Rollback | additive before contract; after destructive contract changes, recover by restore or forward fix |
+| Rollback | additive before contract; after destructive changes, recover by restore or forward fix |
 
 Database implementation details stay in `packages/infrastructure/db`, `db/`,
 runtime settings, and delivery edges. Domain and application code stay free of
-SQLAlchemy, drivers, and provider APIs.
+drivers, SQLAlchemy, and provider APIs.
 
 Do not add a second database provider only to prove portability.
 
 ## Export Contract
 
-The `apps/data_export_job` reference workload exports `order_contact_email`
-first to a local path that
-matches the object-store shape, then publishes a manifest only after the raw
-CSV succeeds and validates.
-
-Run it locally:
+`apps/data_export_job` exports `order_contact_email` to a local path matching
+the object-store shape, then publishes a manifest only after the raw CSV
+succeeds.
 
 ```bash
 make data-export
 ```
 
-The stable object layout is:
+Stable layout:
 
 - `raw/order_contact_email/dt=<date>/<run-id>.csv`
 - `manifests/order_contact_email/dt=<date>/<run-id>.json`
-
-The contract is:
 
 | Area | Contract |
 |---|---|
@@ -89,19 +76,17 @@ The contract is:
 | Write ordering | raw object before manifest |
 | Integrity | manifest byte count and SHA-256 match the raw object |
 | Adapter boundary | provider SDKs stay in infrastructure code and runtime scripts |
-| Evidence | job success and failure remain visible in logs and release or incident evidence |
+| Evidence | job success and failure stay visible in logs and release or incident evidence |
 
 Do not add another object store only to prove portability.
 
 ## AWS Runtime
 
-AWS currently provides:
-
 - one private data hub bucket named `<stack-name>-data-hub-<account-id>`
-- versioning, encryption, blocked public access, and short noncurrent cleanup
+- versioning, encryption, blocked public access, short noncurrent cleanup
 - one scheduled ECS export task using the latest active task definition family
 
-The bucket preserves the same prefixes used locally:
+The bucket preserves local prefixes:
 
 ```text
 s3://<bucket>/
@@ -110,12 +95,9 @@ s3://<bucket>/
 `-- manifests/<dataset>/dt=<YYYY-MM-DD>/<run-id>.json
 ```
 
-There are no placeholder objects. The scheduled task creates objects only when
-it runs.
+No placeholder objects. The task creates objects only when it runs.
 
 ## Deferred
-
-These are intentionally out of scope until a real workload needs them:
 
 - streaming ingestion
 - cross-account sharing

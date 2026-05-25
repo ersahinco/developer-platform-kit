@@ -1,24 +1,23 @@
 # Local Development
 
-This is the local development runbook for the current repository shape.
+Canonical local setup and day-to-day runbook.
 
-This doc owns local setup and day-to-day workflow. For platform design and
-ownership rules, use [Architecture](architecture.md). For portable workload
-expectations, use [Platform Contract](platform-contract.md).
+Use [Architecture](architecture.md) for ownership rules and
+[Platform Contract](platform-contract.md) for portable workload rules.
 
-Reference workloads live under `apps/`:
+Reference workloads:
 
 - `apps/api`
 - `apps/backfill_worker`
 - `apps/data_export_job`
-- `apps/order_event_consumer`
+- `apps/event_consumer`
 
 ## Preferred Setup
 
-Prefer the dev container for the most reproducible workstation. Native host
-setup is allowed; the minimum is Docker Desktop, Python 3.14+, and `uv`.
+Prefer the dev container. Native host setup is fine with Docker Desktop,
+Python 3.14+, and `uv`.
 
-Useful root entrypoints:
+Key entrypoints:
 
 - `compose.yaml`
 - `Makefile`
@@ -26,7 +25,7 @@ Useful root entrypoints:
 - `uv.lock`
 - `.devcontainer/`
 
-## Core Local Flow
+## Standard Local Flow
 
 ```bash
 make dev
@@ -36,10 +35,10 @@ make local-up
 curl --fail --show-error http://localhost:8000/health
 ```
 
-Use the stepwise Docker commands only when you intentionally want to start the
-API without the rest of the standard local profile.
+Use stepwise Docker commands only when you intentionally want the API without
+the full local profile.
 
-## Migration Walkthrough
+## Migration Rollout Walkthrough
 
 1. Start Postgres and PgBouncer.
 2. Apply Liquibase migrations.
@@ -52,7 +51,7 @@ API without the rest of the standard local profile.
 9. Advance `WRITE_MODE` to `new`.
 10. Apply the contract migration when ready.
 
-Useful commands:
+Commands:
 
 ```bash
 curl --fail --show-error \
@@ -78,26 +77,14 @@ make lint
 uv run pytest tests/ -v
 ```
 
-The tests detect the current migration phase from `app_runtime_config` and skip
-phase-specific assertions that do not apply.
+Tests read migration phase from `app_runtime_config` and skip phase-specific
+assertions when needed.
 
-## Optional Extras
-
-Observability:
+## Optional Targets
 
 ```bash
 make observability
-```
-
-Dapr local runtime:
-
-```bash
 make dapr-up
-```
-
-Local data export:
-
-```bash
 make data-export
 ```
 

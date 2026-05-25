@@ -1,6 +1,7 @@
 import asyncio
 import logging
 import re
+from secrets import compare_digest
 from typing import Annotated
 from typing import cast
 
@@ -94,6 +95,8 @@ REQUEST_LATENCY = Histogram(
     ["method", "route"],
 )
 
+PRIMARY_EDGE_AUTH_EXEMPT_PATHS = frozenset({"/health", "/ready", "/metrics"})
+
 
 async def _rollout_fault_response(request: Request) -> Response | None:
     return await maybe_build_fault_response(
@@ -120,6 +123,23 @@ def _http_request_event(
         "status_code": response.status_code,
         "duration_ms": round(elapsed_seconds * 1000, 3),
     }
+
+
+@app.middleware("http")
+async def primary_edge_auth_middleware(
+    request: Request,
+    call_next,
+) -> Response:
+    token = settings.primary_edge_auth_token
+    if token is None or request.url.path in PRIMARY_EDGE_AUTH_EXEMPT_PATHS:
+        return await call_next(request)
+
+    authorization = request.headers.get("Authorization")
+    expected = f"Bearer {token}"
+    if authorization is None or not compare_digest(authorization, expected):
+        return JSONResponse(status_code=401, content={"detail": "Unauthorized"})
+
+    return await call_next(request)
 
 
 app.middleware("http")(

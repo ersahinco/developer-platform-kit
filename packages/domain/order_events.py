@@ -8,7 +8,7 @@ ORDER_CREATED_EVENT_TYPE = "order.created.v1"
 
 
 @dataclass(frozen=True)
-class OrderEventMessage:
+class EventMessage:
     event_type: str
     event_id: str
     aggregate_type: str
@@ -25,6 +25,8 @@ def order_created_event(order: Order) -> dict[str, Any]:
         "event_version": 1,
         "event_id": f"{ORDER_CREATED_EVENT_TYPE}:{order.id}",
         "idempotency_key": f"{ORDER_CREATED_EVENT_TYPE}:{order.id}",
+        "aggregate_type": "order",
+        "aggregate_id": order.id,
         "occurred_at": occurred_at,
         "order": {
             "id": order.id,
@@ -37,10 +39,10 @@ def order_created_event(order: Order) -> dict[str, Any]:
     }
 
 
-def order_created_message(order: Order) -> OrderEventMessage:
+def order_created_message(order: Order) -> EventMessage:
     payload = order_created_event(order)
     event_id = str(payload["event_id"])
-    return OrderEventMessage(
+    return EventMessage(
         event_type=ORDER_CREATED_EVENT_TYPE,
         event_id=event_id,
         aggregate_type="order",

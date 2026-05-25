@@ -1,48 +1,36 @@
 # Observability
 
-The observability contract is portable and local-first:
+Canonical observability behavior and operator loop.
+
+Use [Platform Contract](platform-contract.md#observability) for portable
+workload rules and [Platform Capabilities](platform-capabilities.md) for the
+current capability map.
+
+## Contract
 
 - workloads emit Prometheus-compatible metrics
-- workloads emit structured logs that can be read in CloudWatch or Loki
+- workloads emit structured logs readable in CloudWatch or Loki
 - the API can emit OTLP/HTTP traces
-- Grafana dashboards stay normal JSON, not cloud-locked dashboard definitions
-- CloudWatch remains the AWS-native signal plane for rollback alarms and managed
-  resource symptoms
+- Grafana dashboards stay normal JSON
+- CloudWatch remains the AWS-native signal plane for rollback alarms and
+  managed-resource symptoms
 
-The goal is to keep standard telemetry shapes without hosting a full Grafana,
-Loki, Prometheus, and Tempo platform inside AWS Terraform.
+Goal: keep standard telemetry shapes without hosting Grafana, Loki,
+Prometheus, and Tempo inside AWS Terraform.
 
-This doc owns observability behavior and operator workflow. Use
-[Platform Contract](platform-contract.md#observability) for the portable
-contract and [Platform Capabilities](platform-capabilities.md) for the current
-capability inventory.
+## Profiles
 
-## Concern Profiles
-
-Observability now follows the same concern/profile model as Dapr:
-
-- `local` profile: the OSS stack under `platform/concerns/observability/`
-- `aws` profile: CloudWatch logs, CloudWatch alarms, and optional ADOT sidecar
-  wiring owned through Terraform and release/operator scripts
-
-This keeps environment differences explicit without introducing a custom
-observability abstraction layer.
+| Profile | Owner |
+|---|---|
+| `local` | OSS stack under `platform/concerns/observability/` |
+| `aws` | CloudWatch logs, CloudWatch alarms, optional ADOT sidecar, release/operator scripts |
 
 ## Local Runtime
 
-Start the local observability stack:
-
 ```bash
 make observability
-```
-
-Start the app plus local observability:
-
-```bash
 make local-up
 ```
-
-Local endpoints:
 
 | Tool | Endpoint |
 |---|---|
@@ -51,12 +39,11 @@ Local endpoints:
 | Tempo | `http://localhost:3200` |
 | Grafana | `http://127.0.0.1:3000` |
 
-Grafana provisioning lives under
-`platform/concerns/observability/grafana/`.
+Grafana provisioning lives under `platform/concerns/observability/grafana/`.
 
-## Cloud Runtime
+## AWS Runtime
 
-AWS runs only the telemetry primitives needed by the workloads:
+AWS runs only workload-facing telemetry primitives:
 
 - CloudWatch Logs for container logs
 - CloudWatch alarms for ALB, RDS, SQS, Scheduler, WAF, and rollback signals
@@ -64,14 +51,15 @@ AWS runs only the telemetry primitives needed by the workloads:
 
 There is no ECS service for Grafana, Loki, Prometheus, or Tempo.
 
-Key Terraform ownership:
+Terraform ownership:
 
-- `infra/app/observability.tf`: optional ADOT sidecar and app telemetry wiring
-- `infra/app/edge_access_logs.tf`: ALB access-log bucket
-- `infra/app/app_log_groups.tf` and `infra/app/workload_jobs.tf`: log groups
+- `infra/app/observability.tf`
+- `infra/app/edge_access_logs.tf`
+- `infra/app/app_log_groups.tf`
+- `infra/app/workload_jobs.tf`
 
-If `enable_adot_sidecar = true`, the API sends traces to the collector on
-`http://127.0.0.1:4318/v1/traces`. If the sidecar is disabled, point
+If `enable_adot_sidecar = true`, the API sends traces to
+`http://127.0.0.1:4318/v1/traces`. Otherwise point
 `otel_exporter_otlp_traces_endpoint` at an external OTLP/HTTP backend.
 
 ## Signals
@@ -80,76 +68,62 @@ Cloud log groups:
 
 | Log group | Writer |
 |---|---|
-| `/ecs/<stack-name>/app` | edge-service container in the current reference runtime |
+| `/ecs/<stack-name>/api` | edge-service container |
 | `/ecs/<stack-name>/adot` | ADOT sidecar when enabled |
 | `/ecs/<stack-name>/pgbouncer` | PgBouncer sidecar |
-| `/ecs/<stack-name>/order-event-consumer` | Consumer, `daprd`, config loader |
-| `/ecs/<stack-name>/data-export-job` | Scheduled export task |
-| `/ecs/<stack-name>/liquibase` | Migration task |
-| `/ecs/<stack-name>/worker` | Backfill worker |
+| `/ecs/<stack-name>/event-consumer` | consumer, `daprd`, config loader |
+| `/ecs/<stack-name>/data-export-job` | scheduled export task |
+| `/ecs/<stack-name>/liquibase` | migration task |
+| `/ecs/<stack-name>/backfill-worker` | backfill worker |
 
-CloudWatch owns these AWS-native signals:
+CloudWatch namespaces:
 
 | Namespace | Purpose |
 |---|---|
 | `AWS/ApplicationELB` | unhealthy targets, target 5xx, target latency |
 | `AWS/RDS` | CPU, storage, connection pressure |
-| `AWS/SQS` | order-event DLQ visibility |
+| `AWS/SQS` | async-eventing DLQ visibility |
 | `AWS/Scheduler` | scheduled export delivery failures |
 | `<stack-name>/DataExport` | export freshness |
 | `ECS/ContainerInsights` | ECS troubleshooting |
 | `AWS/WAFV2` | public edge security inspection |
 
-Prometheus remains the portable app metrics shape. The API and order event
-consumer expose `/metrics`; the local stack scrapes those endpoints.
+Prometheus remains the portable app metrics shape.
 
 ## Alarm Ownership
 
-Keep alarm categories explicit:
-
 - platform-owned edge alarms: ALB health, 5xx, latency
 - platform-owned managed-resource alarms: RDS, SQS, Scheduler, WAF
-- workload-derived delivery alarms: alarms whose presence depends on declared
-  workload capabilities such as Dapr event delivery or scheduled export runs
-- release/incident default snapshots: the bounded alarm set collected by
-  release and incident evidence scripts
+- workload-derived delivery alarms: alarms derived from workload capabilities
+- release/incident default snapshots: bounded alarm sets collected by evidence
+  scripts
 
-The repo now centralizes default release and incident alarm inventories in
-`scripts/observability/platform_inventory.py` so those inventories stay aligned
-with the actual runtime contract instead of drifting into handwritten lists.
+Default release and incident alarm inventories live in
+`scripts/observability/platform_inventory.py`.
 
 ## Debug Loop
 
-Use one correlation key per request, then follow it across the runtime:
+Use one correlation key, then follow it:
 
-- `X-Request-ID`: response headers, logs, traces
-- `Idempotency-Key`: idempotency rows and replay behavior
-- order id: orders, outbox, receipts, exports
-- unique `billing_email`: DB rows and CSV exports
-- image tag: ECR image, task definition, deploy evidence
+- `X-Request-ID`
+- `Idempotency-Key`
+- aggregate id or domain identifier
+- unique business key when the workload exposes one
+- image tag
 
-Practical loop:
+Path:
 
-1. Send a request with `X-Request-ID`, `Idempotency-Key`, and a unique email.
-2. Check app logs or Loki for that request.
-3. Check traces if tracing is enabled.
-4. Query Postgres for the order, idempotency record, outbox row, and receipt.
-5. Inspect the export manifest or raw CSV when the symptom reaches the data hub.
+1. Send a request with `X-Request-ID`, `Idempotency-Key`, and a unique domain key when the flow has one.
+2. Check app logs or Loki.
+3. Check traces if enabled.
+4. Query Postgres for the domain row, idempotency record, outbox row, and receipt.
+5. Inspect the export manifest or raw CSV if the symptom reaches the data hub.
 6. Inspect ALB access logs for edge timing or status-code forensics.
 
-For schema and storage flow, use [Data](data.md). For recovery paths, use
-[Runbooks](runbooks/README.md).
+Use [Data](data.md) for schema and storage flow and
+[Runbooks](runbooks/README.md) for recovery paths.
 
-## Release Evidence
-
-Release and incident evidence stay portable:
-
-- `scripts/observability/release_event.py` writes Markdown, JSON, and JSONL
-- cloud-changing workflows upload `release-evidence-*` artifacts
-- the same records can be pushed to Loki when a reachable endpoint exists
-- `scripts/observability/incident_evidence_bundle.py` assembles incident bundles
-
-Useful commands:
+## Evidence Commands
 
 ```bash
 make incident-evidence
@@ -158,9 +132,12 @@ make release-event-delivery-verify
 LOKI_URL=http://127.0.0.1:3100 make release-event-delivery-verify
 ```
 
-## Validation
+Release and incident evidence is produced by:
 
-After changing observability wiring:
+- `scripts/observability/release_event.py`
+- `scripts/observability/incident_evidence_bundle.py`
+
+## Validation
 
 ```bash
 uv run pytest tests/contracts/test_observability_contract.py tests/scripts/test_observability_scripts.py -q

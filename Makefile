@@ -9,7 +9,7 @@
 #   make help                — list all targets
 #   make dev                 — start local Postgres + PgBouncer
 #   make local-up            — build/start app + local observability
-#   make dapr-up             — build/start local Dapr order event runtime
+#   make dapr-up             — build/start local Dapr event consumer runtime
 #   make test                — run test suite
 #   make runtime-conformance — build/run workload images against platform contract
 #   make lint                — run all linters (app + infra)
@@ -35,12 +35,18 @@ AWS_REGION             ?= eu-central-1
 ACCOUNT_ID             ?= $(shell aws sts get-caller-identity --query Account --output text 2>/dev/null)
 TF_STATE_BUCKET        ?= $(STACK_NAME)-tfstate-$(ACCOUNT_ID)
 ROOT_DOMAIN            ?=
-API_TOKEN_SECRET       ?= $(STACK_NAME)/api-token
+PRIMARY_EDGE_TOKEN_SECRET ?= $(STACK_NAME)/edge-token
 TF_PLATFORM_STATE_KEY  ?= $(STACK_NAME)/platform.tfstate
 TF_APP_STATE_KEY       ?= $(STACK_NAME)/app.tfstate
 TF_PLATFORM_VARS_FILE  := stack.tfvars
 TF_APP_VARS_FILE       := stack.tfvars
-PRIMARY_EDGE_SERVICE   ?= $(shell jq -r '.workloads[] | select(.kind == "service" and .operational.class == "edge-service") | .image.repository' platform/workloads.json 2>/dev/null)
+PRIMARY_EDGE_SERVICE   ?= $(shell python3 -m scripts.platform.workload_metadata primary-edge 2>/dev/null | cut -f2)
+SERVICE_NAME           ?= $(PRIMARY_EDGE_SERVICE)
+LOOKBACK_MINUTES       ?= 60
+RELEASE_EVENTS_DIR     ?=
+INCIDENT_EVIDENCE_DIR  ?= /tmp/aws-sdlc-containers-incident-evidence
+RELEASE_EVIDENCE_DIR   ?= /tmp/aws-sdlc-containers-release-evidence
+GH_RUN_ID              ?=
 
 # ── Help ──────────────────────────────────────────────────────────────────────
 
@@ -68,14 +74,14 @@ local-up: ## Build/start local app + Prometheus + Loki + Promtail + Grafana
 	docker compose --profile observability ps
 
 .PHONY: dapr-up
-dapr-up: ## Build/start local Dapr order event runtime with LocalStack SNS/SQS
-	docker compose build order-event-consumer
-	docker compose --profile dapr up -d db localstack order-event-consumer order-event-consumer-dapr
+dapr-up: ## Build/start local Dapr event consumer runtime with LocalStack SNS/SQS
+	docker compose build event-consumer
+	docker compose --profile dapr up -d db localstack event-consumer event-consumer-dapr
 	docker compose --profile dapr ps
 
 .PHONY: local-down
 local-down: ## Stop local app and observability services without deleting volumes
-	docker compose --profile observability --profile dapr stop app prometheus loki tempo promtail grafana order-event-consumer order-event-consumer-dapr localstack
+	docker compose --profile observability --profile dapr stop app prometheus loki tempo promtail grafana event-consumer event-consumer-dapr localstack
 
 .PHONY: local-reset
 local-reset: ## Stop all local services and delete Compose volumes
@@ -108,7 +114,7 @@ runtime-conformance: ## Build/run workload containers against the portable runti
 # ── Lint & format ─────────────────────────────────────────────────────────────
 
 .PHONY: lint
-lint: secret-scan dependency-audit lint-app lint-scripts lint-docs lint-workflows lint-dockerfiles lint-infra ## Run all linters
+lint: secret-scan dependency-audit lint-app lint-scripts lint-docs lint-workflows lint-dockerfiles lint-policy lint-infra ## Run all linters
 
 .PHONY: lint-app
 lint-app: ## Lint and type-check Python
@@ -121,19 +127,61 @@ lint-scripts: ## Syntax-check shell scripts
 
 .PHONY: lint-docs
 lint-docs: ## Check Markdown links
-	lychee README.md 'docs/**/*.md'
+	@if command -v lychee >/dev/null 2>&1; then \
+		lychee README.md 'docs/**/*.md'; \
+	else \
+		docker run --rm \
+			-v "$(CURDIR):/repo" \
+			-w /repo \
+			lycheeverse/lychee:latest@sha256:64bdc8e45d47634ca6a40f29ae48f1916fb7901ffe0eb929e1229590aba27668 \
+			README.md 'docs/**/*.md'; \
+	fi
 
 .PHONY: lint-workflows
 lint-workflows: ## Lint GitHub workflows
-	actionlint
+	@if command -v actionlint >/dev/null 2>&1; then \
+		actionlint; \
+	else \
+		docker run --rm \
+			-v "$(CURDIR):/repo" \
+			-w /repo \
+			rhysd/actionlint:1.7.12@sha256:b1934ee5f1c509618f2508e6eb47ee0d3520686341fec936f3b79331f9315667; \
+	fi
 
 .PHONY: lint-dockerfiles
 lint-dockerfiles: ## Lint Dockerfiles
-	hadolint db/Dockerfile db/pgbouncer/Dockerfile platform/workload.Dockerfile
+	@if command -v hadolint >/dev/null 2>&1; then \
+		hadolint db/Dockerfile db/pgbouncer/Dockerfile platform/workload.Dockerfile; \
+	else \
+		docker run --rm \
+			-v "$(CURDIR):/repo" \
+			-w /repo \
+			hadolint/hadolint:v2.14.0-debian@sha256:158cd0184dcaa18bd8ec20b61f4c1cabdf8b32a592d062f57bdcb8e4c1d312e2 \
+			hadolint db/Dockerfile db/pgbouncer/Dockerfile platform/workload.Dockerfile; \
+	fi
+
+.PHONY: lint-policy
+lint-policy: ## Check repo policy with OPA/Conftest
+	@if command -v conftest >/dev/null 2>&1; then \
+		conftest test --policy platform/concerns/policy/conftest .github/workflows/*.yml platform/workloads.json platform/runtime-conformance.json platform/platform-inventory.json; \
+	else \
+		docker run --rm \
+			-v "$(CURDIR):/project" \
+			-w /project \
+			openpolicyagent/conftest:v0.64.0 \
+			test --policy platform/concerns/policy/conftest .github/workflows/*.yml platform/workloads.json platform/runtime-conformance.json platform/platform-inventory.json; \
+	fi
 
 .PHONY: secret-scan
 secret-scan: ## Scan repository for committed secrets
-	gitleaks dir . --redact --no-banner
+	@if command -v gitleaks >/dev/null 2>&1; then \
+		gitleaks dir . --redact --no-banner; \
+	else \
+		docker run --rm \
+			-v "$(CURDIR):/repo" \
+			zricethezav/gitleaks:v8.30.1 \
+			dir /repo --redact --no-banner; \
+	fi
 
 .PHONY: dependency-audit
 dependency-audit: ## Audit uv-locked Python dependencies for known vulnerabilities
@@ -248,14 +296,14 @@ app-deploy: ## Force new deployment of the declared primary edge ECS service
 .PHONY: post-deploy-verify
 post-deploy-verify: ## Verify deployed app readiness, metrics, modes, and ECS image
 	@TOKEN="$${TOKEN:-$$(aws secretsmanager get-secret-value \
-		--secret-id $(API_TOKEN_SECRET) \
+		--secret-id $(PRIMARY_EDGE_TOKEN_SECRET) \
 		--region $(AWS_REGION) \
 		--query SecretString --output text)}" \
 	BASE_URL="$${BASE_URL:-https://api.$(ROOT_DOMAIN)}" \
 	ECS_CLUSTER="$${ECS_CLUSTER:-$(STACK_NAME)}" \
 	ECS_SERVICE="$${ECS_SERVICE:-$(PRIMARY_EDGE_SERVICE)}" \
 	EXPECTED_TASK_FAMILY="$${EXPECTED_TASK_FAMILY:-$(STACK_NAME)}" \
-	uv run python scripts/release/verify_post_deploy.py
+	uv run python -m scripts.release.verify_post_deploy
 
 .PHONY: observability-delivery-verify
 observability-delivery-verify: ## Verify CloudWatch/Loki log delivery inventory and freshness
@@ -269,6 +317,47 @@ release-event-delivery-verify: ## Verify release-event push/query round-trip thr
 	STACK_NAME="$(STACK_NAME)" \
 	uv run python scripts/observability/verify_release_event_loki_delivery.py
 
+.PHONY: release-evidence-runs
+release-evidence-runs: ## List recent cloud-changing GitHub workflow runs that emit release evidence
+	@printf "RUN_ID\tWORKFLOW\tBRANCH\tSTATUS\tCONCLUSION\tCREATED_AT\tTITLE\tURL\n"
+	gh run list \
+		--limit 20 \
+		--json databaseId,workflowName,displayTitle,headBranch,status,conclusion,createdAt,url \
+		--jq '.[] | select(.workflowName == "App Build" or .workflowName == "App Deploy" or .workflowName == "Infra Apply" or .workflowName == "App No-Data Rollback Drill" or .workflowName == "Data Runtime Rollback Drill") | [.databaseId, .workflowName, .headBranch, .status, (.conclusion // "-"), .createdAt, .displayTitle, .url] | @tsv'
+
+.PHONY: release-evidence-download
+release-evidence-download: ## Download GitHub release-evidence-* artifacts for GH_RUN_ID into $(RELEASE_EVIDENCE_DIR)/$(GH_RUN_ID)
+	@[ -n "$(GH_RUN_ID)" ] || (echo "Set GH_RUN_ID=<workflow-run-id>" >&2; exit 1)
+	@mkdir -p "$(RELEASE_EVIDENCE_DIR)/$(GH_RUN_ID)"
+	gh run download "$(GH_RUN_ID)" \
+		--pattern 'release-evidence-*' \
+		--dir "$(RELEASE_EVIDENCE_DIR)/$(GH_RUN_ID)"
+
+.PHONY: workload-capability-matrix
+workload-capability-matrix: ## Print the declared workload capability matrix from platform/workloads.json
+	python3 -m scripts.platform.workload_metadata capability-matrix
+
+.PHONY: workload-use-case-matrix
+workload-use-case-matrix: ## Print the declared workload use-case matrix from platform/workloads.json
+	python3 -m scripts.platform.workload_metadata use-case-matrix
+
+.PHONY: capability-implementation-matrix
+capability-implementation-matrix: ## Print the current runtime capability-to-implementation matrix
+	python3 -m scripts.platform.workload_metadata implementation-matrix
+
+.PHONY: adapter-seam-matrix
+adapter-seam-matrix: ## Print contract-to-adapter-to-runtime seams for portable capabilities
+	python3 -m scripts.platform.workload_metadata adapter-seam-matrix
+
+.PHONY: platform-inventory-json
+platform-inventory-json: ## Print machine-readable platform inventory for workloads, runtime seams, and adapter seams
+	python3 -m scripts.platform.workload_metadata inventory-json
+
+.PHONY: scaffold-workload
+scaffold-workload: ## Preview or apply a workload scaffold; pass CLI flags via ARGS='--name ... --pattern ...'
+	@[ -n "$(ARGS)" ] || (echo "Set ARGS='--name <workload> --pattern <pattern> --use-case <use-case> [--apply]'" >&2; exit 1)
+	python3 -m scripts.platform.scaffold_workload $(ARGS)
+
 .PHONY: observability-cloud-traffic
 observability-cloud-traffic: ## Generate live API traffic for Grafana/CloudWatch observation
 	@AWS_REGION="$(AWS_REGION)" \
@@ -280,7 +369,11 @@ incident-evidence: ## Build portable Markdown/JSON incident evidence bundle
 	@AWS_REGION="$(AWS_REGION)" \
 	STACK_NAME="$(STACK_NAME)" \
 	ROOT_DOMAIN="$(ROOT_DOMAIN)" \
-	uv run python scripts/observability/incident_evidence_bundle.py
+	RELEASE_EVENTS_DIR="$(RELEASE_EVENTS_DIR)" \
+	uv run python scripts/observability/incident_evidence_bundle.py \
+		--service-name "$(SERVICE_NAME)" \
+		--lookback-minutes "$(LOOKBACK_MINUTES)" \
+		--output-dir "$(INCIDENT_EVIDENCE_DIR)"
 
 # ── DB access — no bastion needed ─────────────────────────────────────────────
 #
@@ -310,8 +403,9 @@ db-seed: ## Seed DB — run make db-tunnel first for remote DBs  (SEED_NUM_CUSTO
 
 # ── API smoke query ───────────────────────────────────────────────────────────
 #
-# Fetches a single order from the live API and prints the full response or a
-# single field. Requires the single HTTPS entrypoint and fixed-token auth.
+# Fetches a single order from the live primary edge and prints the full
+# response or a single field. Requires the single HTTPS entrypoint and
+# bearer-token auth.
 #
 # Usage:
 #   make api-get-order ORDER_ID=1           — full order JSON
@@ -330,7 +424,7 @@ api-get-order: ## Query a live order by ID  (ORDER_ID=1, FIELD=billing_email)
 	AUTH_TOKEN="$${TOKEN:-}" && \
 	if [ -z "$$AUTH_TOKEN" ]; then \
 		AUTH_TOKEN=$$(aws secretsmanager get-secret-value \
-			--secret-id $(API_TOKEN_SECRET) \
+			--secret-id $(PRIMARY_EDGE_TOKEN_SECRET) \
 			--region $(AWS_REGION) \
 			--query SecretString --output text); \
 	fi && \

@@ -150,7 +150,7 @@ def committed_db_session(db_engine: Engine) -> Generator[Session, None, None]:
             )
             conn.execute(
                 text(
-                    "DELETE FROM order_event_receipts "
+                    "DELETE FROM event_receipts "
                     "WHERE aggregate_type = 'order' AND aggregate_id > :m"
                 ),
                 {"m": watermark},

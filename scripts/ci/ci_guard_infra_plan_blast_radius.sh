@@ -31,3 +31,40 @@ if [[ -n "$matches" ]]; then
     exit 1
   fi
 fi
+
+service_matches="$(
+  awk '
+    BEGIN {in_service = 0; block = ""; found = 0}
+    /^[[:space:]]*# .*aws_ecs_service\.(primary_edge|event_consumer) / {
+      in_service = 1
+      block = $0 "\n"
+      next
+    }
+    in_service {
+      block = block $0 "\n"
+      if ($0 ~ /^[[:space:]]*}/) {
+        if (block ~ /desired_count[[:space:]]*=[[:space:]]*[0-9]+[[:space:]]*->[[:space:]]*[0-9]+/) {
+          printf "%s", block
+          found = 1
+        }
+        in_service = 0
+        block = ""
+      }
+    }
+    END {
+      if (in_service && block ~ /desired_count[[:space:]]*=[[:space:]]*[0-9]+[[:space:]]*->[[:space:]]*[0-9]+/) {
+        printf "%s", block
+        found = 1
+      }
+      exit found ? 0 : 1
+    }
+  ' "$plan_output" || true
+)"
+
+if [[ -n "$service_matches" ]]; then
+  echo "Reviewed app plan changes ECS service desired_count." >&2
+  echo "Desired rollout settings belong to app deploy, not infra apply." >&2
+  echo "Fix the ownership seam before applying this plan." >&2
+  printf "%s\n" "$service_matches" >&2
+  exit 1
+fi

@@ -17,14 +17,14 @@ x-pooled-db-env: &pooled_db_env
   DB_HOST: pgbouncer
   DB_PORT: 5432
 
-x-app-database-url: &app_database_url ${DATABASE_URL:-postgresql://postgres:postgres@pgbouncer:5432/aws_sdlc_containers}
+x-api-database-url: &api_database_url ${DATABASE_URL:-postgresql://postgres:postgres@pgbouncer:5432/aws_sdlc_containers}
 x-backfill-database-url: &backfill_database_url ${BACKFILL_DATABASE_URL:-postgresql://postgres:postgres@db:5432/aws_sdlc_containers}
 x-data-export-database-url: &data_export_database_url ${DATA_EXPORT_DATABASE_URL:-postgresql://postgres:postgres@db:5432/aws_sdlc_containers}
 
-x-order-event-consumer-app-id: &order_event_consumer_app_id order-event-consumer
-x-order-event-consumer-app-port: &order_event_consumer_app_port "8081"
-x-order-event-consumer-pubsub-name: &order_event_consumer_pubsub_name order-events-pubsub
-x-order-event-consumer-topic: &order_event_consumer_topic order-created-v1.fifo
+x-event-consumer-app-id: &event_consumer_app_id event-consumer
+x-event-consumer-app-port: &event_consumer_app_port "8081"
+x-event-consumer-pubsub-name: &event_consumer_pubsub_name async-events-pubsub
+x-event-consumer-topic: &event_consumer_topic async-events-v1.fifo
 
 services:
 
@@ -47,10 +47,10 @@ services:
       retries: 10
       start_period: 10s
 
-  # PgBouncer sits between the app and Postgres.
-  # The app's DATABASE_URL points to pgbouncer:5432, not db:5432.
+  # PgBouncer sits between the API and Postgres.
+  # The API's DATABASE_URL points to pgbouncer:5432, not db:5432.
   # transaction mode: server connections are returned to the pool after each
-  # transaction, allowing many app connections to share a small server-side pool.
+  # transaction, allowing many API connections to share a small server-side pool.
   # edoburu/pgbouncer: actively maintained, current versions, simple env-var config.
   pgbouncer:
     image: edoburu/pgbouncer:v1.25.1-p0
@@ -98,7 +98,7 @@ services:
     profiles:
       - migration
 
-  app:
+  api:
     build:
       <<: *workload_build
       args:
@@ -107,7 +107,7 @@ services:
         WORKLOAD_CMD: uvicorn api.main:app --host 0.0.0.0 --port 8000
     environment:
       <<: *pooled_db_env
-      DATABASE_URL: *app_database_url
+      DATABASE_URL: *api_database_url
       OTEL_TRACES_ENABLED: ${OTEL_TRACES_ENABLED:-false}
       OTEL_EXPORTER_OTLP_TRACES_ENDPOINT: ${OTEL_EXPORTER_OTLP_TRACES_ENDPOINT:-http://tempo:4318/v1/traces}
       OTEL_SERVICE_NAME: aws-sdlc-containers-api
@@ -120,7 +120,7 @@ services:
       pgbouncer:
         condition: service_healthy
 
-  worker:
+  backfill-worker:
     build:
       <<: *workload_build
       args:
@@ -129,7 +129,7 @@ services:
         WORKLOAD_CMD: python -m backfill_worker.main
     environment:
       <<: *direct_db_env
-      # Worker bypasses pgbouncer — connects directly to Postgres.
+      # Backfill bypasses pgbouncer and connects directly to Postgres.
       BACKFILL_DATABASE_URL: *backfill_database_url
       BACKFILL_BATCH_SIZE: ${BACKFILL_BATCH_SIZE:-1000}
       BACKFILL_SLEEP_MS: ${BACKFILL_SLEEP_MS:-100}
@@ -146,7 +146,7 @@ services:
         WORKLOAD_CMD: python -m data_export_job.main
     environment:
       <<: *direct_db_env
-      # Export job bypasses pgbouncer, matching worker/DDL behavior.
+      # Export job bypasses pgbouncer, matching backfill/DDL behavior.
       DATA_EXPORT_DATABASE_URL: *data_export_database_url
       DATA_EXPORT_OUTPUT_DIR: /exports
     volumes:
@@ -154,6 +154,22 @@ services:
     depends_on:
       db:
         condition: service_healthy
+    profiles:
+      - data
+
+  open-dataset-pipeline:
+    build:
+      <<: *workload_build
+      args:
+        APP_PATH: apps/open_dataset_pipeline
+        UV_PACKAGE: aws-sdlc-containers-open-dataset-pipeline
+        WORKLOAD_CMD: python -m open_dataset_pipeline.main
+    environment:
+      OPEN_DATASET_URL: ${OPEN_DATASET_URL:-file:///app/apps/open_dataset_pipeline/sample_data/iris.csv}
+      OPEN_DATASET_NAME: ${OPEN_DATASET_NAME:-iris}
+      OPEN_DATASET_OUTPUT_DIR: ${OPEN_DATASET_OUTPUT_DIR:-/exports}
+    volumes:
+      - data_exports:/exports
     profiles:
       - data
 
@@ -167,20 +183,20 @@ services:
     profiles:
       - dapr
 
-  order-event-consumer:
+  event-consumer:
     build:
       <<: *workload_build
       args:
-        APP_PATH: apps/order_event_consumer
-        UV_PACKAGE: aws-sdlc-containers-order-event-consumer
-        WORKLOAD_CMD: python -m order_event_consumer.main
+        APP_PATH: apps/event_consumer
+        UV_PACKAGE: aws-sdlc-containers-event-consumer
+        WORKLOAD_CMD: python -m event_consumer.main
     environment:
       <<: *direct_db_env
-      DAPR_HTTP_ENDPOINT: http://order-event-consumer-dapr:3500
-      ORDER_EVENTS_APP_PORT: *order_event_consumer_app_port
-      ORDER_EVENTS_WORKER_MODE: both
-      ORDER_EVENTS_PUBSUB_NAME: *order_event_consumer_pubsub_name
-      ORDER_EVENTS_TOPIC: *order_event_consumer_topic
+      DAPR_HTTP_ENDPOINT: http://event-consumer-dapr:3500
+      EVENT_CONSUMER_APP_PORT: *event_consumer_app_port
+      EVENT_CONSUMER_WORKER_MODE: both
+      EVENT_CONSUMER_PUBSUB_NAME: *event_consumer_pubsub_name
+      EVENT_CONSUMER_TOPIC: *event_consumer_topic
     depends_on:
       db:
         condition: service_healthy
@@ -189,16 +205,16 @@ services:
     profiles:
       - dapr
 
-  order-event-consumer-dapr:
+  event-consumer-dapr:
     image: daprio/daprd:1.17.0
     command:
       - ./daprd
       - --app-id
-      - *order_event_consumer_app_id
+      - *event_consumer_app_id
       - --app-port
-      - *order_event_consumer_app_port
+      - *event_consumer_app_port
       - --app-channel-address
-      - *order_event_consumer_app_id
+      - *event_consumer_app_id
       - --dapr-http-port
       - "3500"
       - --components-path
@@ -211,7 +227,7 @@ services:
     ports:
       - "${DAPR_HTTP_PORT:-3500}:3500"
     depends_on:
-      order-event-consumer:
+      event-consumer:
         condition: service_started
       localstack:
         condition: service_started
@@ -249,7 +265,7 @@ services:
     ports:
       - "${PROMETHEUS_PORT:-9090}:9090"
     depends_on:
-      app:
+      api:
         condition: service_started
     profiles:
       - observability

@@ -17,17 +17,14 @@ data "terraform_remote_state" "platform" {
 }
 
 ################################################################################
-# API token - read from Secrets Manager (created out-of-band, never in state).
+# Primary edge token - created out-of-band and injected into the workload at
+# runtime.
 # Create it once before applying:
 #   aws secretsmanager create-secret \
-#     --name <stack-name>/api-token \
+#     --name <stack-name>/edge-token \
 #     --secret-string "$(openssl rand -hex 32)"
-# Keep the secret out of Terraform state and tfvars.
+# Terraform keeps only the secret identifier so plan does not need the payload.
 ################################################################################
-
-data "aws_secretsmanager_secret_version" "api_token" {
-  secret_id = local.api_token_secret_name
-}
 
 locals {
   name       = var.stack_name
@@ -36,10 +33,20 @@ locals {
 
   platform_state_bucket = coalesce(var.platform_state_bucket, "${local.name}-tfstate-${local.account_id}")
   platform_state_key    = coalesce(var.platform_state_key, "${local.name}/platform.tfstate")
-  api_token_secret_name = coalesce(var.api_token_secret_name, "${local.name}/api-token")
+  primary_edge_auth_token_secret_name = coalesce(
+    var.primary_edge_auth_token_secret_name,
+    "${local.name}/edge-token"
+  )
+  primary_edge_auth_token_secret_arn          = "arn:aws:secretsmanager:${local.region}:${local.account_id}:secret:${local.primary_edge_auth_token_secret_name}"
+  primary_edge_auth_token_secret_arn_wildcard = "${local.primary_edge_auth_token_secret_arn}*"
+  primary_edge_hostname_label = coalesce(
+    var.primary_edge_hostname_label,
+    try(local.workloads_by_name[local.primary_edge_workload_name].edge.hostname_label, null),
+    local.workloads_by_name[local.primary_edge_workload_name].image.repository
+  )
 
-  platform = data.terraform_remote_state.platform.outputs
-  api_fqdn = "api.${local.platform.root_domain}"
+  platform          = data.terraform_remote_state.platform.outputs
+  primary_edge_fqdn = "${local.primary_edge_hostname_label}.${local.platform.root_domain}"
 
   github_actions_role_arn = local.platform.github_actions_role_arn
   vpc_cidr                = local.platform.vpc_cidr

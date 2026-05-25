@@ -8,7 +8,7 @@ This rollback changes only the running ECS service task definition. It does not
 undo database migrations, runtime `WRITE_MODE` or `READ_MODE` values, or one-off
 worker/data-export task definitions.
 
-The app and order event consumer ECS services use the ECS native deployment
+The app and event consumer ECS services use the ECS native deployment
 circuit breaker with rollback enabled. The app service also uses ECS deployment
 CloudWatch alarms for ALB target 5xx and latency symptoms. The app
 rolling deployment keeps a five-minute bake window so delayed CloudWatch latency
@@ -52,7 +52,7 @@ Confirm the current service state:
 ```bash
 aws ecs describe-services \
   --cluster "$(terraform -chdir=infra/app output -raw ecs_cluster_name)" \
-  --services "$(terraform -chdir=infra/app output -raw app_service_name)" \
+  --services "$(terraform -chdir=infra/app output -raw primary_edge_service_name)" \
   --region "$AWS_REGION" \
   --query 'services[0].{status:status,taskDefinition:taskDefinition,deployments:deployments[*].{status:status,taskDefinition:taskDefinition,rolloutState:rolloutState,running:runningCount,pending:pendingCount}}'
 ```
@@ -73,6 +73,21 @@ that was healthy immediately before the bad deploy. If the deploy also advanced
 schema phase or runtime flags, confirm the target revision is compatible with
 the current database state before updating the service.
 
+If the failing deploy came from GitHub Actions, download the recent
+`release-evidence-*` artifacts and build an incident bundle before choosing the
+rollback target:
+
+```bash
+make release-evidence-runs
+GH_RUN_ID=<workflow-run-id> make release-evidence-download
+RELEASE_EVENTS_DIR=/tmp/aws-sdlc-containers-release-evidence/<workflow-run-id> \
+make incident-evidence
+```
+
+Use `/tmp/aws-sdlc-containers-incident-evidence/incident-evidence.md` to line
+up the bad image tag, task definition, alarm window, and the most recent
+healthy release event.
+
 ## Roll Back The Service
 
 Set the target revision explicitly:
@@ -86,7 +101,7 @@ Update the service:
 ```bash
 aws ecs update-service \
   --cluster "$(terraform -chdir=infra/app output -raw ecs_cluster_name)" \
-  --service "$(terraform -chdir=infra/app output -raw app_service_name)" \
+  --service "$(terraform -chdir=infra/app output -raw primary_edge_service_name)" \
   --task-definition "$PREVIOUS_TASK_DEFINITION_ARN" \
   --force-new-deployment \
   --region "$AWS_REGION"
@@ -97,7 +112,7 @@ Wait for stabilization:
 ```bash
 aws ecs wait services-stable \
   --cluster "$(terraform -chdir=infra/app output -raw ecs_cluster_name)" \
-  --services "$(terraform -chdir=infra/app output -raw app_service_name)" \
+  --services "$(terraform -chdir=infra/app output -raw primary_edge_service_name)" \
   --region "$AWS_REGION"
 ```
 
@@ -106,7 +121,7 @@ aws ecs wait services-stable \
 Check the public health endpoint:
 
 ```bash
-curl -fsS "https://$(terraform -chdir=infra/app output -raw api_fqdn)/health"
+curl -fsS "https://$(terraform -chdir=infra/app output -raw primary_edge_fqdn)/health"
 ```
 
 Confirm alarms and service events:
@@ -114,14 +129,14 @@ Confirm alarms and service events:
 ```bash
 aws cloudwatch describe-alarms \
   --alarm-names \
-    "$(terraform -chdir=infra/app output -raw app_unhealthy_targets_alarm_name)" \
-    "$(terraform -chdir=infra/app output -raw app_target_5xx_alarm_name)" \
-    "$(terraform -chdir=infra/app output -raw app_target_latency_alarm_name)" \
+    "$(terraform -chdir=infra/app output -raw primary_edge_unhealthy_targets_alarm_name)" \
+    "$(terraform -chdir=infra/app output -raw primary_edge_target_5xx_alarm_name)" \
+    "$(terraform -chdir=infra/app output -raw primary_edge_target_latency_alarm_name)" \
   --region "$AWS_REGION"
 
 aws ecs describe-services \
   --cluster "$(terraform -chdir=infra/app output -raw ecs_cluster_name)" \
-  --services "$(terraform -chdir=infra/app output -raw app_service_name)" \
+  --services "$(terraform -chdir=infra/app output -raw primary_edge_service_name)" \
   --region "$AWS_REGION" \
   --query 'services[0].events[:10]'
 ```

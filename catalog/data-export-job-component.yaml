@@ -1,0 +1,15 @@
+apiVersion: backstage.io/v1alpha1
+kind: Component
+metadata:
+  name: data_export_job
+  description: Scheduled-job workload host for repeatable data export runs.
+  tags:
+    - data-export
+    - scheduled-pipeline
+spec:
+  type: job
+  lifecycle: experimental
+  owner: group:default/platform-engineering
+  system: aws-sdlc-containers
+  dependsOn:
+    - resource:default/runtime-target-aws-ecs

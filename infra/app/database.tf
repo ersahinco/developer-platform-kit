@@ -26,10 +26,10 @@ resource "aws_security_group" "rds" {
     from_port   = 5432
     to_port     = 5432
     protocol    = "tcp"
-    # aws_security_group.app is pre-created so both RDS and ECS module can
+    # aws_security_group.primary_edge is pre-created so both RDS and ECS module can
     # reference it without a circular dependency. The ECS module is told to
     # use it via security_group_ids + create_security_group=false.
-    security_groups = [aws_security_group.app.id]
+    security_groups = [aws_security_group.primary_edge.id]
   }
 
   tags = local.tags

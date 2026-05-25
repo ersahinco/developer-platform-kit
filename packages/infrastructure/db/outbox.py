@@ -5,7 +5,7 @@ from sqlalchemy.dialects.postgresql import insert as pg_insert
 from sqlalchemy.orm import Session
 
 from application.outbox import OutboxMessage
-from domain.order_events import OrderEventMessage
+from domain.order_events import EventMessage
 from infrastructure.db.models import OutboxMessageModel
 
 
@@ -29,7 +29,7 @@ class SQLAlchemyOutboxRepository:
     def __init__(self, session: Session) -> None:
         self._session = session
 
-    def enqueue(self, message: OrderEventMessage) -> None:
+    def enqueue(self, message: EventMessage) -> None:
         now = datetime.datetime.now(tz=datetime.UTC)
         stmt = (
             pg_insert(OutboxMessageModel)

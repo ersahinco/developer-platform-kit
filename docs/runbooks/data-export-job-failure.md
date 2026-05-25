@@ -21,8 +21,9 @@ container exits non-zero, inspect the ECS task and CloudWatch logs even if this
 alarm does not fire.
 
 The success-missing alarm watches the custom `<stack-name>/DataExport`
-`SuccessCount` metric emitted from successful manifest log lines. It fires when
-no successful export is observed for two consecutive daily evaluation windows.
+`SuccessCount` metric emitted from successful `data_export_succeeded` log
+lines. It fires when no successful export is observed for two consecutive
+daily evaluation windows.
 
 ## First Checks
 
@@ -79,7 +80,7 @@ When a reachable Loki endpoint contains data export logs, inspect successful
 and failed manifest log records there before changing CloudWatch alarms:
 
 ```logql
-{stack="<stack-name>", service="data-export-job"} | json | dataset="order_contact_email"
+{stack="<stack-name>", service="data-export-job"} | json | event="data_export_succeeded"
 ```
 
 A future Grafana freshness alert should be based on either that successful

@@ -26,6 +26,8 @@ def test_order_created_event_has_stable_idempotency_key() -> None:
     assert event["event_version"] == 1
     assert event["event_id"] == "order.created.v1:42"
     assert event["idempotency_key"] == "order.created.v1:42"
+    assert event["aggregate_type"] == "order"
+    assert event["aggregate_id"] == 42
     assert event["occurred_at"] == "2026-04-29T12:30:00Z"
     assert event["order"] == {
         "id": 42,

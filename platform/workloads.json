@@ -1,9 +1,11 @@
 {
-  "schema_version": "4",
+  "schema_version": "5",
   "workloads": [
     {
       "name": "api",
       "kind": "service",
+      "patterns": ["edge-service"],
+      "use_cases": ["http-api"],
       "app_path": "apps/api",
       "operational": {
         "class": "edge-service",
@@ -12,8 +14,20 @@
       "service": {
         "port": 8000
       },
+      "edge": {
+        "hostname_label": "api",
+        "hostname_label_convention": "explicit-label",
+        "auth_mode": "static-bearer-token"
+      },
+      "verification": {
+        "profile": "primary-edge-runtime-modes",
+        "runtime_mode_endpoints": {
+          "read": "/admin/read-mode",
+          "write": "/admin/write-mode"
+        }
+      },
       "image": {
-        "repository": "app",
+        "repository": "api",
         "package": "aws-sdlc-containers-api",
         "command": "uvicorn api.main:app --host 0.0.0.0 --port 8000"
       },
@@ -44,13 +58,15 @@
           "ROLLOUT_DRILL_FAULT_STATUS_CODE",
           "ROLLOUT_DRILL_FAULT_DELAY_SECONDS"
         ],
-        "secrets": ["DB_PASSWORD"]
+        "secrets": ["DB_PASSWORD", "PRIMARY_EDGE_AUTH_TOKEN"]
       }
     },
     {
-      "name": "order_event_consumer",
+      "name": "event_consumer",
       "kind": "service",
-      "app_path": "apps/order_event_consumer",
+      "patterns": ["internal-async-service"],
+      "use_cases": ["event-consumer", "integration"],
+      "app_path": "apps/event_consumer",
       "operational": {
         "class": "internal-service",
         "exposure": "internal"
@@ -59,15 +75,15 @@
         "port": 8081
       },
       "image": {
-        "repository": "order-event-consumer",
-        "package": "aws-sdlc-containers-order-event-consumer",
-        "command": "python -m order_event_consumer.main"
+        "repository": "event-consumer",
+        "package": "aws-sdlc-containers-event-consumer",
+        "command": "python -m event_consumer.main"
       },
       "metrics": {
         "format": "prometheus",
         "required_names": [
-          "order_event_consumer_http_requests_total",
-          "order_event_consumer_http_request_duration_seconds"
+          "event_consumer_http_requests_total",
+          "event_consumer_http_request_duration_seconds"
         ]
       },
       "traces": {
@@ -78,11 +94,11 @@
         "pooling": "direct"
       },
       "dapr": {
-        "app_id": "order-event-consumer",
+        "app_id": "event-consumer",
         "scope": "pubsub",
-        "pubsub_name": "order-events-pubsub",
-        "topic": "order-created-v1.fifo",
-        "subscription_route": "/internal/events/order-created"
+        "pubsub_name": "async-events-pubsub",
+        "topic": "async-events-v1.fifo",
+        "subscription_route": "/internal/events/consume"
       },
       "config": {
         "env": [
@@ -93,13 +109,13 @@
           "DB_NAME",
           "DAPR_HTTP_ENDPOINT",
           "DAPR_HTTP_PORT",
-          "ORDER_EVENTS_APP_PORT",
-          "ORDER_EVENTS_WORKER_MODE",
-          "ORDER_EVENTS_WORKER_RUN_ONCE",
-          "ORDER_EVENTS_PUBSUB_NAME",
-          "ORDER_EVENTS_TOPIC",
-          "ORDER_EVENTS_RELAY_BATCH_SIZE",
-          "ORDER_EVENTS_IDLE_SLEEP_SECONDS"
+          "EVENT_CONSUMER_APP_PORT",
+          "EVENT_CONSUMER_WORKER_MODE",
+          "EVENT_CONSUMER_WORKER_RUN_ONCE",
+          "EVENT_CONSUMER_PUBSUB_NAME",
+          "EVENT_CONSUMER_TOPIC",
+          "EVENT_CONSUMER_RELAY_BATCH_SIZE",
+          "EVENT_CONSUMER_IDLE_SLEEP_SECONDS"
         ],
         "secrets": ["DB_PASSWORD"]
       }
@@ -107,13 +123,15 @@
     {
       "name": "backfill_worker",
       "kind": "job",
+      "patterns": ["operator-job"],
+      "use_cases": ["data-maintenance", "operator-task"],
       "app_path": "apps/backfill_worker",
       "operational": {
         "class": "operator-job",
         "trigger": "manual"
       },
       "image": {
-        "repository": "worker",
+        "repository": "backfill-worker",
         "package": "aws-sdlc-containers-backfill-worker",
         "command": "python -m backfill_worker.main"
       },
@@ -144,6 +162,8 @@
     {
       "name": "data_export_job",
       "kind": "job",
+      "patterns": ["scheduled-job", "export-job"],
+      "use_cases": ["data-export", "scheduled-pipeline"],
       "app_path": "apps/data_export_job",
       "operational": {
         "class": "scheduled-job",
@@ -174,6 +194,38 @@
           "DATA_EXPORT_S3_BUCKET"
         ],
         "secrets": ["DB_PASSWORD"]
+      },
+      "job": {
+        "idempotency": "run_id"
+      }
+    },
+    {
+      "name": "open_dataset_pipeline",
+      "kind": "job",
+      "patterns": ["scheduled-job", "data-pipeline"],
+      "use_cases": ["data-pipeline", "data-ingestion", "transformation"],
+      "app_path": "apps/open_dataset_pipeline",
+      "operational": {
+        "class": "scheduled-job",
+        "trigger": "schedule"
+      },
+      "image": {
+        "repository": "open-dataset-pipeline",
+        "package": "aws-sdlc-containers-open-dataset-pipeline",
+        "command": "python -m open_dataset_pipeline.main"
+      },
+      "traces": {
+        "supported": false
+      },
+      "config": {
+        "env": [
+          "OPEN_DATASET_URL",
+          "OPEN_DATASET_NAME",
+          "OPEN_DATASET_OUTPUT_DIR",
+          "OPEN_DATASET_RUN_ID",
+          "OPEN_DATASET_DATE"
+        ],
+        "secrets": []
       },
       "job": {
         "idempotency": "run_id"

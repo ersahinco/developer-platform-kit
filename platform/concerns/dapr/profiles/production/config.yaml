@@ -1,7 +1,7 @@
 apiVersion: dapr.io/v1alpha1
 kind: Configuration
 metadata:
-  name: order-events-config
+  name: async-eventing-config
 spec:
   tracing:
     # Production: sample 10% of traces to control cost.

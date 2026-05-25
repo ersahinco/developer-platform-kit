@@ -36,6 +36,7 @@ module "ecr" {
   version = "~> 3.0"
 
   repository_name                 = "${local.name}/${each.value.repository_name}"
+  repository_force_delete         = true
   repository_image_tag_mutability = "IMMUTABLE"
   repository_image_scan_on_push   = true
 
@@ -69,44 +70,4 @@ module "ecr" {
   })
 
   tags = local.tags
-}
-
-moved {
-  from = module.ecr_app
-  to   = module.ecr["api"]
-}
-
-moved {
-  from = module.ecr_worker
-  to   = module.ecr["backfill_worker"]
-}
-
-moved {
-  from = module.ecr["app"]
-  to   = module.ecr["api"]
-}
-
-moved {
-  from = module.ecr["worker"]
-  to   = module.ecr["backfill_worker"]
-}
-
-moved {
-  from = module.ecr_liquibase
-  to   = module.ecr["liquibase"]
-}
-
-moved {
-  from = module.ecr_data_export_job
-  to   = module.ecr["data_export_job"]
-}
-
-moved {
-  from = module.ecr_order_event_consumer
-  to   = module.ecr["order_event_consumer"]
-}
-
-moved {
-  from = module.ecr_pgbouncer
-  to   = module.ecr["pgbouncer"]
 }

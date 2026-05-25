@@ -1,12 +1,12 @@
 """
-verify_post_deploy.py — Check the app after an ECS or local deploy.
+verify_post_deploy.py — Check the primary edge workload after an ECS or local deploy.
 
 The verifier always checks HTTP liveness, dependency readiness, Prometheus
 metrics, and runtime read/write mode endpoints. If ECS_CLUSTER and ECS_SERVICE
-are set, it also checks the active ECS task definition and app image.
+are set, it also checks the active ECS task definition and primary edge image.
 
 Usage:
-    python scripts/release/verify_post_deploy.py
+    python -m scripts.release.verify_post_deploy
 
 Environment:
     BASE_URL              Default: http://localhost:8000
@@ -16,9 +16,9 @@ Environment:
     ECS_SERVICE           Optional ECS service name
     AWS_REGION            Default: eu-central-1
     EXPECTED_TASK_FAMILY  Optional task family, default: aws-sdlc-containers
-    APP_CONTAINER_NAME    Optional container name, default: app
-    EXPECTED_APP_IMAGE    Optional exact app container image
-    EXPECTED_IMAGE_TAG    Optional app image tag, for example sha-<commit>
+    WORKLOAD_CONTAINER_NAME Optional container name for the primary edge workload
+    EXPECTED_WORKLOAD_IMAGE Optional exact primary edge container image
+    EXPECTED_IMAGE_TAG      Optional primary edge image tag, for example sha-<commit>
     TOKEN                 Optional bearer token for the public ALB
     AUTH_TOKEN            Optional bearer token alias
 """
@@ -35,6 +35,8 @@ from typing import Any
 from urllib.parse import urlparse
 
 import httpx
+from scripts.observability.platform_inventory import edge_service_repository
+from scripts.platform.workload_metadata import primary_edge_contract
 
 
 @dataclass
@@ -80,6 +82,8 @@ def _get_text(base_url: str, path: str) -> tuple[int, str]:
 
 def _check_http(base_url: str) -> list[CheckResult]:
     results: list[CheckResult] = []
+    edge_contract = primary_edge_contract()
+    required_metrics = edge_contract["metrics_required_names"]
 
     try:
         status_code, health = _get_json(base_url, "/health")
@@ -108,12 +112,15 @@ def _check_http(base_url: str) -> list[CheckResult]:
 
     try:
         status_code, metrics = _get_text(base_url, "/metrics")
-        has_request_count = "http_requests_total" in metrics
-        has_request_latency = "http_request_duration_seconds" in metrics
+        missing_metrics = [
+            metric_name
+            for metric_name in required_metrics
+            if metric_name not in metrics
+        ]
         results.append(
             CheckResult(
-                status_code == 200 and has_request_count and has_request_latency,
-                f"/metrics returned {status_code} request_count={has_request_count} request_latency={has_request_latency}",
+                status_code == 200 and not missing_metrics,
+                f"/metrics returned {status_code} missing_metrics={missing_metrics}",
             )
         )
     except (httpx.HTTPError, ValueError) as exc:
@@ -141,6 +148,36 @@ def _check_runtime_mode(
         status_code == 200 and mode == expected,
         f"{label} mode is {mode!r}, expected {expected!r}",
     )
+
+
+def _runtime_mode_checks(base_url: str) -> list[CheckResult]:
+    runtime_mode_endpoints = primary_edge_contract()["runtime_mode_endpoints"]
+    if not runtime_mode_endpoints:
+        return [CheckResult(True, "runtime-mode checks skipped; no endpoints declared")]
+
+    results: list[CheckResult] = []
+    read_endpoint = runtime_mode_endpoints.get("read")
+    write_endpoint = runtime_mode_endpoints.get("write")
+
+    if read_endpoint is not None:
+        results.append(
+            _check_runtime_mode(
+                base_url,
+                read_endpoint,
+                os.environ.get("EXPECTED_READ_MODE"),
+                "READ_MODE",
+            )
+        )
+    if write_endpoint is not None:
+        results.append(
+            _check_runtime_mode(
+                base_url,
+                write_endpoint,
+                os.environ.get("EXPECTED_WRITE_MODE"),
+                "WRITE_MODE",
+            )
+        )
+    return results
 
 
 def _aws_json(args: list[str], region: str) -> dict[str, Any]:
@@ -216,8 +253,10 @@ def _check_ecs() -> list[CheckResult]:
         or cluster
         or "aws-sdlc-containers"
     )
-    app_container_name = os.environ.get("APP_CONTAINER_NAME", "app")
-    expected_image = os.environ.get("EXPECTED_APP_IMAGE")
+    workload_container_name = os.environ.get(
+        "WORKLOAD_CONTAINER_NAME", edge_service_repository()
+    )
+    expected_image = os.environ.get("EXPECTED_WORKLOAD_IMAGE")
     expected_tag = os.environ.get("EXPECTED_IMAGE_TAG")
 
     try:
@@ -244,15 +283,15 @@ def _check_ecs() -> list[CheckResult]:
 
     task_definition = task_response["taskDefinition"]
     containers = task_definition.get("containerDefinitions", [])
-    app_container = next(
+    workload_container = next(
         (
             container
             for container in containers
-            if container.get("name") == app_container_name
+            if container.get("name") == workload_container_name
         ),
         None,
     )
-    app_image = app_container.get("image") if app_container else None
+    workload_image = workload_container.get("image") if workload_container else None
 
     results = [
         CheckResult(
@@ -268,23 +307,24 @@ def _check_ecs() -> list[CheckResult]:
             f"ECS task family={task_definition.get('family')!r}, expected {expected_family!r}",
         ),
         CheckResult(
-            app_container is not None,
-            f"ECS app container {app_container_name!r} is present",
+            workload_container is not None,
+            f"ECS workload container {workload_container_name!r} is present",
         ),
     ]
 
     if expected_image is not None:
         results.append(
             CheckResult(
-                app_image == expected_image,
-                f"ECS app image={app_image!r}, expected {expected_image!r}",
+                workload_image == expected_image,
+                f"ECS workload image={workload_image!r}, expected {expected_image!r}",
             )
         )
     if expected_tag is not None:
         results.append(
             CheckResult(
-                isinstance(app_image, str) and app_image.endswith(f":{expected_tag}"),
-                f"ECS app image={app_image!r}, expected tag {expected_tag!r}",
+                isinstance(workload_image, str)
+                and workload_image.endswith(f":{expected_tag}"),
+                f"ECS workload image={workload_image!r}, expected tag {expected_tag!r}",
             )
         )
 
@@ -295,18 +335,7 @@ def main() -> int:
     base_url = os.environ.get("BASE_URL", "http://localhost:8000").rstrip("/")
     results = [
         *_check_http(base_url),
-        _check_runtime_mode(
-            base_url,
-            "/admin/read-mode",
-            os.environ.get("EXPECTED_READ_MODE"),
-            "READ_MODE",
-        ),
-        _check_runtime_mode(
-            base_url,
-            "/admin/write-mode",
-            os.environ.get("EXPECTED_WRITE_MODE"),
-            "WRITE_MODE",
-        ),
+        *_runtime_mode_checks(base_url),
         *_check_ecs(),
     ]
 

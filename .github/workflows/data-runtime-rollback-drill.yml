@@ -12,7 +12,7 @@ env:
   AWS_REGION: ${{ vars.AWS_REGION || 'eu-central-1' }}
   STACK_NAME: ${{ vars.STACK_NAME || github.event.repository.name }}
   ROOT_DOMAIN: ${{ vars.ROOT_DOMAIN }}
-  API_TOKEN_SECRET: ${{ vars.API_TOKEN_SECRET || format('{0}/api-token', vars.STACK_NAME || github.event.repository.name) }}
+  PRIMARY_EDGE_TOKEN_SECRET: ${{ vars.PRIMARY_EDGE_TOKEN_SECRET || format('{0}/edge-token', vars.STACK_NAME || github.event.repository.name) }}
   DATA_RUNTIME_ROLLBACK_SLO_SECONDS: "120"
   DATA_RUNTIME_VERIFY_SLO_SECONDS: "120"
 
@@ -50,37 +50,46 @@ jobs:
       - name: Install verification dependencies
         run: uv sync --frozen --group scripts
 
+      - name: Resolve root domain
+        run: scripts/ci/ci_resolve_root_domain.sh
+
       - uses: aws-actions/configure-aws-credentials@a89a83ec143615402a01f672b6e172b7b1875000 # v6
         with:
           role-to-assume: ${{ secrets.AWS_ROLE_ARN }}
           aws-region: ${{ env.AWS_REGION }}
 
       - name: Validate cloud settings
-        run: |
-          if [[ -z "${ROOT_DOMAIN}" ]]; then
-            echo "Set ROOT_DOMAIN as a GitHub repository or environment variable before running the drill." >&2
-            exit 1
-          fi
+        run: test -n "${ROOT_DOMAIN}"
 
-      - name: Require stable app service
+      - name: Resolve primary edge service
+        id: primary-service
+        run: |
+          IFS=$'\t' read -r workload_name service hostname_label < <(python3 -m scripts.platform.workload_metadata primary-edge)
+          {
+            echo "service=${service}"
+            echo "workload_name=${workload_name}"
+            echo "hostname_label=${hostname_label}"
+          } >> "$GITHUB_OUTPUT"
+
+      - name: Require stable primary edge service
         run: |
           service_json=$(aws ecs describe-services \
             --cluster "${{ env.STACK_NAME }}" \
-            --services app \
+            --services "${{ steps.primary-service.outputs.service }}" \
             --output json)
           primary_rollout_state=$(echo "$service_json" | jq -r '.services[0].deployments[] | select(.status == "PRIMARY") | .rolloutState')
           if [[ "$primary_rollout_state" != "COMPLETED" ]]; then
-            echo "App service must be stable before runtime-config rollback drill; got ${primary_rollout_state}." >&2
+            echo "Primary edge service must be stable before runtime-config rollback drill; got ${primary_rollout_state}." >&2
             exit 1
           fi
 
       - name: Capture current runtime modes
         id: current
         env:
-          BASE_URL: https://api.${{ env.ROOT_DOMAIN }}
+          BASE_URL: https://${{ steps.primary-service.outputs.hostname_label }}.${{ env.ROOT_DOMAIN }}
         run: |
           TOKEN=$(aws secretsmanager get-secret-value \
-            --secret-id "${API_TOKEN_SECRET}" \
+            --secret-id "${PRIMARY_EDGE_TOKEN_SECRET}" \
             --region "${AWS_REGION}" \
             --query SecretString \
             --output text)
@@ -106,6 +115,7 @@ jobs:
           {
             echo "### Runtime config rollback drill"
             echo ""
+            echo "- Service: ${{ steps.primary-service.outputs.service }}"
             echo "- Captured READ_MODE: ${read_mode}"
             echo "- Captured WRITE_MODE: ${write_mode}"
             echo "- Forward drill mode: dual"
@@ -114,10 +124,10 @@ jobs:
 
       - name: Move write mode forward to dual
         env:
-          BASE_URL: https://api.${{ env.ROOT_DOMAIN }}
+          BASE_URL: https://${{ steps.primary-service.outputs.hostname_label }}.${{ env.ROOT_DOMAIN }}
         run: |
           TOKEN=$(aws secretsmanager get-secret-value \
-            --secret-id "${API_TOKEN_SECRET}" \
+            --secret-id "${PRIMARY_EDGE_TOKEN_SECRET}" \
             --region "${AWS_REGION}" \
             --query SecretString \
             --output text)
@@ -147,11 +157,11 @@ jobs:
       - name: Roll back to captured write mode
         id: rollback
         env:
-          BASE_URL: https://api.${{ env.ROOT_DOMAIN }}
+          BASE_URL: https://${{ steps.primary-service.outputs.hostname_label }}.${{ env.ROOT_DOMAIN }}
           PREVIOUS_WRITE_MODE: ${{ steps.current.outputs.write_mode }}
         run: |
           TOKEN=$(aws secretsmanager get-secret-value \
-            --secret-id "${API_TOKEN_SECRET}" \
+            --secret-id "${PRIMARY_EDGE_TOKEN_SECRET}" \
             --region "${AWS_REGION}" \
             --query SecretString \
             --output text)
@@ -192,11 +202,11 @@ jobs:
       - name: Restore captured write mode if needed
         if: ${{ always() && steps.current.outputs.write_mode != '' }}
         env:
-          BASE_URL: https://api.${{ env.ROOT_DOMAIN }}
+          BASE_URL: https://${{ steps.primary-service.outputs.hostname_label }}.${{ env.ROOT_DOMAIN }}
           PREVIOUS_WRITE_MODE: ${{ steps.current.outputs.write_mode }}
         run: |
           TOKEN=$(aws secretsmanager get-secret-value \
-            --secret-id "${API_TOKEN_SECRET}" \
+            --secret-id "${PRIMARY_EDGE_TOKEN_SECRET}" \
             --region "${AWS_REGION}" \
             --query SecretString \
             --output text)
@@ -211,20 +221,21 @@ jobs:
       - name: Verify restored runtime modes
         id: verify-restored
         env:
-          BASE_URL: https://api.${{ env.ROOT_DOMAIN }}
+          BASE_URL: https://${{ steps.primary-service.outputs.hostname_label }}.${{ env.ROOT_DOMAIN }}
           ECS_CLUSTER: ${{ env.STACK_NAME }}
-          ECS_SERVICE: app
+          ECS_SERVICE: ${{ steps.primary-service.outputs.service }}
           EXPECTED_TASK_FAMILY: ${{ env.STACK_NAME }}
           EXPECTED_READ_MODE: ${{ steps.current.outputs.read_mode }}
           EXPECTED_WRITE_MODE: ${{ steps.current.outputs.write_mode }}
+          WORKLOAD_CONTAINER_NAME: ${{ steps.primary-service.outputs.service }}
         run: |
           verify_started_epoch=$(date +%s)
           TOKEN=$(aws secretsmanager get-secret-value \
-            --secret-id "${API_TOKEN_SECRET}" \
+            --secret-id "${PRIMARY_EDGE_TOKEN_SECRET}" \
             --region "${AWS_REGION}" \
             --query SecretString \
             --output text)
-          TOKEN="$TOKEN" uv run python scripts/release/verify_post_deploy.py
+          TOKEN="$TOKEN" uv run python -m scripts.release.verify_post_deploy
           verify_seconds=$(($(date +%s) - verify_started_epoch))
           echo "verify_seconds=${verify_seconds}" >> "$GITHUB_OUTPUT"
           {
@@ -245,13 +256,15 @@ jobs:
           LOKI_PUSH_URL: ${{ secrets.LOKI_PUSH_URL || vars.LOKI_PUSH_URL }}
           LOKI_URL: ${{ vars.LOKI_URL }}
         run: |
-          python3 scripts/observability/release_event.py \
+          python3 -m scripts.observability.release_event \
             --event-type data_runtime_rollback_drill \
             --status "${{ job.status }}" \
             --summary "Data runtime rollback drill completed with status ${{ job.status }}" \
-            --service-name app \
+            --service-name "${{ steps.primary-service.outputs.service }}" \
+            --workload-id "${{ steps.primary-service.outputs.workload_name }}" \
             --read-mode "${{ steps.current.outputs.read_mode }}" \
             --write-mode "${{ steps.current.outputs.write_mode }}" \
+            --rollback-category runtime_data_phase \
             --rollback-seconds "${{ steps.rollback.outputs.rollback_seconds }}" \
             --rollback-slo-seconds "${{ env.DATA_RUNTIME_ROLLBACK_SLO_SECONDS }}" \
             --verify-seconds "${{ steps.verify-restored.outputs.verify_seconds }}" \

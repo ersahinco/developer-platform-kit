@@ -27,9 +27,12 @@ from pathlib import Path
 from typing import Any
 from urllib import parse, request
 
-from scripts.observability.platform_inventory import api_trace_service_name
 from scripts.observability.platform_inventory import DEFAULT_STACK_NAME
 from scripts.observability.platform_inventory import dapr_workload_service_name
+from scripts.observability.platform_inventory import delivery_event_selector
+from scripts.observability.platform_inventory import edge_service_repository
+from scripts.observability.platform_inventory import edge_service_hostname_label
+from scripts.observability.platform_inventory import edge_trace_service_name
 from scripts.observability.platform_inventory import incident_alarm_names
 
 CORRELATION_FIELDS = [
@@ -135,6 +138,9 @@ def _release_event_summary(
         "summary": event.get("summary"),
         "timestamp": event.get("timestamp"),
         "service": event.get("service"),
+        "workload_id": event.get("workload_id"),
+        "deployment_id": event.get("deployment_id"),
+        "rollback_category": event.get("rollback_category"),
         "github_run_id": github.get("run_id"),
         "github_run_url": github.get("run_url"),
         "workflow": github.get("workflow"),
@@ -269,11 +275,7 @@ def _load_loki_release_events(
     if not loki_url:
         return [], None
 
-    query = (
-        f'{{stack="{stack_name}",environment="aws",'
-        'event_type=~"app_deploy|app_rollback_drill|'
-        'data_runtime_rollback_drill|infra_apply"}}'
-    )
+    query = delivery_event_selector(stack_name)
     try:
         response = _loki_json(
             loki_url,
@@ -336,16 +338,16 @@ def _query_hints(
                 "expr": f'{{{base_labels}}} |= "<request_id>"',
             },
             {
-                "name": "app errors",
+                "name": "edge errors",
                 "expr": f'{{{base_labels}}} |~ "(?i)(error|exception|traceback)"',
             },
             {
-                "name": "order event relay",
+                "name": "event consumer relay",
                 "expr": f'{{stack="{stack_name}",environment="aws",service="{relay_service_name}"}} |= "<event_id>"',
             },
             {
                 "name": "delivery events",
-                "expr": f'{{stack="{stack_name}",environment="aws",event_type=~"app_deploy|app_rollback_drill|data_runtime_rollback_drill|infra_apply"}}',
+                "expr": delivery_event_selector(stack_name),
             },
         ],
         "prometheus": [
@@ -364,13 +366,18 @@ def _query_hints(
         ],
         "tempo": [
             {
-                "service": api_trace_service_name(stack_name),
+                "service": edge_trace_service_name(stack_name),
                 "tags": ["request_id", "http.route", "http.status_code"],
             }
         ],
         "operator_commands": [
             "make observability",
-            f"BASE_URL=https://api.{root_domain} make observability-cloud-traffic",
+            " ".join(
+                [
+                    f"BASE_URL=https://{edge_service_hostname_label()}.{root_domain}",
+                    "make observability-cloud-traffic",
+                ]
+            ),
             "make observability-delivery-verify",
         ],
     }
@@ -541,6 +548,14 @@ def render_markdown(bundle: dict[str, Any]) -> str:
             timestamp = event.get("timestamp") or "unknown time"
             source = event.get("source") or "unknown source"
             lines.append(f"- {timestamp}: {detail} ({status}, run {run}, {source})")
+            if event.get("workflow"):
+                lines.append(f"  - workflow: `{event['workflow']}`")
+            if event.get("workload_id"):
+                lines.append(f"  - workload_id: `{event['workload_id']}`")
+            if event.get("deployment_id"):
+                lines.append(f"  - deployment_id: `{event['deployment_id']}`")
+            if event.get("rollback_category"):
+                lines.append(f"  - rollback_category: `{event['rollback_category']}`")
             if event.get("image_tag"):
                 lines.append(f"  - image_tag: `{event['image_tag']}`")
             if event.get("task_definition"):
@@ -597,7 +612,7 @@ def main() -> int:
     parser.add_argument(
         "--stack-name", default=os.environ.get("STACK_NAME", DEFAULT_STACK_NAME)
     )
-    parser.add_argument("--service-name", default="app")
+    parser.add_argument("--service-name", default=edge_service_repository())
     parser.add_argument(
         "--region", default=os.environ.get("AWS_REGION", "eu-central-1")
     )

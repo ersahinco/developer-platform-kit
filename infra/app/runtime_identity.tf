@@ -29,14 +29,20 @@ resource "aws_iam_role_policy_attachment" "task_exec_managed" {
 
 data "aws_iam_policy_document" "task_exec_secrets" {
   statement {
-    sid       = "ReadRDSMasterSecret"
+    sid       = "ReadDatabaseRuntimeSecret"
     actions   = ["secretsmanager:GetSecretValue"]
     resources = [module.rds.db_instance_master_user_secret_arn]
+  }
+
+  statement {
+    sid       = "ReadPrimaryEdgeAuthToken"
+    actions   = ["secretsmanager:GetSecretValue"]
+    resources = [local.primary_edge_auth_token_secret_arn_wildcard]
   }
 }
 
 resource "aws_iam_role_policy" "task_exec_secrets" {
-  name   = "rds-secret-access"
+  name   = "runtime-secret-access"
   role   = aws_iam_role.task_exec.id
   policy = data.aws_iam_policy_document.task_exec_secrets.json
 }

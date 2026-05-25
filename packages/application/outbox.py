@@ -2,7 +2,7 @@ import datetime
 from dataclasses import dataclass
 from typing import Any, Protocol
 
-from domain.order_events import OrderEventMessage
+from domain.order_events import EventMessage
 
 OUTBOX_FAILURE_BACKOFF_SECONDS = 60
 
@@ -21,7 +21,7 @@ class OutboxMessage:
 
 
 class OutboxRepository(Protocol):
-    def enqueue(self, message: OrderEventMessage) -> None: ...
+    def enqueue(self, message: EventMessage) -> None: ...
 
     def claim_pending(
         self,
