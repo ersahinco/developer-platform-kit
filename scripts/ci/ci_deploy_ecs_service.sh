@@ -43,10 +43,12 @@ if [[ "${ECS_DEPLOY_WAIT_FOR_STABLE:-true}" == "true" ]]; then
     --cluster "$CLUSTER" \
     --services "$SERVICE"; then
     echo "ECS service ${SERVICE} failed to reach stable state. Recent rollout context:" >&2
+    service_context_file="$(mktemp)"
     aws ecs describe-services \
       --cluster "$CLUSTER" \
       --services "$SERVICE" \
-      --output json | jq '
+      --output json > "$service_context_file"
+    cat "$service_context_file" | jq '
         .services[0] | {
           serviceName,
           desiredCount,
@@ -112,6 +114,50 @@ if [[ "${ECS_DEPLOY_WAIT_FOR_STABLE:-true}" == "true" ]]; then
           }
         ' >&2 || true
     fi
+
+    recent_started_task_ids=$(
+      cat "$service_context_file" | jq -r '
+        .services[0].events
+        | map(.message | capture("\\(task (?<task_id>[0-9a-f]+)\\)"; "g").task_id? // empty)
+        | flatten
+        | unique
+        | .[:5]
+        | .[]
+      ' 2>/dev/null || true
+    )
+    if [[ -n "$recent_started_task_ids" ]]; then
+      echo "Recent started tasks for ${SERVICE} from service events:" >&2
+      aws ecs describe-tasks \
+        --cluster "$CLUSTER" \
+        --tasks $recent_started_task_ids \
+        --output json | jq '
+          {
+            tasks: [
+              .tasks[] | {
+                taskArn,
+                taskDefinitionArn,
+                lastStatus,
+                desiredStatus,
+                stopCode,
+                stoppedReason,
+                stoppedAt,
+                containers: [
+                  .containers[] | {
+                    name,
+                    image,
+                    lastStatus,
+                    reason,
+                    exitCode
+                  }
+                ]
+              }
+            ],
+            failures
+          }
+        ' >&2 || true
+    fi
+
+    rm -f "$service_context_file"
     exit 1
   fi
 fi
