@@ -24,7 +24,7 @@ env:
   AWS_REGION: ${{ vars.AWS_REGION || 'eu-central-1' }}
   STACK_NAME: ${{ vars.STACK_NAME || github.event.repository.name }}
   ROOT_DOMAIN: ${{ vars.ROOT_DOMAIN }}
-  API_TOKEN_SECRET: ${{ vars.API_TOKEN_SECRET || format('{0}/api-token', vars.STACK_NAME || github.event.repository.name) }}
+  PRIMARY_EDGE_TOKEN_SECRET: ${{ vars.PRIMARY_EDGE_TOKEN_SECRET || format('{0}/edge-token', vars.STACK_NAME || github.event.repository.name) }}
   IMAGE_TAG: ${{ inputs.image_tag }}
   APP_ROLLBACK_ERROR_SLO_SECONDS: "600"
   APP_ROLLBACK_LATENCY_SLO_SECONDS: "900"
@@ -56,6 +56,9 @@ jobs:
           fetch-depth: 0
           persist-credentials: false
 
+      - name: Resolve root domain
+        run: scripts/ci/ci_resolve_root_domain.sh
+
       - uses: astral-sh/setup-uv@08807647e7069bb48b6ef5acd8ec9567f424441b # v8.1.0
         with:
           version: "0.11.8"
@@ -78,10 +81,20 @@ jobs:
         id: aws-context
         run: scripts/ci/ci_resolve_aws_context.sh
 
+      - name: Resolve primary edge service
+        id: primary-service
+        run: |
+          IFS=$'\t' read -r workload_name service hostname_label < <(python3 -m scripts.platform.workload_metadata primary-edge)
+          {
+            echo "service=${service}"
+            echo "workload_name=${workload_name}"
+            echo "hostname_label=${hostname_label}"
+          } >> "$GITHUB_OUTPUT"
+
       - name: Verify drill images exist
         run: |
           aws ecr describe-images \
-            --repository-name "${STACK_NAME}/app" \
+            --repository-name "${STACK_NAME}/${{ steps.primary-service.outputs.service }}" \
             --image-ids "imageTag=${IMAGE_TAG}"
 
       - name: Capture current app task definition
@@ -89,7 +102,7 @@ jobs:
         run: |
           service_json=$(aws ecs describe-services \
             --cluster "${{ env.STACK_NAME }}" \
-            --services app \
+            --services "${{ steps.primary-service.outputs.service }}" \
             --output json)
           current_task_definition=$(echo "$service_json" | jq -r '.services[0].deployments[] | select(.status == "PRIMARY") | .taskDefinition')
           primary_rollout_state=$(echo "$service_json" | jq -r '.services[0].deployments[] | select(.status == "PRIMARY") | .rolloutState')
@@ -106,10 +119,11 @@ jobs:
 
       - name: Validate rollback alarms are clear
         run: |
-          alarm_names=(
-            "${{ env.STACK_NAME }}-app-target-5xx"
-            "${{ env.STACK_NAME }}-app-target-latency"
-          )
+          mapfile -t alarm_names < <(python3 -m scripts.observability.platform_inventory edge-symptom-alarms "${STACK_NAME}")
+          if [[ "${#alarm_names[@]}" -ne 2 ]]; then
+            echo "Expected 2 edge symptom alarms, found ${#alarm_names[@]}." >&2
+            exit 1
+          fi
           alarm_count=$(aws cloudwatch describe-alarms \
             --alarm-names "${alarm_names[@]}" \
             --query "length(MetricAlarms)" \
@@ -131,16 +145,16 @@ jobs:
         run: |
           scripts/ci/ci_render_ecs_task_definition.sh \
             "${STACK_NAME}" \
-            app \
-            "${{ steps.aws-context.outputs.ecr_registry }}/${STACK_NAME}/app:${IMAGE_TAG}" \
-            /tmp/app-drill-task-definition.json
+            "${{ steps.primary-service.outputs.service }}" \
+            "${{ steps.aws-context.outputs.ecr_registry }}/${STACK_NAME}/${{ steps.primary-service.outputs.service }}:${IMAGE_TAG}" \
+            /tmp/primary-edge-drill-task-definition.json
 
       - name: Configure drill fault injection
         run: |
           tmp_path="$(mktemp)"
-          jq --arg fault_mode "${{ inputs.fault_mode }}" '
+          jq --arg fault_mode "${{ inputs.fault_mode }}" --arg container_name "${{ steps.primary-service.outputs.service }}" '
             .containerDefinitions |= map(
-              if .name == "app" then
+              if .name == $container_name then
                 .environment = (
                   ((.environment // [])
                     | map({(.name): .value})
@@ -159,8 +173,8 @@ jobs:
                 .
               end
             )
-          ' /tmp/app-drill-task-definition.json > "$tmp_path"
-          mv "$tmp_path" /tmp/app-drill-task-definition.json
+          ' /tmp/primary-edge-drill-task-definition.json > "$tmp_path"
+          mv "$tmp_path" /tmp/primary-edge-drill-task-definition.json
 
       - name: Deploy drill app revision
         id: deploy_drill
@@ -168,19 +182,19 @@ jobs:
           ECS_DEPLOY_WAIT_FOR_STABLE: "false"
         run: |
           echo "deploy_started_epoch=$(date +%s)" >> "$GITHUB_OUTPUT"
-          scripts/ci/ci_deploy_ecs_service.sh "${STACK_NAME}" app /tmp/app-drill-task-definition.json
+          scripts/ci/ci_deploy_ecs_service.sh "${STACK_NAME}" "${{ steps.primary-service.outputs.service }}" /tmp/primary-edge-drill-task-definition.json
 
       - name: Wait for ECS automatic rollback
         id: wait_rollback
         env:
-          BASE_URL: https://api.${{ env.ROOT_DOMAIN }}
+          BASE_URL: https://${{ steps.primary-service.outputs.hostname_label }}.${{ env.ROOT_DOMAIN }}
           FAULT_MODE: ${{ inputs.fault_mode }}
           DEPLOY_STARTED_EPOCH: ${{ steps.deploy_drill.outputs.deploy_started_epoch }}
           PREVIOUS_TASK_DEFINITION: ${{ steps.current.outputs.task_definition }}
           DRILL_TASK_DEFINITION: ${{ steps.deploy_drill.outputs.task_def_arn }}
         run: |
           TOKEN=$(aws secretsmanager get-secret-value \
-            --secret-id "${API_TOKEN_SECRET}" \
+            --secret-id "${PRIMARY_EDGE_TOKEN_SECRET}" \
             --region ${{ env.AWS_REGION }} \
             --query SecretString \
             --output text)
@@ -206,7 +220,7 @@ jobs:
           while (( SECONDS < rollback_deadline )); do
             service_json=$(aws ecs describe-services \
               --cluster "${{ env.STACK_NAME }}" \
-              --services app \
+              --services "${{ steps.primary-service.outputs.service }}" \
               --output json)
             primary_task_definition=$(echo "$service_json" | jq -r '.services[0].deployments[] | select(.status == "PRIMARY") | .taskDefinition')
             primary_rollout_state=$(echo "$service_json" | jq -r '.services[0].deployments[] | select(.status == "PRIMARY") | .rolloutState')
@@ -248,18 +262,19 @@ jobs:
       - name: Verify restored app revision
         id: verify-restored
         env:
-          BASE_URL: https://api.${{ env.ROOT_DOMAIN }}
+          BASE_URL: https://${{ steps.primary-service.outputs.hostname_label }}.${{ env.ROOT_DOMAIN }}
           ECS_CLUSTER: ${{ env.STACK_NAME }}
-          ECS_SERVICE: app
+          ECS_SERVICE: ${{ steps.primary-service.outputs.service }}
           EXPECTED_TASK_FAMILY: ${{ env.STACK_NAME }}
+          WORKLOAD_CONTAINER_NAME: ${{ steps.primary-service.outputs.service }}
         run: |
           verify_started_epoch=$(date +%s)
           TOKEN=$(aws secretsmanager get-secret-value \
-            --secret-id "${API_TOKEN_SECRET}" \
+            --secret-id "${PRIMARY_EDGE_TOKEN_SECRET}" \
             --region ${{ env.AWS_REGION }} \
             --query SecretString \
             --output text)
-          TOKEN="$TOKEN" uv run python scripts/release/verify_post_deploy.py
+          TOKEN="$TOKEN" uv run python -m scripts.release.verify_post_deploy
           verify_seconds=$(($(date +%s) - verify_started_epoch))
           echo "verify_seconds=${verify_seconds}" >> "$GITHUB_OUTPUT"
           {
@@ -280,16 +295,18 @@ jobs:
           LOKI_PUSH_URL: ${{ secrets.LOKI_PUSH_URL || vars.LOKI_PUSH_URL }}
           LOKI_URL: ${{ vars.LOKI_URL }}
         run: |
-          python3 scripts/observability/release_event.py \
+          python3 -m scripts.observability.release_event \
             --event-type app_rollback_drill \
             --status "${{ job.status }}" \
             --summary "App rollback drill completed with status ${{ job.status }}" \
-            --service-name app \
+            --service-name "${{ steps.primary-service.outputs.service }}" \
+            --workload-id "${{ steps.primary-service.outputs.workload_name }}" \
             --image-tag "${{ env.IMAGE_TAG }}" \
             --task-definition "${{ steps.current.outputs.task_definition }}" \
             --previous-task-definition "${{ steps.current.outputs.task_definition }}" \
             --drill-task-definition "${{ steps.deploy_drill.outputs.task_def_arn }}" \
             --fault-mode "${{ inputs.fault_mode }}" \
+            --rollback-category app_image \
             --rollback-seconds "${{ steps.wait_rollback.outputs.rollback_seconds }}" \
             --rollback-slo-seconds "${{ inputs.fault_mode == 'error' && env.APP_ROLLBACK_ERROR_SLO_SECONDS || env.APP_ROLLBACK_LATENCY_SLO_SECONDS }}" \
             --verify-seconds "${{ steps.verify-restored.outputs.verify_seconds }}" \

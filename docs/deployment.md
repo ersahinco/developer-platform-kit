@@ -1,38 +1,42 @@
 # Deployment
 
-This project uses one AWS account and region with two Terraform roots split by
-lifecycle:
+Canonical AWS delivery and operator flow.
 
-- `infra/platform`: shared platform and bootstrap concerns
-- `infra/app`: runtime resources such as RDS, ECS, ALB edge, jobs, messaging,
-  storage, and alarms
+Use [Platform Contract](platform-contract.md) for portable workload rules and
+[Architecture](architecture.md) for ownership boundaries.
+
+## Scope
+
+| Surface | Owns |
+|---|---|
+| `infra/platform` | shared platform bootstrap, network, GitHub OIDC |
+| `infra/app` | RDS, ECS, ALB edge, jobs, messaging, storage, alarms |
+| GitHub Actions | image build, rollout, verification, release evidence |
 
 Safe rollout comes from additive schema change, runtime switches, and one-off
-tasks, not from duplicating infrastructure.
+tasks, not duplicated infrastructure.
 
-This doc owns current AWS delivery and operator flow. For the portable workload
-contract, use [Platform Contract](platform-contract.md). For repo placement and
-ownership boundaries, use [Architecture](architecture.md).
+## Change Control Matrix
 
-## Pipeline Shape
+| Workflow | Trigger and reviewed input | Control boundary | Evidence |
+|---|---|---|---|
+| `app-build.yml` | Manual `workflow_dispatch` with `confirm_build=build` after PR review on the default branch | builds, scans, attests, and pushes immutable images only | `release-evidence-app-build-*` artifact and build summary |
+| `app-deploy.yml` | Manual `workflow_dispatch` with approved immutable `image_tag` and `confirm_deploy=deploy` on the default branch | updates ECS service revisions and verifies runtime health only | `release-evidence-app-deploy-*` artifact and step summary |
+| `data-support-deploy.yml` | Manual `workflow_dispatch` with approved immutable `image_tag` and `confirm_data_support_deploy=deploy-data-support` on the default branch | promotes support job task-definition revisions for explicit data workloads | `release-evidence-data-support-deploy-*` artifact and step summary |
+| `data-runtime-switch.yml` | Manual `workflow_dispatch` with reviewed `switch_step` and `confirm_switch=switch-runtime` on the default branch | advances runtime mode through one guarded forward transition at a time | `release-evidence-data-runtime-switch-*` artifact and step summary |
+| `data-schema-apply.yml` | Manual `workflow_dispatch` with approved immutable `image_tag`, reviewed `schema_phase`, and `confirm_schema_apply=apply-schema` on the default branch | runs reviewed Liquibase schema apply as an explicit data stage; contract phase additionally requires `confirm_contract_ready=contract-ready` and `READ_MODE=new` plus `WRITE_MODE=new` | `release-evidence-data-schema-apply-*` artifact and step summary |
+| `data-backfill.yml` | Manual `workflow_dispatch` with approved immutable `image_tag` and `confirm_backfill=run-backfill` on the default branch | runs reviewed backfill after confirming runtime modes are in the dual-write stage | `release-evidence-data-backfill-*` artifact and step summary |
+| `infra-plan.yml` | pull request, main push, or manual run | produces reviewed Terraform plans without changing cloud resources | uploaded Terraform plan artifact and optional PR comment |
+| `infra-apply.yml` | Manual `workflow_dispatch` with successful `plan_run_id` and `confirm_apply=apply` on the default branch | applies only reviewed Terraform plan artifacts for the current default-branch SHA | `release-evidence-infra-apply-*` artifact and step summary |
 
-- `infra-plan.yml`: lint, validate, and publish reviewed Terraform plans
-- `infra-apply.yml`: manually apply reviewed plan artifacts
-- `app-build.yml`: validate, test, build, scan, and push images
-- `app-deploy.yml`: migrate, deploy, verify, register support task definitions,
-  and run the backfill worker
-
-Terraform owns infrastructure shape. GitHub Actions owns app image rollout
-after bootstrap. Keep that boundary explicit.
-
-`platform/workloads.json` can identify what workloads exist and which one is
-the primary edge service, but it should not own AWS rollout choreography. Task
-registration, service update order, verification sequence, and support-job
-execution remain delivery-edge behavior.
+Rule: PRs prove correctness. Manual workflows promote a reviewed artifact or
+reviewed plan. Every cloud-changing step leaves portable evidence.
 
 ## GitHub Setup
 
-Create one GitHub environment named `aws` with:
+GitHub environment: `aws`
+
+Required:
 
 - `AWS_ROLE_ARN`
 
@@ -49,15 +53,15 @@ Useful variables:
 
 Prerequisites:
 
-- AWS credentials with permissions to create the stack
-- A public Route 53 hosted zone for `root_domain`
-- A GitHub environment named `aws`
+- AWS credentials with permission to create the stack
+- public Route 53 hosted zone for `root_domain`
+- GitHub environment named `aws`
 
-Create the API token secret out of band:
+Create the primary edge token secret out of band:
 
 ```bash
 aws secretsmanager create-secret \
-  --name "${STACK_NAME:-aws-sdlc-containers}/api-token" \
+  --name "${STACK_NAME:-aws-sdlc-containers}/edge-token" \
   --region "${AWS_REGION:-eu-central-1}" \
   --secret-string "$(openssl rand -hex 32)"
 ```
@@ -79,14 +83,46 @@ make infra-app-apply
 
 ## Rollout Model
 
-1. Build and push images.
-2. Run Liquibase against the current database.
-3. Deploy the new ECS task definition.
-4. Verify health, metrics, runtime modes, and image/task identity.
-5. Run the backfill worker if the migration requires it.
-6. Advance `WRITE_MODE` and `READ_MODE` through the rollout path.
+1. Build and push immutable images with `app-build.yml`.
+2. Run `data-schema-apply.yml` only when the release needs an explicit schema stage.
+3. Roll out service images with `app-deploy.yml`.
+4. Advance runtime mode with `data-runtime-switch.yml` from `legacy` to `dual` only when the app release is ready for dual-write.
+5. Promote support-job image revisions with `data-support-deploy.yml` only for the specific workload that needs the new image.
+6. Run `data-backfill.yml` only after dual-write is active and the change needs a backfill stage.
+7. Advance runtime mode with `data-runtime-switch.yml` from `READ_MODE=legacy` to `READ_MODE=new`.
+8. Advance runtime mode with `data-runtime-switch.yml` from `WRITE_MODE=dual` to `WRITE_MODE=new`.
+9. Run a reviewed contract-phase schema apply only after app reads and writes no longer depend on the old shape.
 
-This keeps the project lean while still supporting safe schema evolution.
+The intended data path stays explicit:
+
+1. `expand`: additive schema apply
+2. `dual-write`: app release and guarded `write-legacy-to-dual`
+3. `backfill`: explicit backfill workflow
+4. `switch`: guarded `read-legacy-to-new`
+5. `cutover`: guarded `write-dual-to-new`
+6. `contract`: reviewed cleanup schema apply
+
+Because schema and backfill are no longer side effects of `app-deploy.yml`,
+app rollback stays image-based.
+
+## Review Loop
+
+Use the same loop for deploys, applies, and drills:
+
+```bash
+make release-evidence-runs
+GH_RUN_ID=<workflow-run-id> make release-evidence-download
+RELEASE_EVENTS_DIR=/tmp/aws-sdlc-containers-release-evidence/<workflow-run-id> \
+make incident-evidence
+```
+
+Checks:
+
+1. App build: confirm branch, SHA, immutable `sha-...` image tag, and expected `release-evidence-app-build-*` artifacts.
+2. App deploy: confirm `release-evidence-app-deploy-*` records the expected service, image tag, and task definition, and `make post-deploy-verify` or the incident bundle shows no unresolved alarm or verification failures.
+3. Data workflow: confirm the matching `release-evidence-data-*` artifact records the intended image tag, task definition, and stage-specific preconditions or outputs.
+4. Infra apply: confirm the selected `Infra Apply` run matches the reviewed `Infra Plan` for the current default-branch SHA, and the plan plus release evidence match the intended Terraform surface.
+5. Rollback or drill: confirm the evidence timeline shows the failing revision, restored revision, relevant alarm window, and verification outcome.
 
 ## Common Commands
 
@@ -95,12 +131,18 @@ make infra-plan
 make infra-apply
 make app-deploy
 make post-deploy-verify
+make incident-evidence
 make db-tunnel
 make db-exec
 make db-seed
 ```
 
-## Access Patterns
+Prefer downloaded `release-evidence-*` artifacts and the incident bundle over
+ad hoc console review.
+
+For workflow-specific recovery paths, use [Runbooks](runbooks/README.md).
+
+## Access
 
 RDS stays private. Use SSM port forwarding:
 

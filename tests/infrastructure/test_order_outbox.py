@@ -7,11 +7,11 @@ from sqlalchemy import text
 from sqlalchemy.orm import Session
 
 from infrastructure.db.repository import SQLAlchemyOutboxRepository
-from domain.order_events import OrderEventMessage
+from domain.order_events import EventMessage
 
 
-def _message(event_id: str) -> OrderEventMessage:
-    return OrderEventMessage(
+def _message(event_id: str) -> EventMessage:
+    return EventMessage(
         event_type="order.created.v1",
         event_id=event_id,
         aggregate_type="order",

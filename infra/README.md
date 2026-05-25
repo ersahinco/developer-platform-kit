@@ -1,39 +1,23 @@
 # Infrastructure
 
-The repository distinguishes reusable infrastructure catalog material from
-deployable stack assembly:
+`infra/` is the Terraform boundary, not a deploy root.
 
-- `infra/catalog/` is the home for reusable AWS building blocks as real reuse
-  appears.
-- `infra/platform` and `infra/app` remain the current deployable Terraform
-  roots. They are assembly roots, not the catalog.
+| Path | Owns |
+|---|---|
+| `infra/platform/` | Bootstrap, network, GitHub OIDC for the current AWS runtime |
+| `infra/app/` | Current AWS runtime resources |
+| `infra/catalog/` | Reusable runtime-target catalog building blocks |
 
-The current extraction candidate map lives in
-`infra/catalog/aws/extraction-map.md`. Use it before creating a new module so
-the repo does not drift into speculative abstraction.
+Use `infra/catalog/<runtime-target>/` for catalog growth. The current catalog
+surface is `infra/catalog/aws/`. `infra/catalog/managed-kubernetes/` is
+reserved for future managed-Kubernetes reusable modules when a real workload
+needs them.
 
-This doc is an infrastructure index, not the main architecture doc.
+Companion docs:
 
-Use companion docs when the question is broader:
-
-- [Architecture](../docs/architecture.md) for repo boundaries and placement
-  rules
-- [Deployment](../docs/deployment.md) for AWS rollout and operator flow
-- [Runtime Toolkit](../docs/runtime-toolkit.md) for runtime-target evaluation
-
-Terraform is still organized by lifecycle boundary:
-
-- `platform/` owns AWS-bound bootstrap resources with an app-independent
-  lifecycle: VPC networking, VPC endpoints, Route 53/account lookups, and the
-  GitHub Actions OIDC role plus CI IAM policies.
-- `app/` owns workload resources: RDS, ECS compute, ECR repositories, ALB/API
-  edge, S3 data hub, scheduled jobs, Dapr-backed SNS/SQS queues, app IAM,
-  CloudWatch app alarms, ALB access logs, and optional ADOT sidecar wiring.
-
-`infra/` is an index and shared configuration boundary, not a runnable
-Terraform root. Keep executable Terraform in the explicit lifecycle roots above
-so platform bootstrap, workload runtime, and application delivery ownership do
-not blur together.
+- [Architecture](../docs/architecture.md)
+- [Deployment](../docs/deployment.md)
+- [Runtime Toolkit](../docs/runtime-toolkit.md)
 
 ## State Keys
 
@@ -42,7 +26,7 @@ not blur together.
 | `infra/platform` | `<stack-name>/platform.tfstate` |
 | `infra/app` | `<stack-name>/app.tfstate` |
 
-## Operator Commands
+## Commands
 
 ```bash
 make infra-platform-plan
@@ -50,10 +34,6 @@ make infra-platform-apply
 make infra-app-plan
 make infra-app-apply
 ```
-
-`make infra-plan` runs platform then app plans. `make infra-apply` applies
-platform then app. Read outputs from the owning root, for example
-`terraform -chdir=infra/app output api_fqdn`.
 
 ## Validation
 

@@ -1,11 +1,13 @@
 from __future__ import annotations
 
-import json
 from functools import lru_cache
-from pathlib import Path
+import sys
 from typing import Any
 
-ROOT = Path(__file__).resolve().parents[2]
+from scripts.platform.workload_metadata import platform_inventory
+from scripts.platform.workload_metadata import primary_edge_service_workload
+from scripts.platform.workload_metadata import workload_hostname_label
+
 DEFAULT_STACK_NAME = "aws-sdlc-containers"
 DEFAULT_AWS_REGION = "eu-central-1"
 DEFAULT_ENVIRONMENT = "aws"
@@ -20,89 +22,132 @@ DEFAULT_ALLOWED_EXTRA_STACK_LOG_GROUP_SUFFIXES = [
     "tempo",
 ]
 DELIVERY_EVENT_TYPES = [
+    "app_build",
     "app_deploy",
     "app_rollback_drill",
+    "data_backfill",
+    "data_runtime_switch",
+    "data_schema_apply",
+    "data_support_deploy",
     "data_runtime_rollback_drill",
     "infra_apply",
 ]
 
-_RELEASE_ALARM_SUFFIXES = [
-    "app-target-5xx",
-    "app-target-latency",
-    "app-log-errors",
-    "app-log-rollback-drill-faults",
+
+def delivery_event_pattern() -> str:
+    return "|".join(DELIVERY_EVENT_TYPES)
+
+
+def delivery_event_selector(
+    stack_name: str,
+    *,
+    environment: str = DEFAULT_ENVIRONMENT,
+) -> str:
+    return (
+        f'{{stack="{stack_name}",environment="{environment}",'
+        f'event_type=~"{delivery_event_pattern()}"}}'
+    )
+
+
+_EDGE_SYMPTOM_ALARM_SUFFIX_ENDINGS = [
+    "target-5xx",
+    "target-latency",
 ]
 
-_INCIDENT_ONLY_ALARM_SUFFIXES = [
-    "app-unhealthy-targets",
+_EDGE_RELEASE_ALARM_SUFFIX_ENDINGS = [
+    "target-5xx",
+    "target-latency",
+    "log-errors",
+    "log-rollback-drill-faults",
+]
+
+_EDGE_INCIDENT_ONLY_ALARM_SUFFIX_ENDINGS = [
+    "unhealthy-targets",
+]
+
+_RUNTIME_INCIDENT_ONLY_ALARM_SUFFIXES = [
     "rds-cpu-high",
     "rds-free-storage-low",
     "rds-connections-high",
 ]
 
-
-@lru_cache(maxsize=1)
-def workload_contract() -> dict[str, Any]:
-    return json.loads((ROOT / "platform" / "workloads.json").read_text())
-
-
-def workloads() -> list[dict[str, Any]]:
-    values = workload_contract().get("workloads", [])
-    return values if isinstance(values, list) else []
+_WORKLOAD_ALARM_SUFFIXES_BY_NAME = {
+    "event_consumer": ["async-events-dlq-visible"],
+    "data_export_job": [
+        "data-export-scheduler-target-errors",
+        "data-export-success-missing",
+    ],
+}
 
 
 @lru_cache(maxsize=1)
-def workloads_by_name() -> dict[str, dict[str, Any]]:
-    return {
-        workload["name"]: workload
-        for workload in workloads()
-        if isinstance(workload.get("name"), str)
-    }
+def _platform_inventory() -> dict[str, Any]:
+    return platform_inventory()
 
 
-def has_dapr_workload() -> bool:
-    return any(isinstance(workload.get("dapr"), dict) for workload in workloads())
+def _workload_rows() -> list[dict[str, str]]:
+    rows = _platform_inventory().get("workloads", [])
+    return [row for row in rows if isinstance(row, dict)]
 
 
-def has_data_export_job() -> bool:
-    return "data_export_job" in workloads_by_name()
+def _workload_row_by_name(name: str) -> dict[str, str]:
+    matches = [row for row in _workload_rows() if row.get("name") == name]
+    if len(matches) != 1:
+        raise ValueError(
+            f"expected exactly one workload named {name!r}, found {len(matches)}"
+        )
+    return matches[0]
+
+
+def _edge_service_row() -> dict[str, str]:
+    matches = [
+        row
+        for row in _workload_rows()
+        if row.get("class") == "edge-service" and row.get("edge_exposure") == "public"
+    ]
+    if len(matches) != 1:
+        raise ValueError(
+            f"expected exactly one public edge-service workload, found {len(matches)}"
+        )
+    return matches[0]
+
+
+def _primary_async_eventing_row() -> dict[str, str]:
+    matches = [row for row in _workload_rows() if row.get("async_eventing") == "true"]
+    if len(matches) != 1:
+        raise ValueError(
+            f"expected exactly one async-eventing workload, found {len(matches)}"
+        )
+    return matches[0]
 
 
 def edge_service_repository() -> str:
-    for workload in workloads():
-        operational = workload.get("operational", {})
-        image = workload.get("image", {})
-        if (
-            isinstance(operational, dict)
-            and operational.get("class") == "edge-service"
-            and isinstance(image, dict)
-            and isinstance(image.get("repository"), str)
-        ):
-            return image["repository"]
-    return "app"
+    row = _edge_service_row()
+    repository = row.get("repository", "")
+    if repository:
+        return repository
+    return str(row.get("name", "")).replace("_", "-")
 
 
-def api_trace_service_name(stack_name: str) -> str:
-    return f"{stack_name}-api"
+def edge_service_hostname_label() -> str:
+    return workload_hostname_label(primary_edge_service_workload())
+
+
+def edge_trace_service_name(stack_name: str) -> str:
+    return f"{stack_name}-{edge_service_repository()}"
 
 
 def dapr_workload_service_name() -> str:
-    for workload in workloads():
-        if isinstance(workload.get("dapr"), dict):
-            image = workload.get("image", {})
-            if isinstance(image, dict) and isinstance(image.get("repository"), str):
-                return image["repository"]
-    return "order-event-consumer"
+    row = _primary_async_eventing_row()
+    repository = row.get("repository", "")
+    if repository:
+        return repository
+    return str(row.get("name", "")).replace("_", "-")
 
 
 @lru_cache(maxsize=1)
 def workload_log_group_suffixes() -> list[str]:
-    return [
-        workload["image"]["repository"]
-        for workload in workloads()
-        if isinstance(workload.get("image"), dict)
-        and isinstance(workload["image"].get("repository"), str)
-    ]
+    return [row["repository"] for row in _workload_rows() if row.get("repository")]
 
 
 def expected_log_group_suffixes() -> list[str]:
@@ -121,31 +166,73 @@ def default_fresh_loki_log_group_suffixes() -> list[str]:
     return [edge_service_repository()]
 
 
+def _edge_symptom_alarm_suffixes() -> list[str]:
+    repository = edge_service_repository()
+    return [f"{repository}-{ending}" for ending in _EDGE_SYMPTOM_ALARM_SUFFIX_ENDINGS]
+
+
+def _edge_release_alarm_suffixes() -> list[str]:
+    repository = edge_service_repository()
+    return [f"{repository}-{ending}" for ending in _EDGE_RELEASE_ALARM_SUFFIX_ENDINGS]
+
+
+def _edge_incident_only_alarm_suffixes() -> list[str]:
+    repository = edge_service_repository()
+    return [
+        f"{repository}-{ending}" for ending in _EDGE_INCIDENT_ONLY_ALARM_SUFFIX_ENDINGS
+    ]
+
+
+def edge_symptom_alarm_names(stack_name: str) -> list[str]:
+    return [f"{stack_name}-{suffix}" for suffix in _edge_symptom_alarm_suffixes()]
+
+
 def _workload_alarm_suffixes() -> list[str]:
-    suffixes: list[str] = []
-    if has_dapr_workload():
-        suffixes.append("order-events-dlq-visible")
-    if has_data_export_job():
-        suffixes.extend(
-            [
-                "data-export-scheduler-target-errors",
-                "data-export-success-missing",
-            ]
-        )
-    return suffixes
+    present_workload_names = {
+        row["name"]
+        for row in _workload_rows()
+        if row.get("async_eventing") == "true" or row.get("trigger") == "schedule"
+    }
+    return [
+        suffix
+        for workload_name, suffixes in _WORKLOAD_ALARM_SUFFIXES_BY_NAME.items()
+        if workload_name in present_workload_names
+        for suffix in suffixes
+    ]
 
 
 def release_alarm_names(stack_name: str) -> list[str]:
     return [
         f"{stack_name}-{suffix}"
-        for suffix in [*_RELEASE_ALARM_SUFFIXES, *_workload_alarm_suffixes()]
+        for suffix in [*_edge_release_alarm_suffixes(), *_workload_alarm_suffixes()]
     ]
 
 
 def incident_alarm_names(stack_name: str) -> list[str]:
     suffixes = [
-        *_INCIDENT_ONLY_ALARM_SUFFIXES,
-        *_RELEASE_ALARM_SUFFIXES,
+        *_edge_incident_only_alarm_suffixes(),
+        *_RUNTIME_INCIDENT_ONLY_ALARM_SUFFIXES,
+        *_edge_release_alarm_suffixes(),
         *_workload_alarm_suffixes(),
     ]
     return [f"{stack_name}-{suffix}" for suffix in suffixes]
+
+
+def main(argv: list[str] | None = None) -> int:
+    argv = sys.argv[1:] if argv is None else argv
+    if len(argv) != 2 or argv[0] != "edge-symptom-alarms":
+        print(
+            "usage: python -m scripts.observability.platform_inventory "
+            "edge-symptom-alarms <stack-name>",
+            file=sys.stderr,
+        )
+        return 1
+
+    _, stack_name = argv
+    for alarm_name in edge_symptom_alarm_names(stack_name):
+        print(alarm_name)
+    return 0
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())

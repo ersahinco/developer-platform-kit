@@ -8,12 +8,6 @@
 
 locals {
   data_hub_bucket_name = "${local.name}-data-hub-${local.account_id}"
-
-  data_hub_prefixes = {
-    raw       = "raw/"
-    curated   = "curated/"
-    manifests = "manifests/"
-  }
 }
 
 resource "aws_s3_bucket" "data_hub" {

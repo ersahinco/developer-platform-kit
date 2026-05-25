@@ -1,20 +1,15 @@
-# Application Core And Adapters
+# Core And Adapters
 
-`packages/` contains reusable behavior shared by workload examples.
+`packages/` contains reusable workload behavior.
 
-- `domain/`: pure domain concepts and events
-- `application/`: use cases, contracts, and workflow logic
-- `infrastructure/`: concrete adapters for SQL, Dapr, storage, and runtime IO
+- `domain/`: entities, value objects, domain events
+- `application/`: use cases, ports, workflow logic
+- `infrastructure/`: SQL, Dapr, storage, runtime adapters
 
-The intent is:
+Rule: `packages/` owns reusable behavior. `apps/` owns process wiring.
 
-- `packages/` says what the workload does and how it talks to abstractions
-- `apps/` says how one concrete workload process is started and wired
+Adapter rule:
 
-Example: order events
-
-- `packages/application/order_event_processing.py` defines the application-level
-  relay and receipt workflows
-- `packages/infrastructure/dapr/pubsub.py` implements the Dapr HTTP adapter
-- `apps/order_event_consumer/` hosts the HTTP service and background relay
-  process that wires those pieces together
+- keep provider/runtime SDK usage in `packages/infrastructure/` or the platform edge
+- keep domain and application centered on ports and intent, not current AWS realization details
+- add future runtime adapters at the same seam instead of rewriting workload behavior

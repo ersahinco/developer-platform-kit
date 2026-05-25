@@ -1,48 +1,55 @@
 # Adding Workloads
 
-Use this guide when adding a new reference workload under `apps/`.
+Task guide for adding one workload under `apps/` with the smallest complete
+platform footprint.
 
-The goal is to add one workload with the smallest complete platform footprint,
-not to introduce a new abstraction layer.
+Canonical design truth lives in:
 
-This is a task guide, not the source of truth for platform design.
+- [Platform Contract](platform-contract.md)
+- [Architecture](architecture.md)
+- [Platform Capabilities](platform-capabilities.md)
 
-Use companion docs when needed:
+## Order
 
-- [Platform Contract](platform-contract.md) for the portable workload contract
-- [Architecture](architecture.md) for repo placement and ownership rules
-- [Platform Capabilities](platform-capabilities.md) for the currently available
-  runtime patterns
+1. Declare workload intent in `platform/workloads.json`.
+2. Choose one or more existing workload patterns from `platform/workload-patterns.json`.
+3. Add the host under `apps/`.
+4. Reuse `packages/` only for truly shared behavior.
+5. Wire local and shared platform concerns.
+6. Wire the current runtime-target realization.
+7. Add tests and docs.
 
-## Onboarding Order
+## Pick The Operational Class First
 
-Follow this order so workload intent stays canonical:
+| Class | Use |
+|---|---|
+| `edge-service` | externally routed HTTP workload |
+| `internal-service` | long-running internal service |
+| `operator-job` | manually or CI-triggered task |
+| `scheduled-job` | recurring scheduler-triggered task |
 
-1. declare workload intent in `platform/workloads.json`
-2. add the host under `apps/`
-3. add reusable behavior in `packages/` only if it is truly shared
-4. wire local and runtime concerns
-5. wire AWS runtime inventory
-6. add tests and docs
+This choice drives `platform/workloads.json`, health/readiness/metrics,
+Compose/workflow/runtime-target ownership, and alarm/evidence expectations.
 
-## Decide The Operational Class First
+Inspect current declared shapes:
 
-Pick the workload role before writing code:
+```bash
+make workload-capability-matrix
+make workload-use-case-matrix
+```
 
-- `edge-service`: externally routed HTTP workload
-- `internal-service`: long-running internal service
-- `operator-job`: manually or CI-triggered task
-- `scheduled-job`: recurring scheduler-triggered task
+Preview or apply a starter workload bundle from the stable-center patterns:
 
-This choice affects:
+```bash
+make scaffold-workload ARGS='--name inventory_dashboard --pattern edge-service --use-case dashboard --service-port 8092'
+make scaffold-workload ARGS='--name inventory_dashboard --pattern edge-service --use-case dashboard --service-port 8092 --apply'
+```
 
-- `platform/workloads.json`
-- health/readiness/metrics expectations
-- runtime ownership in Compose, workflows, and Terraform
-- alarm and evidence expectations
-
-The contract meaning of each class lives in
-[Platform Contract](platform-contract.md#operational-class).
+The scaffold command creates a thin host under `apps/`, a starter app test,
+updates `platform/workloads.json`, updates `platform/runtime-conformance.json`,
+adds a Backstage component, and inserts a local Compose service block. Treat it
+as the starting point, then keep the host thin and finish any bespoke business
+behavior or runtime wiring explicitly.
 
 ## Add The Host
 
@@ -52,18 +59,25 @@ Create:
 - `apps/<name>/config.py`
 - `apps/<name>/pyproject.toml`
 
-The host should stay thin:
+Host rules:
 
+- keep the host thin
 - read settings
 - wire adapters
 - expose routes or a process entrypoint
 - emit workload-level operational events
 
-Move reusable behavior into:
+Put shared behavior in:
 
-- `packages/domain` for pure business concepts
-- `packages/application` for use cases and workflow logic
-- `packages/infrastructure` for SQL, Dapr, storage, and runtime adapters
+- `packages/domain`
+- `packages/application`
+- `packages/infrastructure`
+
+Adapter rule:
+
+- add business ports and use cases before adding provider-specific code
+- add database, pub/sub, storage, or HTTP client adapters in `packages/infrastructure`
+- keep runtime-target realization details in `infra/`, workflows, and scripts
 
 ## Update The Workload Contract
 
@@ -71,59 +85,71 @@ Add the workload to `platform/workloads.json` with:
 
 - `name`
 - `kind`
+- `patterns`
+- `use_cases`
 - `app_path`
 - `operational`
 - `image`
 - `config`
-- `database`
+- `database` only when the workload actually needs relational data
 - `service` for HTTP workloads
 - `job` for jobs
 - `dapr` only when a real Dapr capability is needed
+- `edge.auth_mode` and `verification` when the workload is the primary edge
 
-Keep this file focused on workload need and portable behavior. Do not add:
+Do not add:
 
 - AWS resource names
 - ECS service/task family details
+- managed-Kubernetes manifest details
 - queue URLs, topic ARNs, bucket ARNs
 - Terraform wiring
 
-## Choose The Runtime Pattern
+`use_cases` rules:
 
-Use the smallest existing pattern that fits:
+- describe workload intent, not runtime implementation
+- use lowercase kebab-case strings such as `http-api`, `dashboard`, `connector`, `event-consumer`, `data-pipeline`
+- keep them useful for catalog search, templates, and future self-service entrypoints
 
-- public HTTP API pattern: `apps/api`
-- internal Dapr-backed service pattern: `apps/order_event_consumer`
-- operator-triggered job pattern: `apps/backfill_worker`
-- scheduled export job pattern: `apps/data_export_job`
+## Choose The Smallest Existing Pattern
 
-Reuse the shared workload Dockerfile unless there is a concrete reason not to.
+| Need | Pattern |
+|---|---|
+| public HTTP API | pattern `edge-service`, reference host `apps/api` |
+| internal Dapr-backed service | pattern `internal-async-service`, reference host `apps/event_consumer` |
+| operator-triggered job | pattern `operator-job`, reference host `apps/backfill_worker` |
+| scheduled export job | patterns `scheduled-job` + `export-job`, reference host `apps/data_export_job` |
+| scheduled data pipeline | patterns `scheduled-job` + `data-pipeline`, reference host `apps/open_dataset_pipeline` |
 
-## Wire Platform Concerns
+Reuse `platform/workload.Dockerfile` unless there is a concrete reason not to.
+If a workload needs a different container shape, declare `image.dockerfile`
+and `image.context` in `platform/workloads.json` instead of hardcoding build
+logic elsewhere.
 
-Only wire the concerns the workload actually needs:
+## Wire Only Needed Concerns
 
-- Dapr under `platform/concerns/dapr/`
-- observability under `platform/concerns/observability/`
-- runtime conformance fixtures in `platform/runtime-conformance.json`
+- `platform/concerns/dapr/`
+- `platform/concerns/observability/`
+- `platform/runtime-conformance.json`
+- `compose.yaml`
+- `infra/app/workload_inventory.tf` for the current AWS target
 
-Keep platform concerns declarative and environment-owned. Do not create a
-custom host framework or bespoke workload DSL.
+Touch GitHub workflows, `infra/app`, and observability scripts only when the
+workload changes build/deploy inventory, runtime resources, or platform-visible
+signals.
 
-## Add Delivery And Runtime Coverage
+Rule: extend metadata-driven paths before adding handwritten inventory.
+Rule: prefer selecting runtime behavior from `patterns`, edge metadata, or workload capability metadata before adding new workload-name branches.
+Rule: reserve new runtime-target seams in docs and ownership before inventing a
+second workload specification.
 
-Update the smallest set of delivery/runtime surfaces needed:
+Managed-Kubernetes note:
 
-- `compose.yaml` for local runtime
-- `infra/app/workload_inventory.tf` for AWS runtime values derived from the workload contract
-- GitHub workflows only if the workload changes build/deploy inventory
-- `infra/app` only when runtime resources must change
-- observability scripts only when the workload changes platform-visible signals
-
-Prefer extending metadata-driven paths over adding new handwritten inventories.
+- managed Kubernetes is a future runtime target, not the platform control plane
+- reserve reusable target modules under `infra/catalog/managed-kubernetes/`
+- do not add ArgoCD, Helm/Kustomize packaging, or cluster-control-plane assumptions unless that target becomes a repeated runtime need
 
 ## Verify
-
-At minimum, run the relevant checks:
 
 ```bash
 uv run pytest tests/contracts -q
@@ -133,17 +159,15 @@ make runtime-conformance
 
 Add narrower tests when possible:
 
-- workload host tests under `tests/apps/`
-- application/use-case tests under `tests/application/`
-- infrastructure adapter tests under `tests/infrastructure/`
+- `tests/apps/`
+- `tests/application/`
+- `tests/infrastructure/`
 
-## Review Questions
+## Done Checklist
 
-Before considering the workload complete, answer these:
-
-- Is the operational class explicit in the workload spec?
-- Did the host stay thin?
-- Did provider details remain at the platform edge?
-- Did I reuse existing Dapr, observability, and delivery patterns?
-- Did I avoid adding a second source of workload truth?
-- Did I update the smallest complete set of tests and docs?
+- operational class is explicit in `platform/workloads.json`
+- host stayed thin
+- provider details stayed at the platform edge
+- stable center stayed recognizable: no second workload-intent source was added
+- existing Dapr, observability, and delivery patterns were reused
+- smallest complete set of tests and docs was updated

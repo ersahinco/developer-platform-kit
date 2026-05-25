@@ -1,76 +1,75 @@
 # Roadmap
 
-This document tracks platform maturity, near-term priorities, and deferred
-decisions. Durable architecture belongs in canonical docs:
+Current priorities, decision rules, and deferred work. Durable architecture
+lives in canonical docs:
 
-- [Architecture](architecture.md) owns repo shape and platform principles
-- [Platform Contract](platform-contract.md) owns portable workload expectations
-- [Platform Capabilities](platform-capabilities.md) owns the implemented
-  capability surface
-- [Deployment](deployment.md) and [Observability](observability.md) own current
-  AWS operator behavior
+- [Architecture](architecture.md)
+- [Platform Contract](platform-contract.md)
+- [Platform Capabilities](platform-capabilities.md)
+- [Deployment](deployment.md)
+- [Observability](observability.md)
 
 ## Current State
 
-| Area | Current state | Why it matters |
-|---|---|---|
-| Repo model | Canonical split between `apps/`, `packages/`, `platform/`, `infra/`, and `scripts/` is now explicit. | Teams can place code without inventing new top-level patterns. |
-| Workload metadata | `platform/workloads.json` is the workload intent source and `infra/app/workload_inventory.tf` is the AWS runtime realization layer. | This keeps workload identity and cloud fulfillment from drifting apart. |
-| Delivery | Workflow ownership is split into app build, app deploy, infra plan, infra apply, security, and semgrep. | Cloud-changing actions stay reviewable and boring. |
-| Runtime safety | Runtime conformance, contract tests, and architecture tests are part of the normal path. | Platform growth is constrained by executable guardrails, not memory. |
-| Observability | Local OSS telemetry and AWS-native runtime signals are separated cleanly. | Operators get standard telemetry shapes without turning Terraform into a hosted observability stack. |
-| Docs | Core docs now have clearer ownership and less overlap. | The repo is easier to onboard into and harder to misunderstand. |
+| Area | State |
+|---|---|
+| Repo model | canonical split across `apps/`, `packages/`, `platform/`, `infra/`, and `scripts/` |
+| Stable center | workload contract plus platform catalog stay central; runtime targets realize them |
+| Workload metadata | `platform/workloads.json` owns intent; `infra/app/workload_inventory.tf` fulfills it |
+| Delivery | app build, app deploy, infra plan, infra apply, security, and semgrep stay split |
+| Runtime safety | runtime conformance, contract tests, and architecture tests are normal gates |
+| Observability | local OSS telemetry and AWS-native runtime signals stay separate |
+| Docs | core docs are canonical, denser, and less duplicated |
 
 ## Near-Term Priorities
 
 | Priority | Next move | Trigger |
 |---|---|---|
-| Runbook quality | Keep operator docs parameterized with Terraform outputs, stack placeholders, and runtime-owned commands. | Continue whenever a runbook still assumes the demo stack name or fixed region. |
-| Workflow guardrails | Expand tests around workflow ownership boundaries and approved cloud-changing paths. | Add checks whenever a workflow picks up a new responsibility. |
-| Workload onboarding | Keep the smallest supported workload patterns current in docs and tests. | Update only when a real workload introduces a genuinely new class or concern. |
-| Observability inventory | Keep alarm, log-group, and evidence defaults derived from workload metadata where practical. | Tighten whenever a new workload or signal path adds handwritten inventory. |
-| AWS runtime ergonomics | Prefer Terraform outputs, runtime inventory, and small scripts over repeated shell literals. | Refactor when examples or scripts duplicate stack-specific naming rules. |
+| Runbook quality | keep operator docs parameterized with outputs, placeholders, and runtime-owned commands | any runbook still assumes a demo stack name or fixed region |
+| Workflow guardrails | expand tests around workflow ownership and approved cloud-changing paths | a workflow picks up a new responsibility |
+| Workload onboarding | keep the smallest supported workload patterns current in docs and tests | a real workload introduces a new class or concern |
+| Platform catalog shape | keep reusable modules, concerns, and templates recognizable as one catalog surface | catalog logic starts fragmenting across unrelated folders or scripts |
+| Observability inventory | derive alarm, log-group, and evidence defaults from workload metadata where practical | a workload or signal path adds handwritten inventory |
+| Runtime target ergonomics | prefer Terraform outputs, runtime inventory, and small scripts over repeated shell literals | examples or scripts duplicate target-specific naming rules |
 
 ## Maturity Direction
 
-The target platform maturity is:
+1. One workload contract.
+2. One recognizable platform catalog.
+3. One runtime realization layer per runtime.
+4. Thin workload hosts and explicit adapters.
+5. Split delivery ownership where review boundaries matter.
+6. Operator docs runnable without tribal knowledge.
+7. Standard tools used directly, with small helpers at the edge.
 
-1. One clear workload contract.
-2. One clear runtime realization layer per runtime.
-3. Thin workload hosts and explicit adapters.
-4. Split delivery ownership where review boundaries matter.
-5. Operator docs that are runnable without tribal knowledge.
-6. Standard tools used directly, with only small helper scripts at the edge.
-
-The repo does not need a private framework to get there. The quality bar is
-predictable extension, not maximal abstraction.
+Rule: predictable extension over maximal abstraction.
 
 ## Deferred Until Real Need
 
-| Topic | Why it stays deferred |
+| Topic | Why deferred |
 |---|---|
-| Second runtime target | Portability is already enforced at the boundary level; a demo runtime would add maintenance cost without operating value. |
-| Broader Dapr scope | Pub/sub is the current real need. Actors, workflows, bindings, and secret APIs stay out until a workload truly needs them. |
-| Analytics platform additions | dbt, orchestration, or warehouse tooling should arrive with an actual analytics requirement, not as platform theater. |
-| Provider-neutral infra abstraction | The repo is stronger with direct Terraform and explicit AWS ownership than with speculative wrappers. |
-| CloudWatch replacement | AWS-native alarms still back ECS rollback and managed-resource protection; replace only with a deliberate alternative, not by drift. |
+| Runtime target expansion | add only with a concrete workload need, owner, and realization plan |
+| Broader Dapr scope | pub/sub is the only current need |
+| Analytics platform additions | should arrive with a real analytics requirement |
+| Provider-neutral infra abstraction | direct Terraform plus explicit AWS ownership is cleaner |
+| CloudWatch replacement | AWS-native alarms still back ECS rollback and managed-resource protection |
 
 ## Decision Rules
 
-- Standardize new platform behavior only after a real workload needs it.
-- Prefer metadata plus tests over wrappers and generation.
-- Keep contract growth portable and runtime implementation explicit.
-- Add shared abstractions only after repeated pain is proven.
-- Remove stale examples, duplicate docs, and dead workflow paths in the same
-  slice that makes them obsolete.
+- standardize new platform behavior only after a real workload needs it
+- prefer metadata plus tests over wrappers and generation
+- keep contract growth portable and runtime implementation explicit
+- add shared abstractions only after repeated pain is proven
+- remove stale examples, duplicate docs, and dead workflow paths in the same slice
 
 ## Recent Decisions
 
-| Date | Decision | Rationale |
-|---|---|---|
-| 2026-05-19 | Harden the repo around a single workload intent source and a separate AWS runtime realization layer. | This reduces drift without introducing a platform framework. |
-| 2026-05-19 | Reframe runbooks and drills around outputs, placeholders, and operator-owned action. | Operational docs should survive stack renames and remain easy to run. |
-| 2026-05-18 | Reframe the repo as a platform monorepo seed. | The repo now distinguishes workload hosts, shared packages, platform concerns, and runtime implementation clearly. |
-| 2026-05-18 | Keep AWS-first portability by boundary as the default. | A standards-based, AWS-specific runtime is cleaner than speculative multi-runtime scaffolding. |
-| 2026-05-13 | Retire the ECS-hosted LGTM and FireLens stack. | Learning value is in telemetry contracts and evidence, not a large observability control plane in Terraform. |
-| 2026-04-30 | Use split manual workflows for cloud changes. | Reviewed plans and approved deploys are easier to reason about than one large cloud-changing pipeline. |
+| Date | Decision |
+|---|---|
+| 2026-05-21 | Treat the workload contract and platform catalog as the stable center; runtime targets are pluggable realizations. |
+| 2026-05-19 | Harden one workload intent source and one AWS runtime realization layer. |
+| 2026-05-19 | Reframe runbooks and drills around outputs, placeholders, and operator-owned action. |
+| 2026-05-18 | Reframe the repo as a platform monorepo seed. |
+| 2026-05-18 | Keep portability by boundary as the default while AWS remains the primary runtime target. |
+| 2026-05-13 | Retire the ECS-hosted LGTM and FireLens stack. |
+| 2026-04-30 | Use split manual workflows for cloud changes. |

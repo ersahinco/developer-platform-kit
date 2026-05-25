@@ -261,6 +261,46 @@ def test_request_id_header_is_propagated_when_supplied() -> None:
     assert response.headers["x-request-id"] == "trace-123"
 
 
+def test_primary_edge_auth_enforces_bearer_token_when_configured(monkeypatch) -> None:
+    monkeypatch.setattr(settings, "primary_edge_auth_token", "platform-token")
+    _override_config_store(_ConfigStore({"READ_MODE": "new", "WRITE_MODE": "dual"}))
+
+    try:
+        with TestClient(app) as client:
+            health_response = client.get("/health")
+            unauthorized = client.get("/admin/read-mode")
+            wrong_token = client.get(
+                "/admin/read-mode", headers={"Authorization": "Bearer wrong-token"}
+            )
+            authorized = client.get(
+                "/admin/read-mode",
+                headers={"Authorization": "Bearer platform-token"},
+            )
+    finally:
+        app.dependency_overrides.clear()
+
+    assert health_response.status_code == 200
+    assert unauthorized.status_code == 401
+    assert unauthorized.json() == {"detail": "Unauthorized"}
+    assert wrong_token.status_code == 401
+    assert authorized.status_code == 200
+    assert authorized.json() == {"mode": "new"}
+
+
+def test_primary_edge_auth_is_skipped_when_token_is_not_configured(monkeypatch) -> None:
+    monkeypatch.setattr(settings, "primary_edge_auth_token", None)
+    _override_config_store(_ConfigStore({"READ_MODE": "new", "WRITE_MODE": "dual"}))
+
+    try:
+        with TestClient(app) as client:
+            response = client.get("/admin/read-mode")
+    finally:
+        app.dependency_overrides.clear()
+
+    assert response.status_code == 200
+    assert response.json() == {"mode": "new"}
+
+
 def test_runtime_mode_getters_report_current_config() -> None:
     _override_config_store(_ConfigStore({"READ_MODE": "new", "WRITE_MODE": "dual"}))
     try:

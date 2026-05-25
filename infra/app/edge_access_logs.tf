@@ -3,47 +3,11 @@
 #
 # The edge access-log bucket is separated from the retired observability stack
 # so ALB audit logs do not require self-hosting Grafana, Loki, Prometheus, and
-# Tempo. The bucket name intentionally preserves the previous S3 bucket to avoid
-# replacing or emptying deployed ALB log storage during the cutover.
+# Tempo.
 ################################################################################
 
 locals {
   alb_access_logs_bucket_name = "${local.name}-observability-${local.account_id}"
-}
-
-moved {
-  from = aws_s3_bucket.observability[0]
-  to   = aws_s3_bucket.alb_access_logs
-}
-
-moved {
-  from = aws_s3_bucket_public_access_block.observability[0]
-  to   = aws_s3_bucket_public_access_block.alb_access_logs
-}
-
-moved {
-  from = aws_s3_bucket_ownership_controls.observability[0]
-  to   = aws_s3_bucket_ownership_controls.alb_access_logs
-}
-
-moved {
-  from = aws_s3_bucket_policy.observability_alb_access_logs[0]
-  to   = aws_s3_bucket_policy.alb_access_logs
-}
-
-moved {
-  from = aws_s3_bucket_server_side_encryption_configuration.observability[0]
-  to   = aws_s3_bucket_server_side_encryption_configuration.alb_access_logs
-}
-
-moved {
-  from = aws_s3_bucket_versioning.observability[0]
-  to   = aws_s3_bucket_versioning.alb_access_logs
-}
-
-moved {
-  from = aws_s3_bucket_lifecycle_configuration.observability[0]
-  to   = aws_s3_bucket_lifecycle_configuration.alb_access_logs
 }
 
 resource "aws_s3_bucket" "alb_access_logs" {
@@ -51,7 +15,8 @@ resource "aws_s3_bucket" "alb_access_logs" {
   #checkov:skip=CKV_AWS_144:Cross-region replication is production recovery overhead, not needed for this lean runtime.
   #checkov:skip=CKV_AWS_145:S3-managed AES256 encryption is sufficient here; KMS adds cost and key operations for access logs.
   #checkov:skip=CKV2_AWS_62:No event consumer exists for ALB access-log bucket notifications.
-  bucket = local.alb_access_logs_bucket_name
+  bucket        = local.alb_access_logs_bucket_name
+  force_destroy = true
 
   tags = merge(local.tags, {
     Purpose = "alb-access-logs"

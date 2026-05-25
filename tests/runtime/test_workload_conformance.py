@@ -16,13 +16,21 @@ import pytest
 ROOT = Path(__file__).resolve().parents[2]
 POSTGRES_IMAGE = "postgres:18.3"
 PGBOUNCER_IMAGE = "edoburu/pgbouncer:v1.25.1-p0"
-WORKLOAD_DOCKERFILE = "platform/workload.Dockerfile"
 SERVICE_HTTP_PATHS = {
     "health": "/health",
     "ready": "/ready",
     "metrics": "/metrics",
 }
 RUNTIME_LABELS = ("stack", "environment", "service", "container")
+TRANSIENT_DOCKER_BUILD_ERRORS = (
+    "504 Gateway Time-out",
+    "502 Bad Gateway",
+    "503 Service Unavailable",
+    "TLS handshake timeout",
+    "i/o timeout",
+    "EOF",
+    "connection reset by peer",
+)
 
 
 def _run(args: list[str]) -> subprocess.CompletedProcess[str]:
@@ -33,6 +41,26 @@ def _run(args: list[str]) -> subprocess.CompletedProcess[str]:
         capture_output=True,
         text=True,
     )
+
+
+def _run_docker_build(
+    args: list[str], retries: int = 2
+) -> subprocess.CompletedProcess[str]:
+    attempts = retries + 1
+    for attempt in range(1, attempts + 1):
+        try:
+            return _run(args)
+        except subprocess.CalledProcessError as exc:
+            if (
+                args[:2] != ["docker", "build"]
+                or attempt == attempts
+                or not any(
+                    marker in exc.stderr for marker in TRANSIENT_DOCKER_BUILD_ERRORS
+                )
+            ):
+                raise
+            time.sleep(attempt)
+    raise AssertionError("unreachable")
 
 
 def _docker_available() -> bool:
@@ -50,16 +78,29 @@ def _free_port() -> int:
 
 
 def _load_workloads() -> list[dict[str, object]]:
-    workloads = json.loads((ROOT / "platform" / "workloads.json").read_text())[
-        "workloads"
-    ]
+    contract = json.loads((ROOT / "platform" / "workloads.json").read_text())
     conformance = json.loads(
         (ROOT / "platform" / "runtime-conformance.json").read_text()
-    )["workloads"]
+    )
+    default_env = dict(conformance.get("defaults", {}).get("env", {}))
+    default_secrets = dict(conformance.get("defaults", {}).get("secrets", {}))
+    workloads = contract["workloads"]
     merged: list[dict[str, object]] = []
     for workload in workloads:
         item = dict(workload)
-        item["conformance"] = conformance[workload["name"]]
+        workload_conformance = dict(conformance["workloads"][workload["name"]])
+        database = workload.get("database")
+        workload_env = dict(default_env) if isinstance(database, dict) else {}
+        if isinstance(database, dict):
+            workload_env["DB_HOST"] = (
+                "pgbouncer" if database["pooling"] == "transaction_pool" else "db"
+            )
+        workload_env.update(dict(workload_conformance.get("env", {})))
+        workload_secrets = dict(default_secrets) if isinstance(database, dict) else {}
+        workload_secrets.update(dict(workload_conformance.get("secrets", {})))
+        workload_conformance["env"] = workload_env
+        workload_conformance["secrets"] = workload_secrets
+        item["conformance"] = workload_conformance
         merged.append(item)
     return merged
 
@@ -243,12 +284,14 @@ def _build_image(workload: dict[str, object], prefix: str) -> str:
         "UV_PACKAGE": str(image_spec["package"]),
         "WORKLOAD_CMD": str(image_spec["command"]),
     }
+    dockerfile = str(image_spec.get("dockerfile", "platform/workload.Dockerfile"))
+    context = str(image_spec.get("context", "."))
     image = f"{prefix}-{name}:local"
-    args = ["docker", "build", "-f", WORKLOAD_DOCKERFILE, "-t", image]
+    args = ["docker", "build", "-f", dockerfile, "-t", image]
     for key, value in build_args.items():
         args.extend(["--build-arg", f"{key}={value}"])
-    args.append(".")
-    _run(args)
+    args.append(context)
+    _run_docker_build(args)
     return image
 
 

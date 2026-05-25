@@ -1,27 +1,12 @@
 ################################################################################
-# App task identity
+# Primary edge task identity
 #
-# The app task role is root-owned so the ECS service module can stop managing
-# app task-definition revisions after bootstrap without also dropping runtime
-# IAM ownership.
+# Single deterministic role used by all repo-sourced task definitions.
+# The legacy name_prefix role (primary-edge-tasks-*) was retired after the
+# live service rolled onto this role via app-deploy.
 ################################################################################
 
-moved {
-  from = module.ecs.module.service["app"].aws_iam_role.tasks[0]
-  to   = aws_iam_role.app_task
-}
-
-moved {
-  from = module.ecs.module.service["app"].aws_iam_policy.tasks[0]
-  to   = aws_iam_policy.app_task
-}
-
-moved {
-  from = module.ecs.module.service["app"].aws_iam_role_policy_attachment.tasks_internal[0]
-  to   = aws_iam_role_policy_attachment.app_task_internal
-}
-
-data "aws_iam_policy_document" "app_task_assume" {
+data "aws_iam_policy_document" "primary_edge_task_assume" {
   statement {
     sid     = "ECSTasksAssumeRole"
     actions = ["sts:AssumeRole"]
@@ -45,17 +30,7 @@ data "aws_iam_policy_document" "app_task_assume" {
   }
 }
 
-resource "aws_iam_role" "app_task" {
-  name_prefix = "app-tasks-"
-  description = "IAM role for ECS tasks in Service app"
-
-  assume_role_policy    = data.aws_iam_policy_document.app_task_assume.json
-  force_detach_policies = true
-
-  tags = local.tags
-}
-
-data "aws_iam_policy_document" "app_task" {
+data "aws_iam_policy_document" "primary_edge_task" {
   statement {
     sid = "ECSExec"
     actions = [
@@ -68,15 +43,25 @@ data "aws_iam_policy_document" "app_task" {
   }
 }
 
-resource "aws_iam_policy" "app_task" {
-  name_prefix = "app-tasks-"
-  description = "Task role IAM policy"
-  policy      = data.aws_iam_policy_document.app_task.json
+resource "aws_iam_role" "primary_edge_task_deploy" {
+  name        = "${local.name}-primary-edge-task"
+  description = "IAM role for primary edge ECS task definitions"
+
+  assume_role_policy    = data.aws_iam_policy_document.primary_edge_task_assume.json
+  force_detach_policies = true
 
   tags = local.tags
 }
 
-resource "aws_iam_role_policy_attachment" "app_task_internal" {
-  role       = aws_iam_role.app_task.name
-  policy_arn = aws_iam_policy.app_task.arn
+resource "aws_iam_policy" "primary_edge_task_deploy" {
+  name        = "${local.name}-primary-edge-task-policy"
+  description = "Task role IAM policy for primary edge task definitions"
+  policy      = data.aws_iam_policy_document.primary_edge_task.json
+
+  tags = local.tags
+}
+
+resource "aws_iam_role_policy_attachment" "primary_edge_task_deploy_internal" {
+  role       = aws_iam_role.primary_edge_task_deploy.name
+  policy_arn = aws_iam_policy.primary_edge_task_deploy.arn
 }

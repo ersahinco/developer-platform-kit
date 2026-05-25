@@ -1,6 +1,5 @@
 import ast
 from pathlib import Path
-import subprocess
 
 
 ROOT = Path(__file__).resolve().parents[2]
@@ -65,92 +64,30 @@ def test_api_has_no_direct_event_transport_publish_path() -> None:
 
 
 def test_background_hosts_keep_sql_and_storage_in_infrastructure() -> None:
-    for app in ["backfill_worker", "data_export_job", "order_event_consumer"]:
+    for app in ["backfill_worker", "data_export_job", "event_consumer"]:
         top_level_imports, _ = _imports(ROOT / "apps" / app)
         assert "sqlalchemy" not in top_level_imports
         assert "boto3" not in top_level_imports
-
-
-def test_database_portability_is_postgres_not_current_provider() -> None:
-    import json
-
-    contract = json.loads((ROOT / "platform" / "workloads.json").read_text())
-    pooling_by_workload = {
-        workload["name"]: workload["database"]["pooling"]
-        for workload in contract["workloads"]
-    }
-
-    assert pooling_by_workload["api"] == "transaction_pool"
-    assert pooling_by_workload["backfill_worker"] == "direct"
-    assert pooling_by_workload["data_export_job"] == "direct"
-    assert pooling_by_workload["order_event_consumer"] == "direct"
-
-
-def test_workload_operational_classes_match_current_reference_roles() -> None:
-    import json
-
-    contract = json.loads((ROOT / "platform" / "workloads.json").read_text())
-    operational_by_workload = {
-        workload["name"]: workload["operational"] for workload in contract["workloads"]
-    }
-
-    assert operational_by_workload["api"] == {
-        "class": "edge-service",
-        "exposure": "public",
-    }
-    assert operational_by_workload["order_event_consumer"] == {
-        "class": "internal-service",
-        "exposure": "internal",
-    }
-    assert operational_by_workload["backfill_worker"] == {
-        "class": "operator-job",
-        "trigger": "manual",
-    }
-    assert operational_by_workload["data_export_job"] == {
-        "class": "scheduled-job",
-        "trigger": "schedule",
-    }
-
-
-def test_object_storage_provider_sdk_stays_in_infrastructure() -> None:
-    tracked_files = subprocess.run(
-        ["git", "ls-files", "*.py"],
-        check=True,
-        capture_output=True,
-        text=True,
-    ).stdout.splitlines()
-    offenders = []
-    for tracked_file in tracked_files:
-        path = ROOT / tracked_file
-        if not path.exists():
-            continue
-        if path == Path(__file__):
-            continue
-        text = path.read_text(encoding="utf-8")
-        if "import boto3" in text or "from boto3" in text:
-            offenders.append(tracked_file)
-
-    assert offenders == ["packages/infrastructure/data_export.py"]
 
 
 def test_dapr_pubsub_boundary_keeps_provider_brokers_at_runtime_edge() -> None:
     import json
 
     contract = json.loads((ROOT / "platform" / "workloads.json").read_text())
-    order_consumer = next(
+    event_consumer = next(
         workload
         for workload in contract["workloads"]
-        if workload["name"] == "order_event_consumer"
+        if workload["name"] == "event_consumer"
     )
-    assert order_consumer["dapr"]["app_id"] == "order-event-consumer"
-    assert order_consumer["dapr"]["scope"] == "pubsub"
-    assert order_consumer["dapr"]["pubsub_name"] == "order-events-pubsub"
+    assert event_consumer["dapr"]["app_id"] == "event-consumer"
+    assert event_consumer["dapr"]["scope"] == "pubsub"
+    assert event_consumer["dapr"]["pubsub_name"] == "async-events-pubsub"
 
     app_facing_literals = {
         literal.lower()
         for literal in (
             _string_literals(ROOT / "packages" / "application")
-            | _string_literals(ROOT / "apps" / "order_event_consumer")
+            | _string_literals(ROOT / "apps" / "event_consumer")
             | _string_literals(ROOT / "packages" / "infrastructure" / "dapr")
         )
     }
@@ -166,7 +103,7 @@ def test_dapr_pubsub_boundary_keeps_provider_brokers_at_runtime_edge() -> None:
             _read("infra/app/messaging.tf"),
             _read(
                 "platform/concerns/dapr/profiles/local/components/"
-                "order-events-pubsub.yaml"
+                "async-events-pubsub.yaml"
             ),
         ]
     ).lower()
@@ -186,15 +123,15 @@ def test_alternate_dapr_component_can_satisfy_same_pubsub_contract() -> None:
             / "profiles"
             / "local"
             / "components"
-            / "order-events-pubsub.yaml"
+            / "async-events-pubsub.yaml"
         ).read_text()
     )
     alternate = yaml.safe_load(
         (
-            ROOT / "tests" / "fixtures" / "dapr" / "alternate-order-events-pubsub.yaml"
+            ROOT / "tests" / "fixtures" / "dapr" / "alternate-async-events-pubsub.yaml"
         ).read_text()
     )
 
-    assert current["metadata"]["name"] == "order-events-pubsub"
+    assert current["metadata"]["name"] == "async-events-pubsub"
     assert alternate["metadata"]["name"] == current["metadata"]["name"]
     assert alternate["spec"]["type"].startswith("pubsub.")

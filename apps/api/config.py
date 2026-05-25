@@ -17,6 +17,9 @@ load_env_file()
 class Settings(PostgresRuntimeSettings):
     database_url: str | None = field(default_factory=lambda: env_str("DATABASE_URL"))
     db_host: str | None = field(default_factory=lambda: env_str("DB_HOST", "localhost"))
+    primary_edge_auth_token: str | None = field(
+        default_factory=lambda: env_str("PRIMARY_EDGE_AUTH_TOKEN")
+    )
     otel_traces_enabled: bool = field(
         default_factory=lambda: env_bool("OTEL_TRACES_ENABLED")
     )

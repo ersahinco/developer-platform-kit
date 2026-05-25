@@ -1,0 +1,9 @@
+apiVersion: backstage.io/v1alpha1
+kind: Resource
+metadata:
+  name: runtime-target-aws-ecs
+  description: Current primary runtime target for the platform monorepo.
+spec:
+  type: runtime-target
+  owner: group:default/platform-engineering
+  system: aws-sdlc-containers

@@ -1,68 +1,73 @@
-# aws-sdlc-containers — Agent Rules
+# aws-sdlc-containers - Agent Rules
 
-This is the cross-tool base rule set for Codex, OpenCode, and any other agent
-working in this repository. Kiro reads `.kiro/steering/` for the full scoped
-layer on top of this file.
+Canonical shared agent-memory surface for Codex, OpenCode, Claude Code, Kiro,
+and other agents in this repo.
 
-Short form: **standardize the delivery workflow, do not replace the tools.**
+Short form: standardize the delivery workflow, do not replace the tools.
 
----
+## Canonicality
 
-## Vocabulary — Use These Terms
+- `AGENTS.md` is the canonical shared agent-memory surface.
+- `CLAUDE.md` is a shim that imports this file for Claude Code / Kiro.
+- `opencode.json` only points OpenCode at this file.
+- Nested `AGENTS.md` files provide scoped rules by subtree.
+- `.kiro/steering/` is kept only for manual skill files.
+
+## Vocabulary
 
 | Use | Avoid |
 |---|---|
 | delivery toolkit | framework, custom framework |
 | workload | microservice |
+| platform catalog | internal framework, magic scaffolding |
 | portable by boundary | cloud-neutral |
 | platform edge | cloud abstraction layer |
 | runtime target | cloud provider |
 | app host | service, microservice |
 
----
+## Stable Center
 
-## Repository Layer Map
+The stable center of the platform is the workload contract and the platform
+catalog.
 
+- The workload contract defines what a workload is, what it needs, and what guarantees it must satisfy.
+- The platform catalog provides reusable building blocks, templates, modules, policies, and delivery paths that realize those needs.
+- A runtime target is a pluggable implementation choice at the platform edge, such as AWS ECS, managed Kubernetes, jobs, or future data runtimes.
+- Runtime targets must realize the contract, not redefine workload identity, portability rules, or shared delivery policy.
+- The current primary runtime target is AWS/ECS. Additional runtime targets need a real workload reason and clear ownership.
+
+## Layer Map
+
+| Path | Owns | Must not own |
+|---|---|---|
+| `packages/domain/` | Entities, value objects, domain events | Provider SDKs, framework imports, runtime details |
+| `packages/application/` | Use cases, ports, workflow logic | SQL, Dapr internals, AWS SDK |
+| `packages/infrastructure/` | SQLAlchemy, Dapr, S3, runtime adapters | Domain/application policy |
+| `apps/*/` | Workload host: settings, routes, lifecycle, wiring | Business logic that belongs in `packages/` |
+| `platform/workloads.json` | Workload identity, operational class, use-case tags, ports, config/secret names | Deployment choreography or runtime-specific wiring |
+| `platform/concerns/` | Shared runtime capabilities: Dapr, observability, security | App-specific business rules |
+| `infra/platform/` | Bootstrap, network, GitHub OIDC | Workload identity |
+| `infra/app/` | RDS, ECS, ALB, jobs, messaging | Domain/application logic |
+| `infra/catalog/` | Reusable catalog building blocks for runtime targets; current AWS catalog lives here | Deploy-root orchestration or workload identity |
+| `db/` | Liquibase changelog, bootstrap SQL, PgBouncer assets | App logic |
+| `scripts/` | CI, release, operator, observability, data helpers | Hidden framework layers |
+| `tests/` | API, application, runtime, infrastructure, contract checks | Production code |
+| `.github/workflows/` | CI gates, app build/deploy, infra plan/apply, security | App or Terraform business logic |
+
+Dependency direction is inward only:
+
+```text
+apps/* -> packages/application -> packages/domain
+apps/* -> packages/infrastructure
+packages/infrastructure -> packages/application + packages/domain
 ```
-packages/domain/          pure entities, value objects, domain events
-                          NO provider SDKs, NO framework imports, NO runtime details
 
-packages/application/     use cases, ports (interfaces), workflow logic
-                          NO SQL, NO Dapr internals, NO AWS SDK
+Provider resource names belong at the platform edge, never in domain or
+application code.
 
-packages/infrastructure/  SQLAlchemy, Dapr, S3, and all runtime adapters
-                          implements ports from packages/application/
+## Workload Classes
 
-apps/*/                   workload host: settings, routes, lifecycle, wiring
-                          keep thin — business logic lives in packages/
-
-platform/workloads.json   workload identity, operational class, ports, config/secret names
-platform/concerns/        shared runtime capabilities: Dapr, observability, security
-infra/platform/           bootstrap, network, GitHub OIDC
-infra/app/                runtime resources: RDS, ECS, ALB, jobs, messaging
-infra/catalog/            reusable AWS building blocks (library, not a deploy root)
-db/                       Liquibase changelog, bootstrap SQL, PgBouncer assets
-scripts/                  CI, release, operator, observability, data helpers
-tests/                    API, application, runtime, infrastructure, contract checks
-.github/workflows/        CI gates, app build/deploy, infra plan/apply, security
-```
-
-**Dependency direction is inward — never reverse it:**
-
-```
-apps/*  →  packages/application  →  packages/domain
-apps/*  →  packages/infrastructure
-packages/infrastructure  →  packages/application + packages/domain
-```
-
-Provider resource names (bucket names, queue ARNs, task definitions, IAM roles)
-belong at the platform edge — never in domain or application code.
-
----
-
-## Workload Operational Classes
-
-Declare one of these in `platform/workloads.json` for every workload:
+Declare one class in `platform/workloads.json` for every workload:
 
 | Class | Description |
 |---|---|
@@ -71,39 +76,40 @@ Declare one of these in `platform/workloads.json` for every workload:
 | `operator-job` | One-off task triggered manually or by CI/operator |
 | `scheduled-job` | Recurring task triggered by a scheduler |
 
-Current: `api` → edge-service · `order_event_consumer` → internal-service ·
-`backfill_worker` → operator-job · `data_export_job` → scheduled-job
+Current: `api` -> `edge-service`; `event_consumer` -> `internal-service`;
+`backfill_worker` -> `operator-job`; `data_export_job` -> `scheduled-job`
 
----
+## Workload Contract
 
-## Workload Contract — Non-Negotiable
+Services must provide:
 
-**Service workloads** must provide:
 - OCI image declared in `platform/workloads.json`
-- `/health`, `/ready`, `/metrics` endpoints
+- `/health`, `/ready`, `/metrics`
 - Prometheus metrics
 - Structured logs with stable workload identifiers
 - Environment-variable or mounted-file configuration
-- Runtime secret injection — never bake secrets into images
+- Runtime secret injection; never bake secrets into images
 
-**Job workloads** must provide:
+Jobs must provide:
+
 - Meaningful process exit status
 - Safe rerun behavior or clearly bounded idempotency
-- Structured start / progress / success / failure events
-- Same config and secret rules as services
+- Structured start, progress, success, and failure events
+- The same config and secret rules as services
 
----
+## Metadata Ownership
 
-## Metadata Ownership — Three Layers Only
+1. `platform/workloads.json` - what the workload is
+2. `platform/runtime-conformance.json` - local/CI fixture data only
+3. `infra/app/workload_inventory.tf` - how the current AWS runtime fulfills the contract
 
-1. `platform/workloads.json` — what the workload **is**
-2. `platform/runtime-conformance.json` — local/CI fixture data only
-3. `infra/app/workload_inventory.tf` — how AWS **fulfills** the contract
+Rules:
 
-Do not grow `platform/workloads.json` into a deployment DSL.
-Do not let `infra/app/workload_inventory.tf` redefine workload identity.
-
----
+- Do not grow `platform/workloads.json` into a deployment DSL.
+- Do not let runtime realization layers such as `infra/app/workload_inventory.tf` redefine workload identity.
+- Do not let `platform/runtime-conformance.json` grow second application-spec semantics.
+- Use target-neutral `use_cases` to classify workload intent for catalog, templates, and self-service discovery.
+- Add future runtime targets as parallel realization layers, not by rewriting the stable center.
 
 ## Eventing Boundary
 
@@ -112,117 +118,68 @@ pub/sub names, topics, CloudEvents, and outbox semantics. Application code
 must not know whether the runtime uses SNS/SQS, Redis, Kafka, or another
 broker. The durable handoff is the database outbox.
 
----
+## Delivery Rules
 
-## Delivery Shape — Review-First
+- Build before deploy.
+- Plan before apply.
+- Use immutable image tags; never `latest`.
+- Emit release evidence for every cloud-changing workflow.
+- Keep build and deploy separate.
+- Keep plan and apply separate.
 
-- Build before deploy · Plan before apply
-- Immutable image tags (Git SHA) — never `latest`
-- Emit release evidence for every cloud-changing workflow
-- Build and deploy are separate workflows — do not merge them
-- Plan and apply are separate workflows — do not merge them
+## Agentic Development
 
----
+- Favor more with less.
+- Prefer simplification over feature expansion when both solve the same problem.
+- Remove duplication, hidden coupling, and unclear ownership first.
+- Keep the repo conventional: standard tools directly, small helpers only.
+- Do not add speculative abstractions, internal frameworks, or extra layers.
+- Preserve explicit platform boundaries, metadata ownership, and reviewed delivery.
 
-## Agentic Development Principles
+## Checklists
 
-- Favor **more with less** — reduce complexity before adding capability
-- Prefer simplification over feature expansion when both solve the same problem
-- Remove duplication, hidden coupling, and unclear ownership as first-class work
-- Keep the repo conventional: use standard tools directly and add only small helpers
-- Do not introduce speculative abstractions, internal frameworks, or extra layers
-- Preserve explicit platform boundaries, metadata ownership, and review-gated delivery
-- Make the common path obvious, maintainable, and easy to extend
+Adding a workload:
 
-## Example Prompt
-```
-Review this platform monorepo as a staff platform architect and continue improving it with one guiding principle: more with less.
+1. Add `apps/<name>/main.py`, `config.py`, `pyproject.toml`.
+2. Register it in `platform/workloads.json` before Terraform resources.
+3. Reuse `platform/workload.Dockerfile` unless there is a documented reason not to.
+4. Services expose `/health`, `/ready`, `/metrics`.
+5. Jobs emit structured events and document idempotency.
+6. Add pytest coverage and keep `make runtime-conformance` passing.
 
-Goal:
-Make the monorepo easier to maintain, more standardized, more expandable, and more elegant by reducing unnecessary complexity without reducing real capability.
+Schema changes:
 
-What I want from this session:
-1. Audit the current platform shape for bloat, duplication, hidden coupling, over-specialization, and places where the repo is harder to maintain than it needs to be.
-2. Prefer simplification over feature expansion.
-3. Preserve the current strong parts:
-   - metadata-driven workload contract
-   - split workflow ownership
-   - explicit platform/runtime boundaries
-   - observability and release evidence
-   - contract and architecture tests
-4. Identify the next highest-value changes that improve maintainability and clarity with minimal abstraction.
-5. Implement the changes, not just describe them.
-6. Keep the project conventional and boring in a good way:
-   - standard tools directly
-   - small helpers only where needed
-   - no internal framework
-   - no speculative abstractions
-7. Be opinionated like a staff platform architect:
-   - remove ambiguity
-   - reduce surface area
-   - enforce clear ownership
-   - make common paths obvious
-   - keep extension paths intentional
+1. Expand - add nullable columns or tables; old code still works.
+2. Dual-write - new code writes both shapes.
+3. Backfill - migrate existing data via `apps/backfill_worker/`.
+4. Switch - new code reads new shape only.
+5. Contract - remove old columns or tables.
 
-Please start by:
-- reviewing the current repo state
-- identifying the top maintainability/design issues that still remain
-- then implementing the best next slice end-to-end
-- and validating with the relevant tests/lint checks
-```
-
----
-
-## Adding a New Workload
-
-1. Add `apps/<name>/main.py`, `config.py`, `pyproject.toml`
-2. Register in `platform/workloads.json` **before** any Terraform resources
-3. Reuse `platform/workload.Dockerfile` unless there is a documented reason not to
-4. Services: expose `/health`, `/ready`, `/metrics`
-5. Jobs: emit structured events, document idempotency
-6. Add pytest coverage · keep `make runtime-conformance` passing
-
----
-
-## Schema Changes — Expand/Contract Always
-
-Never make a breaking schema change in a single migration:
-1. Expand — add nullable columns/tables; old code still works
-2. Dual-write — new code writes both shapes
-3. Backfill — migrate existing data via `apps/backfill_worker/`
-4. Switch — new code reads new shape only
-5. Contract — remove old columns/tables
-
----
-
-## Quality Gates — Run Before Calling a Change Done
+Quality gates:
 
 ```bash
-make lint                 # Ruff, Pyright, actionlint, hadolint, lychee
-make secret-scan          # Gitleaks
-make dependency-audit     # pip-audit
-uv run pytest tests/ -v   # full test suite
-make runtime-conformance  # external contract proof
+make lint
+make secret-scan
+make dependency-audit
+uv run pytest tests/ -v
+make runtime-conformance
 ```
 
-Terraform: `terraform fmt` · `terraform validate` · TFLint · Checkov ·
-reviewed plan · separate apply.
+Terraform: `terraform fmt`, `terraform validate`, TFLint, Checkov, reviewed
+plan, separate apply.
 
----
-
-## What Is Intentionally Not Here
+## Intentionally Not Here
 
 Do not add without a real workload need:
+
 - Dapr state store, bindings, workflows, actors, or secrets
-- Kubernetes, Helm, Kustomize, or Crossplane
-- A second cloud/runtime target
+- Self-managed Kubernetes control planes, Helm/Kustomize packaging, or Crossplane
+- A runtime target added only to prove portability
 - Generic provider-neutral infrastructure modules
 
----
+## Scoped Rules
 
-## Scoped Rules (Codex: nested AGENTS.md)
-
-Codex loads these automatically when working in the relevant subtree:
+Codex loads these automatically in the relevant subtree:
 
 | Path | Nested AGENTS.md |
 |---|---|
@@ -233,9 +190,7 @@ Codex loads these automatically when working in the relevant subtree:
 | `db/` | `db/AGENTS.md` |
 | `.github/workflows/` | `.github/AGENTS.md` |
 
-## On-Demand Skills
-
-Load these for specific work types (reference in chat or as a Codex skill):
+## Manual Skills
 
 | Skill file | Load when |
 |---|---|
