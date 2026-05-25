@@ -50,3 +50,25 @@ def test_primary_edge_platform_runtime_surfaces_do_not_use_api_internal_labels()
 
     for forbidden in FORBIDDEN_INTERNAL_LABELS:
         assert forbidden not in runtime_surface_text
+
+
+def test_primary_edge_runtime_identity_uses_deterministic_repo_owned_names() -> None:
+    task_identity = (ROOT / "infra/app/app_task_identity.tf").read_text(
+        encoding="utf-8"
+    )
+    renderer = (ROOT / "scripts/ci/render_ecs_task_definition.py").read_text(
+        encoding="utf-8"
+    )
+
+    assert 'resource "aws_iam_role" "primary_edge_task_deploy"' in task_identity
+    assert 'name        = "${local.name}-primary-edge-task"' in task_identity
+    assert (
+        'resource "aws_iam_policy" "primary_edge_task_deploy"'
+        in task_identity
+        in task_identity
+    )
+    assert 'name        = "${local.name}-primary-edge-task-policy"' in task_identity
+    assert 'resource "aws_iam_role" "primary_edge_task"' in task_identity
+    assert 'name_prefix = "primary-edge-tasks-"' in task_identity
+    assert "describe-task-definition" not in renderer
+    assert "_primary_edge_task_role_name" in renderer

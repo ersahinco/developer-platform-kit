@@ -37,7 +37,7 @@ data "aws_iam_policy_document" "task_exec_secrets" {
   statement {
     sid       = "ReadPrimaryEdgeAuthToken"
     actions   = ["secretsmanager:GetSecretValue"]
-    resources = [data.aws_secretsmanager_secret.primary_edge_auth_token.arn]
+    resources = [local.primary_edge_auth_token_secret_arn_wildcard]
   }
 }
 

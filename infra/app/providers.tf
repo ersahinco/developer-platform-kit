@@ -41,6 +41,8 @@ locals {
     var.primary_edge_auth_token_secret_name,
     "${local.name}/edge-token"
   )
+  primary_edge_auth_token_secret_arn          = "arn:aws:secretsmanager:${local.region}:${local.account_id}:secret:${local.primary_edge_auth_token_secret_name}"
+  primary_edge_auth_token_secret_arn_wildcard = "${local.primary_edge_auth_token_secret_arn}*"
   primary_edge_hostname_label = coalesce(
     var.primary_edge_hostname_label,
     try(local.workloads_by_name[local.primary_edge_workload_name].edge.hostname_label, null),

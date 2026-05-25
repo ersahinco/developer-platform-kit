@@ -159,7 +159,7 @@ locals {
 
   shared_secret_value_from = {
     DB_PASSWORD             = "${module.rds.db_instance_master_user_secret_arn}:password::"
-    PRIMARY_EDGE_AUTH_TOKEN = data.aws_secretsmanager_secret.primary_edge_auth_token.arn
+    PRIMARY_EDGE_AUTH_TOKEN = local.primary_edge_auth_token_secret_arn
   }
 
   workload_env_values = {

@@ -4,6 +4,10 @@ import rego.v1
 
 workflow_dispatch_only := {
   "app-deploy.yml",
+  "data-backfill.yml",
+  "data-runtime-switch.yml",
+  "data-schema-apply.yml",
+  "data-support-deploy.yml",
   "infra-apply.yml",
   "app-rollback-drill.yml",
   "data-runtime-rollback-drill.yml",
@@ -19,6 +23,10 @@ pull_request_gated := {
 release_evidence_required := {
   "app-build.yml": "Upload build evidence",
   "app-deploy.yml": "Upload app deploy evidence",
+  "data-backfill.yml": "Upload data backfill evidence",
+  "data-runtime-switch.yml": "Upload data runtime switch evidence",
+  "data-schema-apply.yml": "Upload data schema apply evidence",
+  "data-support-deploy.yml": "Upload data support deploy evidence",
   "infra-apply.yml": "Upload infra apply evidence",
   "app-rollback-drill.yml": "Upload app rollback drill evidence",
   "data-runtime-rollback-drill.yml": "Upload data runtime rollback evidence",
@@ -27,6 +35,10 @@ release_evidence_required := {
 aws_environment_required := {
   "app-build.yml": "build-scan-push",
   "app-deploy.yml": "deploy",
+  "data-backfill.yml": "run_backfill",
+  "data-runtime-switch.yml": "switch_runtime",
+  "data-schema-apply.yml": "apply_schema",
+  "data-support-deploy.yml": "deploy_support",
   "infra-apply.yml": "apply",
 }
 
@@ -64,6 +76,17 @@ deny contains msg if {
   job_name := aws_environment_required[file]
   not job_uses_environment(input, job_name, "aws")
   msg := sprintf("%s job %q must use environment aws", [file, job_name])
+}
+
+deny contains msg if {
+  some job_name, job in input.jobs
+  some step in job.steps
+  object.get(step, "continue-on-error", false)
+  msg := sprintf("%s job %q step %q must not use continue-on-error", [
+    data.conftest.file.name,
+    job_name,
+    object.get(step, "name", "<unnamed>"),
+  ])
 }
 
 workflow_has_step(workflow, step_name) if {

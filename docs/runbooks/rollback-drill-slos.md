@@ -43,6 +43,8 @@ timeout, rollback, or verification path is repaired.
   mode changes.
 - Infra rollback drills must not include RDS replacement, S3 object deletion,
   queue replacement, or data hub changes.
+- Forward runtime mode changes must use `Data Runtime Switch`, not ad hoc curl
+  from a deploy workflow.
 - Data-phase rollback must stay additive until the contract phase. After a
   destructive contract migration, rollback is snapshot/restore work, not a fast
   pipeline rollback.
