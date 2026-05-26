@@ -123,7 +123,7 @@ lint: secret-scan dependency-audit lint-app lint-scripts lint-docs lint-workflow
 
 .PHONY: lint-app
 lint-app: ## Lint and type-check Python
-	uv run ruff check apps/ packages/ tests/ scripts/
+	uv run ruff check apps/ examples/ packages/ tests/ scripts/
 	uv run pyright
 
 .PHONY: lint-scripts
@@ -204,7 +204,7 @@ lint-infra: ## Lint Terraform (fmt check + tflint + checkov)
 
 .PHONY: fmt
 fmt: ## Auto-format Python and Terraform
-	uv run ruff format apps/ packages/ tests/ scripts/
+	uv run ruff format apps/ examples/ packages/ tests/ scripts/
 	terraform fmt -recursive infra/
 
 .PHONY: pre-commit

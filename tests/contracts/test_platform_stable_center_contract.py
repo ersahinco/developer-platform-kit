@@ -99,3 +99,12 @@ def test_docs_describe_adapter_first_portability_strategy() -> None:
         "Rule: add or swap adapters and runtime-target realization code before changing"
         in (platform_capabilities)
     )
+
+
+def test_docs_define_contract_admission_rule() -> None:
+    platform_capabilities = _read("docs/platform-capabilities.md")
+
+    assert (
+        "admit a capability only when it has contract shape, local proof, runtime realization, delivery path, and owner"
+        in platform_capabilities
+    )

@@ -12,7 +12,6 @@ members = [
     "aws-sdlc-containers-domain",
     "aws-sdlc-containers-event-consumer",
     "aws-sdlc-containers-infrastructure",
-    "aws-sdlc-containers-open-dataset-pipeline",
 ]
 
 [[package]]
@@ -226,21 +225,6 @@ requires-dist = [
     { name = "duckdb", specifier = ">=1.4.2" },
     { name = "psycopg2-binary", specifier = ">=2.9.9" },
     { name = "sqlalchemy", specifier = ">=2.0.30" },
-]
-
-[[package]]
-name = "aws-sdlc-containers-open-dataset-pipeline"
-version = "0.1.0"
-source = { editable = "apps/open_dataset_pipeline" }
-dependencies = [
-    { name = "aws-sdlc-containers-application" },
-    { name = "aws-sdlc-containers-infrastructure" },
-]
-
-[package.metadata]
-requires-dist = [
-    { name = "aws-sdlc-containers-application", editable = "packages/application" },
-    { name = "aws-sdlc-containers-infrastructure", editable = "packages/infrastructure" },
 ]
 
 [[package]]

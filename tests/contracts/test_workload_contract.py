@@ -55,10 +55,11 @@ def _declared_config_names(workload: dict[str, Any]) -> set[str]:
 def test_workload_registry_has_required_shape() -> None:
     contract = load_json("platform/workloads.json")
     conformance = _runtime_conformance()
+    workload_names = {workload["name"] for workload in contract["workloads"]}
+
+    assert set(conformance["workloads"]) == workload_names
 
     for workload in contract["workloads"]:
-        assert workload["name"] in conformance["workloads"]
-
         workload_conformance = _workload_conformance(workload, conformance)
         if workload["kind"] == "service":
             assert "startup_timeout_seconds" in workload_conformance

@@ -1,9 +1,44 @@
 from dataclasses import dataclass
 from dataclasses import field
+import os
+from pathlib import Path
 
-from infrastructure.config import env_str
-from infrastructure.config import load_env_file
-from infrastructure.config import require_value
+
+def require_value(value: str | None, name: str) -> str:
+    if value is None:
+        raise RuntimeError(f"{name} was not configured")
+    return value
+
+
+def load_env_file(path: str | Path = ".env") -> None:
+    env_path = Path(path)
+    if not env_path.is_file():
+        return
+
+    for raw_line in env_path.read_text(encoding="utf-8").splitlines():
+        line = raw_line.strip()
+        if not line or line.startswith("#"):
+            continue
+        if line.startswith("export "):
+            line = line.removeprefix("export ").strip()
+        if "=" not in line:
+            continue
+        key, value = line.split("=", 1)
+        key = key.strip()
+        if not key or key in os.environ:
+            continue
+        os.environ[key] = _clean_env_value(value)
+
+
+def env_str(name: str, default: str | None = None) -> str | None:
+    return os.getenv(name, default)
+
+
+def _clean_env_value(value: str) -> str:
+    stripped = value.strip()
+    if len(stripped) >= 2 and stripped[0] == stripped[-1] and stripped[0] in "'\"":
+        return stripped[1:-1]
+    return stripped
 
 
 load_env_file()

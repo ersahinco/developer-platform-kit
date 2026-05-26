@@ -17,7 +17,7 @@ Reference workloads:
 
 Local-only examples:
 
-- `apps/open_dataset_pipeline`
+- `examples/open_dataset_pipeline`
 
 ## Preferred Setup
 

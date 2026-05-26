@@ -84,7 +84,7 @@ repos:
 
       - id: python-format-check-push
         name: python format check on push
-        entry: uv run ruff format --check apps/ packages/ tests/ scripts/
+        entry: uv run ruff format --check apps/ examples/ packages/ tests/ scripts/
         language: system
         pass_filenames: false
         stages: [pre-push]

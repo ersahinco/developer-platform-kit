@@ -4,13 +4,13 @@ import datetime
 import json
 from typing import Any
 
-from application.open_dataset_pipeline import (
-    OpenDatasetRequest,
-    run_open_dataset_pipeline,
-)
-from infrastructure.open_dataset_pipeline import (
+from open_dataset_pipeline.duckdb_store import (
     DuckDBOpenDatasetStore,
     OpenDatasetLoader,
+)
+from open_dataset_pipeline.pipeline import (
+    OpenDatasetRequest,
+    run_open_dataset_pipeline,
 )
 from open_dataset_pipeline.config import settings
 

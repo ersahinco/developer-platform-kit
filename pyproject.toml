@@ -29,7 +29,6 @@ members = [
     "apps/api",
     "apps/backfill_worker",
     "apps/data_export_job",
-    "apps/open_dataset_pipeline",
     "apps/event_consumer",
     "packages/domain",
     "packages/application",
@@ -48,9 +47,10 @@ markers = [
 ]
 
 [tool.pyright]
-include = ["apps", "packages", "tests", "scripts"]
+include = ["apps", "examples", "packages", "tests", "scripts"]
 extraPaths = [
     "apps",
+    "examples",
     "packages",
 ]
 pythonVersion = "3.14"

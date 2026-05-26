@@ -8,7 +8,7 @@ from urllib.request import urlopen
 
 import duckdb
 
-from application.open_dataset_pipeline import OpenDatasetRequest
+from open_dataset_pipeline.pipeline import OpenDatasetRequest
 
 
 def _dataset_slug(value: str) -> str:

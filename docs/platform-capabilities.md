@@ -78,6 +78,7 @@ record it here or in runtime-facing docs.
 ## Admission Rule
 
 - standardize a new capability only when a real workload needs it
+- admit a capability only when it has contract shape, local proof, runtime realization, delivery path, and owner
 - decide first: portable contract, current capability inventory, or AWS runtime only
 - do not add provider-neutral abstraction layers speculatively
 
