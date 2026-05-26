@@ -35,7 +35,6 @@ def test_workload_patterns_are_declared_as_stable_center_contract() -> None:
         "internal-async-service",
         "operator-job",
         "scheduled-job",
-        "data-pipeline",
         "export-job",
     ]
     assert all(isinstance(pattern["description"], str) for pattern in patterns)

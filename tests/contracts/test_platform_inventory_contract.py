@@ -13,6 +13,12 @@ def test_platform_inventory_has_required_shape() -> None:
         "catalog_root": "infra/catalog",
     }
     assert inventory["current_runtime_target"] == "aws-ecs"
+    assert isinstance(inventory["runtime_targets"], list)
+    assert {target["id"] for target in inventory["runtime_targets"]} == {
+        "local-compose",
+        "aws-ecs",
+        "managed-service-provider",
+    }
     assert isinstance(inventory["runtime_capabilities"], list)
     assert isinstance(inventory["adapter_seams"], list)
     assert inventory["runtime_capabilities"]
@@ -34,6 +40,12 @@ def test_platform_inventory_rows_reference_expected_stable_center_seams() -> Non
         row["capability"] == "async_eventing"
         and row["adapter_seam"] == "packages/infrastructure/dapr/"
         for row in adapter_seams
+    )
+    assert any(
+        row["capability"] == "local_runtime"
+        and row["runtime_target"] == "local-compose"
+        and "platform/runtime-conformance.json" in row["replacement_seam"]
+        for row in runtime_capabilities
     )
 
 

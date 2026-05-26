@@ -6,7 +6,37 @@
     "catalog_root": "infra/catalog"
   },
   "current_runtime_target": "aws-ecs",
+  "runtime_targets": [
+    {
+      "id": "local-compose",
+      "role": "local-development",
+      "owner": "platform-toolkit",
+      "implementation": "Docker Compose + local Postgres/PgBouncer + Redis-backed Dapr + OSS observability",
+      "purpose": "Fast local iteration and workload contract proof without cloud provider dependencies."
+    },
+    {
+      "id": "aws-ecs",
+      "role": "production-runtime",
+      "owner": "platform-runtime",
+      "implementation": "AWS ECS/Fargate + ALB/WAF + RDS + SNS/SQS + S3 + EventBridge Scheduler",
+      "purpose": "Current reviewed production realization of the workload contract."
+    },
+    {
+      "id": "managed-service-provider",
+      "role": "future-runtime-edge",
+      "owner": "provider-runtime",
+      "implementation": "Managed PostgreSQL, DNS, edge, identity, or storage providers such as Supabase/Postgres or global DNS services.",
+      "purpose": "Hybrid environment realization when a workload needs a managed global service without changing application code."
+    }
+  ],
   "runtime_capabilities": [
+    {
+      "capability": "local_runtime",
+      "contract_surface": "workload contract, runtime conformance, local config names",
+      "runtime_target": "local-compose",
+      "implementation": "Docker Compose services plus Redis-backed Dapr and local OSS observability",
+      "replacement_seam": "compose.yaml + platform/concerns/ + platform/runtime-conformance.json"
+    },
     {
       "capability": "edge_http",
       "contract_surface": "edge-service, /health, /ready, /metrics",

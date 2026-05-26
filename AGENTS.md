@@ -32,9 +32,9 @@ catalog.
 
 - The workload contract defines what a workload is, what it needs, and what guarantees it must satisfy.
 - The platform catalog provides reusable building blocks, templates, modules, policies, and delivery paths that realize those needs.
-- A runtime target is a pluggable implementation choice at the platform edge, such as AWS ECS, managed Kubernetes, jobs, or future data runtimes.
+- A runtime target is a pluggable implementation choice at the platform edge, such as local Compose, AWS ECS, managed Kubernetes, managed database providers, global DNS providers, jobs, or future data runtimes.
 - Runtime targets must realize the contract, not redefine workload identity, portability rules, or shared delivery policy.
-- The current primary runtime target is AWS/ECS. Additional runtime targets need a real workload reason and clear ownership.
+- The current local runtime target is Docker Compose. The current reviewed production runtime target is AWS/ECS. Additional runtime targets need a real workload reason and clear ownership.
 
 ## Layer Map
 

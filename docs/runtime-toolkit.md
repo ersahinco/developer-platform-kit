@@ -1,8 +1,9 @@
 # Runtime Toolkit
 
-Use this doc when evaluating or adding a runtime target such as EKS, managed
-Kubernetes, Azure, GCP, Nomad, or cheaper compute. Goal: prove the runtime can
-host portable workloads without moving provider assumptions into app code.
+Use this doc when evaluating or adding a runtime target such as local Compose,
+AWS/ECS, managed Kubernetes, managed PostgreSQL, global DNS, edge providers,
+or cheaper compute. Goal: prove the runtime can satisfy the workload contract
+without moving provider assumptions into app code.
 
 Use with:
 
@@ -11,7 +12,7 @@ Use with:
 - [Platform Capabilities](platform-capabilities.md): current capability map
 
 `platform/workloads.json` is the application spec.
-`platform/runtime-conformance.json` is the local/CI fixture.
+`platform/runtime-conformance.json` is the local/CI runtime proof fixture.
 `make runtime-conformance` is the main executable proof.
 
 The stable center stays the same:
@@ -23,10 +24,16 @@ The stable center stays the same:
 ## Entry Criteria
 
 - There is a concrete reason: cost, reliability, capability, or region/account need.
+- Local development remains fast enough to be the default inner loop.
 - `packages/domain` and `packages/application` do not need provider imports or runtime-specific knowledge.
 - Existing workloads keep the same portable contract unless every runtime should support new behavior.
 
 Do not add a runtime target just to prove portability.
+
+Managed service providers are valid runtime edges. A Supabase-style Postgres
+provider, global DNS provider, or managed edge service should realize the same
+contract surfaces as the AWS or local targets instead of becoming application
+architecture.
 
 ## Runtime Must Provide
 
@@ -46,11 +53,25 @@ It must also preserve workload classes:
 - manually triggered operator jobs
 - scheduler-triggered recurring jobs
 
-## Current AWS ECS Target
+## Current Runtime Targets
+
+`local-compose` is the local-first runtime for fast iteration. It uses Docker
+Compose, local Postgres/PgBouncer, Redis-backed Dapr pub/sub, and the OSS
+observability stack to prove the workload contract before cloud deployment.
+
+`aws-ecs` is the current reviewed production runtime. It realizes the same
+contract with ECS/Fargate, ALB/WAF, RDS, SNS/SQS behind Dapr, S3, EventBridge
+Scheduler, IAM, and CloudWatch.
+
+`managed-service-provider` is a reserved category for hybrid services such as
+managed PostgreSQL, global DNS, edge, identity, or storage providers. Add a
+specific provider only when a workload needs it and the ownership boundary is
+clear.
+
+## AWS ECS Target
 
 The current `aws-ecs` target is implemented through `infra/`,
-`.github/workflows/`, `scripts/`, `compose.yaml`, `platform/concerns/`, tests,
-and docs.
+`.github/workflows/`, `scripts/`, `platform/concerns/`, tests, and docs.
 
 - AWS details stay in `infra/platform`, `infra/app`, and AWS-facing scripts.
 - The portable part is the workload contract and evidence.
@@ -74,7 +95,7 @@ For current AWS rollout and operator flow, use [Deployment](deployment.md).
 | Application core | Portable |
 | Workload contract | Portable shape |
 | Data and database | PostgreSQL-compatible shape |
-| Local runtime | Portable |
+| Local runtime | First-class contract proof |
 | Observability baseline | Mostly OSS-portable |
 | Incident and release evidence | Portable shape |
 | Cloud runtime implementation | Intentionally AWS-specific |
@@ -98,7 +119,8 @@ For this repo today:
 
 - CI-to-Loki publishing is ready but inactive
 - AWS-managed resource metrics still rely on CloudWatch at the platform edge
-- no additional runtime target is implemented yet
+- no additional production runtime target is implemented yet
+- managed global service providers are documented as valid runtime edges but not implemented
 - infra rollback remains reviewed plan/apply, not a permanent drill workflow
 
 ## Implementation Steps

@@ -69,7 +69,7 @@ Rules:
 In addition to `kind` and operational class, each workload declares one or more
 target-neutral `use_cases`. These help catalog, template, and self-service
 surfaces distinguish workloads like `http-api`, `event-consumer`, `dashboard`,
-`connector`, or `data-pipeline` without encoding runtime details.
+or `connector` without encoding runtime details.
 
 Each workload also declares one or more stable-center `patterns`. These drive
 metadata selectors and keep reusable workload shapes explicit instead of hiding

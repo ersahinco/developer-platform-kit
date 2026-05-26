@@ -108,7 +108,7 @@ Do not add:
 `use_cases` rules:
 
 - describe workload intent, not runtime implementation
-- use lowercase kebab-case strings such as `http-api`, `dashboard`, `connector`, `event-consumer`, `data-pipeline`
+- use lowercase kebab-case strings such as `http-api`, `dashboard`, `connector`, `event-consumer`, or `scheduled-pipeline`
 - keep them useful for catalog search, templates, and future self-service entrypoints
 
 ## Choose The Smallest Existing Pattern

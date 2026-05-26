@@ -260,6 +260,7 @@ def platform_inventory() -> dict[str, Any]:
         "schema_version": int(str(document.get("schema_version", "1"))),
         "stable_center": dict(document.get("stable_center", {})),
         "current_runtime_target": str(document.get("current_runtime_target", "")),
+        "runtime_targets": document.get("runtime_targets", []),
         "workload_patterns": workload_pattern_contract().get("patterns", []),
         "workloads": workload_capability_rows(),
         "runtime_capabilities": current_runtime_capability_rows(),

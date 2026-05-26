@@ -32,9 +32,12 @@ make adapter-seam-matrix
 | Incident evidence | portable bundle with ECS, alarms, release context, query hints | `scripts/observability/incident_evidence_bundle.py` |
 | Runtime conformance | external proof that workloads satisfy the declared contract | `platform/runtime-conformance.json`, `tests/runtime/`, `make runtime-conformance` |
 
-## AWS Runtime Seams
+## Runtime Targets
 
-Current runtime target: `aws-ecs`.
+Current local runtime target: `local-compose`.
+Current reviewed production runtime target: `aws-ecs`.
+Future hybrid runtime edge: managed service providers when a workload needs
+managed global database, DNS, edge, identity, or storage capabilities.
 
 Rule:
 
@@ -42,6 +45,7 @@ Rule:
 - keep the workload contract portable
 - keep the platform catalog recognizable across runtime targets
 - do not turn the contract into deployment choreography
+- keep local fast enough to stay the default development loop
 
 Future runtime replacements should plug in at the seams shown by
 `make capability-implementation-matrix` and `make adapter-seam-matrix`.
@@ -55,6 +59,7 @@ current realization behind explicit adapter seams:
 - pub/sub behavior: Dapr-facing adapter in `packages/infrastructure/dapr/` and current broker backing resources in `infra/app/messaging.tf`
 - object-output behavior: infrastructure adapters in `packages/infrastructure/` and current storage realization in `infra/app/object_storage.tf`
 - secrets and runtime wiring: declared workload config in `platform/workloads.json` and current injection in `infra/app/workload_inventory.tf`
+- local runtime behavior: Compose plus `platform/runtime-conformance.json` proves the contract without depending on cloud resources
 
 Rule: add or swap adapters and runtime-target realization code before changing
 the workload contract or application core.

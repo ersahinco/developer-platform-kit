@@ -218,6 +218,11 @@ def test_workload_metadata_inventory_json_reports_stable_center_and_seams() -> N
     assert inventory["stable_center"]["platform_concerns_root"] == "platform/concerns"
     assert inventory["stable_center"]["catalog_root"] == "infra/catalog"
     assert inventory["current_runtime_target"] == "aws-ecs"
+    assert [target["id"] for target in inventory["runtime_targets"]] == [
+        "local-compose",
+        "aws-ecs",
+        "managed-service-provider",
+    ]
     assert inventory["workload_patterns"] == workload_patterns["patterns"]
 
     assert [row["name"] for row in inventory["workloads"]] == [

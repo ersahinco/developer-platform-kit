@@ -4,8 +4,10 @@ Repo shape and placement rules.
 
 `aws-sdlc-containers` is a platform monorepo whose stable center is the
 workload contract and the platform catalog. Runtime targets are pluggable
-realizations at the platform edge. The current primary runtime target is
-AWS/ECS.
+realizations at the platform edge. Local Compose is the fast development
+runtime. AWS/ECS is the current reviewed production runtime. Managed global
+services can be added as runtime-edge realizations when a workload contract
+needs them.
 
 Use companion docs for detail:
 
@@ -25,6 +27,7 @@ The stable center:
 
 Current runtime realization roots:
 
+- `compose.yaml` and `platform/runtime-conformance.json`
 - `infra/platform`
 - `infra/app`
 

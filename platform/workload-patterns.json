@@ -49,15 +49,6 @@
       ]
     },
     {
-      "name": "data-pipeline",
-      "kind": "job",
-      "operational_class": "scheduled-job",
-      "description": "Scheduled data movement or transformation job with run-scoped outputs and rerun-safe inputs.",
-      "required_fields": [
-        "job.idempotency"
-      ]
-    },
-    {
       "name": "export-job",
       "kind": "job",
       "operational_class": "scheduled-job",

@@ -3,6 +3,8 @@ from __future__ import annotations
 import json
 from pathlib import Path
 
+import pytest
+
 from scripts.platform import scaffold_workload
 
 
@@ -117,8 +119,26 @@ def test_apply_scaffolds_edge_service_and_updates_repo_files(tmp_path: Path) -> 
     ).read_text(encoding="utf-8")
 
 
-def test_apply_scaffolds_data_pipeline_job(tmp_path: Path) -> None:
+def test_data_pipeline_pattern_is_not_admitted_without_runtime_ownership(
+    tmp_path: Path,
+) -> None:
     _write_minimal_repo(tmp_path)
+
+    with pytest.raises(ValueError, match="unknown workload pattern"):
+        scaffold_workload.build_plan(
+            scaffold_workload.parse_args(
+                [
+                    "--root",
+                    str(tmp_path),
+                    "--name",
+                    "warehouse_pipeline",
+                    "--pattern",
+                    "data-pipeline",
+                    "--use-case",
+                    "data-pipeline",
+                ]
+            )
+        )
 
     exit_code = scaffold_workload.main(
         [
@@ -134,31 +154,4 @@ def test_apply_scaffolds_data_pipeline_job(tmp_path: Path) -> None:
         ]
     )
 
-    assert exit_code == 0
-
-    workload_contract = json.loads(
-        (tmp_path / "platform" / "workloads.json").read_text(encoding="utf-8")
-    )
-    runtime_conformance = json.loads(
-        (tmp_path / "platform" / "runtime-conformance.json").read_text(encoding="utf-8")
-    )
-    pipeline = next(
-        workload
-        for workload in workload_contract["workloads"]
-        if workload["name"] == "warehouse_pipeline"
-    )
-
-    assert pipeline["patterns"] == ["scheduled-job", "data-pipeline"]
-    assert "database" not in pipeline
-    assert runtime_conformance["workloads"]["warehouse_pipeline"]["env"] == {
-        "PIPELINE_INPUT_URI": "file:///tmp/input.json",
-        "PIPELINE_OUTPUT_DIR": "/exports",
-    }
-
-    for relative_path in [
-        "apps/warehouse_pipeline/config.py",
-        "apps/warehouse_pipeline/main.py",
-        "tests/apps/warehouse_pipeline/test_warehouse_pipeline.py",
-    ]:
-        source = (tmp_path / relative_path).read_text(encoding="utf-8")
-        compile(source, relative_path, "exec")
+    assert exit_code == 1

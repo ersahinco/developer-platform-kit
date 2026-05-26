@@ -4,6 +4,9 @@ Canonical local setup and day-to-day runbook.
 
 Use [Architecture](architecture.md) for ownership rules and
 [Platform Contract](platform-contract.md) for portable workload rules.
+Local development is a first-class runtime target for this platform monorepo:
+it should be fast, contract-faithful, and provider-light so engineers can
+iterate before touching cloud infrastructure.
 
 Reference workloads:
 
