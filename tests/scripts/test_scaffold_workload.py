@@ -181,9 +181,7 @@ def test_apply_can_opt_in_aws_runtime_admission(tmp_path: Path) -> None:
     assert "resource:default/runtime-target-aws-ecs" in component_text
 
 
-def test_data_pipeline_pattern_is_not_admitted_without_runtime_ownership(
-    tmp_path: Path,
-) -> None:
+def test_unknown_workload_pattern_is_rejected(tmp_path: Path) -> None:
     _write_minimal_repo(tmp_path)
 
     with pytest.raises(ValueError, match="unknown workload pattern"):
