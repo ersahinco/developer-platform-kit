@@ -40,8 +40,9 @@ env:
   STACK_NAME: ${{ vars.STACK_NAME || github.event.repository.name }}
   PGBOUNCER_TAG: ${{ vars.PGBOUNCER_TAG || 'v1.25.1-p0' }}
 
-# PRs and pushes validate the reference workload locally. Manual runs build,
-# scan, and push immutable images only; deployment is a separate approval step.
+# PRs and pushes validate workload hosts and local conformance. Manual runs
+# build, scan, and push immutable images only; deployment is a separate
+# approval step.
 jobs:
   validate-and-test:
     name: Validate & Test
