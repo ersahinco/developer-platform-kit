@@ -66,18 +66,6 @@
       },
       "expected_success_event": "data_export_succeeded",
       "expected_log_fields": ["event", "job_name", "dataset", "run_id", "status"]
-    },
-    "open_dataset_pipeline": {
-      "timeout_seconds": 60,
-      "env": {
-        "OPEN_DATASET_URL": "file:///app/apps/open_dataset_pipeline/sample_data/iris.csv",
-        "OPEN_DATASET_NAME": "iris",
-        "OPEN_DATASET_OUTPUT_DIR": "/exports",
-        "OPEN_DATASET_RUN_ID": "conformance",
-        "OPEN_DATASET_DATE": "2026-05-13"
-      },
-      "expected_success_event": "open_dataset_pipeline_succeeded",
-      "expected_log_fields": ["event", "job_name", "dataset", "run_id", "status", "row_count"]
     }
   }
 }

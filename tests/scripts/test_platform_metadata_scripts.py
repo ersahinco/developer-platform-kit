@@ -75,6 +75,7 @@ def test_workload_metadata_usage_lists_capability_matrix_command() -> None:
     assert "adapter-seam-matrix" in completed.stderr
     assert "inventory-json" in completed.stderr
     assert "primary-edge-contract" in completed.stderr
+    assert "scheduled-job-workloads" in completed.stderr
 
 
 def test_workload_metadata_cli_reports_declared_workload_groups() -> None:
@@ -136,12 +137,19 @@ def test_workload_metadata_cli_reports_declared_workload_groups() -> None:
         "\t".join([workload["name"], workload["image"]["repository"]])
         for workload in contract["workloads"]
         if workload["kind"] == "job"
-        and (
-            "operator-job" in workload["patterns"]
-            or "export-job" in workload["patterns"]
-        )
     ]
     assert support_task_workloads == expected_support_task_workloads
+
+    scheduled_job_workloads = _run_workload_metadata(
+        "scheduled-job-workloads"
+    ).stdout.splitlines()
+    expected_scheduled_job_workloads = [
+        "\t".join([workload["name"], workload["image"]["repository"]])
+        for workload in contract["workloads"]
+        if workload["kind"] == "job"
+        and workload["operational"]["class"] == "scheduled-job"
+    ]
+    assert scheduled_job_workloads == expected_scheduled_job_workloads
 
 
 def test_workload_metadata_use_case_matrix_reports_declared_workload_intent() -> None:

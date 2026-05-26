@@ -171,15 +171,12 @@ services:
     volumes:
       - data_exports:/exports
     profiles:
-      - data
+      - examples
 
-  localstack:
-    image: localstack/localstack:4.10.0
-    environment:
-      SERVICES: "sts,sns,sqs"
-      AWS_DEFAULT_REGION: ${AWS_REGION:-eu-central-1}
+  redis:
+    image: redis:8.2.1
     ports:
-      - "${LOCALSTACK_PORT:-4566}:4566"
+      - "${REDIS_PORT:-6379}:6379"
     profiles:
       - dapr
 
@@ -200,7 +197,7 @@ services:
     depends_on:
       db:
         condition: service_healthy
-      localstack:
+      redis:
         condition: service_started
     profiles:
       - dapr
@@ -229,7 +226,7 @@ services:
     depends_on:
       event-consumer:
         condition: service_started
-      localstack:
+      redis:
         condition: service_started
     profiles:
       - dapr

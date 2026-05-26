@@ -19,20 +19,62 @@ locals {
     tags              = local.tags
   }
 
-  support_job_workloads = {
+  job_workloads = {
+    for name, workload in local.workloads_by_name :
+    name => workload
+    if workload.kind == "job"
+  }
+
+  support_job_runtime_overrides = {
     backfill_worker = {
-      family         = "${local.name}-backfill-worker"
-      cpu            = var.backfill_worker_cpu
-      memory         = var.backfill_worker_memory
-      task_role_arn  = aws_iam_role.primary_edge_task_deploy.arn
-      container_name = "backfill-worker"
+      cpu           = var.backfill_worker_cpu
+      memory        = var.backfill_worker_memory
+      task_role_arn = aws_iam_role.primary_edge_task_deploy.arn
     }
     data_export_job = {
-      family         = "${local.name}-data-export-job"
-      cpu            = var.data_export_job_cpu
-      memory         = var.data_export_job_memory
-      task_role_arn  = aws_iam_role.data_export_job.arn
-      container_name = "data-export-job"
+      cpu           = var.data_export_job_cpu
+      memory        = var.data_export_job_memory
+      task_role_arn = aws_iam_role.data_export_job.arn
+    }
+  }
+
+  support_job_workloads = {
+    for name, workload in local.job_workloads :
+    name => {
+      family         = "${local.name}-${workload.image.repository}"
+      repository     = workload.image.repository
+      container_name = workload.image.repository
+      cpu            = local.support_job_runtime_overrides[name].cpu
+      memory         = local.support_job_runtime_overrides[name].memory
+      task_role_arn  = local.support_job_runtime_overrides[name].task_role_arn
+    }
+    if contains(keys(local.support_job_runtime_overrides), name)
+  }
+
+  scheduled_support_job_workloads = {
+    for name, workload in local.support_job_workloads :
+    name => workload
+    if local.workload_capabilities[name].scheduled_execution
+  }
+
+  scheduled_job_schedule_expressions = {
+    data_export_job = var.data_export_schedule_expression
+  }
+
+  scheduled_job_runbook_paths = {
+    data_export_job = "docs/runbooks/data-export-job-failure.md"
+  }
+
+  scheduled_job_target_error_alarm_description = "EventBridge Scheduler target delivery failed for a scheduled support workload in the default schedule group."
+
+  scheduled_job_target_error_alarm_name = "${local.name}-scheduled-job-scheduler-target-errors"
+  scheduled_job_target_error_dimensions = {
+    ScheduleGroup = "default"
+  }
+
+  scheduled_job_success_alarm_workloads = {
+    data_export_job = {
+      alarm_enabled = var.enable_data_export_success_cloudwatch_alarm
     }
   }
 
@@ -202,7 +244,7 @@ resource "aws_cloudwatch_log_metric_filter" "data_export_success" {
 }
 
 resource "aws_cloudwatch_metric_alarm" "data_export_success_missing" {
-  count = var.enable_data_export_success_cloudwatch_alarm ? 1 : 0
+  count = local.scheduled_job_success_alarm_workloads["data_export_job"].alarm_enabled ? 1 : 0
 
   alarm_name          = "${local.name}-data-export-success-missing"
   alarm_description   = "No successful data export manifest was observed for two daily evaluation windows. Runbook: docs/runbooks/data-export-job-failure.md"
@@ -230,17 +272,21 @@ data "aws_iam_policy_document" "data_export_scheduler_assume" {
   }
 }
 
-resource "aws_iam_role" "data_export_scheduler" {
-  name               = "${local.name}-data-export-scheduler"
+resource "aws_iam_role" "scheduled_job_scheduler" {
+  for_each = local.scheduled_support_job_workloads
+
+  name               = "${each.value.family}-scheduler"
   assume_role_policy = data.aws_iam_policy_document.data_export_scheduler_assume.json
   tags               = local.tags
 }
 
-data "aws_iam_policy_document" "data_export_scheduler" {
+data "aws_iam_policy_document" "scheduled_job_scheduler" {
+  for_each = local.scheduled_support_job_workloads
+
   statement {
-    sid       = "RunDataExportTask"
+    sid       = "RunScheduledJobTask"
     actions   = ["ecs:RunTask"]
-    resources = ["arn:aws:ecs:${local.region}:${local.account_id}:task-definition/${local.name}-data-export-job:*"]
+    resources = ["arn:aws:ecs:${local.region}:${local.account_id}:task-definition/${each.value.family}:*"]
 
     condition {
       test     = "ArnEquals"
@@ -250,11 +296,11 @@ data "aws_iam_policy_document" "data_export_scheduler" {
   }
 
   statement {
-    sid     = "PassDataExportRoles"
+    sid     = "PassScheduledJobRoles"
     actions = ["iam:PassRole"]
     resources = [
       aws_iam_role.task_exec.arn,
-      aws_iam_role.data_export_job.arn,
+      each.value.task_role_arn,
     ]
 
     condition {
@@ -265,15 +311,19 @@ data "aws_iam_policy_document" "data_export_scheduler" {
   }
 }
 
-resource "aws_iam_role_policy" "data_export_scheduler" {
-  name   = "run-data-export"
-  role   = aws_iam_role.data_export_scheduler.id
-  policy = data.aws_iam_policy_document.data_export_scheduler.json
+resource "aws_iam_role_policy" "scheduled_job_scheduler" {
+  for_each = local.scheduled_support_job_workloads
+
+  name   = "run-${each.value.repository}"
+  role   = aws_iam_role.scheduled_job_scheduler[each.key].id
+  policy = data.aws_iam_policy_document.scheduled_job_scheduler[each.key].json
 }
 
-resource "aws_scheduler_schedule" "data_export_job" {
-  name                = "${local.name}-data-export-job"
-  schedule_expression = var.data_export_schedule_expression
+resource "aws_scheduler_schedule" "scheduled_job" {
+  for_each = local.scheduled_support_job_workloads
+
+  name                = each.value.family
+  schedule_expression = local.scheduled_job_schedule_expressions[each.key]
 
   flexible_time_window {
     mode = "OFF"
@@ -281,11 +331,11 @@ resource "aws_scheduler_schedule" "data_export_job" {
 
   target {
     arn      = module.ecs.cluster_arn
-    role_arn = aws_iam_role.data_export_scheduler.arn
+    role_arn = aws_iam_role.scheduled_job_scheduler[each.key].arn
 
     ecs_parameters {
       # Omitting the revision intentionally selects the latest ACTIVE revision.
-      task_definition_arn = aws_ecs_task_definition.support_job["data_export_job"].arn_without_revision
+      task_definition_arn = aws_ecs_task_definition.support_job[each.key].arn_without_revision
       launch_type         = "FARGATE"
       platform_version    = "LATEST"
 
@@ -303,9 +353,9 @@ resource "aws_scheduler_schedule" "data_export_job" {
   }
 }
 
-resource "aws_cloudwatch_metric_alarm" "data_export_scheduler_target_errors" {
-  alarm_name          = "${local.name}-data-export-scheduler-target-errors"
-  alarm_description   = "EventBridge Scheduler target delivery failed for the data export schedule group. Runbook: docs/runbooks/data-export-job-failure.md"
+resource "aws_cloudwatch_metric_alarm" "scheduled_job_scheduler_target_errors" {
+  alarm_name          = local.scheduled_job_target_error_alarm_name
+  alarm_description   = local.scheduled_job_target_error_alarm_description
   comparison_operator = "GreaterThanThreshold"
   evaluation_periods  = 1
   datapoints_to_alarm = 1
@@ -318,10 +368,8 @@ resource "aws_cloudwatch_metric_alarm" "data_export_scheduler_target_errors" {
   unit                = "Count"
 
   # EventBridge Scheduler publishes this metric by schedule group, not schedule
-  # name. This stack currently owns one schedule in the default group.
-  dimensions = {
-    ScheduleGroup = "default"
-  }
+  # name. Keep one group-level alarm even if multiple scheduled workloads exist.
+  dimensions = local.scheduled_job_target_error_dimensions
 
   tags = local.tags
 }

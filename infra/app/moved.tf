@@ -234,3 +234,23 @@ moved {
   from = aws_cloudwatch_log_group.data_export_job
   to   = aws_cloudwatch_log_group.support_job["data_export_job"]
 }
+
+moved {
+  from = aws_iam_role.data_export_scheduler
+  to   = aws_iam_role.scheduled_job_scheduler["data_export_job"]
+}
+
+moved {
+  from = aws_iam_role_policy.data_export_scheduler
+  to   = aws_iam_role_policy.scheduled_job_scheduler["data_export_job"]
+}
+
+moved {
+  from = aws_scheduler_schedule.data_export_job
+  to   = aws_scheduler_schedule.scheduled_job["data_export_job"]
+}
+
+moved {
+  from = aws_cloudwatch_metric_alarm.data_export_scheduler_target_errors
+  to   = aws_cloudwatch_metric_alarm.scheduled_job_scheduler_target_errors
+}

@@ -10,12 +10,8 @@ on:
       target_workload:
         description: "Support workload to promote."
         required: true
-        default: backfill_worker
-        type: choice
-        options:
-          - backfill_worker
-          - data_export_job
-          - all
+        default: all
+        type: string
       confirm_data_support_deploy:
         description: "Type deploy-data-support to confirm support job image promotion."
         required: true
@@ -71,6 +67,13 @@ jobs:
         env:
           ECR_REGISTRY: ${{ steps.aws-context.outputs.ecr_registry }}
         run: |
+          available_workloads=$(python3 -m scripts.platform.workload_metadata support-task-workloads | cut -f1)
+          if [[ "${{ inputs.target_workload }}" != "all" ]] && ! grep -Fxq "${{ inputs.target_workload }}" <<< "${available_workloads}"; then
+            echo "Unsupported target_workload '${{ inputs.target_workload }}'." >&2
+            echo "Available support workloads:" >&2
+            echo "${available_workloads}" >&2
+            exit 1
+          fi
           promoted_workloads=()
           while IFS=$'\t' read -r workload_name container; do
             [[ -z "$workload_name" || -z "$container" ]] && continue

@@ -12,6 +12,10 @@ Reference workloads:
 - `apps/data_export_job`
 - `apps/event_consumer`
 
+Local-only examples:
+
+- `apps/open_dataset_pipeline`
+
 ## Preferred Setup
 
 Prefer the dev container. Native host setup is fine with Docker Desktop,
@@ -86,6 +90,7 @@ assertions when needed.
 make observability
 make dapr-up
 make data-export
+make open-dataset-example
 ```
 
 ## Common Targets
@@ -100,6 +105,7 @@ make observability
 make dapr-up
 make migrate
 make seed
+make open-dataset-example
 make test
 make lint
 make fmt

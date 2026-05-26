@@ -173,6 +173,7 @@ plan, separate apply.
 Do not add without a real workload need:
 
 - Dapr state store, bindings, workflows, actors, or secrets
+- open-source data load / DuckDB / dbt example stacks in the deployable workload contract
 - Self-managed Kubernetes control planes, Helm/Kustomize packaging, or Crossplane
 - A runtime target added only to prove portability
 - Generic provider-neutral infrastructure modules

@@ -198,38 +198,6 @@
       "job": {
         "idempotency": "run_id"
       }
-    },
-    {
-      "name": "open_dataset_pipeline",
-      "kind": "job",
-      "patterns": ["scheduled-job", "data-pipeline"],
-      "use_cases": ["data-pipeline", "data-ingestion", "transformation"],
-      "app_path": "apps/open_dataset_pipeline",
-      "operational": {
-        "class": "scheduled-job",
-        "trigger": "schedule"
-      },
-      "image": {
-        "repository": "open-dataset-pipeline",
-        "package": "aws-sdlc-containers-open-dataset-pipeline",
-        "command": "python -m open_dataset_pipeline.main"
-      },
-      "traces": {
-        "supported": false
-      },
-      "config": {
-        "env": [
-          "OPEN_DATASET_URL",
-          "OPEN_DATASET_NAME",
-          "OPEN_DATASET_OUTPUT_DIR",
-          "OPEN_DATASET_RUN_ID",
-          "OPEN_DATASET_DATE"
-        ],
-        "secrets": []
-      },
-      "job": {
-        "idempotency": "run_id"
-      }
     }
   ]
 }

@@ -80,6 +80,7 @@ record it here or in runtime-facing docs.
 
 - Dapr state store, bindings, workflows, actors, or secrets
 - analytics orchestration or data transformation stacks
+- open-source data load / DuckDB / dbt example stacks as deployable platform workloads
 - hosted Grafana/Loki/Tempo/Prometheus runtime modules
 - a runtime target added without a concrete workload need and owner
 - generic provider-neutral infrastructure modules

@@ -119,12 +119,16 @@ Do not add:
 | internal Dapr-backed service | pattern `internal-async-service`, reference host `apps/event_consumer` |
 | operator-triggered job | pattern `operator-job`, reference host `apps/backfill_worker` |
 | scheduled export job | patterns `scheduled-job` + `export-job`, reference host `apps/data_export_job` |
-| scheduled data pipeline | patterns `scheduled-job` + `data-pipeline`, reference host `apps/open_dataset_pipeline` |
 
 Reuse `platform/workload.Dockerfile` unless there is a concrete reason not to.
 If a workload needs a different container shape, declare `image.dockerfile`
 and `image.context` in `platform/workloads.json` instead of hardcoding build
 logic elsewhere.
+
+If you are exploring open-source data tooling such as file loaders, DuckDB, or
+dbt-style transformations, keep that path example/local-only until the current
+runtime target has a reviewed ownership and delivery story for it. Do not add
+those examples to `platform/workloads.json` just to make them look first-class.
 
 ## Wire Only Needed Concerns
 

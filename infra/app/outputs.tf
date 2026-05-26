@@ -35,12 +35,12 @@ output "event_consumer_service_name" {
 
 output "data_export_schedule_name" {
   description = "EventBridge Scheduler name for the recurring data export job."
-  value       = aws_scheduler_schedule.data_export_job.name
+  value       = aws_scheduler_schedule.scheduled_job["data_export_job"].name
 }
 
 output "data_export_scheduler_target_errors_alarm_name" {
   description = "CloudWatch alarm for EventBridge Scheduler data export target delivery failures."
-  value       = aws_cloudwatch_metric_alarm.data_export_scheduler_target_errors.alarm_name
+  value       = aws_cloudwatch_metric_alarm.scheduled_job_scheduler_target_errors.alarm_name
 }
 
 output "data_export_success_cloudwatch_alarm_enabled" {

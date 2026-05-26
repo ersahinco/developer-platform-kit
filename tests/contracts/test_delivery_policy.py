@@ -108,6 +108,7 @@ def test_app_deploy_data_workflows_and_infra_apply_keep_review_boundary_split() 
     assert "ci_run_ecs_task.sh" not in data_support_runs
     assert "aws ecs register-task-definition" in data_support_runs
     assert "inputs.target_workload" in data_support_runs
+    assert "Unsupported target_workload" in data_support_runs
 
     data_runtime_switch_inputs = data_runtime_switch_workflow["on"][
         "workflow_dispatch"

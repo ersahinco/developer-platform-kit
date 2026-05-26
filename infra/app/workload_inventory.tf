@@ -79,12 +79,16 @@ locals {
   }
 
   workload_log_configuration = {
-    for name, stream_prefix in merge({
-      backfill_worker = "backfill-worker"
-      data_export_job = "data-export-job"
-      }, {
-      (local.primary_async_eventing_workload_name) = local.primary_async_eventing_repository
-    }) :
+    for name, stream_prefix in merge(
+      {
+        for workload_name, workload in local.workloads_by_name :
+        workload_name => workload.image.repository
+        if workload.kind == "job"
+      },
+      {
+        (local.primary_async_eventing_workload_name) = local.primary_async_eventing_repository
+      }
+    ) :
     name => {
       logDriver = "awslogs"
       options = {

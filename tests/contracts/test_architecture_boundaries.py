@@ -98,17 +98,15 @@ def test_dapr_pubsub_boundary_keeps_provider_brokers_at_runtime_edge() -> None:
         path.read_text(encoding="utf-8")
         for path in _python_files(ROOT / "packages" / "infrastructure" / "dapr")
     )
-    runtime_edge = "\n".join(
-        [
-            _read("infra/app/messaging.tf"),
-            _read(
-                "platform/concerns/dapr/profiles/local/components/"
-                "async-events-pubsub.yaml"
-            ),
-        ]
+    local_profile = _read(
+        "platform/concerns/dapr/profiles/local/components/async-events-pubsub.yaml"
+    ).lower()
+    production_profile = _read(
+        "platform/concerns/dapr/profiles/production/components/async-events-pubsub.yaml"
     ).lower()
     assert "/v1.0/publish/" in dapr_adapter
-    assert "snssqs" in runtime_edge
+    assert "pubsub.redis" in local_profile
+    assert "snssqs" in production_profile
 
 
 def test_alternate_dapr_component_can_satisfy_same_pubsub_contract() -> None:

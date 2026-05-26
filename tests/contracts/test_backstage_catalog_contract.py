@@ -82,7 +82,6 @@ def test_catalog_info_declares_backstage_location_for_platform_entities() -> Non
             "./catalog/event-consumer-component.yaml",
             "./catalog/backfill-worker-component.yaml",
             "./catalog/data-export-job-component.yaml",
-            "./catalog/open-dataset-pipeline-component.yaml",
         ]
     )
 
