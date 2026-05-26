@@ -25,8 +25,8 @@
       "id": "managed-service-provider",
       "role": "future-runtime-edge",
       "owner": "provider-runtime",
-      "implementation": "Managed PostgreSQL, DNS, edge, identity, or storage providers such as Supabase/Postgres or global DNS services.",
-      "purpose": "Hybrid environment realization when a workload needs a managed global service without changing application code."
+      "implementation": "Managed PostgreSQL, DNS, edge, identity, or storage providers such as Supabase/Postgres or global DNS services when cost or hybrid design requires them.",
+      "purpose": "Future hybrid environment realization when a workload needs a managed global service without changing application code or workload identity."
     }
   ],
   "runtime_capabilities": [

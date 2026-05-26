@@ -46,8 +46,8 @@ def test_build_plan_infers_internal_async_defaults() -> None:
     assert plan.kind == "service"
     assert plan.operational_class == "internal-service"
     assert plan.workload_entry["runtime"] == {
-        "supported": ["local-compose", "aws-ecs"],
-        "admitted": ["aws-ecs"],
+        "supported": ["local-compose"],
+        "admitted": [],
     }
     assert plan.workload_entry["dapr"]["app_id"] == "invoice-worker"
     assert plan.workload_entry["database"]["pooling"] == "direct"
@@ -97,8 +97,8 @@ def test_apply_scaffolds_edge_service_and_updates_repo_files(tmp_path: Path) -> 
 
     assert inventory_dashboard["patterns"] == ["edge-service"]
     assert inventory_dashboard["runtime"] == {
-        "supported": ["local-compose", "aws-ecs"],
-        "admitted": ["aws-ecs"],
+        "supported": ["local-compose"],
+        "admitted": [],
     }
     assert inventory_dashboard["service"]["port"] == 8092
     assert (
@@ -125,6 +125,55 @@ def test_apply_scaffolds_edge_service_and_updates_repo_files(tmp_path: Path) -> 
     assert 'name = "aws-sdlc-containers-inventory-dashboard"' in (
         tmp_path / "apps" / "inventory_dashboard" / "pyproject.toml"
     ).read_text(encoding="utf-8")
+
+    component_text = (
+        tmp_path / "catalog" / "inventory-dashboard-component.yaml"
+    ).read_text(encoding="utf-8")
+    assert "resource:default/runtime-target-local-compose" in component_text
+    assert "resource:default/runtime-target-aws-ecs" not in component_text
+
+
+def test_apply_can_opt_in_aws_runtime_admission(tmp_path: Path) -> None:
+    _write_minimal_repo(tmp_path)
+
+    exit_code = scaffold_workload.main(
+        [
+            "--root",
+            str(tmp_path),
+            "--name",
+            "billing_api",
+            "--pattern",
+            "edge-service",
+            "--use-case",
+            "http-api",
+            "--service-port",
+            "8093",
+            "--admitted-runtime",
+            "aws-ecs",
+            "--apply",
+        ]
+    )
+
+    assert exit_code == 0
+
+    workload_contract = json.loads(
+        (tmp_path / "platform" / "workloads.json").read_text(encoding="utf-8")
+    )
+    billing_api = next(
+        workload
+        for workload in workload_contract["workloads"]
+        if workload["name"] == "billing_api"
+    )
+    assert billing_api["runtime"] == {
+        "supported": ["local-compose", "aws-ecs"],
+        "admitted": ["aws-ecs"],
+    }
+
+    component_text = (tmp_path / "catalog" / "billing-api-component.yaml").read_text(
+        encoding="utf-8"
+    )
+    assert "resource:default/runtime-target-local-compose" in component_text
+    assert "resource:default/runtime-target-aws-ecs" in component_text
 
 
 def test_data_pipeline_pattern_is_not_admitted_without_runtime_ownership(
