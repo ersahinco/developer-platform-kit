@@ -18,8 +18,8 @@ Reference workloads:
 - `apps/open_dataset_pipeline`
 
 Local-only workloads still belong in `apps/` when they have a real contract,
-local proof, and owner. Reserve `examples/` for teaching and reference
-material.
+local proof, and owner. Reserve `examples/` for teaching, demo, and
+reference-only samples.
 
 ## Preferred Setup
 

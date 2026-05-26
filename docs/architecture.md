@@ -24,7 +24,7 @@ The stable center:
 - `platform/workloads.json`: canonical workload contract
 - `platform/concerns/` plus `infra/catalog/`: reusable platform catalog
 - `apps/`: contract-governed workload hosts
-- `examples/`: teaching and reference-only samples
+- `examples/`: teaching, demo, and reference-only samples
 
 Current runtime realization roots:
 
