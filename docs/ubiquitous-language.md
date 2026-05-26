@@ -25,7 +25,7 @@ Short form: standardize the delivery workflow, do not replace the tools.
 | platform catalog | reusable building blocks, templates, modules, policies, concerns, and delivery paths that realize workload needs |
 | platform edge | Terraform, Dapr components, GitHub Actions, runtime-facing scripts, and infrastructure adapters |
 | workload contract | canonical workload intent: image, config, secrets, health, telemetry, rollback, evidence, and tests |
-| runtime target | hosting implementation such as `aws-ecs`, managed Kubernetes, jobs, or future data runtimes |
+| runtime target | hosting implementation such as `local-compose`, `aws-ecs`, managed provider edges, jobs, or future data runtimes |
 | portability by boundary | app contract and evidence shape travel; provider implementation stays isolated |
 | conformance | executable proof that an implementation satisfies a contract |
 | release evidence | Markdown, JSON, and JSONL records describing change, revision, verification, and alarms |

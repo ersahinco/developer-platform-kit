@@ -1,9 +1,9 @@
 # Runtime Toolkit
 
 Use this doc when evaluating or adding a runtime target such as local Compose,
-AWS/ECS, managed Kubernetes, managed PostgreSQL, global DNS, edge providers,
-or cheaper compute. Goal: prove the runtime can satisfy the workload contract
-without moving provider assumptions into app code.
+AWS/ECS, managed PostgreSQL, global DNS, edge providers, or cheaper compute.
+Goal: prove the runtime can satisfy the workload contract without moving
+provider assumptions into app code.
 
 Use with:
 

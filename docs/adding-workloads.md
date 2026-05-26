@@ -172,11 +172,11 @@ Rule: prefer selecting runtime behavior from `patterns`, edge metadata, or workl
 Rule: reserve new runtime-target seams in docs and ownership before inventing a
 second workload specification.
 
-Managed-Kubernetes note:
+Managed provider-edge note:
 
-- managed Kubernetes is a future runtime target, not the platform control plane
-- reserve reusable target modules under `infra/catalog/managed-kubernetes/`
-- do not add ArgoCD, Helm/Kustomize packaging, or cluster-control-plane assumptions unless that target becomes a repeated runtime need
+- managed Postgres, DNS, edge, identity, or storage integrations belong under `infra/catalog/managed-service-provider/` when a real workload needs them
+- keep workload identity in `platform/workloads.json`; do not turn provider-edge wiring into a second workload contract
+- do not add a new cloud runtime target until a repeated workload need and clear runtime ownership exist
 
 ## Verify
 
