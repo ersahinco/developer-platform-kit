@@ -168,32 +168,40 @@ jobs:
 
       - name: Configure drill fault injection
         run: |
-          tmp_path="$(mktemp)"
-          jq --arg fault_mode "${{ inputs.fault_mode }}" --arg container_name "${{ steps.primary-service.outputs.service }}" '
-            .containerDefinitions |= map(
-              if .name == $container_name then
-                . + {
-                  environment: (
-                    (.environment // []
-                      | map({key: .name, value: .value})
-                      | from_entries
-                      | . + {
-                          "ROLLOUT_DRILL_FAULT_MODE": $fault_mode,
-                          "ROLLOUT_DRILL_FAULT_PATHS": "/ready",
-                          "ROLLOUT_DRILL_FAULT_DELAY_SECONDS": "3",
-                          "ROLLOUT_DRILL_FAULT_STATUS_CODE": "503"
-                        }
-                      | to_entries
-                      | map({name: .key, value: (.value | tostring)})
-                      | sort_by(.name)
-                  )
-                }
-              else
-                .
-              end
-            )
-          ' /tmp/primary-edge-drill-task-definition.json > "$tmp_path"
-          mv "$tmp_path" /tmp/primary-edge-drill-task-definition.json
+          python3 - <<'PY'
+          import json
+
+          fault_mode = "${{ inputs.fault_mode }}"
+          container_name = "${{ steps.primary-service.outputs.service }}"
+          path = "/tmp/primary-edge-drill-task-definition.json"
+
+          with open(path, "r", encoding="utf-8") as handle:
+              task_definition = json.load(handle)
+
+          for container in task_definition.get("containerDefinitions", []):
+              if container.get("name") != container_name:
+                  continue
+              environment = {
+                  entry["name"]: str(entry["value"])
+                  for entry in container.get("environment", [])
+              }
+              environment.update(
+                  {
+                      "ROLLOUT_DRILL_FAULT_MODE": fault_mode,
+                      "ROLLOUT_DRILL_FAULT_PATHS": "/ready",
+                      "ROLLOUT_DRILL_FAULT_DELAY_SECONDS": "3",
+                      "ROLLOUT_DRILL_FAULT_STATUS_CODE": "503",
+                  }
+              )
+              container["environment"] = [
+                  {"name": name, "value": value}
+                  for name, value in sorted(environment.items())
+              ]
+              break
+
+          with open(path, "w", encoding="utf-8") as handle:
+              json.dump(task_definition, handle)
+          PY
 
       - name: Deploy drill app revision
         if: ${{ !inputs.dry_run }}
