@@ -173,9 +173,9 @@ jobs:
             .containerDefinitions |= map(
               if .name == $container_name then
                 .environment = (
-                  ((.environment // [])
-                    | map({(.name): .value})
-                    | add
+                  (.environment // []
+                    | map({key: .name, value: .value})
+                    | from_entries
                     | . + {
                         "ROLLOUT_DRILL_FAULT_MODE": $fault_mode,
                         "ROLLOUT_DRILL_FAULT_PATHS": "/ready",
@@ -183,7 +183,7 @@ jobs:
                         "ROLLOUT_DRILL_FAULT_STATUS_CODE": "503"
                       }
                     | to_entries
-                    | map({name: .key, value: .value})
+                    | map({name: .key, value: (.value | tostring)})
                     | sort_by(.name)
                 )
               else
