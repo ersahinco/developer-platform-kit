@@ -5,12 +5,14 @@ on:
   pull_request:
     paths:
       - ".github/workflows/infra-plan.yml"
+      - ".github/workflows/release-readiness.yml"
       - "infra/**"
       - "platform/concerns/**"
   push:
     branches: [main]
     paths:
       - ".github/workflows/infra-plan.yml"
+      - ".github/workflows/release-readiness.yml"
       - "infra/**"
       - "platform/concerns/**"
 

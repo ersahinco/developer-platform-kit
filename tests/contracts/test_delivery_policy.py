@@ -18,6 +18,11 @@ def test_app_build_workflow_has_structured_build_promotion_gates() -> None:
     dispatch_inputs = workflow["on"]["workflow_dispatch"]["inputs"]
     assert set(dispatch_inputs) == {"confirm_build"}
     assert dispatch_inputs["confirm_build"]["required"] == "true"
+    assert (
+        ".github/workflows/release-readiness.yml"
+        in workflow["on"]["pull_request"]["paths"]
+    )
+    assert ".github/workflows/release-readiness.yml" in workflow["on"]["push"]["paths"]
     assert "examples/**" not in workflow["on"]["pull_request"]["paths"]
     assert "examples/**" not in workflow["on"]["push"]["paths"]
 
@@ -218,6 +223,14 @@ def test_app_deploy_data_workflows_and_infra_apply_keep_review_boundary_split() 
 
     infra_plan_text = read_text(".github/workflows/infra-plan.yml")
     assert "continue-on-error" not in infra_plan_text
+    assert (
+        ".github/workflows/release-readiness.yml"
+        in infra_plan_workflow["on"]["pull_request"]["paths"]
+    )
+    assert (
+        ".github/workflows/release-readiness.yml"
+        in infra_plan_workflow["on"]["push"]["paths"]
+    )
 
     apply_job = workflow_job(infra_apply_workflow, "apply")
     apply_evidence_job = workflow_job(infra_apply_workflow, "evidence")
