@@ -1,6 +1,6 @@
 # Data
 
-Canonical data contract for the reference workload:
+Canonical data contract for contract-governed workloads:
 
 - zero-downtime schema rollout with Liquibase, dual write, backfill, cutover, contract
 - PostgreSQL portability as the workload database contract
