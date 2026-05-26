@@ -1,0 +1,197 @@
+name: Main Readiness
+
+on:
+  workflow_run:
+    workflows:
+      - App Build
+      - Infra Plan
+    types:
+      - completed
+
+concurrency:
+  group: main-readiness-${{ github.event.workflow_run.head_sha }}
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+jobs:
+  resolve:
+    name: Resolve Readiness Context
+    if: >
+      github.event.workflow_run.conclusion == 'success' &&
+      github.event.workflow_run.head_branch == github.event.repository.default_branch
+    runs-on: ubuntu-latest
+    permissions:
+      actions: read
+      contents: read
+    outputs:
+      ready: ${{ steps.resolve.outputs.ready }}
+      head_sha: ${{ steps.resolve.outputs.head_sha }}
+      branch: ${{ steps.resolve.outputs.branch }}
+      plan_run_id: ${{ steps.resolve.outputs.plan_run_id }}
+
+    steps:
+      - name: Resolve matching App Build and Infra Plan runs
+        id: resolve
+        env:
+          GH_TOKEN: ${{ github.token }}
+          HEAD_SHA: ${{ github.event.workflow_run.head_sha }}
+          BRANCH: ${{ github.event.workflow_run.head_branch }}
+        run: |
+          runs_json="$(gh run list --branch "$BRANCH" --commit "$HEAD_SHA" --limit 50 --json workflowName,conclusion,databaseId)"
+          app_build_run_id="$(jq -r '[.[] | select(.workflowName == "App Build" and .conclusion == "success")][0].databaseId // empty' <<<"$runs_json")"
+          infra_plan_run_id="$(jq -r '[.[] | select(.workflowName == "Infra Plan" and .conclusion == "success")][0].databaseId // empty' <<<"$runs_json")"
+
+          {
+            echo "head_sha=${HEAD_SHA}"
+            echo "branch=${BRANCH}"
+          } >> "$GITHUB_OUTPUT"
+
+          if [[ -z "$app_build_run_id" || -z "$infra_plan_run_id" ]]; then
+            echo "ready=false" >> "$GITHUB_OUTPUT"
+            {
+              echo "### Main readiness deferred"
+              echo ""
+              echo "- Head SHA: ${HEAD_SHA}"
+              echo "- App Build success found: $([[ -n "$app_build_run_id" ]] && echo yes || echo no)"
+              echo "- Infra Plan success found: $([[ -n "$infra_plan_run_id" ]] && echo yes || echo no)"
+            } >> "$GITHUB_STEP_SUMMARY"
+            exit 0
+          fi
+
+          {
+            echo "ready=true"
+            echo "plan_run_id=${infra_plan_run_id}"
+          } >> "$GITHUB_OUTPUT"
+
+          {
+            echo "### Main readiness starting"
+            echo ""
+            echo "- Head SHA: ${HEAD_SHA}"
+            echo "- App Build run: ${app_build_run_id}"
+            echo "- Infra Plan run: ${infra_plan_run_id}"
+          } >> "$GITHUB_STEP_SUMMARY"
+
+  dispatch:
+    name: Dispatch Dry-Run Workflows
+    needs:
+      - resolve
+    if: needs.resolve.outputs.ready == 'true'
+    runs-on: ubuntu-latest
+    permissions:
+      actions: write
+      contents: read
+
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
+        with:
+          persist-credentials: false
+
+      - name: Dispatch app deploy dry run
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          scripts/ci/ci_dispatch_workflow_dry_run.sh \
+            app-deploy.yml \
+            "${{ needs.resolve.outputs.branch }}" \
+            "${{ needs.resolve.outputs.head_sha }}" \
+            -f image_tag="sha-${{ needs.resolve.outputs.head_sha }}" \
+            -f confirm_deploy=dry-run \
+            -f dry_run=true
+
+      - name: Dispatch data support deploy dry run
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          scripts/ci/ci_dispatch_workflow_dry_run.sh \
+            data-support-deploy.yml \
+            "${{ needs.resolve.outputs.branch }}" \
+            "${{ needs.resolve.outputs.head_sha }}" \
+            -f image_tag="sha-${{ needs.resolve.outputs.head_sha }}" \
+            -f target_workload=all \
+            -f confirm_data_support_deploy=dry-run \
+            -f dry_run=true
+
+      - name: Dispatch data schema dry run
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          scripts/ci/ci_dispatch_workflow_dry_run.sh \
+            data-schema-apply.yml \
+            "${{ needs.resolve.outputs.branch }}" \
+            "${{ needs.resolve.outputs.head_sha }}" \
+            -f image_tag="sha-${{ needs.resolve.outputs.head_sha }}" \
+            -f schema_phase=expand \
+            -f confirm_schema_apply=dry-run \
+            -f dry_run=true
+
+      - name: Dispatch data runtime switch dry run
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          scripts/ci/ci_dispatch_workflow_dry_run.sh \
+            data-runtime-switch.yml \
+            "${{ needs.resolve.outputs.branch }}" \
+            "${{ needs.resolve.outputs.head_sha }}" \
+            -f switch_step=auto-detect \
+            -f confirm_switch=dry-run \
+            -f dry_run=true
+
+      - name: Dispatch data backfill dry run
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          scripts/ci/ci_dispatch_workflow_dry_run.sh \
+            data-backfill.yml \
+            "${{ needs.resolve.outputs.branch }}" \
+            "${{ needs.resolve.outputs.head_sha }}" \
+            -f image_tag="sha-${{ needs.resolve.outputs.head_sha }}" \
+            -f confirm_backfill=dry-run \
+            -f dry_run=true
+
+      - name: Dispatch infra apply dry run
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          scripts/ci/ci_dispatch_workflow_dry_run.sh \
+            infra-apply.yml \
+            "${{ needs.resolve.outputs.branch }}" \
+            "${{ needs.resolve.outputs.head_sha }}" \
+            -f plan_run_id="${{ needs.resolve.outputs.plan_run_id }}" \
+            -f confirm_apply=dry-run \
+            -f dry_run=true
+
+      - name: Dispatch app rollback drill dry run
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          scripts/ci/ci_dispatch_workflow_dry_run.sh \
+            app-rollback-drill.yml \
+            "${{ needs.resolve.outputs.branch }}" \
+            "${{ needs.resolve.outputs.head_sha }}" \
+            -f image_tag="sha-${{ needs.resolve.outputs.head_sha }}" \
+            -f fault_mode=error \
+            -f confirm_drill=dry-run \
+            -f dry_run=true
+
+      - name: Dispatch data runtime rollback drill dry run
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          scripts/ci/ci_dispatch_workflow_dry_run.sh \
+            data-runtime-rollback-drill.yml \
+            "${{ needs.resolve.outputs.branch }}" \
+            "${{ needs.resolve.outputs.head_sha }}" \
+            -f confirm_drill=dry-run \
+            -f dry_run=true
+
+      - name: Summarize readiness result
+        run: |
+          {
+            echo "### Main readiness complete"
+            echo ""
+            echo "- App, data, infra, and rollback manual workflows all passed in dry-run mode"
+            echo "- Head SHA: ${{ needs.resolve.outputs.head_sha }}"
+            echo "- Reviewed Infra Plan run: ${{ needs.resolve.outputs.plan_run_id }}"
+          } >> "$GITHUB_STEP_SUMMARY"

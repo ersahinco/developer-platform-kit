@@ -22,6 +22,11 @@ on:
         description: "Type apply-schema to confirm this reviewed schema apply."
         required: true
         type: string
+      dry_run:
+        description: "Run non-destructive schema readiness checks only."
+        required: false
+        default: false
+        type: boolean
 
 env:
   AWS_REGION: ${{ vars.AWS_REGION || 'eu-central-1' }}
@@ -41,7 +46,7 @@ jobs:
   apply_schema:
     name: Apply Schema
     if: >
-      inputs.confirm_schema_apply == 'apply-schema' &&
+      (inputs.dry_run || inputs.confirm_schema_apply == 'apply-schema') &&
       github.ref_name == github.event.repository.default_branch
     runs-on: ubuntu-latest
     timeout-minutes: 20
@@ -65,6 +70,16 @@ jobs:
 
       - name: Validate image tag
         run: scripts/ci/ci_validate_image_tag.sh "$IMAGE_TAG" "${{ github.event.repository.default_branch }}"
+
+      - name: Summarize dry run
+        if: ${{ inputs.dry_run }}
+        run: |
+          {
+            echo "### Data schema dry run"
+            echo ""
+            echo "- Mode: non-destructive readiness check"
+            echo "- Liquibase task definition is rendered but not registered or executed"
+          } >> "$GITHUB_STEP_SUMMARY"
 
       - uses: aws-actions/configure-aws-credentials@a89a83ec143615402a01f672b6e172b7b1875000 # v6
         with:
@@ -134,6 +149,7 @@ jobs:
           fi
 
       - name: Verify approved Liquibase image exists
+        if: ${{ !inputs.dry_run }}
         run: |
           aws ecr describe-images \
             --repository-name "${STACK_NAME}/liquibase" \
@@ -152,6 +168,7 @@ jobs:
             /tmp/liquibase-task-definition.json
 
       - name: Register liquibase task definition
+        if: ${{ !inputs.dry_run }}
         id: register-liquibase
         run: |
           task_def_arn=$(aws ecs register-task-definition \
@@ -165,6 +182,7 @@ jobs:
           echo "task_def_arn=${task_def_arn}" >> "$GITHUB_OUTPUT"
 
       - name: Run Liquibase
+        if: ${{ !inputs.dry_run }}
         env:
           ECS_RUN_TASK_WAIT_FOR_STOPPED: "true"
           ECS_RUN_TASK_ASSERT_SUCCESS: "true"
@@ -186,12 +204,24 @@ jobs:
             echo "- Liquibase task: ${TASK_ARN}"
           } >> "$GITHUB_STEP_SUMMARY"
 
+      - name: Summarize dry-run schema readiness
+        if: ${{ inputs.dry_run }}
+        run: |
+          {
+            echo ""
+            echo "- Schema phase: ${{ inputs.schema_phase }}"
+            echo "- Current READ_MODE: ${{ steps.current.outputs.read_mode }}"
+            echo "- Current WRITE_MODE: ${{ steps.current.outputs.write_mode }}"
+            echo "- Liquibase task definition rendered to: /tmp/liquibase-task-definition.json"
+          } >> "$GITHUB_STEP_SUMMARY"
+
   evidence:
     name: Evidence
     needs:
       - apply_schema
     if: >
       always() &&
+      !inputs.dry_run &&
       inputs.confirm_schema_apply == 'apply-schema' &&
       github.ref_name == github.event.repository.default_branch
     runs-on: ubuntu-latest

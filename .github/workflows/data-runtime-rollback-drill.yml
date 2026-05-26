@@ -7,6 +7,11 @@ on:
         description: "Type data-rollback-drill to confirm this runtime-config drill."
         required: true
         type: string
+      dry_run:
+        description: "Run non-destructive runtime-rollback readiness checks only."
+        required: false
+        default: false
+        type: boolean
 
 env:
   AWS_REGION: ${{ vars.AWS_REGION || 'eu-central-1' }}
@@ -27,7 +32,7 @@ jobs:
   drill:
     name: Data Runtime Rollback Drill
     if: >
-      inputs.confirm_drill == 'data-rollback-drill' &&
+      (inputs.dry_run || inputs.confirm_drill == 'data-rollback-drill') &&
       github.ref_name == github.event.repository.default_branch
     runs-on: ubuntu-latest
     timeout-minutes: 20
@@ -61,6 +66,16 @@ jobs:
       - name: Validate cloud settings
         run: test -n "${ROOT_DOMAIN}"
 
+      - name: Summarize dry run
+        if: ${{ inputs.dry_run }}
+        run: |
+          {
+            echo "### Data runtime rollback dry run"
+            echo ""
+            echo "- Mode: non-destructive readiness check"
+            echo "- Runtime modes are inspected but not changed"
+          } >> "$GITHUB_STEP_SUMMARY"
+
       - name: Resolve primary edge service
         id: primary-service
         run: |
@@ -87,6 +102,7 @@ jobs:
         id: current
         env:
           BASE_URL: https://${{ steps.primary-service.outputs.hostname_label }}.${{ env.ROOT_DOMAIN }}
+          DRY_RUN: ${{ inputs.dry_run }}
         run: |
           TOKEN=$(aws secretsmanager get-secret-value \
             --secret-id "${PRIMARY_EDGE_TOKEN_SECRET}" \
@@ -101,7 +117,12 @@ jobs:
             --header "Authorization: Bearer ${TOKEN}" \
             "${BASE_URL}/admin/write-mode" | jq -r '.mode')
 
+          eligible=true
           if [[ "$read_mode" != "legacy" || "$write_mode" != "legacy" ]]; then
+            eligible=false
+          fi
+
+          if [[ "$eligible" != "true" && "$DRY_RUN" != "true" ]]; then
             echo "This controlled drill expects READ_MODE=legacy and WRITE_MODE=legacy before flipping WRITE_MODE to dual." >&2
             echo "Current modes: READ_MODE=${read_mode}, WRITE_MODE=${write_mode}" >&2
             exit 1
@@ -110,6 +131,7 @@ jobs:
           {
             echo "read_mode=${read_mode}"
             echo "write_mode=${write_mode}"
+            echo "eligible=${eligible}"
           } >> "$GITHUB_OUTPUT"
 
           {
@@ -123,6 +145,7 @@ jobs:
           } >> "$GITHUB_STEP_SUMMARY"
 
       - name: Move write mode forward to dual
+        if: ${{ !inputs.dry_run }}
         env:
           BASE_URL: https://${{ steps.primary-service.outputs.hostname_label }}.${{ env.ROOT_DOMAIN }}
         run: |
@@ -155,6 +178,7 @@ jobs:
           exit 1
 
       - name: Roll back to captured write mode
+        if: ${{ !inputs.dry_run }}
         id: rollback
         env:
           BASE_URL: https://${{ steps.primary-service.outputs.hostname_label }}.${{ env.ROOT_DOMAIN }}
@@ -200,7 +224,7 @@ jobs:
           exit 1
 
       - name: Restore captured write mode if needed
-        if: ${{ always() && steps.current.outputs.write_mode != '' }}
+        if: ${{ always() && !inputs.dry_run && steps.current.outputs.write_mode != '' }}
         env:
           BASE_URL: https://${{ steps.primary-service.outputs.hostname_label }}.${{ env.ROOT_DOMAIN }}
           PREVIOUS_WRITE_MODE: ${{ steps.current.outputs.write_mode }}
@@ -219,6 +243,7 @@ jobs:
             "${BASE_URL}/admin/write-mode" >/dev/null
 
       - name: Verify restored runtime modes
+        if: ${{ !inputs.dry_run }}
         id: verify-restored
         env:
           BASE_URL: https://${{ steps.primary-service.outputs.hostname_label }}.${{ env.ROOT_DOMAIN }}
@@ -250,8 +275,18 @@ jobs:
             exit 1
           fi
 
+      - name: Summarize dry-run runtime rollback readiness
+        if: ${{ inputs.dry_run }}
+        run: |
+          {
+            echo ""
+            echo "- Current READ_MODE: ${{ steps.current.outputs.read_mode }}"
+            echo "- Current WRITE_MODE: ${{ steps.current.outputs.write_mode }}"
+            echo "- Rollback-drill eligible now: ${{ steps.current.outputs.eligible }}"
+          } >> "$GITHUB_STEP_SUMMARY"
+
       - name: Write data runtime rollback evidence
-        if: ${{ always() }}
+        if: ${{ always() && !inputs.dry_run }}
         env:
           LOKI_PUSH_URL: ${{ secrets.LOKI_PUSH_URL || vars.LOKI_PUSH_URL }}
           LOKI_URL: ${{ vars.LOKI_URL }}
@@ -276,7 +311,7 @@ jobs:
           cat /tmp/release-evidence/data-runtime-rollback-drill/release-event.md >> "$GITHUB_STEP_SUMMARY"
 
       - name: Upload data runtime rollback evidence
-        if: ${{ always() }}
+        if: ${{ always() && !inputs.dry_run }}
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
         with:
           name: release-evidence-data-runtime-rollback-drill-${{ github.run_id }}

@@ -16,6 +16,11 @@ on:
         description: "Type deploy-data-support to confirm support job image promotion."
         required: true
         type: string
+      dry_run:
+        description: "Run non-destructive support-task readiness checks only."
+        required: false
+        default: false
+        type: boolean
 
 env:
   AWS_REGION: ${{ vars.AWS_REGION || 'eu-central-1' }}
@@ -33,7 +38,7 @@ jobs:
   deploy_support:
     name: Deploy Data Support Revisions
     if: >
-      inputs.confirm_data_support_deploy == 'deploy-data-support' &&
+      (inputs.dry_run || inputs.confirm_data_support_deploy == 'deploy-data-support') &&
       github.ref_name == github.event.repository.default_branch
     runs-on: ubuntu-latest
     timeout-minutes: 20
@@ -53,6 +58,16 @@ jobs:
       - name: Validate image tag
         run: scripts/ci/ci_validate_image_tag.sh "$IMAGE_TAG" "${{ github.event.repository.default_branch }}"
 
+      - name: Summarize dry run
+        if: ${{ inputs.dry_run }}
+        run: |
+          {
+            echo "### Data support deploy dry run"
+            echo ""
+            echo "- Mode: non-destructive readiness check"
+            echo "- Support task definitions are rendered but not registered"
+          } >> "$GITHUB_STEP_SUMMARY"
+
       - uses: aws-actions/configure-aws-credentials@a89a83ec143615402a01f672b6e172b7b1875000 # v6
         with:
           role-to-assume: ${{ secrets.AWS_ROLE_ARN }}
@@ -66,6 +81,7 @@ jobs:
         id: register-support
         env:
           ECR_REGISTRY: ${{ steps.aws-context.outputs.ecr_registry }}
+          DRY_RUN: ${{ inputs.dry_run }}
         run: |
           available_workloads=$(python3 -m scripts.platform.workload_metadata support-task-workloads | cut -f1)
           if [[ "${{ inputs.target_workload }}" != "all" ]] && ! grep -Fxq "${{ inputs.target_workload }}" <<< "${available_workloads}"; then
@@ -80,24 +96,28 @@ jobs:
             if [[ "${{ inputs.target_workload }}" != "all" && "${{ inputs.target_workload }}" != "${workload_name}" ]]; then
               continue
             fi
-            aws ecr describe-images \
-              --repository-name "${STACK_NAME}/${container}" \
-              --image-ids "imageTag=${IMAGE_TAG}"
             task_definition="/tmp/${container}-task-definition.json"
             scripts/ci/ci_render_ecs_task_definition.sh \
               "${STACK_NAME}-${container}" \
               "$container" \
               "${ECR_REGISTRY}/${STACK_NAME}/${container}:${IMAGE_TAG}" \
               "$task_definition"
-            task_def_arn=$(aws ecs register-task-definition \
-              --cli-input-json "file://${task_definition}" \
-              --query 'taskDefinition.taskDefinitionArn' \
-              --output text)
-            if [[ -z "$task_def_arn" || "$task_def_arn" == "None" ]]; then
-              echo "Failed to register task definition for ${container}." >&2
-              exit 1
+            if [[ "$DRY_RUN" != "true" ]]; then
+              aws ecr describe-images \
+                --repository-name "${STACK_NAME}/${container}" \
+                --image-ids "imageTag=${IMAGE_TAG}"
+              task_def_arn=$(aws ecs register-task-definition \
+                --cli-input-json "file://${task_definition}" \
+                --query 'taskDefinition.taskDefinitionArn' \
+                --output text)
+              if [[ -z "$task_def_arn" || "$task_def_arn" == "None" ]]; then
+                echo "Failed to register task definition for ${container}." >&2
+                exit 1
+              fi
+              echo "Promoted ${workload_name} to ${task_def_arn}"
+            else
+              echo "Rendered preview task definition for ${workload_name} at ${task_definition}"
             fi
-            echo "Promoted ${workload_name} to ${task_def_arn}"
             promoted_workloads+=("${workload_name}")
           done < <(python3 -m scripts.platform.workload_metadata support-task-workloads)
           if [[ "${#promoted_workloads[@]}" -eq 0 ]]; then
@@ -105,8 +125,12 @@ jobs:
             exit 1
           fi
           echo "promoted_workloads=$(IFS=,; echo "${promoted_workloads[*]}")" >> "$GITHUB_OUTPUT"
+          summary_prefix=""
+          if [[ "$DRY_RUN" == "true" ]]; then
+            summary_prefix="dry-run "
+          fi
           {
-            echo "### Data support image promotion"
+            echo "### Data support ${summary_prefix}image promotion"
             echo ""
             echo "- Target workload: ${{ inputs.target_workload }}"
             echo "- Promoted workloads: $(IFS=', '; echo "${promoted_workloads[*]}")"
@@ -119,6 +143,7 @@ jobs:
       - deploy_support
     if: >
       always() &&
+      !inputs.dry_run &&
       inputs.confirm_data_support_deploy == 'deploy-data-support' &&
       github.ref_name == github.event.repository.default_branch
     runs-on: ubuntu-latest
