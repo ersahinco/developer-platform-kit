@@ -61,3 +61,25 @@ def test_current_aws_runtime_realizes_all_aws_admitted_job_workloads() -> None:
 
     for workload_name in deployable_jobs:
         assert f"{workload_name} =" in workload_jobs_text
+
+
+def test_aws_runtime_inventory_filters_out_non_admitted_workloads() -> None:
+    contract = load_json("platform/workloads.json")
+    workload_inventory_text = read_text("infra/app/workload_inventory.tf")
+
+    assert "aws_admitted_workloads" in workload_inventory_text
+    assert 'contains(try(workload.runtime.admitted, []), "aws-ecs")' in (
+        workload_inventory_text
+    )
+    assert (
+        "for workload in local.aws_admitted_workloads : workload.name => workload"
+        in (workload_inventory_text)
+    )
+
+    non_admitted_workloads = [
+        workload["name"]
+        for workload in contract["workloads"]
+        if "aws-ecs" not in workload["runtime"]["admitted"]
+    ]
+    for workload_name in non_admitted_workloads:
+        assert f'"{workload_name}"' not in workload_inventory_text

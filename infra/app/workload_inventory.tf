@@ -11,8 +11,13 @@ locals {
   default_db_user   = "app"
   default_db_name   = "aws_sdlc_containers"
 
+  aws_admitted_workloads = [
+    for workload in local.workload_contract.workloads : workload
+    if contains(try(workload.runtime.admitted, []), "aws-ecs")
+  ]
+
   workloads_by_name = {
-    for workload in local.workload_contract.workloads : workload.name => workload
+    for workload in local.aws_admitted_workloads : workload.name => workload
   }
 
   workload_capabilities = {
