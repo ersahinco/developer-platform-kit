@@ -43,7 +43,7 @@ Current runtime realization roots:
 ## Current Defaults
 
 - One repo, one stable center, one shared database reference
-- Multiple reference workloads under `apps/`
+- Multiple contract-governed workload hosts under `apps/`
 - Explicit operational classes: edge service, internal service, operator job, scheduled job
 - Split Terraform ownership: `infra/platform` for bootstrap, `infra/app` for the current AWS runtime resources
 - One public API edge protected by WAF

@@ -65,8 +65,6 @@ def _description(name: str, patterns: list[str]) -> str:
         return f"Internal async workload host for {name}."
     if "export-job" in patterns:
         return f"Scheduled export workload host for {name}."
-    if "data-pipeline" in patterns:
-        return f"Scheduled data-pipeline workload host for {name}."
     if "operator-job" in patterns:
         return f"Operator job workload host for {name}."
     return f"Workload host for {name}."
@@ -85,8 +83,6 @@ def _pattern_index() -> dict[str, dict[str, Any]]:
 def _normalized_patterns(values: list[str]) -> list[str]:
     normalized = list(dict.fromkeys(values))
     if "export-job" in normalized and "scheduled-job" not in normalized:
-        normalized.insert(0, "scheduled-job")
-    if "data-pipeline" in normalized and "scheduled-job" not in normalized:
         normalized.insert(0, "scheduled-job")
     return normalized
 
@@ -126,8 +122,6 @@ def _default_database_pooling(patterns: list[str], kind: str) -> str | None:
         if "edge-service" in patterns:
             return "transaction_pool"
         return "direct"
-    if "data-pipeline" in patterns:
-        return None
     return "direct"
 
 
@@ -206,8 +200,6 @@ def _job_env_names(
         names.extend(["DATABASE_URL", "DB_HOST", "DB_PORT", "DB_USER", "DB_NAME"])
     if "export-job" in patterns:
         names.append("DATA_EXPORT_OUTPUT_DIR")
-    if "data-pipeline" in patterns:
-        names.extend(["PIPELINE_INPUT_URI", "PIPELINE_OUTPUT_DIR"])
     names.extend(extra_env)
     return names
 
@@ -366,14 +358,6 @@ def _render_job_config(
         lines.append(
             '    data_export_output_dir: str | None = field(default_factory=lambda: env_str("DATA_EXPORT_OUTPUT_DIR"))'
         )
-    if "data-pipeline" in patterns:
-        has_fields = True
-        lines.extend(
-            [
-                '    pipeline_input_uri: str | None = field(default_factory=lambda: env_str("PIPELINE_INPUT_URI"))',
-                '    pipeline_output_dir: str | None = field(default_factory=lambda: env_str("PIPELINE_OUTPUT_DIR"))',
-            ]
-        )
     for env_name in extra_env:
         has_fields = True
         field_name = _field_name(env_name)
@@ -404,19 +388,6 @@ def _render_job_config(
                 "    @property",
                 "    def required_data_export_output_dir(self) -> str:",
                 '        return require_value(self.data_export_output_dir, "DATA_EXPORT_OUTPUT_DIR")',
-            ]
-        )
-    if "data-pipeline" in patterns:
-        lines.extend(
-            [
-                "",
-                "    @property",
-                "    def required_pipeline_input_uri(self) -> str:",
-                '        return require_value(self.pipeline_input_uri, "PIPELINE_INPUT_URI")',
-                "",
-                "    @property",
-                "    def required_pipeline_output_dir(self) -> str:",
-                '        return require_value(self.pipeline_output_dir, "PIPELINE_OUTPUT_DIR")',
             ]
         )
     for env_name in extra_env:
@@ -641,13 +612,6 @@ def _render_job_main(
     if "export-job" in patterns:
         lines.append(
             '    payload["output_dir"] = settings.required_data_export_output_dir'
-        )
-    if "data-pipeline" in patterns:
-        lines.extend(
-            [
-                '    payload["input_uri"] = settings.required_pipeline_input_uri',
-                '    payload["output_dir"] = settings.required_pipeline_output_dir',
-            ]
         )
     lines.extend(
         [
@@ -936,7 +900,7 @@ def _render_compose_service(
     if depends_on_lines:
         depends_on_block = "    depends_on:\n" + "\n".join(depends_on_lines)
     profiles_block = ""
-    if kind == "job" and ("export-job" in patterns or "data-pipeline" in patterns):
+    if kind == "job" and "export-job" in patterns:
         profiles_block = "    profiles:\n      - data"
     return (
         textwrap.dedent(
@@ -1159,9 +1123,6 @@ def _build_runtime_conformance_entry(
 
     if "export-job" in patterns:
         env["DATA_EXPORT_OUTPUT_DIR"] = "/exports"
-    if "data-pipeline" in patterns:
-        env["PIPELINE_INPUT_URI"] = "file:///tmp/input.json"
-        env["PIPELINE_OUTPUT_DIR"] = "/exports"
     for env_name in extra_env:
         env[env_name] = ""
     return {

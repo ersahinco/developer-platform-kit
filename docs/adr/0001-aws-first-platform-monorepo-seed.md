@@ -10,7 +10,7 @@ Treat this repository as a platform monorepo seed with three explicit layers:
 
 - infrastructure catalog
 - platform concerns
-- workload examples
+- workload hosts plus examples
 
 Keep AWS as the only supported cloud implementation for now. Keep portability
 at the boundary between workloads and platform/runtime concerns rather than
@@ -31,5 +31,6 @@ introducing a provider-neutral framework or speculative multi-cloud layer.
   blocks only when real reuse appears.
 - `platform/concerns` becomes the home for Dapr, observability, security,
   policy, and networking concerns.
-- `apps/*` remain in place for now, but are treated as reference workloads.
+- `apps/*` remain the home for contract-governed workload hosts; teaching and
+  demo samples belong under `examples/`.
 - `platform/workloads.json` remains the canonical workload contract for now.
