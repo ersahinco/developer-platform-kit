@@ -18,6 +18,8 @@ def test_app_build_workflow_has_structured_build_promotion_gates() -> None:
     dispatch_inputs = workflow["on"]["workflow_dispatch"]["inputs"]
     assert set(dispatch_inputs) == {"confirm_build"}
     assert dispatch_inputs["confirm_build"]["required"] == "true"
+    assert "examples/**" not in workflow["on"]["pull_request"]["paths"]
+    assert "examples/**" not in workflow["on"]["push"]["paths"]
 
     validate_job = workflow_job(workflow, "validate-and-test")
     image_matrix_job = workflow_job(workflow, "image-matrix")
@@ -36,6 +38,13 @@ def test_app_build_workflow_has_structured_build_promotion_gates() -> None:
         "Run tests",
         "Run runtime conformance",
     } <= set(step_names(validate_job))
+    assert "uv run ruff format --check apps/ packages/ tests/ scripts/" in (
+        step_run_text(validate_job)
+    )
+    assert "uv run ruff check apps/ packages/ tests/ scripts/" in (
+        step_run_text(validate_job)
+    )
+    assert "examples/" not in step_run_text(validate_job)
     assert {
         "Build image",
         "Scan image",
@@ -251,8 +260,10 @@ def test_security_and_semgrep_workflows_own_repo_hygiene_gates() -> None:
         "semgrep/semgrep:1.161.0@sha256:326e5f41cc972bb423b764a14febbb62bbad29ee1c01820805d077dd868fea48"
         == semgrep_job["container"]["image"]
     )
+    assert "examples/**" not in semgrep_workflow["on"]["pull_request"]["paths"]
+    assert "examples/**" not in semgrep_workflow["on"]["push"]["paths"]
     assert "Run Semgrep Community Edition" in step_names(semgrep_job)
-    assert "semgrep scan --config auto apps/ examples/ packages/ scripts/" in (
+    assert "semgrep scan --config auto apps/ packages/ scripts/" in (
         step_run_text(semgrep_job)
     )
 
