@@ -295,3 +295,57 @@ def test_app_deploy_uses_repo_owned_task_definition_renderer() -> None:
     assert "render_task_definition(" in python_renderer
     assert "_render_primary_edge(" in python_renderer
     assert "_render_event_consumer(" in python_renderer
+
+
+def test_manual_cloud_workflows_expose_dry_run_and_main_readiness_dispatches_them() -> (
+    None
+):
+    app_deploy = load_workflow(".github/workflows/app-deploy.yml")
+    data_support = load_workflow(".github/workflows/data-support-deploy.yml")
+    data_schema = load_workflow(".github/workflows/data-schema-apply.yml")
+    data_switch = load_workflow(".github/workflows/data-runtime-switch.yml")
+    data_backfill = load_workflow(".github/workflows/data-backfill.yml")
+    infra_apply = load_workflow(".github/workflows/infra-apply.yml")
+    app_rollback = load_workflow(".github/workflows/app-rollback-drill.yml")
+    data_rollback = load_workflow(".github/workflows/data-runtime-rollback-drill.yml")
+    readiness = load_workflow(".github/workflows/release-readiness.yml")
+
+    for workflow in [
+        app_deploy,
+        data_support,
+        data_schema,
+        data_switch,
+        data_backfill,
+        infra_apply,
+        app_rollback,
+        data_rollback,
+    ]:
+        assert "dry_run" in workflow["on"]["workflow_dispatch"]["inputs"]
+
+    assert (
+        "auto-detect"
+        in data_switch["on"]["workflow_dispatch"]["inputs"]["switch_step"]["options"]
+    )
+
+    assert readiness["name"] == "Main Readiness"
+    assert readiness["on"]["workflow_run"]["workflows"] == [
+        "App Build",
+        "Infra Plan",
+    ]
+
+    dispatch_job = workflow_job(readiness, "dispatch")
+    dispatch_runs = step_run_text(dispatch_job)
+
+    assert "scripts/ci/ci_dispatch_workflow_dry_run.sh" in dispatch_runs
+    assert "-f dry_run=true" in dispatch_runs
+    for workflow_file in [
+        "app-deploy.yml",
+        "data-support-deploy.yml",
+        "data-schema-apply.yml",
+        "data-runtime-switch.yml",
+        "data-backfill.yml",
+        "infra-apply.yml",
+        "app-rollback-drill.yml",
+        "data-runtime-rollback-drill.yml",
+    ]:
+        assert workflow_file in dispatch_runs

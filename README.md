@@ -92,6 +92,7 @@ For full local setup, use [docs/local-development.md](docs/local-development.md)
 | Workflow | Owns |
 |---|---|
 | `app-build.yml` | Validate, test, runtime conformance, build, scan, push |
+| `release-readiness.yml` | Dispatch non-destructive dry-run checks for manual app/data/infra workflows on `main` |
 | `app-deploy.yml` | Deploy app images, verify runtime, emit release evidence |
 | `data-*.yml` | Apply schema phases, switch runtime modes, promote support jobs, run backfills |
 | `infra-plan.yml` | Reviewed Terraform plan only |

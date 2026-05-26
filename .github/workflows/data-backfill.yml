@@ -11,6 +11,11 @@ on:
         description: "Type run-backfill to confirm this reviewed backfill run."
         required: true
         type: string
+      dry_run:
+        description: "Run non-destructive backfill readiness checks only."
+        required: false
+        default: false
+        type: boolean
 
 env:
   AWS_REGION: ${{ vars.AWS_REGION || 'eu-central-1' }}
@@ -30,7 +35,7 @@ jobs:
   run_backfill:
     name: Run Backfill
     if: >
-      inputs.confirm_backfill == 'run-backfill' &&
+      (inputs.dry_run || inputs.confirm_backfill == 'run-backfill') &&
       github.ref_name == github.event.repository.default_branch
     runs-on: ubuntu-latest
     timeout-minutes: 30
@@ -56,6 +61,16 @@ jobs:
         env:
           CI_REQUIRE_ROOT_DOMAIN: "true"
         run: scripts/ci/ci_validate_image_tag.sh "$IMAGE_TAG" "${{ github.event.repository.default_branch }}"
+
+      - name: Summarize dry run
+        if: ${{ inputs.dry_run }}
+        run: |
+          {
+            echo "### Data backfill dry run"
+            echo ""
+            echo "- Mode: non-destructive readiness check"
+            echo "- Backfill task definition is rendered but not registered or executed"
+          } >> "$GITHUB_STEP_SUMMARY"
 
       - uses: aws-actions/configure-aws-credentials@a89a83ec143615402a01f672b6e172b7b1875000 # v6
         with:
@@ -92,6 +107,7 @@ jobs:
         id: current
         env:
           BASE_URL: https://${{ steps.primary-service.outputs.hostname_label }}.${{ env.ROOT_DOMAIN }}
+          DRY_RUN: ${{ inputs.dry_run }}
         run: |
           TOKEN=$(aws secretsmanager get-secret-value \
             --secret-id "${PRIMARY_EDGE_TOKEN_SECRET}" \
@@ -106,7 +122,12 @@ jobs:
             --header "Authorization: Bearer ${TOKEN}" \
             "${BASE_URL}/admin/write-mode" | jq -r '.mode')
 
+          eligible=true
           if [[ "$read_mode" != "legacy" || "$write_mode" != "dual" ]]; then
+            eligible=false
+          fi
+
+          if [[ "$eligible" != "true" && "$DRY_RUN" != "true" ]]; then
             echo "Backfill expects READ_MODE=legacy and WRITE_MODE=dual so the dual-write phase is active before the switch." >&2
             echo "Current modes: READ_MODE=${read_mode}, WRITE_MODE=${write_mode}" >&2
             exit 1
@@ -115,9 +136,11 @@ jobs:
           {
             echo "read_mode=${read_mode}"
             echo "write_mode=${write_mode}"
+            echo "eligible=${eligible}"
           } >> "$GITHUB_OUTPUT"
 
       - name: Verify approved backfill image exists
+        if: ${{ !inputs.dry_run }}
         run: |
           aws ecr describe-images \
             --repository-name "${STACK_NAME}/backfill-worker" \
@@ -136,6 +159,7 @@ jobs:
             /tmp/backfill-worker-task-definition.json
 
       - name: Register backfill task definition
+        if: ${{ !inputs.dry_run }}
         id: register-backfill
         run: |
           task_def_arn=$(aws ecs register-task-definition \
@@ -149,6 +173,7 @@ jobs:
           echo "task_def_arn=${task_def_arn}" >> "$GITHUB_OUTPUT"
 
       - name: Run backfill worker
+        if: ${{ !inputs.dry_run }}
         env:
           ECS_RUN_TASK_WAIT_FOR_STOPPED: "true"
           ECS_RUN_TASK_ASSERT_SUCCESS: "true"
@@ -170,12 +195,24 @@ jobs:
             echo "- Monitor: CloudWatch Logs /ecs/${STACK_NAME}/backfill-worker"
           } >> "$GITHUB_STEP_SUMMARY"
 
+      - name: Summarize dry-run backfill readiness
+        if: ${{ inputs.dry_run }}
+        run: |
+          {
+            echo ""
+            echo "- Current READ_MODE: ${{ steps.current.outputs.read_mode }}"
+            echo "- Current WRITE_MODE: ${{ steps.current.outputs.write_mode }}"
+            echo "- Backfill-eligible now: ${{ steps.current.outputs.eligible }}"
+            echo "- Backfill task definition rendered to: /tmp/backfill-worker-task-definition.json"
+          } >> "$GITHUB_STEP_SUMMARY"
+
   evidence:
     name: Evidence
     needs:
       - run_backfill
     if: >
       always() &&
+      !inputs.dry_run &&
       inputs.confirm_backfill == 'run-backfill' &&
       github.ref_name == github.event.repository.default_branch
     runs-on: ubuntu-latest

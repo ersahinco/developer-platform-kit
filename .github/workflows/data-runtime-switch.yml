@@ -9,6 +9,7 @@ on:
         default: write-legacy-to-dual
         type: choice
         options:
+          - auto-detect
           - write-legacy-to-dual
           - read-legacy-to-new
           - write-dual-to-new
@@ -16,6 +17,11 @@ on:
         description: "Type switch-runtime to confirm this reviewed runtime transition."
         required: true
         type: string
+      dry_run:
+        description: "Run non-destructive runtime-switch readiness checks only."
+        required: false
+        default: false
+        type: boolean
 
 env:
   AWS_REGION: ${{ vars.AWS_REGION || 'eu-central-1' }}
@@ -35,7 +41,7 @@ jobs:
   switch_runtime:
     name: Switch Runtime Modes
     if: >
-      inputs.confirm_switch == 'switch-runtime' &&
+      (inputs.dry_run || inputs.confirm_switch == 'switch-runtime') &&
       github.ref_name == github.event.repository.default_branch
     runs-on: ubuntu-latest
     timeout-minutes: 20
@@ -62,6 +68,16 @@ jobs:
 
       - name: Install verification dependencies
         run: uv sync --frozen --group scripts
+
+      - name: Summarize dry run
+        if: ${{ inputs.dry_run }}
+        run: |
+          {
+            echo "### Data runtime switch dry run"
+            echo ""
+            echo "- Mode: non-destructive readiness check"
+            echo "- Runtime modes are inspected but not changed"
+          } >> "$GITHUB_STEP_SUMMARY"
 
       - name: Resolve root domain
         run: scripts/ci/ci_resolve_root_domain.sh
@@ -93,43 +109,6 @@ jobs:
             exit 1
           fi
 
-      - name: Resolve reviewed transition
-        id: plan
-        run: |
-          case "${{ inputs.switch_step }}" in
-            write-legacy-to-dual)
-              echo "target_endpoint=write" >> "$GITHUB_OUTPUT"
-              echo "target_mode=dual" >> "$GITHUB_OUTPUT"
-              echo "expected_read_mode=legacy" >> "$GITHUB_OUTPUT"
-              echo "expected_write_mode=legacy" >> "$GITHUB_OUTPUT"
-              echo "final_read_mode=legacy" >> "$GITHUB_OUTPUT"
-              echo "final_write_mode=dual" >> "$GITHUB_OUTPUT"
-              echo "target_label=dual-write" >> "$GITHUB_OUTPUT"
-              ;;
-            read-legacy-to-new)
-              echo "target_endpoint=read" >> "$GITHUB_OUTPUT"
-              echo "target_mode=new" >> "$GITHUB_OUTPUT"
-              echo "expected_read_mode=legacy" >> "$GITHUB_OUTPUT"
-              echo "expected_write_mode=dual" >> "$GITHUB_OUTPUT"
-              echo "final_read_mode=new" >> "$GITHUB_OUTPUT"
-              echo "final_write_mode=dual" >> "$GITHUB_OUTPUT"
-              echo "target_label=read-switch" >> "$GITHUB_OUTPUT"
-              ;;
-            write-dual-to-new)
-              echo "target_endpoint=write" >> "$GITHUB_OUTPUT"
-              echo "target_mode=new" >> "$GITHUB_OUTPUT"
-              echo "expected_read_mode=new" >> "$GITHUB_OUTPUT"
-              echo "expected_write_mode=dual" >> "$GITHUB_OUTPUT"
-              echo "final_read_mode=new" >> "$GITHUB_OUTPUT"
-              echo "final_write_mode=new" >> "$GITHUB_OUTPUT"
-              echo "target_label=write-cutover" >> "$GITHUB_OUTPUT"
-              ;;
-            *)
-              echo "Unsupported switch step: ${{ inputs.switch_step }}" >&2
-              exit 1
-              ;;
-          esac
-
       - name: Capture current runtime modes
         id: current
         env:
@@ -153,14 +132,106 @@ jobs:
             echo "write_mode=${write_mode}"
           } >> "$GITHUB_OUTPUT"
 
-          if [[ "${read_mode}" != "${{ steps.plan.outputs.expected_read_mode }}" || "${write_mode}" != "${{ steps.plan.outputs.expected_write_mode }}" ]]; then
-            echo "Runtime switch precondition failed for ${{ inputs.switch_step }}." >&2
-            echo "Expected READ_MODE=${{ steps.plan.outputs.expected_read_mode }}, WRITE_MODE=${{ steps.plan.outputs.expected_write_mode }}." >&2
-            echo "Current READ_MODE=${read_mode}, WRITE_MODE=${write_mode}." >&2
+      - name: Resolve reviewed transition
+        id: plan
+        env:
+          DRY_RUN: ${{ inputs.dry_run }}
+          CURRENT_READ_MODE: ${{ steps.current.outputs.read_mode }}
+          CURRENT_WRITE_MODE: ${{ steps.current.outputs.write_mode }}
+        run: |
+          switch_step="${{ inputs.switch_step }}"
+          if [[ "$switch_step" == "auto-detect" ]]; then
+            if [[ "$DRY_RUN" != "true" ]]; then
+              echo "auto-detect is only supported in dry-run mode." >&2
+              exit 1
+            fi
+            case "${CURRENT_READ_MODE}:${CURRENT_WRITE_MODE}" in
+              legacy:legacy)
+                switch_step="write-legacy-to-dual"
+                ;;
+              legacy:dual)
+                switch_step="read-legacy-to-new"
+                ;;
+              new:dual)
+                switch_step="write-dual-to-new"
+                ;;
+              new:new)
+                echo "target_endpoint=write" >> "$GITHUB_OUTPUT"
+                echo "target_mode=new" >> "$GITHUB_OUTPUT"
+                echo "expected_read_mode=new" >> "$GITHUB_OUTPUT"
+                echo "expected_write_mode=new" >> "$GITHUB_OUTPUT"
+                echo "final_read_mode=new" >> "$GITHUB_OUTPUT"
+                echo "final_write_mode=new" >> "$GITHUB_OUTPUT"
+                echo "target_label=steady-state" >> "$GITHUB_OUTPUT"
+                echo "eligible=true" >> "$GITHUB_OUTPUT"
+                exit 0
+                ;;
+              *)
+                echo "Unsupported current runtime mode pair for auto-detect: ${CURRENT_READ_MODE}:${CURRENT_WRITE_MODE}" >&2
+                exit 1
+                ;;
+            esac
+          fi
+
+          case "$switch_step" in
+            write-legacy-to-dual)
+              target_endpoint="write"
+              target_mode="dual"
+              expected_read_mode="legacy"
+              expected_write_mode="legacy"
+              final_read_mode="legacy"
+              final_write_mode="dual"
+              target_label="dual-write"
+              ;;
+            read-legacy-to-new)
+              target_endpoint="read"
+              target_mode="new"
+              expected_read_mode="legacy"
+              expected_write_mode="dual"
+              final_read_mode="new"
+              final_write_mode="dual"
+              target_label="read-switch"
+              ;;
+            write-dual-to-new)
+              target_endpoint="write"
+              target_mode="new"
+              expected_read_mode="new"
+              expected_write_mode="dual"
+              final_read_mode="new"
+              final_write_mode="new"
+              target_label="write-cutover"
+              ;;
+            *)
+              echo "Unsupported switch step: ${switch_step}" >&2
+              exit 1
+              ;;
+          esac
+
+          eligible=true
+          if [[ "${CURRENT_READ_MODE}" != "${expected_read_mode}" || "${CURRENT_WRITE_MODE}" != "${expected_write_mode}" ]]; then
+            eligible=false
+          fi
+
+          if [[ "$eligible" != "true" && "$DRY_RUN" != "true" ]]; then
+            echo "Runtime switch precondition failed for ${switch_step}." >&2
+            echo "Expected READ_MODE=${expected_read_mode}, WRITE_MODE=${expected_write_mode}." >&2
+            echo "Current READ_MODE=${CURRENT_READ_MODE}, WRITE_MODE=${CURRENT_WRITE_MODE}." >&2
             exit 1
           fi
 
+          {
+            echo "target_endpoint=${target_endpoint}"
+            echo "target_mode=${target_mode}"
+            echo "expected_read_mode=${expected_read_mode}"
+            echo "expected_write_mode=${expected_write_mode}"
+            echo "final_read_mode=${final_read_mode}"
+            echo "final_write_mode=${final_write_mode}"
+            echo "target_label=${target_label}"
+            echo "eligible=${eligible}"
+          } >> "$GITHUB_OUTPUT"
+
       - name: Apply runtime switch
+        if: ${{ !inputs.dry_run && steps.plan.outputs.eligible == 'true' }}
         env:
           BASE_URL: https://${{ steps.primary-service.outputs.hostname_label }}.${{ env.ROOT_DOMAIN }}
           TARGET_ENDPOINT: ${{ steps.plan.outputs.target_endpoint }}
@@ -180,6 +251,7 @@ jobs:
             "${BASE_URL}/admin/${TARGET_ENDPOINT}-mode" >/dev/null
 
       - name: Verify switched runtime modes
+        if: ${{ !inputs.dry_run && steps.plan.outputs.eligible == 'true' }}
         id: verify
         env:
           BASE_URL: https://${{ steps.primary-service.outputs.hostname_label }}.${{ env.ROOT_DOMAIN }}
@@ -219,12 +291,24 @@ jobs:
             echo "- Verification time: ${verify_seconds}s"
           } >> "$GITHUB_STEP_SUMMARY"
 
+      - name: Summarize dry-run runtime switch readiness
+        if: ${{ inputs.dry_run }}
+        run: |
+          {
+            echo ""
+            echo "- Current READ_MODE: ${{ steps.current.outputs.read_mode }}"
+            echo "- Current WRITE_MODE: ${{ steps.current.outputs.write_mode }}"
+            echo "- Planned transition: ${{ steps.plan.outputs.target_label }}"
+            echo "- Transition eligible now: ${{ steps.plan.outputs.eligible }}"
+          } >> "$GITHUB_STEP_SUMMARY"
+
   evidence:
     name: Evidence
     needs:
       - switch_runtime
     if: >
       always() &&
+      !inputs.dry_run &&
       inputs.confirm_switch == 'switch-runtime' &&
       github.ref_name == github.event.repository.default_branch
     runs-on: ubuntu-latest
