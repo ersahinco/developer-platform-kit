@@ -13,5 +13,4 @@ Growth rule:
 - Keep shared workload meaning in `platform/`; do not move contract semantics into catalog modules
 - Use catalog YAML to describe reusable building blocks that examples and workloads can consume locally or in a runtime target
 - Keep use-case-specific names, datasets, business events, and schema semantics out of catalog metadata
-- Reserve `infra/catalog/managed-kubernetes/` for future managed-Kubernetes modules when a real workload needs them
 - Reserve `infra/catalog/managed-service-provider/` for future managed provider-edge modules when a real workload needs hybrid database, DNS, edge, identity, or storage integration

@@ -55,9 +55,6 @@ def test_catalog_growth_rule_uses_runtime_target_subdirectories() -> None:
     infra_readme = _read("infra/README.md")
     catalog_readme = _read("infra/catalog/README.md")
     aws_catalog = _read("infra/catalog/aws/README.md")
-    managed_k8s_catalog = (
-        ROOT / "infra" / "catalog" / "managed-kubernetes" / "README.md"
-    )
     managed_service_provider_catalog = (
         ROOT / "infra" / "catalog" / "managed-service-provider" / "README.md"
     )
@@ -69,7 +66,6 @@ def test_catalog_growth_rule_uses_runtime_target_subdirectories() -> None:
     )
     assert "Future runtime targets should" in aws_catalog
     assert "`infra/catalog/<runtime-target>/`" in aws_catalog
-    assert managed_k8s_catalog.is_file()
     assert managed_service_provider_catalog.is_file()
 
 
