@@ -35,6 +35,10 @@ provider, global DNS provider, or managed edge service should realize the same
 contract surfaces as the AWS or local targets instead of becoming application
 architecture.
 
+For now, AWS is the only reviewed cloud runtime in this repo. Managed database
+and DNS providers stay on the horizon until a workload has a concrete cost or
+hybrid-design need, plus clear runtime ownership.
+
 ## Runtime Must Provide
 
 - OCI image execution with immutable revisions and non-root users

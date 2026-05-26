@@ -16,6 +16,7 @@ ROOT = Path(__file__).resolve().parents[2]
 
 NAME_PATTERN = re.compile(r"^[a-z][a-z0-9_]*$")
 USE_CASE_PATTERN = re.compile(r"^[a-z0-9]+(?:-[a-z0-9]+)*$")
+SCAFFOLD_RUNTIME_TARGETS = ("local-compose", "aws-ecs")
 
 
 @dataclass
@@ -132,6 +133,14 @@ def _default_database_pooling(patterns: list[str], kind: str) -> str | None:
 
 def _default_traces_supported(patterns: list[str]) -> bool:
     return "edge-service" in patterns
+
+
+def _resolved_runtime_targets(
+    supported: list[str], admitted: list[str]
+) -> tuple[list[str], list[str]]:
+    supported_targets = list(dict.fromkeys(["local-compose", *supported, *admitted]))
+    admitted_targets = list(dict.fromkeys(admitted))
+    return supported_targets, admitted_targets
 
 
 def _database_url_placeholder(name: str, pooling: str | None) -> str | None:
@@ -1000,6 +1009,8 @@ def _build_workload_entry(
     kind: str,
     patterns: list[str],
     use_cases: list[str],
+    supported_runtime_targets: list[str],
+    admitted_runtime_targets: list[str],
     service_port: int | None,
     database_pooling: str | None,
     traces_supported: bool,
@@ -1014,8 +1025,8 @@ def _build_workload_entry(
         "use_cases": use_cases,
         "app_path": f"apps/{name}",
         "runtime": {
-            "supported": ["local-compose", "aws-ecs"],
-            "admitted": ["aws-ecs"],
+            "supported": supported_runtime_targets,
+            "admitted": admitted_runtime_targets,
         },
     }
     if kind == "service":
@@ -1175,12 +1186,18 @@ def build_plan(args: argparse.Namespace) -> WorkloadScaffoldPlan:
         if args.traces_supported is not None
         else _default_traces_supported(patterns)
     )
+    supported_runtime_targets, admitted_runtime_targets = _resolved_runtime_targets(
+        list(dict.fromkeys(args.supported_runtime)),
+        list(dict.fromkeys(args.admitted_runtime)),
+    )
     repository = _snake_to_kebab(name)
     workload_entry = _build_workload_entry(
         name=name,
         kind=kind,
         patterns=patterns,
         use_cases=use_cases,
+        supported_runtime_targets=supported_runtime_targets,
+        admitted_runtime_targets=admitted_runtime_targets,
         service_port=args.service_port,
         database_pooling=database_pooling,
         traces_supported=traces_supported,
@@ -1255,7 +1272,7 @@ def build_plan(args: argparse.Namespace) -> WorkloadScaffoldPlan:
                 kind,
                 args.description or _description(name, patterns),
                 use_cases,
-                ["local-compose", "aws-ecs"],
+                supported_runtime_targets,
             ),
         ),
     ]
@@ -1351,6 +1368,20 @@ def parse_args(argv: list[str]) -> argparse.Namespace:
     parser.add_argument("--pattern", action="append", required=True)
     parser.add_argument("--use-case", action="append", required=True)
     parser.add_argument("--service-port", type=int)
+    parser.add_argument(
+        "--supported-runtime",
+        action="append",
+        default=[],
+        choices=SCAFFOLD_RUNTIME_TARGETS,
+        help="Add a supported runtime target. local-compose is always included.",
+    )
+    parser.add_argument(
+        "--admitted-runtime",
+        action="append",
+        default=[],
+        choices=["aws-ecs"],
+        help="Add a reviewed runtime admission target such as aws-ecs.",
+    )
     parser.add_argument(
         "--database-pooling",
         choices=["none", "direct", "transaction_pool"],
