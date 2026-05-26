@@ -5,7 +5,7 @@
 | Path | Owns |
 |---|---|
 | `infra/platform/` | Bootstrap, network, GitHub OIDC for the current AWS runtime |
-| `infra/app/` | Current AWS runtime resources |
+| `infra/app/` | Current AWS runtime resources for `aws-ecs`-admitted workloads |
 | `infra/catalog/` | Reusable runtime-target catalog building blocks |
 
 Use `infra/catalog/<runtime-target>/` for catalog growth. The current catalog
