@@ -36,6 +36,7 @@ jobs:
         id: resolve
         env:
           GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
           HEAD_SHA: ${{ github.event.workflow_run.head_sha }}
           BRANCH: ${{ github.event.workflow_run.head_branch }}
         run: |
@@ -91,6 +92,7 @@ jobs:
       - name: Dispatch app deploy dry run
         env:
           GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
         run: |
           scripts/ci/ci_dispatch_workflow_dry_run.sh \
             app-deploy.yml \
@@ -103,6 +105,7 @@ jobs:
       - name: Dispatch data support deploy dry run
         env:
           GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
         run: |
           scripts/ci/ci_dispatch_workflow_dry_run.sh \
             data-support-deploy.yml \
@@ -116,6 +119,7 @@ jobs:
       - name: Dispatch data schema dry run
         env:
           GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
         run: |
           scripts/ci/ci_dispatch_workflow_dry_run.sh \
             data-schema-apply.yml \
@@ -129,6 +133,7 @@ jobs:
       - name: Dispatch data runtime switch dry run
         env:
           GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
         run: |
           scripts/ci/ci_dispatch_workflow_dry_run.sh \
             data-runtime-switch.yml \
@@ -141,6 +146,7 @@ jobs:
       - name: Dispatch data backfill dry run
         env:
           GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
         run: |
           scripts/ci/ci_dispatch_workflow_dry_run.sh \
             data-backfill.yml \
@@ -153,6 +159,7 @@ jobs:
       - name: Dispatch infra apply dry run
         env:
           GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
         run: |
           scripts/ci/ci_dispatch_workflow_dry_run.sh \
             infra-apply.yml \
@@ -165,6 +172,7 @@ jobs:
       - name: Dispatch app rollback drill dry run
         env:
           GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
         run: |
           scripts/ci/ci_dispatch_workflow_dry_run.sh \
             app-rollback-drill.yml \
@@ -178,6 +186,7 @@ jobs:
       - name: Dispatch data runtime rollback drill dry run
         env:
           GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
         run: |
           scripts/ci/ci_dispatch_workflow_dry_run.sh \
             data-runtime-rollback-drill.yml \
