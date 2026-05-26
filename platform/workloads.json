@@ -1,5 +1,5 @@
 {
-  "schema_version": "5",
+  "schema_version": "6",
   "workloads": [
     {
       "name": "api",
@@ -7,6 +7,10 @@
       "patterns": ["edge-service"],
       "use_cases": ["http-api"],
       "app_path": "apps/api",
+      "runtime": {
+        "supported": ["local-compose", "aws-ecs"],
+        "admitted": ["aws-ecs"]
+      },
       "operational": {
         "class": "edge-service",
         "exposure": "public"
@@ -67,6 +71,10 @@
       "patterns": ["internal-async-service"],
       "use_cases": ["event-consumer", "integration"],
       "app_path": "apps/event_consumer",
+      "runtime": {
+        "supported": ["local-compose", "aws-ecs"],
+        "admitted": ["aws-ecs"]
+      },
       "operational": {
         "class": "internal-service",
         "exposure": "internal"
@@ -126,6 +134,10 @@
       "patterns": ["operator-job"],
       "use_cases": ["data-maintenance", "operator-task"],
       "app_path": "apps/backfill_worker",
+      "runtime": {
+        "supported": ["local-compose", "aws-ecs"],
+        "admitted": ["aws-ecs"]
+      },
       "operational": {
         "class": "operator-job",
         "trigger": "manual"
@@ -165,6 +177,10 @@
       "patterns": ["scheduled-job", "export-job"],
       "use_cases": ["data-export", "scheduled-pipeline"],
       "app_path": "apps/data_export_job",
+      "runtime": {
+        "supported": ["local-compose", "aws-ecs"],
+        "admitted": ["aws-ecs"]
+      },
       "operational": {
         "class": "scheduled-job",
         "trigger": "schedule"
@@ -194,6 +210,42 @@
           "DATA_EXPORT_S3_BUCKET"
         ],
         "secrets": ["DB_PASSWORD"]
+      },
+      "job": {
+        "idempotency": "run_id"
+      }
+    },
+    {
+      "name": "open_dataset_pipeline",
+      "kind": "job",
+      "patterns": ["operator-job"],
+      "use_cases": ["dataset-ingest", "local-analytics"],
+      "app_path": "apps/open_dataset_pipeline",
+      "runtime": {
+        "supported": ["local-compose"],
+        "admitted": []
+      },
+      "operational": {
+        "class": "operator-job",
+        "trigger": "manual"
+      },
+      "image": {
+        "repository": "open-dataset-pipeline",
+        "package": "aws-sdlc-containers-open-dataset-pipeline",
+        "command": "python -m open_dataset_pipeline.main"
+      },
+      "traces": {
+        "supported": false
+      },
+      "config": {
+        "env": [
+          "OPEN_DATASET_URL",
+          "OPEN_DATASET_NAME",
+          "OPEN_DATASET_OUTPUT_DIR",
+          "OPEN_DATASET_RUN_ID",
+          "OPEN_DATASET_DATE"
+        ],
+        "secrets": []
       },
       "job": {
         "idempotency": "run_id"

@@ -27,6 +27,7 @@ declared workloads still satisfy the contract.
 - workload identity and kind
 - target-neutral workload use cases for discovery and templates
 - host location under `apps/`
+- supported runtime targets and admitted runtime targets
 - operational class
 - service port declarations
 - optional capability declarations such as database or Dapr when the workload actually needs them
@@ -75,6 +76,14 @@ Each workload also declares one or more stable-center `patterns`. These drive
 metadata selectors and keep reusable workload shapes explicit instead of hiding
 them in Terraform locals or workflow conditionals.
 
+Each workload declares runtime support explicitly:
+
+- `runtime.supported`: runtime targets the workload host can run on today
+- `runtime.admitted`: runtime targets with reviewed realization and delivery ownership
+
+Support and admission are intentionally different. A workload may be a real
+contract-governed app host under `apps/` with only `local-compose` support.
+
 Service workloads must provide:
 
 - committed OCI image declared in `platform/workloads.json`
@@ -104,6 +113,7 @@ Current jobs:
 
 - `apps/backfill_worker`
 - `apps/data_export_job`
+- `apps/open_dataset_pipeline`
 
 ## Operational Class
 

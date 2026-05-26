@@ -96,7 +96,7 @@ def test_examples_consume_platform_patterns_and_catalog_entries() -> None:
         assert platform_usage["proof"]["commands"]
 
 
-def test_examples_are_not_admitted_as_deployable_workloads() -> None:
+def test_examples_do_not_overlap_real_workloads() -> None:
     workload_names = {
         workload["name"]
         for workload in load_json("platform/workloads.json")["workloads"]
@@ -104,4 +104,3 @@ def test_examples_are_not_admitted_as_deployable_workloads() -> None:
 
     for _path, manifest in _example_manifests():
         assert manifest["name"] not in workload_names
-        assert manifest["contract_admission"]["status"] == "local-example"

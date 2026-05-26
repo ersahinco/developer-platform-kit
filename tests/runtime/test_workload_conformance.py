@@ -84,7 +84,11 @@ def _load_workloads() -> list[dict[str, object]]:
     )
     default_env = dict(conformance.get("defaults", {}).get("env", {}))
     default_secrets = dict(conformance.get("defaults", {}).get("secrets", {}))
-    workloads = contract["workloads"]
+    workloads = [
+        workload
+        for workload in contract["workloads"]
+        if "local-compose" in workload["runtime"]["supported"]
+    ]
     merged: list[dict[str, object]] = []
     for workload in workloads:
         item = dict(workload)

@@ -17,6 +17,7 @@ choreography, and provider wiring. Do not turn `workloads.json` into a
 deployment DSL.
 
 Examples should consume the platform contract and catalog instead of bypassing
-them. A local example can prove a workload pattern and local runtime capability
-without becoming deployable. Full workload admission still requires contract
-shape, local proof, runtime realization, delivery path, and owner.
+them, but real workloads still belong in `apps/` even when they support only
+`local-compose`. AWS admission is a separate runtime decision. Full runtime
+admission still requires contract shape, local proof, runtime realization,
+delivery path, and owner.

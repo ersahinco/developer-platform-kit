@@ -798,6 +798,7 @@ def _catalog_component_content(
     kind: str,
     description: str,
     use_cases: list[str],
+    runtime_targets: list[str],
 ) -> str:
     component_type = "service" if kind == "service" else "job"
     lines = [
@@ -817,10 +818,13 @@ def _catalog_component_content(
             "  owner: group:default/platform-engineering",
             "  system: aws-sdlc-containers",
             "  dependsOn:",
-            "    - resource:default/runtime-target-aws-ecs",
             "",
         ]
     )
+    lines[-1:-1] = [
+        f"    - resource:default/runtime-target-{runtime_target}"
+        for runtime_target in runtime_targets
+    ]
     return "\n".join(lines)
 
 
@@ -1009,6 +1013,10 @@ def _build_workload_entry(
         "patterns": patterns,
         "use_cases": use_cases,
         "app_path": f"apps/{name}",
+        "runtime": {
+            "supported": ["local-compose", "aws-ecs"],
+            "admitted": ["aws-ecs"],
+        },
     }
     if kind == "service":
         operational: dict[str, Any] = {
@@ -1247,6 +1255,7 @@ def build_plan(args: argparse.Namespace) -> WorkloadScaffoldPlan:
                 kind,
                 args.description or _description(name, patterns),
                 use_cases,
+                ["local-compose", "aws-ecs"],
             ),
         ),
     ]

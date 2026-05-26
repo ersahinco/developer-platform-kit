@@ -11,6 +11,7 @@ COPY apps/api/pyproject.toml apps/api/pyproject.toml
 COPY apps/backfill_worker/pyproject.toml apps/backfill_worker/pyproject.toml
 COPY apps/data_export_job/pyproject.toml apps/data_export_job/pyproject.toml
 COPY apps/event_consumer/pyproject.toml apps/event_consumer/pyproject.toml
+COPY apps/open_dataset_pipeline/pyproject.toml apps/open_dataset_pipeline/pyproject.toml
 COPY packages/domain/pyproject.toml packages/domain/pyproject.toml
 COPY packages/application/pyproject.toml packages/application/pyproject.toml
 COPY packages/infrastructure/pyproject.toml packages/infrastructure/pyproject.toml

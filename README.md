@@ -19,7 +19,7 @@ so a portal or software catalog can ingest the monorepo without custom glue.
 
 - Platform center: workload contract plus reusable catalog and concern definitions
 - Workload contract: `platform/workloads.json`; local/CI proof in `platform/runtime-conformance.json`
-- Boundaries: thin `apps/*` hosts, reusable `packages/*`, pluggable runtime targets realized in `infra/*`
+- Boundaries: thin `apps/*` hosts, reusable `packages/*`, pluggable runtime targets realized at the edge in `infra/*`, workflows, and Compose
 - Delivery: build before deploy, plan before apply, immutable image tags, release evidence
 - Operations: observability baseline, runbooks, contract and architecture tests
 
@@ -27,7 +27,8 @@ so a portal or software catalog can ingest the monorepo without custom glue.
 
 | Path | Owns |
 |---|---|
-| `apps/` | Reference workload hosts |
+| `apps/` | Contract-governed workload hosts, including local-only workloads |
+| `examples/` | Teaching, demo, and reference-only samples |
 | `packages/` | Domain, application, infrastructure packages |
 | `db/` | Liquibase changelog and Postgres assets |
 | `infra/` | Runtime-target Terraform roots plus reusable catalog parts; current production target is AWS |

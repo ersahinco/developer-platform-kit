@@ -33,6 +33,8 @@ def test_workload_metadata_capability_matrix_reports_declared_workloads() -> Non
     assert rows[0]["class"] == "edge-service"
     assert rows[0]["patterns"] == "edge-service"
     assert rows[0]["use_cases"] == "http-api"
+    assert rows[0]["runtime_supported"] == "local-compose,aws-ecs"
+    assert rows[0]["runtime_admitted"] == "aws-ecs"
     assert rows[0]["edge_exposure"] == "public"
     assert rows[0]["edge_auth_mode"] == "static-bearer-token"
     assert rows[0]["database_pooling"] == "transaction_pool"
@@ -56,8 +58,16 @@ def test_workload_metadata_capability_matrix_reports_declared_workloads() -> Non
     assert data_export_job["kind"] == "job"
     assert data_export_job["patterns"] == "scheduled-job,export-job"
     assert data_export_job["use_cases"] == "data-export,scheduled-pipeline"
+    assert data_export_job["runtime_supported"] == "local-compose,aws-ecs"
+    assert data_export_job["runtime_admitted"] == "aws-ecs"
     assert data_export_job["trigger"] == "schedule"
     assert data_export_job["service_port"] == ""
+
+    open_dataset_pipeline = next(
+        row for row in rows if row["name"] == "open_dataset_pipeline"
+    )
+    assert open_dataset_pipeline["runtime_supported"] == "local-compose"
+    assert open_dataset_pipeline["runtime_admitted"] == ""
 
 
 def test_workload_metadata_usage_lists_capability_matrix_command() -> None:
@@ -136,7 +146,7 @@ def test_workload_metadata_cli_reports_declared_workload_groups() -> None:
     expected_support_task_workloads = [
         "\t".join([workload["name"], workload["image"]["repository"]])
         for workload in contract["workloads"]
-        if workload["kind"] == "job"
+        if workload["kind"] == "job" and "aws-ecs" in workload["runtime"]["admitted"]
     ]
     assert support_task_workloads == expected_support_task_workloads
 
@@ -148,6 +158,7 @@ def test_workload_metadata_cli_reports_declared_workload_groups() -> None:
         for workload in contract["workloads"]
         if workload["kind"] == "job"
         and workload["operational"]["class"] == "scheduled-job"
+        and "aws-ecs" in workload["runtime"]["admitted"]
     ]
     assert scheduled_job_workloads == expected_scheduled_job_workloads
 
@@ -162,6 +173,8 @@ def test_workload_metadata_use_case_matrix_reports_declared_workload_intent() ->
         workload["name"] for workload in contract["workloads"]
     ]
     assert rows[0]["use_cases"] == "http-api"
+    assert rows[0]["runtime_supported"] == "local-compose,aws-ecs"
+    assert rows[0]["runtime_admitted"] == "aws-ecs"
 
     backfill_worker = next(row for row in rows if row["name"] == "backfill_worker")
     assert backfill_worker["kind"] == "job"
@@ -180,10 +193,14 @@ def test_workload_metadata_image_matrix_matches_declared_apps() -> None:
         if image["name"] not in {"liquibase", "pgbouncer"}
     }
     assert set(workload_images) == {
-        workload["name"] for workload in contract["workloads"]
+        workload["name"]
+        for workload in contract["workloads"]
+        if "aws-ecs" in workload["runtime"]["admitted"]
     }
 
     for workload in contract["workloads"]:
+        if "aws-ecs" not in workload["runtime"]["admitted"]:
+            continue
         image = workload_images[workload["name"]]
         assert image["dockerfile"] == workload["image"].get(
             "dockerfile", "platform/workload.Dockerfile"
@@ -230,6 +247,7 @@ def test_workload_metadata_inventory_json_reports_stable_center_and_seams() -> N
     ]
     assert inventory["workloads"][0]["use_cases"] == "http-api"
     assert inventory["workloads"][0]["patterns"] == "edge-service"
+    assert inventory["workloads"][0]["runtime_supported"] == "local-compose,aws-ecs"
     assert any(
         row["capability"] == "relational_database"
         for row in inventory["runtime_capabilities"]
