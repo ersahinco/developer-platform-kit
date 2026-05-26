@@ -11,4 +11,5 @@ spec:
   owner: group:default/platform-engineering
   system: aws-sdlc-containers
   dependsOn:
+    - resource:default/runtime-target-local-compose
     - resource:default/runtime-target-aws-ecs

@@ -89,6 +89,26 @@ def workload_patterns(workload: dict[str, Any]) -> list[str]:
     return [value for value in values if isinstance(value, str)]
 
 
+def workload_runtime_supported(workload: dict[str, Any]) -> list[str]:
+    runtime = workload.get("runtime", {})
+    values = runtime.get("supported", []) if isinstance(runtime, dict) else []
+    return [value for value in values if isinstance(value, str)]
+
+
+def workload_runtime_admitted(workload: dict[str, Any]) -> list[str]:
+    runtime = workload.get("runtime", {})
+    values = runtime.get("admitted", []) if isinstance(runtime, dict) else []
+    return [value for value in values if isinstance(value, str)]
+
+
+def workload_supports_runtime(workload: dict[str, Any], runtime_target: str) -> bool:
+    return runtime_target in workload_runtime_supported(workload)
+
+
+def workload_admitted_to_runtime(workload: dict[str, Any], runtime_target: str) -> bool:
+    return runtime_target in workload_runtime_admitted(workload)
+
+
 def workload_edge_auth_mode(workload: dict[str, Any]) -> str:
     edge = workload.get("edge", {})
     if not isinstance(edge, dict):
@@ -140,6 +160,7 @@ def build_image_matrix(tag: str, pgbouncer_tag: str) -> list[dict[str, Any]]:
             },
         }
         for workload in workloads()
+        if workload_admitted_to_runtime(workload, "aws-ecs")
     ]
     return [
         *images,
@@ -208,6 +229,8 @@ def workload_capability_rows() -> list[dict[str, str]]:
                 "class": workload_operational_class(workload),
                 "patterns": ",".join(workload_patterns(workload)),
                 "use_cases": ",".join(workload_use_cases(workload)),
+                "runtime_supported": ",".join(workload_runtime_supported(workload)),
+                "runtime_admitted": ",".join(workload_runtime_admitted(workload)),
                 "repository": workload_repository(workload),
                 "edge_exposure": (
                     str(operational.get("exposure", ""))
@@ -273,6 +296,7 @@ def internal_service_workloads() -> list[dict[str, Any]]:
         workload
         for workload in workloads()
         if workload_capabilities(workload)["internal_service"]
+        and workload_admitted_to_runtime(workload, "aws-ecs")
     ]
 
 
@@ -281,7 +305,11 @@ def job_workloads() -> list[dict[str, Any]]:
 
 
 def support_task_workloads() -> list[dict[str, Any]]:
-    return job_workloads()
+    return [
+        workload
+        for workload in job_workloads()
+        if workload_admitted_to_runtime(workload, "aws-ecs")
+    ]
 
 
 def async_eventing_workloads() -> list[dict[str, Any]]:
@@ -297,6 +325,7 @@ def scheduled_job_workloads() -> list[dict[str, Any]]:
         workload
         for workload in workloads()
         if workload_capabilities(workload)["scheduled_execution"]
+        and workload_admitted_to_runtime(workload, "aws-ecs")
     ]
 
 
@@ -315,6 +344,7 @@ def primary_edge_service_workload() -> dict[str, Any]:
         for workload in workloads()
         if workload_capabilities(workload)["edge_service"]
         and workload_capabilities(workload)["edge_exposure"] == "public"
+        and workload_admitted_to_runtime(workload, "aws-ecs")
     ]
     if len(matches) != 1:
         raise ValueError(
@@ -406,6 +436,8 @@ def _print_capability_matrix() -> int:
         "class",
         "patterns",
         "use_cases",
+        "runtime_supported",
+        "runtime_admitted",
         "repository",
         "edge_exposure",
         "edge_auth_mode",
@@ -424,7 +456,15 @@ def _print_capability_matrix() -> int:
 
 
 def _print_use_case_matrix() -> int:
-    headers = ["name", "kind", "class", "use_cases", "repository"]
+    headers = [
+        "name",
+        "kind",
+        "class",
+        "use_cases",
+        "runtime_supported",
+        "runtime_admitted",
+        "repository",
+    ]
     print("\t".join(headers))
     for row in workload_capability_rows():
         print("\t".join(row[header] for header in headers))

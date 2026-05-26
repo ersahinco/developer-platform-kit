@@ -38,9 +38,9 @@ entries:
       - config names
     implementation:
       - compose.yaml
-      - examples/*/Dockerfile
+      - platform/workload.Dockerfile
     adoption_steps:
-      - define the local command in the example or app host
+      - define the local command in the app host
       - use compose profiles for optional local workflows
       - keep runtime-independent job semantics out of platform tooling
 
@@ -73,8 +73,8 @@ entries:
       - idempotent output behavior
     implementation:
       - compose.yaml
-      - examples/*/sample_data
+      - apps/*/sample_data
     adoption_steps:
       - write artifacts under a configurable local output directory
       - emit a manifest or structured success event
-      - keep dataset-specific naming in the consuming example or workload
+      - keep dataset-specific naming in the consuming workload

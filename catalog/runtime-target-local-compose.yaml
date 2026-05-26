@@ -1,0 +1,9 @@
+apiVersion: backstage.io/v1alpha1
+kind: Resource
+metadata:
+  name: runtime-target-local-compose
+  description: First-class local runtime target for contract proof and fast app iteration.
+spec:
+  type: runtime-target
+  owner: group:default/platform-engineering
+  system: aws-sdlc-containers

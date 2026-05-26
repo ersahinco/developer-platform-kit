@@ -10,8 +10,8 @@ deny contains msg if {
 
 deny contains msg if {
   data.conftest.file.name == "workloads.json"
-  input.schema_version != "5"
-  msg := "platform/workloads.json schema_version must be 5"
+  input.schema_version != "6"
+  msg := "platform/workloads.json schema_version must be 6"
 }
 
 deny contains msg if {
@@ -70,6 +70,54 @@ deny contains msg if {
   some workload in input.workloads
   not startswith(workload.app_path, "apps/")
   msg := sprintf("workload %q app_path must stay under apps/", [workload.name])
+}
+
+deny contains msg if {
+  data.conftest.file.name == "workloads.json"
+  some workload in input.workloads
+  not is_array(workload.runtime.supported)
+  msg := sprintf("workload %q runtime.supported must be an array", [workload.name])
+}
+
+deny contains msg if {
+  data.conftest.file.name == "workloads.json"
+  some workload in input.workloads
+  count(workload.runtime.supported) == 0
+  msg := sprintf("workload %q must declare at least one supported runtime", [workload.name])
+}
+
+deny contains msg if {
+  data.conftest.file.name == "workloads.json"
+  some workload in input.workloads
+  not is_array(workload.runtime.admitted)
+  msg := sprintf("workload %q runtime.admitted must be an array", [workload.name])
+}
+
+deny contains msg if {
+  data.conftest.file.name == "workloads.json"
+  some workload in input.workloads
+  some runtime_target in workload.runtime.supported
+  not runtime_target in {"local-compose", "aws-ecs", "managed-service-provider"}
+  msg := sprintf("workload %q declares unknown supported runtime %q", [workload.name, runtime_target])
+}
+
+deny contains msg if {
+  data.conftest.file.name == "workloads.json"
+  some workload in input.workloads
+  some runtime_target in workload.runtime.admitted
+  not runtime_target in {"local-compose", "aws-ecs", "managed-service-provider"}
+  msg := sprintf("workload %q declares unknown admitted runtime %q", [workload.name, runtime_target])
+}
+
+deny contains msg if {
+  data.conftest.file.name == "workloads.json"
+  some workload in input.workloads
+  some runtime_target in workload.runtime.admitted
+  not runtime_target in workload.runtime.supported
+  msg := sprintf(
+    "workload %q admits runtime %q without declaring support",
+    [workload.name, runtime_target],
+  )
 }
 
 deny contains msg if {

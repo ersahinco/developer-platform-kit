@@ -88,6 +88,8 @@ Add the workload to `platform/workloads.json` with:
 - `patterns`
 - `use_cases`
 - `app_path`
+- `runtime.supported`
+- `runtime.admitted`
 - `operational`
 - `image`
 - `config`
@@ -126,9 +128,11 @@ and `image.context` in `platform/workloads.json` instead of hardcoding build
 logic elsewhere.
 
 If you are exploring open-source data tooling such as file loaders, DuckDB, or
-dbt-style transformations, keep that path example/local-only until the current
-runtime target has a reviewed ownership and delivery story for it. Do not add
-those examples to `platform/workloads.json` just to make them look first-class.
+dbt-style transformations, keep teaching samples in `examples/`. If the code is
+a real workload host with a contract, tests, local proof, and owner, keep it in
+`apps/` and declare `runtime.supported: ["local-compose"]`. Add `aws-ecs` to
+`runtime.admitted` only after reviewed infra realization and delivery ownership
+exist.
 
 ## Wire Only Needed Concerns
 
@@ -170,6 +174,7 @@ Add narrower tests when possible:
 ## Done Checklist
 
 - operational class is explicit in `platform/workloads.json`
+- runtime support and admission are explicit in `platform/workloads.json`
 - host stayed thin
 - provider details stayed at the platform edge
 - stable center stayed recognizable: no second workload-intent source was added

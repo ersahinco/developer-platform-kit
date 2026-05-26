@@ -49,14 +49,14 @@ def test_platform_inventory_rows_reference_expected_stable_center_seams() -> Non
     )
 
 
-def test_current_aws_runtime_realizes_all_deployable_job_workloads() -> None:
+def test_current_aws_runtime_realizes_all_aws_admitted_job_workloads() -> None:
     contract = load_json("platform/workloads.json")
     workload_jobs_text = read_text("infra/app/workload_jobs.tf")
 
     deployable_jobs = [
         workload["name"]
         for workload in contract["workloads"]
-        if workload["kind"] == "job"
+        if workload["kind"] == "job" and "aws-ecs" in workload["runtime"]["admitted"]
     ]
 
     for workload_name in deployable_jobs:

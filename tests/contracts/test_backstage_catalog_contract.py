@@ -63,6 +63,32 @@ def _load_workload_use_cases() -> dict[str, list[str]]:
     }
 
 
+def _load_workload_runtime_dependencies() -> dict[str, list[str]]:
+    workloads = json.loads((ROOT / "platform" / "workloads.json").read_text())[
+        "workloads"
+    ]
+    dependencies: dict[str, list[str]] = {}
+    for workload in workloads:
+        if not isinstance(workload, dict):
+            continue
+        name = workload.get("name")
+        runtime = workload.get("runtime", {})
+        if not isinstance(name, str) or not isinstance(runtime, dict):
+            continue
+        supported = [
+            value for value in runtime.get("supported", []) if isinstance(value, str)
+        ]
+        admitted = [
+            value for value in runtime.get("admitted", []) if isinstance(value, str)
+        ]
+        ordered = list(dict.fromkeys([*supported, *admitted]))
+        dependencies[name] = [
+            f"resource:default/runtime-target-{runtime_target}"
+            for runtime_target in ordered
+        ]
+    return dependencies
+
+
 def test_catalog_info_declares_backstage_location_for_platform_entities() -> None:
     documents = _load_yaml_documents("catalog-info.yaml")
     assert len(documents) == 1
@@ -76,12 +102,14 @@ def test_catalog_info_declares_backstage_location_for_platform_entities() -> Non
             "./catalog/platform-engineering-group.yaml",
             "./catalog/platform-engineering-domain.yaml",
             "./catalog/aws-sdlc-containers-system.yaml",
+            "./catalog/runtime-target-local-compose.yaml",
             "./catalog/runtime-target-aws-ecs.yaml",
             "./catalog/platform-monorepo-component.yaml",
             "./catalog/api-component.yaml",
             "./catalog/event-consumer-component.yaml",
             "./catalog/backfill-worker-component.yaml",
             "./catalog/data-export-job-component.yaml",
+            "./catalog/open-dataset-pipeline-component.yaml",
         ]
     )
 
@@ -98,6 +126,7 @@ def test_catalog_entity_files_declare_backstage_entities_for_platform_and_worklo
     assert ("Group", "platform-engineering") in entities
     assert ("Domain", "platform-engineering") in entities
     assert ("System", "aws-sdlc-containers") in entities
+    assert ("Resource", "runtime-target-local-compose") in entities
     assert ("Resource", "runtime-target-aws-ecs") in entities
     assert ("Component", "platform-monorepo") in entities
 
@@ -116,6 +145,7 @@ def test_catalog_info_workload_components_match_workload_contract() -> None:
     workload_names = _load_workload_names()
     workload_kinds = _load_workload_kinds()
     workload_use_cases = _load_workload_use_cases()
+    workload_runtime_dependencies = _load_workload_runtime_dependencies()
 
     assert sorted(component_entities) == sorted(workload_names)
 
@@ -130,5 +160,5 @@ def test_catalog_info_workload_components_match_workload_contract() -> None:
         assert spec["system"] == "aws-sdlc-containers"
         assert spec["type"] == expected_type
         assert spec["lifecycle"] == "experimental"
-        assert spec["dependsOn"] == ["resource:default/runtime-target-aws-ecs"]
+        assert spec["dependsOn"] == workload_runtime_dependencies[workload_name]
         assert component["metadata"]["tags"] == workload_use_cases[workload_name]

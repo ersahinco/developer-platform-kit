@@ -45,6 +45,10 @@ def test_build_plan_infers_internal_async_defaults() -> None:
 
     assert plan.kind == "service"
     assert plan.operational_class == "internal-service"
+    assert plan.workload_entry["runtime"] == {
+        "supported": ["local-compose", "aws-ecs"],
+        "admitted": ["aws-ecs"],
+    }
     assert plan.workload_entry["dapr"]["app_id"] == "invoice-worker"
     assert plan.workload_entry["database"]["pooling"] == "direct"
     assert plan.runtime_conformance_entry["env"]["DAPR_TOPIC"] == "invoice-worker-v1"
@@ -92,6 +96,10 @@ def test_apply_scaffolds_edge_service_and_updates_repo_files(tmp_path: Path) -> 
     )
 
     assert inventory_dashboard["patterns"] == ["edge-service"]
+    assert inventory_dashboard["runtime"] == {
+        "supported": ["local-compose", "aws-ecs"],
+        "admitted": ["aws-ecs"],
+    }
     assert inventory_dashboard["service"]["port"] == 8092
     assert (
         inventory_dashboard["verification"]["profile"] == "primary-edge-runtime-modes"

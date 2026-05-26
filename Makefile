@@ -79,18 +79,18 @@ dapr-up: ## Build/start local Dapr event consumer runtime with Redis pub/sub
 	docker compose --profile dapr up -d db redis event-consumer event-consumer-dapr
 	docker compose --profile dapr ps
 
-.PHONY: open-dataset-example
-open-dataset-example: ## Run the local-only open dataset example pipeline
+.PHONY: open-dataset-pipeline
+open-dataset-pipeline: ## Run the local-only open dataset workload pipeline
 	docker compose build open-dataset-pipeline
-	docker compose --profile examples run --rm open-dataset-pipeline
+	docker compose --profile data run --rm open-dataset-pipeline
 
 .PHONY: local-down
 local-down: ## Stop local app and observability services without deleting volumes
-	docker compose --profile observability --profile dapr --profile examples stop app prometheus loki tempo promtail grafana event-consumer event-consumer-dapr redis open-dataset-pipeline
+	docker compose --profile observability --profile dapr --profile data stop app prometheus loki tempo promtail grafana event-consumer event-consumer-dapr redis open-dataset-pipeline
 
 .PHONY: local-reset
 local-reset: ## Stop all local services and delete Compose volumes
-	docker compose --profile observability --profile tools --profile migration --profile data --profile dapr --profile examples down -v --remove-orphans
+	docker compose --profile observability --profile tools --profile migration --profile data --profile dapr down -v --remove-orphans
 
 .PHONY: observability-stop
 observability-stop: ## Stop local observability services

@@ -1,11 +1,11 @@
 apiVersion: backstage.io/v1alpha1
 kind: Component
 metadata:
-  name: backfill_worker
-  description: Operator-job workload host for controlled data backfills.
+  name: open_dataset_pipeline
+  description: Operator-job workload host for local dataset ingestion and DuckDB materialization.
   tags:
-    - data-maintenance
-    - operator-task
+    - dataset-ingest
+    - local-analytics
 spec:
   type: job
   lifecycle: experimental
@@ -13,4 +13,3 @@ spec:
   system: aws-sdlc-containers
   dependsOn:
     - resource:default/runtime-target-local-compose
-    - resource:default/runtime-target-aws-ecs

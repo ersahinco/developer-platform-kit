@@ -68,6 +68,10 @@ managed PostgreSQL, global DNS, edge, identity, or storage providers. Add a
 specific provider only when a workload needs it and the ownership boundary is
 clear.
 
+A workload can still be real and live under `apps/` before it is admitted to a
+cloud runtime. Local support through `local-compose` is a valid first runtime
+target, not a reason to demote the host into `examples/`.
+
 ## AWS ECS Target
 
 The current `aws-ecs` target is implemented through `infra/`,

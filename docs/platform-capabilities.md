@@ -75,6 +75,12 @@ If a capability belongs to all runtimes, prefer the contract. If it exists only
 because the current AWS runtime implements it, keep it out of the contract and
 record it here or in runtime-facing docs.
 
+Workload placement rule:
+
+- put real workload hosts in `apps/`, even when they are local-only
+- keep `examples/` for teaching and reference-only samples
+- admit a workload to `aws-ecs` only after reviewed runtime realization and delivery ownership exist
+
 ## Admission Rule
 
 - standardize a new capability only when a real workload needs it
@@ -86,7 +92,7 @@ record it here or in runtime-facing docs.
 
 - Dapr state store, bindings, workflows, actors, or secrets
 - analytics orchestration or data transformation stacks
-- open-source data load / DuckDB / dbt example stacks as deployable platform workloads
+- open-source data load / DuckDB / dbt stacks as automatic AWS-admitted platform workloads
 - hosted Grafana/Loki/Tempo/Prometheus runtime modules
 - a runtime target added without a concrete workload need and owner
 - generic provider-neutral infrastructure modules

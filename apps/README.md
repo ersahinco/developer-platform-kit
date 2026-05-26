@@ -7,6 +7,12 @@ job entrypoint, and emits workload-level operational events.
 
 Keep business behavior in `packages/`.
 
+Rules:
+
+- real workloads stay in `apps/` even when they only support `local-compose`
+- `apps/` workloads should have contract metadata, tests, local proof, and an owner
+- `examples/` is only for teaching, demo, and reference material
+
 Example:
 
 - `packages/application/data_export.py` -> export use case

@@ -16,7 +16,7 @@ def _load_open_dataset_pipeline():
 def _sample_dataset_url() -> str:
     dataset_path = (
         Path(__file__).resolve().parents[3]
-        / "examples"
+        / "apps"
         / "open_dataset_pipeline"
         / "sample_data"
         / "iris.csv"

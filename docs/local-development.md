@@ -15,14 +15,11 @@ Reference workloads:
 - `apps/data_export_job`
 - `apps/event_consumer`
 
-Local-only examples:
+- `apps/open_dataset_pipeline`
 
-- `examples/open_dataset_pipeline`
-
-Examples are still platform consumers. Each example should declare which
-workload pattern, local runtime target, and catalog entries it uses so local
-experiments exercise the toolkit without polluting deployable workload
-contracts.
+Local-only workloads still belong in `apps/` when they have a real contract,
+local proof, and owner. Reserve `examples/` for teaching and reference
+material.
 
 ## Preferred Setup
 
@@ -98,7 +95,7 @@ assertions when needed.
 make observability
 make dapr-up
 make data-export
-make open-dataset-example
+make open-dataset-pipeline
 ```
 
 ## Common Targets
@@ -113,7 +110,7 @@ make observability
 make dapr-up
 make migrate
 make seed
-make open-dataset-example
+make open-dataset-pipeline
 make test
 make lint
 make fmt

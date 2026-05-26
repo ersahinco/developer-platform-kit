@@ -17,6 +17,18 @@ def _runtime_conformance() -> dict[str, Any]:
     return load_json("platform/runtime-conformance.json")
 
 
+def _runtime_supported(workload: dict[str, Any]) -> set[str]:
+    return set(workload["runtime"]["supported"])
+
+
+def _runtime_admitted(workload: dict[str, Any]) -> set[str]:
+    return set(workload["runtime"]["admitted"])
+
+
+def _supports_local_runtime(workload: dict[str, Any]) -> bool:
+    return "local-compose" in _runtime_supported(workload)
+
+
 def _declared_database(workload: dict[str, Any]) -> dict[str, Any] | None:
     database = workload.get("database")
     return database if isinstance(database, dict) else None
@@ -55,7 +67,11 @@ def _declared_config_names(workload: dict[str, Any]) -> set[str]:
 def test_workload_registry_has_required_shape() -> None:
     contract = load_json("platform/workloads.json")
     conformance = _runtime_conformance()
-    workload_names = {workload["name"] for workload in contract["workloads"]}
+    workload_names = {
+        workload["name"]
+        for workload in contract["workloads"]
+        if _supports_local_runtime(workload)
+    }
 
     assert set(conformance["workloads"]) == workload_names
 
@@ -73,6 +89,8 @@ def test_compose_build_args_and_ports_align_with_workload_spec() -> None:
     services = compose["services"]
 
     for workload in contract["workloads"]:
+        if not _supports_local_runtime(workload):
+            continue
         compose_name = _compose_service_name(workload)
         compose_service = services[compose_name]
         build_args = compose_service["build"]["args"]
@@ -120,12 +138,25 @@ def test_workload_spec_config_names_match_app_settings() -> None:
         assert _declared_config_names(workload) == discovered_names
 
 
+def test_workload_runtime_support_and_admission_are_explicit() -> None:
+    contract = load_json("platform/workloads.json")
+
+    for workload in contract["workloads"]:
+        supported = _runtime_supported(workload)
+        admitted = _runtime_admitted(workload)
+
+        assert supported
+        assert admitted.issubset(supported)
+
+
 def test_compose_workload_env_names_stay_within_declared_contract() -> None:
     contract = load_json("platform/workloads.json")
     compose = yaml.safe_load(read_text("compose.yaml"))
     services = compose["services"]
 
     for workload in contract["workloads"]:
+        if not _supports_local_runtime(workload):
+            continue
         compose_name = _compose_service_name(workload)
         compose_env = set(services[compose_name].get("environment", {}).keys())
         assert compose_env.issubset(_declared_config_names(workload))
@@ -137,6 +168,8 @@ def test_compose_database_wiring_matches_declared_pooling_model() -> None:
     services = compose["services"]
 
     for workload in contract["workloads"]:
+        if not _supports_local_runtime(workload):
+            continue
         compose_name = _compose_service_name(workload)
         env = services[compose_name].get("environment", {})
         database = _declared_database(workload)
@@ -188,6 +221,8 @@ def test_runtime_conformance_uses_declared_workload_config_names() -> None:
     conformance = _runtime_conformance()
 
     for workload in contract["workloads"]:
+        if not _supports_local_runtime(workload):
+            continue
         workload_conformance = _workload_conformance(workload, conformance)
         conformance_names = set(workload_conformance["env"]) | set(
             workload_conformance["secrets"]
