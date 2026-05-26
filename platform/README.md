@@ -15,3 +15,8 @@ workload shapes. `concerns/` defines reusable shared capabilities. `infra/`,
 workflows, and scripts define runtime-target realization, delivery
 choreography, and provider wiring. Do not turn `workloads.json` into a
 deployment DSL.
+
+Examples should consume the platform contract and catalog instead of bypassing
+them. A local example can prove a workload pattern and local runtime capability
+without becoming deployable. Full workload admission still requires contract
+shape, local proof, runtime realization, delivery path, and owner.

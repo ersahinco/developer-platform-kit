@@ -1,0 +1,35 @@
+schema_version: "1"
+name: open_dataset_pipeline
+kind: local-example
+owner: platform-toolkit
+description: >
+  Local example that exercises the platform's operator-job shape with
+  filesystem-backed artifact output. It is intentionally not a deployable
+  workload until a runtime owner admits it through the platform contract.
+platform_usage:
+  workload_patterns:
+    - operator-job
+  runtime_targets:
+    - local-compose
+  catalog_entries:
+    - infra/catalog/local-compose/workload-building-blocks.yaml#local-container-job
+    - infra/catalog/local-compose/workload-building-blocks.yaml#local-artifact-output
+  local_runtime:
+    compose_service: open-dataset-pipeline
+    compose_profile: examples
+    dockerfile: examples/open_dataset_pipeline/Dockerfile
+  proof:
+    tests:
+      - tests/examples/open_dataset_pipeline/test_open_dataset_pipeline.py
+    commands:
+      - make open-dataset-pipeline
+contract_admission:
+  status: local-example
+  reason: >
+    The example proves a local platform pattern, but it has no reviewed
+    production runtime realization, delivery path, or platform owner for cloud
+    operation.
+  must_not:
+    - add to platform/workloads.json without full contract admission
+    - add use-case-specific fields to platform tooling
+    - require provider SDKs in packages/domain or packages/application

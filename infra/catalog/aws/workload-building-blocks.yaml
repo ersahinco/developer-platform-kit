@@ -1,0 +1,100 @@
+schema_version: "1"
+runtime_target: aws-ecs
+owner: platform-runtime
+description: >
+  Reusable AWS runtime-target building blocks for workloads that already have a
+  platform contract. These entries describe what can be reused; deployable
+  workload identity remains in platform/workloads.json and orchestration remains
+  in infra/app.
+entries:
+  - id: ecs-fargate-service
+    type: service-runtime
+    provides:
+      - OCI image execution
+      - health, readiness, and metrics endpoints
+      - service rollout and rollback by immutable image tag
+    consumes_contract:
+      - workload kind
+      - workload image repository
+      - service port
+      - config and secret names
+    implementation:
+      - infra/app/compute_ecs.tf
+      - infra/app/workload_inventory.tf
+      - platform/workload.Dockerfile
+    adoption_steps:
+      - declare the workload in platform/workloads.json
+      - add runtime realization in infra/app/workload_inventory.tf
+      - keep application behavior out of Terraform modules
+
+  - id: ecs-operator-job
+    type: job-runtime
+    provides:
+      - one-off ECS run-task execution
+      - explicit task role ownership
+      - operator-visible logs and exit status
+    consumes_contract:
+      - job operational class
+      - idempotency statement
+      - config and secret names
+    implementation:
+      - infra/app/workload_jobs.tf
+      - .github/workflows/data-backfill.yml
+    adoption_steps:
+      - declare an operator-job workload
+      - wire only runtime sizing and IAM capabilities in infra/app
+      - keep job-specific data semantics in the app or data workflow
+
+  - id: eventbridge-scheduled-job
+    type: scheduled-job-runtime
+    provides:
+      - recurring ECS run-task execution
+      - scheduler target error alarm
+      - release evidence through support deployment workflow
+    consumes_contract:
+      - scheduled-job operational class
+      - idempotency statement
+      - schedule expression from runtime-owned variables
+    implementation:
+      - infra/app/workload_jobs.tf
+      - .github/workflows/data-support-deploy.yml
+    adoption_steps:
+      - reuse the explicit scheduled-job maps for the first workload
+      - extract repeated schedule, sizing, IAM, and alarm fields only after a second real scheduled workload exists
+      - avoid adding a generic scheduler abstraction before repetition exists
+
+  - id: postgres-database-url
+    type: managed-dependency
+    provides:
+      - PostgreSQL-compatible connectivity
+      - DATABASE_URL and DB_* configuration shape
+      - runtime secret injection
+    consumes_contract:
+      - declared config names
+      - declared secret names
+      - PostgreSQL-compatible application adapter
+    implementation:
+      - infra/app/database.tf
+      - packages/infrastructure/config.py
+    adoption_steps:
+      - keep application code on PostgreSQL-compatible URLs
+      - realize provider-specific database plumbing at the runtime edge
+      - do not leak provider SDKs into domain or application packages
+
+  - id: object-artifact-sink
+    type: storage-runtime
+    provides:
+      - runtime-owned object storage
+      - least-privilege write access
+      - operator-discoverable artifact location
+    consumes_contract:
+      - declared config names
+      - job success evidence
+      - runtime IAM capability
+    implementation:
+      - infra/app/object_storage.tf
+      - infra/app/workload_jobs.tf
+    adoption_steps:
+      - keep artifact naming in workload code or data workflow
+      - keep bucket, IAM, and retention wiring in runtime infrastructure
+      - avoid hard-coding provider resource names in app packages

@@ -19,6 +19,11 @@ Local-only examples:
 
 - `examples/open_dataset_pipeline`
 
+Examples are still platform consumers. Each example should declare which
+workload pattern, local runtime target, and catalog entries it uses so local
+experiments exercise the toolkit without polluting deployable workload
+contracts.
+
 ## Preferred Setup
 
 Prefer the dev container. Native host setup is fine with Docker Desktop,

@@ -252,8 +252,8 @@ def test_security_and_semgrep_workflows_own_repo_hygiene_gates() -> None:
         == semgrep_job["container"]["image"]
     )
     assert "Run Semgrep Community Edition" in step_names(semgrep_job)
-    assert "semgrep scan --config auto apps/ packages/ scripts/" in step_run_text(
-        semgrep_job
+    assert "semgrep scan --config auto apps/ examples/ packages/ scripts/" in (
+        step_run_text(semgrep_job)
     )
 
 

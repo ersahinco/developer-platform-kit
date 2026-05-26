@@ -1,0 +1,80 @@
+schema_version: "1"
+runtime_target: local-compose
+owner: platform-toolkit
+description: >
+  Reusable local runtime building blocks for developing and testing workload
+  patterns with the same platform contract vocabulary used by reviewed runtime
+  targets.
+entries:
+  - id: local-container-service
+    type: service-runtime
+    provides:
+      - local OCI image execution
+      - health, readiness, and metrics endpoint checks
+      - fast inner-loop compose startup
+    consumes_contract:
+      - workload kind
+      - workload image repository
+      - service port
+      - config names
+    implementation:
+      - compose.yaml
+      - platform/runtime-conformance.json
+      - platform/workload.Dockerfile
+    adoption_steps:
+      - add a compose service using the same image and config names as the workload contract
+      - keep local overrides in compose or env files
+      - keep business behavior in apps or packages
+
+  - id: local-container-job
+    type: job-runtime
+    provides:
+      - local one-off container execution
+      - meaningful process exit status
+      - structured start, success, and failure output
+    consumes_contract:
+      - job operational class
+      - idempotency statement
+      - config names
+    implementation:
+      - compose.yaml
+      - examples/*/Dockerfile
+    adoption_steps:
+      - define the local command in the example or app host
+      - use compose profiles for optional local workflows
+      - keep runtime-independent job semantics out of platform tooling
+
+  - id: local-postgres-dependency
+    type: managed-dependency
+    provides:
+      - PostgreSQL-compatible local dependency
+      - DATABASE_URL and DB_* configuration shape
+      - PgBouncer-compatible connection path
+    consumes_contract:
+      - declared config names
+      - PostgreSQL-compatible application adapter
+    implementation:
+      - compose.yaml
+      - db/sql/bootstrap.sql
+    adoption_steps:
+      - use DATABASE_URL or DB_* names in app configuration
+      - keep SQL migrations in db/
+      - keep provider-specific database choices at the runtime edge
+
+  - id: local-artifact-output
+    type: storage-runtime
+    provides:
+      - filesystem-backed artifact output
+      - repeatable local inspection
+      - simple manifest evidence
+    consumes_contract:
+      - config names
+      - job success evidence
+      - idempotent output behavior
+    implementation:
+      - compose.yaml
+      - examples/*/sample_data
+    adoption_steps:
+      - write artifacts under a configurable local output directory
+      - emit a manifest or structured success event
+      - keep dataset-specific naming in the consuming example or workload
