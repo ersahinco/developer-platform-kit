@@ -95,6 +95,7 @@ Add the workload to `platform/workloads.json` with:
 - `kind`
 - `patterns`
 - `use_cases`
+- `owner`
 - `app_path`
 - `runtime.supported`
 - `runtime.admitted`
@@ -142,6 +143,18 @@ a real workload host with a contract, tests, local proof, and owner, keep it in
 `runtime.admitted` only after reviewed infra realization and delivery ownership
 exist.
 
+## Promote Local To AWS
+
+Use this order when promoting a local-first workload to `aws-ecs`:
+
+1. Keep `runtime.supported` on `local-compose` while the workload is still proving its contract locally.
+2. Declare a portable `owner` in `platform/workloads.json`.
+3. Add the AWS runtime realization in `infra/app/` and only the needed catalog/runtime wiring.
+4. Confirm the workload is picked up by build, catalog, contract, and runtime-conformance checks.
+5. Add `aws-ecs` to `runtime.admitted` only after the reviewed delivery path and runtime owner exist.
+
+Rule: local proof comes first, cloud admission comes second.
+
 ## Wire Only Needed Concerns
 
 - `platform/concerns/dapr/`
@@ -182,6 +195,7 @@ Add narrower tests when possible:
 ## Done Checklist
 
 - operational class is explicit in `platform/workloads.json`
+- workload owner is explicit in `platform/workloads.json`
 - runtime support and admission are explicit in `platform/workloads.json`
 - host stayed thin
 - provider details stayed at the platform edge

@@ -804,6 +804,7 @@ def _render_job_test(module_name: str, database_pooling: str | None) -> str:
 
 def _catalog_component_content(
     workload_name: str,
+    owner: str,
     kind: str,
     description: str,
     use_cases: list[str],
@@ -824,7 +825,7 @@ def _catalog_component_content(
             "spec:",
             f"  type: {component_type}",
             "  lifecycle: experimental",
-            "  owner: group:default/platform-engineering",
+            f"  owner: group:default/{owner}",
             "  system: aws-sdlc-containers",
             "  dependsOn:",
             "",
@@ -1009,6 +1010,7 @@ def _build_workload_entry(
     kind: str,
     patterns: list[str],
     use_cases: list[str],
+    owner: str,
     supported_runtime_targets: list[str],
     admitted_runtime_targets: list[str],
     service_port: int | None,
@@ -1023,6 +1025,7 @@ def _build_workload_entry(
         "kind": kind,
         "patterns": patterns,
         "use_cases": use_cases,
+        "owner": owner,
         "app_path": f"apps/{name}",
         "runtime": {
             "supported": supported_runtime_targets,
@@ -1196,6 +1199,7 @@ def build_plan(args: argparse.Namespace) -> WorkloadScaffoldPlan:
         kind=kind,
         patterns=patterns,
         use_cases=use_cases,
+        owner=str(args.owner),
         supported_runtime_targets=supported_runtime_targets,
         admitted_runtime_targets=admitted_runtime_targets,
         service_port=args.service_port,
@@ -1269,6 +1273,7 @@ def build_plan(args: argparse.Namespace) -> WorkloadScaffoldPlan:
             mode="create",
             content=_catalog_component_content(
                 name,
+                str(args.owner),
                 kind,
                 args.description or _description(name, patterns),
                 use_cases,
@@ -1367,6 +1372,7 @@ def parse_args(argv: list[str]) -> argparse.Namespace:
     parser.add_argument("--name", required=True)
     parser.add_argument("--pattern", action="append", required=True)
     parser.add_argument("--use-case", action="append", required=True)
+    parser.add_argument("--owner", default="platform-engineering")
     parser.add_argument("--service-port", type=int)
     parser.add_argument(
         "--supported-runtime",

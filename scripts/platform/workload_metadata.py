@@ -43,6 +43,16 @@ def workload_repository(workload: dict[str, Any]) -> str:
     return image["repository"] if isinstance(image, dict) else ""
 
 
+def workload_owner(workload: dict[str, Any]) -> str:
+    owner = workload.get("owner")
+    return owner if isinstance(owner, str) else ""
+
+
+def workload_backstage_owner_ref(workload: dict[str, Any]) -> str:
+    owner = workload_owner(workload)
+    return f"group:default/{owner}" if owner else ""
+
+
 def workload_image_dockerfile(workload: dict[str, Any]) -> str:
     image = workload.get("image", {})
     if not isinstance(image, dict):
@@ -226,6 +236,7 @@ def workload_capability_rows() -> list[dict[str, str]]:
             {
                 "name": str(workload.get("name", "")),
                 "kind": str(workload.get("kind", "")),
+                "owner": workload_owner(workload),
                 "class": workload_operational_class(workload),
                 "patterns": ",".join(workload_patterns(workload)),
                 "use_cases": ",".join(workload_use_cases(workload)),
@@ -433,6 +444,7 @@ def _print_capability_matrix() -> int:
     headers = [
         "name",
         "kind",
+        "owner",
         "class",
         "patterns",
         "use_cases",
@@ -459,6 +471,7 @@ def _print_use_case_matrix() -> int:
     headers = [
         "name",
         "kind",
+        "owner",
         "class",
         "use_cases",
         "runtime_supported",

@@ -45,6 +45,7 @@ def test_build_plan_infers_internal_async_defaults() -> None:
 
     assert plan.kind == "service"
     assert plan.operational_class == "internal-service"
+    assert plan.workload_entry["owner"] == "platform-engineering"
     assert plan.workload_entry["runtime"] == {
         "supported": ["local-compose"],
         "admitted": [],
@@ -96,6 +97,7 @@ def test_apply_scaffolds_edge_service_and_updates_repo_files(tmp_path: Path) -> 
     )
 
     assert inventory_dashboard["patterns"] == ["edge-service"]
+    assert inventory_dashboard["owner"] == "platform-engineering"
     assert inventory_dashboard["runtime"] == {
         "supported": ["local-compose"],
         "admitted": [],
@@ -129,6 +131,7 @@ def test_apply_scaffolds_edge_service_and_updates_repo_files(tmp_path: Path) -> 
     component_text = (
         tmp_path / "catalog" / "inventory-dashboard-component.yaml"
     ).read_text(encoding="utf-8")
+    assert "owner: group:default/platform-engineering" in component_text
     assert "resource:default/runtime-target-local-compose" in component_text
     assert "resource:default/runtime-target-aws-ecs" not in component_text
 
@@ -164,6 +167,7 @@ def test_apply_can_opt_in_aws_runtime_admission(tmp_path: Path) -> None:
         for workload in workload_contract["workloads"]
         if workload["name"] == "billing_api"
     )
+    assert billing_api["owner"] == "platform-engineering"
     assert billing_api["runtime"] == {
         "supported": ["local-compose", "aws-ecs"],
         "admitted": ["aws-ecs"],
@@ -172,6 +176,7 @@ def test_apply_can_opt_in_aws_runtime_admission(tmp_path: Path) -> None:
     component_text = (tmp_path / "catalog" / "billing-api-component.yaml").read_text(
         encoding="utf-8"
     )
+    assert "owner: group:default/platform-engineering" in component_text
     assert "resource:default/runtime-target-local-compose" in component_text
     assert "resource:default/runtime-target-aws-ecs" in component_text
 

@@ -11,7 +11,9 @@
 Use `infra/catalog/<runtime-target>/` for catalog growth. The current catalog
 surface is `infra/catalog/aws/`. `infra/catalog/managed-kubernetes/` is
 reserved for future managed-Kubernetes reusable modules when a real workload
-needs them.
+needs them. `infra/catalog/managed-service-provider/` is reserved for reusable
+provider-edge building blocks such as managed Postgres or DNS integrations when
+cost or hybrid design requires them.
 
 Companion docs:
 

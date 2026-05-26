@@ -1,0 +1,45 @@
+schema_version: "1"
+runtime_target: managed-service-provider
+owner: provider-runtime
+description: >
+  Reusable provider-edge building blocks for hybrid managed services that
+  preserve the workload contract while shifting selected runtime capabilities
+  such as PostgreSQL or DNS to an external provider.
+entries:
+  - id: managed-postgres-connection
+    type: managed-dependency
+    provides:
+      - PostgreSQL-compatible connection surface
+      - DATABASE_URL and DB_* configuration continuity
+      - workload portability across local, AWS, and hybrid provider edges
+    consumes_contract:
+      - declared workload config and secret names
+      - PostgreSQL-compatible application adapter
+      - reviewed workload owner and runtime admission decision
+    implementation:
+      - platform/workloads.json
+      - packages/infrastructure/db/
+      - infra/catalog/managed-service-provider/README.md
+    adoption_steps:
+      - prove the workload locally first
+      - keep provider connection details at the runtime edge
+      - admit the provider edge only when cost or hybrid design requires it
+
+  - id: managed-dns-zone-delegation
+    type: networking-runtime
+    provides:
+      - runtime-owned DNS delegation boundary
+      - portable hostname label continuity for edge workloads
+      - hybrid public-edge routing options outside the current AWS root
+    consumes_contract:
+      - edge workload hostname label
+      - reviewed runtime owner and delivery path
+      - provider-edge operational ownership
+    implementation:
+      - platform/workloads.json
+      - infra/catalog/managed-service-provider/README.md
+      - docs/runtime-toolkit.md
+    adoption_steps:
+      - keep edge hostname intent in the workload contract
+      - realize provider DNS delegation at the runtime edge
+      - avoid hard-coding provider zone identifiers in app code

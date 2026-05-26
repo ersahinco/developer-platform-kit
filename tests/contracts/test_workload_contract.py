@@ -17,6 +17,10 @@ def _runtime_conformance() -> dict[str, Any]:
     return load_json("platform/runtime-conformance.json")
 
 
+def _declared_owner(workload: dict[str, Any]) -> str:
+    return str(workload["owner"])
+
+
 def _runtime_supported(workload: dict[str, Any]) -> set[str]:
     return set(workload["runtime"]["supported"])
 
@@ -147,6 +151,15 @@ def test_workload_runtime_support_and_admission_are_explicit() -> None:
 
         assert supported
         assert admitted.issubset(supported)
+
+
+def test_workloads_declare_portable_owner() -> None:
+    contract = load_json("platform/workloads.json")
+
+    for workload in contract["workloads"]:
+        owner = _declared_owner(workload)
+        assert owner
+        assert re.fullmatch(r"[a-z0-9]+(?:-[a-z0-9]+)*", owner)
 
 
 def test_compose_workload_env_names_stay_within_declared_contract() -> None:
