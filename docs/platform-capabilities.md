@@ -78,7 +78,7 @@ record it here or in runtime-facing docs.
 Workload placement rule:
 
 - put real workload hosts in `apps/`, even when they are local-only
-- keep `examples/` for teaching and reference-only samples
+- keep `examples/` for teaching, demo, and reference-only samples
 - require a declared workload owner before cloud runtime admission
 - admit a workload to `aws-ecs` only after reviewed runtime realization and delivery ownership exist
 
