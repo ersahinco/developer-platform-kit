@@ -58,6 +58,9 @@ def test_catalog_growth_rule_uses_runtime_target_subdirectories() -> None:
     managed_k8s_catalog = (
         ROOT / "infra" / "catalog" / "managed-kubernetes" / "README.md"
     )
+    managed_service_provider_catalog = (
+        ROOT / "infra" / "catalog" / "managed-service-provider" / "README.md"
+    )
 
     assert "infra/catalog/<runtime-target>/" in infra_readme
     assert (
@@ -67,6 +70,7 @@ def test_catalog_growth_rule_uses_runtime_target_subdirectories() -> None:
     assert "Future runtime targets should" in aws_catalog
     assert "`infra/catalog/<runtime-target>/`" in aws_catalog
     assert managed_k8s_catalog.is_file()
+    assert managed_service_provider_catalog.is_file()
 
 
 def test_docs_do_not_forbid_additional_runtime_targets_in_principle() -> None:
@@ -107,4 +111,20 @@ def test_docs_define_contract_admission_rule() -> None:
     assert (
         "admit a capability only when it has contract shape, local proof, runtime realization, delivery path, and owner"
         in platform_capabilities
+    )
+
+
+def test_docs_define_local_to_aws_admission_order() -> None:
+    adding_workloads = _read("docs/adding-workloads.md")
+    deployment = _read("docs/deployment.md")
+    platform_contract = _read("docs/platform-contract.md")
+
+    assert "## Promote Local To AWS" in adding_workloads
+    assert "Rule: local proof comes first, cloud admission comes second." in (
+        adding_workloads
+    )
+    assert "## Admitting A Local Workload To AWS" in deployment
+    assert (
+        "Declare a portable workload owner before adding cloud runtime admission"
+        in (platform_contract)
     )

@@ -26,6 +26,7 @@ declared workloads still satisfy the contract.
 
 - workload identity and kind
 - target-neutral workload use cases for discovery and templates
+- workload owner
 - host location under `apps/`
 - supported runtime targets and admitted runtime targets
 - operational class
@@ -80,6 +81,7 @@ Each workload declares runtime support explicitly:
 
 - `runtime.supported`: runtime targets the workload host can run on today
 - `runtime.admitted`: runtime targets with reviewed realization and delivery ownership
+- `owner`: the team that owns workload operation and runtime admission decisions
 
 Support and admission are intentionally different. A workload may be a real
 contract-governed app host under `apps/` with only `local-compose` support.
@@ -138,6 +140,7 @@ Kubernetes manifests, or manual operator flow stay at the platform edge.
 
 - Add `apps/<name>/main.py`, `config.py`, and `pyproject.toml`
 - Add the workload to `platform/workloads.json` before runtime-target-specific infrastructure
+- Declare a portable workload owner before adding cloud runtime admission
 - Reuse the shared workload Dockerfile unless there is a real reason not to
 - Services expose `/health`, `/ready`, and `/metrics`
 - Jobs emit structured success and progress events and document idempotency

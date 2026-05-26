@@ -105,6 +105,20 @@ The intended data path stays explicit:
 Because schema and backfill are no longer side effects of `app-deploy.yml`,
 app rollback stays image-based.
 
+## Admitting A Local Workload To AWS
+
+Use this checklist before changing a workload from local-first support to
+`runtime.admitted: ["aws-ecs"]`:
+
+1. The workload already passes local proof through tests and `make runtime-conformance`.
+2. `platform/workloads.json` declares the workload `owner`, config names, and AWS admission intent explicitly.
+3. `infra/app/` realizes only the needed ECS, database, messaging, storage, DNS, or scheduler surfaces.
+4. The app lifecycle stays build once, promote immutable image, verify, and roll back by image.
+5. Infra lifecycle stays reviewed plan then reviewed apply; no app deploy step repairs infra shape.
+6. Data lifecycle stays explicit: expand, dual-write, backfill, switch, contract.
+
+Rule: do not admit a workload to AWS just because it exists under `apps/`.
+
 ## Review Loop
 
 Use the same loop for deploys, applies, and drills:

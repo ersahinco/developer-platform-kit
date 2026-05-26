@@ -31,6 +31,7 @@ def test_workload_metadata_capability_matrix_reports_declared_workloads() -> Non
         workload["name"] for workload in contract["workloads"]
     ]
     assert rows[0]["class"] == "edge-service"
+    assert rows[0]["owner"] == "platform-engineering"
     assert rows[0]["patterns"] == "edge-service"
     assert rows[0]["use_cases"] == "http-api"
     assert rows[0]["runtime_supported"] == "local-compose,aws-ecs"
@@ -56,6 +57,7 @@ def test_workload_metadata_capability_matrix_reports_declared_workloads() -> Non
 
     data_export_job = next(row for row in rows if row["name"] == "data_export_job")
     assert data_export_job["kind"] == "job"
+    assert data_export_job["owner"] == "platform-engineering"
     assert data_export_job["patterns"] == "scheduled-job,export-job"
     assert data_export_job["use_cases"] == "data-export,scheduled-pipeline"
     assert data_export_job["runtime_supported"] == "local-compose,aws-ecs"
@@ -173,6 +175,7 @@ def test_workload_metadata_use_case_matrix_reports_declared_workload_intent() ->
         workload["name"] for workload in contract["workloads"]
     ]
     assert rows[0]["use_cases"] == "http-api"
+    assert rows[0]["owner"] == "platform-engineering"
     assert rows[0]["runtime_supported"] == "local-compose,aws-ecs"
     assert rows[0]["runtime_admitted"] == "aws-ecs"
 
@@ -246,6 +249,7 @@ def test_workload_metadata_inventory_json_reports_stable_center_and_seams() -> N
         workload["name"] for workload in contract["workloads"]
     ]
     assert inventory["workloads"][0]["use_cases"] == "http-api"
+    assert inventory["workloads"][0]["owner"] == "platform-engineering"
     assert inventory["workloads"][0]["patterns"] == "edge-service"
     assert inventory["workloads"][0]["runtime_supported"] == "local-compose,aws-ecs"
     assert any(

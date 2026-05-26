@@ -63,6 +63,19 @@ def _load_workload_use_cases() -> dict[str, list[str]]:
     }
 
 
+def _load_workload_owners() -> dict[str, str]:
+    workloads = json.loads((ROOT / "platform" / "workloads.json").read_text())[
+        "workloads"
+    ]
+    return {
+        workload["name"]: workload["owner"]
+        for workload in workloads
+        if isinstance(workload, dict)
+        and isinstance(workload.get("name"), str)
+        and isinstance(workload.get("owner"), str)
+    }
+
+
 def _load_workload_runtime_dependencies() -> dict[str, list[str]]:
     workloads = json.loads((ROOT / "platform" / "workloads.json").read_text())[
         "workloads"
@@ -144,6 +157,7 @@ def test_catalog_info_workload_components_match_workload_contract() -> None:
 
     workload_names = _load_workload_names()
     workload_kinds = _load_workload_kinds()
+    workload_owners = _load_workload_owners()
     workload_use_cases = _load_workload_use_cases()
     workload_runtime_dependencies = _load_workload_runtime_dependencies()
 
@@ -156,7 +170,7 @@ def test_catalog_info_workload_components_match_workload_contract() -> None:
             "service" if workload_kinds[workload_name] == "service" else "job"
         )
 
-        assert spec["owner"] == "group:default/platform-engineering"
+        assert spec["owner"] == f"group:default/{workload_owners[workload_name]}"
         assert spec["system"] == "aws-sdlc-containers"
         assert spec["type"] == expected_type
         assert spec["lifecycle"] == "experimental"

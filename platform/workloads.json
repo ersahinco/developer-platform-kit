@@ -1,11 +1,12 @@
 {
-  "schema_version": "6",
+  "schema_version": "7",
   "workloads": [
     {
       "name": "api",
       "kind": "service",
       "patterns": ["edge-service"],
       "use_cases": ["http-api"],
+      "owner": "platform-engineering",
       "app_path": "apps/api",
       "runtime": {
         "supported": ["local-compose", "aws-ecs"],
@@ -70,6 +71,7 @@
       "kind": "service",
       "patterns": ["internal-async-service"],
       "use_cases": ["event-consumer", "integration"],
+      "owner": "platform-engineering",
       "app_path": "apps/event_consumer",
       "runtime": {
         "supported": ["local-compose", "aws-ecs"],
@@ -133,6 +135,7 @@
       "kind": "job",
       "patterns": ["operator-job"],
       "use_cases": ["data-maintenance", "operator-task"],
+      "owner": "platform-engineering",
       "app_path": "apps/backfill_worker",
       "runtime": {
         "supported": ["local-compose", "aws-ecs"],
@@ -176,6 +179,7 @@
       "kind": "job",
       "patterns": ["scheduled-job", "export-job"],
       "use_cases": ["data-export", "scheduled-pipeline"],
+      "owner": "platform-engineering",
       "app_path": "apps/data_export_job",
       "runtime": {
         "supported": ["local-compose", "aws-ecs"],
@@ -220,6 +224,7 @@
       "kind": "job",
       "patterns": ["operator-job"],
       "use_cases": ["dataset-ingest", "local-analytics"],
+      "owner": "platform-engineering",
       "app_path": "apps/open_dataset_pipeline",
       "runtime": {
         "supported": ["local-compose"],

@@ -14,7 +14,8 @@ defines workload intent. `workload-patterns.json` standardizes reusable
 workload shapes. `concerns/` defines reusable shared capabilities. `infra/`,
 workflows, and scripts define runtime-target realization, delivery
 choreography, and provider wiring. Do not turn `workloads.json` into a
-deployment DSL.
+deployment DSL. Keep workload owner, supported runtimes, and admitted runtimes
+explicit in the contract.
 
 Examples should consume the platform contract and catalog instead of bypassing
 them, but real workloads still belong in `apps/` even when they support only

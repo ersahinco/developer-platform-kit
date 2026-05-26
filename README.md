@@ -20,6 +20,7 @@ so a portal or software catalog can ingest the monorepo without custom glue.
 - Platform center: workload contract plus reusable catalog and concern definitions
 - Workload contract: `platform/workloads.json`; local/CI proof in `platform/runtime-conformance.json`
 - Boundaries: thin `apps/*` hosts, reusable `packages/*`, pluggable runtime targets realized at the edge in `infra/*`, workflows, and Compose
+- Ownership: each workload declares a portable owner before cloud runtime admission
 - Delivery: build before deploy, plan before apply, immutable image tags, release evidence
 - Operations: observability baseline, runbooks, contract and architecture tests
 
