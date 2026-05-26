@@ -5,6 +5,7 @@ on:
     paths:
       - ".github/workflows/semgrep.yml"
       - "apps/**"
+      - "examples/**"
       - "packages/**"
       - "scripts/**"
       - "tests/**"
@@ -15,6 +16,7 @@ on:
     paths:
       - ".github/workflows/semgrep.yml"
       - "apps/**"
+      - "examples/**"
       - "packages/**"
       - "scripts/**"
       - "tests/**"
@@ -38,4 +40,4 @@ jobs:
           persist-credentials: false
 
       - name: Run Semgrep Community Edition
-        run: semgrep scan --config auto apps/ packages/ scripts/
+        run: semgrep scan --config auto apps/ examples/ packages/ scripts/
