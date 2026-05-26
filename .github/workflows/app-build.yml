@@ -11,7 +11,6 @@ on:
     paths:
       - ".github/workflows/app-build.yml"
       - "apps/**"
-      - "examples/**"
       - "compose.yaml"
       - "platform/**"
       - "packages/**"
@@ -25,7 +24,6 @@ on:
     paths:
       - ".github/workflows/app-build.yml"
       - "apps/**"
-      - "examples/**"
       - "compose.yaml"
       - "platform/**"
       - "packages/**"
@@ -103,8 +101,8 @@ jobs:
 
       - name: Run Python static checks
         run: |
-          uv run ruff format --check apps/ examples/ packages/ tests/ scripts/
-          uv run ruff check apps/ examples/ packages/ tests/ scripts/
+          uv run ruff format --check apps/ packages/ tests/ scripts/
+          uv run ruff check apps/ packages/ tests/ scripts/
           uv run pyright
 
       - name: Check shell script syntax
