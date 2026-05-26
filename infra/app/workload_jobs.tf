@@ -61,10 +61,6 @@ locals {
     data_export_job = var.data_export_schedule_expression
   }
 
-  scheduled_job_runbook_paths = {
-    data_export_job = "docs/runbooks/data-export-job-failure.md"
-  }
-
   scheduled_job_target_error_alarm_description = "EventBridge Scheduler target delivery failed for a scheduled support workload in the default schedule group."
 
   scheduled_job_target_error_alarm_name = "${local.name}-scheduled-job-scheduler-target-errors"
