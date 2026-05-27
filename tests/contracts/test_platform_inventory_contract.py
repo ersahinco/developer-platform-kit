@@ -93,9 +93,9 @@ def test_aws_runtime_inventory_keeps_app_default_tuning_out_of_platform_defaults
     assert "BACKFILL_BATCH_SIZE" not in workload_inventory_text
     assert "BACKFILL_SLEEP_MS" not in workload_inventory_text
     assert "DATA_EXPORT_OUTPUT_DIR" not in workload_inventory_text
-    assert "EVENT_CONSUMER_WORKER_MODE" not in workload_inventory_text
-    assert "EVENT_CONSUMER_RELAY_BATCH_SIZE" not in workload_inventory_text
-    assert "EVENT_CONSUMER_IDLE_SLEEP_SECONDS" not in workload_inventory_text
+    assert "ASYNC_EVENT_WORKER_MODE" not in workload_inventory_text
+    assert "OUTBOX_RELAY_BATCH_SIZE" not in workload_inventory_text
+    assert "OUTBOX_RELAY_IDLE_SLEEP_SECONDS" not in workload_inventory_text
 
 
 def test_aws_runtime_inventory_uses_generic_dapr_boundary_names() -> None:

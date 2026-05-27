@@ -13,7 +13,7 @@ _TEST_DATABASE_URL = os.environ.get(
     "DATABASE_URL", "postgresql://postgres:postgres@localhost:6432/aws_sdlc_containers"
 )
 os.environ.setdefault("DATABASE_URL", _TEST_DATABASE_URL)
-os.environ.setdefault("DATA_EXPORT_DATABASE_URL", direct_postgres_url(os.environ))
+os.environ["DATABASE_URL"] = direct_postgres_url(os.environ)
 
 
 def _load_data_export_job():
@@ -25,9 +25,7 @@ def _load_data_export_job():
 def test_run_export_happy_path(committed_db_session, tmp_path, monkeypatch):
     settings, run_export = _load_data_export_job()
     monkeypatch.setattr(settings, "data_export_output_dir", str(tmp_path))
-    monkeypatch.setattr(
-        settings, "data_export_database_url", os.environ["DATABASE_URL"]
-    )
+    monkeypatch.setattr(settings, "database_url", os.environ["DATABASE_URL"])
     monkeypatch.setattr(settings, "data_export_s3_bucket", None)
 
     manifest = run_export()
@@ -64,9 +62,7 @@ def test_run_export_empty_table(committed_db_session, tmp_path, monkeypatch):
     try:
         settings, run_export = _load_data_export_job()
         monkeypatch.setattr(settings, "data_export_output_dir", str(tmp_path))
-        monkeypatch.setattr(
-            settings, "data_export_database_url", os.environ["DATABASE_URL"]
-        )
+        monkeypatch.setattr(settings, "database_url", os.environ["DATABASE_URL"])
         monkeypatch.setattr(settings, "data_export_s3_bucket", None)
 
         manifest = run_export()

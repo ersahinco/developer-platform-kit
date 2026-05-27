@@ -26,11 +26,9 @@ def test_postgres_runtime_settings_requires_db_host_when_no_default() -> None:
     with pytest.raises(ValueError) as exc:
         settings.resolve_database_url(
             database_url=None,
-            env_name="BACKFILL_DATABASE_URL",
+            env_name="DATABASE_URL",
         )
-    assert str(exc.value) == (
-        "Either BACKFILL_DATABASE_URL or DB_PASSWORD+DB_HOST must be set"
-    )
+    assert str(exc.value) == ("Either DATABASE_URL or DB_PASSWORD+DB_HOST must be set")
 
 
 def test_postgres_runtime_settings_validates_existing_url() -> None:

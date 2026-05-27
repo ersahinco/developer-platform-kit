@@ -119,13 +119,13 @@
           "DB_NAME",
           "DAPR_HTTP_ENDPOINT",
           "DAPR_HTTP_PORT",
-          "EVENT_CONSUMER_WORKER_MODE",
-          "EVENT_CONSUMER_WORKER_RUN_ONCE",
+          "ASYNC_EVENT_WORKER_MODE",
+          "ASYNC_EVENT_WORKER_RUN_ONCE",
           "DAPR_PUBSUB_NAME",
           "DAPR_TOPIC",
           "DAPR_SUBSCRIPTION_ROUTE",
-          "EVENT_CONSUMER_RELAY_BATCH_SIZE",
-          "EVENT_CONSUMER_IDLE_SLEEP_SECONDS"
+          "OUTBOX_RELAY_BATCH_SIZE",
+          "OUTBOX_RELAY_IDLE_SLEEP_SECONDS"
         ],
         "secrets": ["DB_PASSWORD"]
       }
@@ -159,7 +159,7 @@
       },
       "config": {
         "env": [
-          "BACKFILL_DATABASE_URL",
+          "DATABASE_URL",
           "DB_HOST",
           "DB_PORT",
           "DB_USER",
@@ -203,7 +203,7 @@
       },
       "config": {
         "env": [
-          "DATA_EXPORT_DATABASE_URL",
+          "DATABASE_URL",
           "DB_HOST",
           "DB_PORT",
           "DB_USER",

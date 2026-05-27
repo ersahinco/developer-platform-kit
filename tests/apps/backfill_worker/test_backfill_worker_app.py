@@ -13,8 +13,8 @@ _WORKER_SRC = os.path.join(
 
 def _run_worker(**extra_env):
     env = {**os.environ, **extra_env}
-    if not env.get("BACKFILL_DATABASE_URL"):
-        env["BACKFILL_DATABASE_URL"] = direct_postgres_url(env)
+    if not env.get("DATABASE_URL"):
+        env["DATABASE_URL"] = direct_postgres_url(env)
     return subprocess.run(
         [
             "uv",

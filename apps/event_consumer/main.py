@@ -139,14 +139,14 @@ def relay_forever(
             run_event_relay(
                 outbox=SQLAlchemyOutboxRepository(session),
                 publisher=publisher,
-                limit=settings.event_consumer_relay_batch_size,
+                limit=settings.outbox_relay_batch_size,
                 stop_requested=stop.is_set,
                 wait_for_retry=stop.wait,
-                idle_sleep_seconds=settings.event_consumer_idle_sleep_seconds,
-                run_once=settings.event_consumer_worker_run_once,
+                idle_sleep_seconds=settings.outbox_relay_idle_sleep_seconds,
+                run_once=settings.async_event_worker_run_once,
                 on_result=_log_relay_result,
             )
-        if settings.event_consumer_worker_run_once:
+        if settings.async_event_worker_run_once:
             return
 
 
@@ -156,7 +156,7 @@ async def lifespan(app: FastAPI):
     app.state.SessionLocal = SessionLocal
     app.state.relay_stop = threading.Event()
     app.state.relay_thread = None
-    if settings.event_consumer_worker_mode in ("relay", "both"):
+    if settings.async_event_worker_mode in ("relay", "both"):
         thread = threading.Thread(
             target=relay_forever,
             kwargs={
@@ -235,7 +235,7 @@ def metrics() -> Response:
 
 @app.get("/dapr/subscribe")
 def dapr_subscribe() -> list[dict[str, object]]:
-    if settings.event_consumer_worker_mode not in ("consumer", "both"):
+    if settings.async_event_worker_mode not in ("consumer", "both"):
         return []
     return [
         {

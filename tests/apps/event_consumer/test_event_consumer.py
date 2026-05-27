@@ -50,7 +50,7 @@ class _FailingSession:
 
 
 def _set_lifespan_session(monkeypatch, session: object) -> None:
-    monkeypatch.setattr(settings, "event_consumer_worker_mode", "consumer")
+    monkeypatch.setattr(settings, "async_event_worker_mode", "consumer")
     monkeypatch.setattr(
         consumer_main,
         "_engine_and_session_factory",
@@ -221,9 +221,9 @@ def test_relay_forever_delegates_loop_to_application_layer(monkeypatch):
         captured.update(kwargs)
 
     monkeypatch.setattr(consumer_main, "run_event_relay", fake_run_event_relay)
-    monkeypatch.setattr(settings, "event_consumer_relay_batch_size", 7)
-    monkeypatch.setattr(settings, "event_consumer_idle_sleep_seconds", 1.5)
-    monkeypatch.setattr(settings, "event_consumer_worker_run_once", True)
+    monkeypatch.setattr(settings, "outbox_relay_batch_size", 7)
+    monkeypatch.setattr(settings, "outbox_relay_idle_sleep_seconds", 1.5)
+    monkeypatch.setattr(settings, "async_event_worker_run_once", True)
 
     stop = _Stop()
     publisher = _Publisher()
@@ -370,9 +370,9 @@ def test_metrics_endpoint_exposes_prometheus_text(monkeypatch):
 
 
 def test_dapr_subscribe_declares_order_topic(monkeypatch):
-    monkeypatch.setattr(settings, "event_consumer_worker_mode", "both")
-    monkeypatch.setattr(settings, "event_consumer_pubsub_name", "async-events-pubsub")
-    monkeypatch.setattr(settings, "event_consumer_topic", "async-events-v1.fifo")
+    monkeypatch.setattr(settings, "async_event_worker_mode", "both")
+    monkeypatch.setattr(settings, "dapr_pubsub_name", "async-events-pubsub")
+    monkeypatch.setattr(settings, "dapr_topic", "async-events-v1.fifo")
 
     assert consumer_main.dapr_subscribe() == [
         {

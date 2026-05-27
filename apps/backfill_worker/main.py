@@ -16,7 +16,7 @@ def _print_event(event: dict[str, object] | str) -> None:
 
 def run_backfill() -> None:
     repository = SQLAlchemyOrderContactEmailBackfillRepository(
-        database_url=settings.required_backfill_database_url
+        database_url=settings.required_database_url
     )
     try:
         run_order_contact_email_backfill(

@@ -18,7 +18,7 @@ _EXPORT_SRC = os.path.join(
 
 def _run_export(output_dir: Path, run_id: str, export_date: str):
     env = {**os.environ}
-    env.setdefault("DATA_EXPORT_DATABASE_URL", direct_postgres_url(env))
+    env["DATABASE_URL"] = direct_postgres_url(env)
     env["DATA_EXPORT_OUTPUT_DIR"] = str(output_dir)
     env["DATA_EXPORT_RUN_ID"] = run_id
     env["DATA_EXPORT_DATE"] = export_date
@@ -142,7 +142,7 @@ def test_data_export_is_idempotent_for_the_same_run_id(
 
 def _load_export_module(monkeypatch):
     monkeypatch.setenv(
-        "DATA_EXPORT_DATABASE_URL",
+        "DATABASE_URL",
         "postgresql://postgres:postgres@localhost:5432/aws_sdlc_containers",
     )
     monkeypatch.syspath_prepend(_EXPORT_SRC)
@@ -217,7 +217,7 @@ def test_s3_publish_skips_manifest_when_raw_upload_fails(monkeypatch, tmp_path):
 
 def test_manifest_validation_rejects_raw_checksum_mismatch(monkeypatch, tmp_path):
     monkeypatch.setenv(
-        "DATA_EXPORT_DATABASE_URL",
+        "DATABASE_URL",
         "postgresql://postgres:postgres@localhost:5432/aws_sdlc_containers",
     )
     from application.data_export import (

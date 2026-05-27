@@ -39,7 +39,7 @@ def run_export(s3_client: Any | None = None) -> dict[str, Any]:
     manifest = run_order_contact_email_export(
         request=request,
         reader=SQLAlchemyOrderContactEmailExportReader(
-            database_url=settings.required_data_export_database_url
+            database_url=settings.required_database_url
         ),
         store=LocalDataExportStore(output_dir=settings.data_export_output_dir),
         publisher=publisher,

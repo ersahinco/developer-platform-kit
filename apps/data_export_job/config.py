@@ -12,9 +12,7 @@ load_env_file()
 
 @dataclass
 class Settings(PostgresRuntimeSettings):
-    data_export_database_url: str | None = field(
-        default_factory=lambda: env_str("DATA_EXPORT_DATABASE_URL")
-    )
+    database_url: str | None = field(default_factory=lambda: env_str("DATABASE_URL"))
     data_export_output_dir: str = field(
         default_factory=lambda: require_value(
             env_str("DATA_EXPORT_OUTPUT_DIR", "/tmp/aws-sdlc-containers-data-hub"),
@@ -32,14 +30,14 @@ class Settings(PostgresRuntimeSettings):
     )
 
     def __post_init__(self) -> None:
-        self.data_export_database_url = self.resolve_database_url(
-            database_url=self.data_export_database_url,
-            env_name="DATA_EXPORT_DATABASE_URL",
+        self.database_url = self.resolve_database_url(
+            database_url=self.database_url,
+            env_name="DATABASE_URL",
         )
 
     @property
-    def required_data_export_database_url(self) -> str:
-        return require_value(self.data_export_database_url, "DATA_EXPORT_DATABASE_URL")
+    def required_database_url(self) -> str:
+        return require_value(self.database_url, "DATABASE_URL")
 
 
 settings = Settings()

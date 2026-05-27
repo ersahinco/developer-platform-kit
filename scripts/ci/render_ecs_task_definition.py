@@ -23,8 +23,8 @@ DEFAULT_PRIMARY_EDGE_CPU = "512"
 DEFAULT_PRIMARY_EDGE_MEMORY = "1024"
 DEFAULT_SUPPORT_JOB_CPU = "256"
 DEFAULT_SUPPORT_JOB_MEMORY = "512"
-DEFAULT_EVENT_CONSUMER_CPU = "512"
-DEFAULT_EVENT_CONSUMER_MEMORY = "1024"
+DEFAULT_INTERNAL_ASYNC_SERVICE_CPU = "512"
+DEFAULT_INTERNAL_ASYNC_SERVICE_MEMORY = "1024"
 DEFAULT_LIQUIBASE_CPU = "512"
 DEFAULT_LIQUIBASE_MEMORY = "1024"
 DEFAULT_PGBOUNCER_POOL_SIZE = "20"
@@ -579,7 +579,7 @@ def _render_support_job(
     }
 
 
-def _render_event_consumer(
+def _render_internal_async_service(
     workload: dict[str, Any],
     *,
     stack_name: str,
@@ -627,8 +627,8 @@ def _render_event_consumer(
         "family": f"{stack_name}-{repository}",
         "requiresCompatibilities": ["FARGATE"],
         "networkMode": "awsvpc",
-        "cpu": DEFAULT_EVENT_CONSUMER_CPU,
-        "memory": DEFAULT_EVENT_CONSUMER_MEMORY,
+        "cpu": DEFAULT_INTERNAL_ASYNC_SERVICE_CPU,
+        "memory": DEFAULT_INTERNAL_ASYNC_SERVICE_MEMORY,
         "executionRoleArn": _deterministic_role_arn(
             account_id, f"{stack_name}-task-exec"
         ),
@@ -866,7 +866,7 @@ def render_task_definition(
         )
 
     if isinstance(workload.get("dapr"), dict):
-        return _render_event_consumer(
+        return _render_internal_async_service(
             workload,
             stack_name=stack_name,
             region=region,

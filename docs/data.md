@@ -41,7 +41,7 @@ The contract is PostgreSQL semantics, not Amazon RDS.
 | Area | Contract |
 |---|---|
 | Engine | PostgreSQL-compatible SQL, transactions, constraints, indexes, Liquibase |
-| Connection input | services accept `DATABASE_URL`; jobs accept their own URL |
+| Connection input | workloads accept `DATABASE_URL`; runtimes choose pooled or direct values |
 | Alternate input | runtimes may compose `DB_HOST`, `DB_PORT`, `DB_USER`, `DB_NAME`, `DB_PASSWORD` |
 | Pooling | request-serving services use PgBouncer; Liquibase and jobs connect directly |
 | Migrations | Liquibase owns DDL and migration history |

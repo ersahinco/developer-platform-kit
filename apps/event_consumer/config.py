@@ -18,19 +18,19 @@ class Settings(PostgresRuntimeSettings):
     service_port = 8081
     database_url: str | None = field(default_factory=lambda: env_str("DATABASE_URL"))
     db_host: str | None = field(default_factory=lambda: env_str("DB_HOST", "localhost"))
-    event_consumer_worker_mode: str = field(
+    async_event_worker_mode: str = field(
         default_factory=lambda: require_value(
-            env_str("EVENT_CONSUMER_WORKER_MODE", "both"), "EVENT_CONSUMER_WORKER_MODE"
+            env_str("ASYNC_EVENT_WORKER_MODE", "both"), "ASYNC_EVENT_WORKER_MODE"
         )
     )
-    event_consumer_worker_run_once: bool = field(
-        default_factory=lambda: env_bool("EVENT_CONSUMER_WORKER_RUN_ONCE")
+    async_event_worker_run_once: bool = field(
+        default_factory=lambda: env_bool("ASYNC_EVENT_WORKER_RUN_ONCE")
     )
-    event_consumer_relay_batch_size: int = field(
-        default_factory=lambda: env_int("EVENT_CONSUMER_RELAY_BATCH_SIZE", 10)
+    outbox_relay_batch_size: int = field(
+        default_factory=lambda: env_int("OUTBOX_RELAY_BATCH_SIZE", 10)
     )
-    event_consumer_idle_sleep_seconds: float = field(
-        default_factory=lambda: env_float("EVENT_CONSUMER_IDLE_SLEEP_SECONDS", 1.0)
+    outbox_relay_idle_sleep_seconds: float = field(
+        default_factory=lambda: env_float("OUTBOX_RELAY_IDLE_SLEEP_SECONDS", 1.0)
     )
     dapr_pubsub_name: str = field(
         default_factory=lambda: require_value(
@@ -56,10 +56,8 @@ class Settings(PostgresRuntimeSettings):
     )
 
     def __post_init__(self) -> None:
-        if self.event_consumer_worker_mode not in {"relay", "consumer", "both"}:
-            raise ValueError(
-                "EVENT_CONSUMER_WORKER_MODE must be relay, consumer, or both"
-            )
+        if self.async_event_worker_mode not in {"relay", "consumer", "both"}:
+            raise ValueError("ASYNC_EVENT_WORKER_MODE must be relay, consumer, or both")
         self.database_url = self.resolve_database_url(
             database_url=self.database_url,
             env_name="DATABASE_URL",
