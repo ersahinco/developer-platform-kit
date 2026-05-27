@@ -34,9 +34,6 @@ DEFAULT_RUNTIME_CONFIG_LOADER_IMAGE = "public.ecr.aws/aws-cli/aws-cli:2.32.3"
 DEFAULT_ADOT_COLLECTOR_IMAGE = (
     "public.ecr.aws/aws-observability/aws-otel-collector:v0.47.0"
 )
-DEFAULT_BACKFILL_BATCH_SIZE = "1000"
-DEFAULT_BACKFILL_SLEEP_MS = "100"
-DEFAULT_DATA_EXPORT_OUTPUT_DIR = "/tmp/aws-sdlc-containers-data-hub"
 
 
 def _workloads_by_repository() -> dict[str, dict[str, Any]]:
@@ -323,25 +320,14 @@ def _runtime_values_for_workload(
         )
 
     env_defaults = {
-        "BACKFILL_BATCH_SIZE": os.getenv(
-            "BACKFILL_BATCH_SIZE", DEFAULT_BACKFILL_BATCH_SIZE
-        ),
-        "BACKFILL_SLEEP_MS": os.getenv("BACKFILL_SLEEP_MS", DEFAULT_BACKFILL_SLEEP_MS),
-        "DATA_EXPORT_OUTPUT_DIR": DEFAULT_DATA_EXPORT_OUTPUT_DIR,
         "DATA_EXPORT_S3_BUCKET": data_hub_bucket_name,
     }
-    service = workload.get("service")
     dapr = workload.get("dapr")
-    if isinstance(service, dict):
-        env_defaults["EVENT_CONSUMER_APP_PORT"] = str(service["port"])
     if isinstance(dapr, dict):
         env_defaults.update(
             {
-                "EVENT_CONSUMER_WORKER_MODE": "both",
                 "EVENT_CONSUMER_PUBSUB_NAME": str(dapr["pubsub_name"]),
                 "EVENT_CONSUMER_TOPIC": f"{stack_name}-{dapr['topic']}",
-                "EVENT_CONSUMER_RELAY_BATCH_SIZE": "10",
-                "EVENT_CONSUMER_IDLE_SLEEP_SECONDS": "1",
             }
         )
     values.update(

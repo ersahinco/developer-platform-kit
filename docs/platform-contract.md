@@ -8,8 +8,8 @@ details into app code. Use standard tools directly and keep provider details at
 the platform edge.
 
 `platform/workloads.json` is the machine-readable workload contract.
-`platform/workload-patterns.json` is the machine-readable reusable pattern
-contract for stable-center workload shapes.
+`platform/workload-patterns.json` is the machine-readable list of supported
+workload classification shapes.
 Focused pytest checks plus `make runtime-conformance` are the main proof that
 declared workloads still satisfy the contract.
 
@@ -40,11 +40,12 @@ declared workloads still satisfy the contract.
 `platform/workload-patterns.json` owns:
 
 - reusable workload shape names such as `edge-service`, `internal-async-service`, `scheduled-job`, and `export-job`
-- required stable-center fields for each pattern
-- the portable meaning of those patterns for templates, selectors, and contract tests
+- the kind and operational-class alignment for those shapes
+- a small shared vocabulary for catalog and self-service discovery
 
 It does not own:
 
+- required workload fields; those belong in the workload contract and its policy checks
 - provider and runtime resource names
 - AWS queue, topic, bucket, ALB, ECS, IAM, or RDS details for the current target
 - Dapr component backing implementations for an environment profile
@@ -73,9 +74,9 @@ target-neutral `use_cases`. These help catalog, template, and self-service
 surfaces distinguish workloads like `http-api`, `event-consumer`, `dashboard`,
 or `connector` without encoding runtime details.
 
-Each workload also declares one or more stable-center `patterns`. These drive
-metadata selectors and keep reusable workload shapes explicit instead of hiding
-them in Terraform locals or workflow conditionals.
+Each workload also declares one or more stable-center `patterns`. These support
+classification and discovery while keeping reusable workload shapes explicit
+instead of hiding them in Terraform locals or workflow conditionals.
 
 Each workload declares runtime support explicitly:
 

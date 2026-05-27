@@ -187,12 +187,103 @@ deny contains msg if {
 deny contains msg if {
   data.conftest.file.name == "workloads.json"
   some workload in input.workloads
+  workload.kind == "service"
+  not is_array(workload.metrics.required_names)
+  msg := sprintf("service workload %q must declare metrics.required_names", [workload.name])
+}
+
+deny contains msg if {
+  data.conftest.file.name == "workloads.json"
+  some workload in input.workloads
+  workload.kind == "service"
+  count(workload.metrics.required_names) == 0
+  msg := sprintf("service workload %q must declare at least one metrics.required_names entry", [workload.name])
+}
+
+deny contains msg if {
+  data.conftest.file.name == "workloads.json"
+  some workload in input.workloads
+  workload.operational.class == "edge-service"
+  not workload.edge.hostname_label
+  msg := sprintf("edge-service workload %q must declare edge.hostname_label", [workload.name])
+}
+
+deny contains msg if {
+  data.conftest.file.name == "workloads.json"
+  some workload in input.workloads
+  workload.operational.class == "edge-service"
+  not workload.edge.hostname_label_convention
+  msg := sprintf("edge-service workload %q must declare edge.hostname_label_convention", [workload.name])
+}
+
+deny contains msg if {
+  data.conftest.file.name == "workloads.json"
+  some workload in input.workloads
+  workload.operational.class == "edge-service"
+  not workload.edge.auth_mode
+  msg := sprintf("edge-service workload %q must declare edge.auth_mode", [workload.name])
+}
+
+deny contains msg if {
+  data.conftest.file.name == "workloads.json"
+  some workload in input.workloads
+  workload.operational.class == "edge-service"
+  not workload.verification.profile
+  msg := sprintf("edge-service workload %q must declare verification.profile", [workload.name])
+}
+
+deny contains msg if {
+  data.conftest.file.name == "workloads.json"
+  some workload in input.workloads
+  workload.operational.class == "internal-service"
+  is_object(workload.dapr)
+  not workload.dapr.app_id
+  msg := sprintf("internal-service workload %q with Dapr must declare dapr.app_id", [workload.name])
+}
+
+deny contains msg if {
+  data.conftest.file.name == "workloads.json"
+  some workload in input.workloads
+  workload.operational.class == "internal-service"
+  is_object(workload.dapr)
+  not workload.dapr.pubsub_name
+  msg := sprintf("internal-service workload %q with Dapr must declare dapr.pubsub_name", [workload.name])
+}
+
+deny contains msg if {
+  data.conftest.file.name == "workloads.json"
+  some workload in input.workloads
+  workload.operational.class == "internal-service"
+  is_object(workload.dapr)
+  not workload.dapr.topic
+  msg := sprintf("internal-service workload %q with Dapr must declare dapr.topic", [workload.name])
+}
+
+deny contains msg if {
+  data.conftest.file.name == "workloads.json"
+  some workload in input.workloads
   workload.kind == "job"
   not workload.operational.class in {"operator-job", "scheduled-job"}
   msg := sprintf(
     "job workload %q operational.class must be operator-job or scheduled-job",
     [workload.name],
   )
+}
+
+deny contains msg if {
+  data.conftest.file.name == "workloads.json"
+  some workload in input.workloads
+  workload.kind == "job"
+  not workload.job.idempotency
+  msg := sprintf("job workload %q must declare job.idempotency", [workload.name])
+}
+
+deny contains msg if {
+  data.conftest.file.name == "workloads.json"
+  some workload in input.workloads
+  workload.kind == "job"
+  not workload.operational.trigger
+  msg := sprintf("job workload %q must declare operational.trigger", [workload.name])
 }
 
 deny contains msg if {

@@ -5,57 +5,31 @@
       "name": "edge-service",
       "kind": "service",
       "operational_class": "edge-service",
-      "description": "Public HTTP workload with explicit edge auth, hostname, health/readiness/metrics endpoints, and post-deploy verification.",
-      "required_fields": [
-        "service.port",
-        "edge.hostname_label",
-        "edge.hostname_label_convention",
-        "edge.auth_mode",
-        "metrics.required_names",
-        "verification.profile"
-      ]
+      "description": "Public HTTP workload with explicit edge ownership and runtime verification."
     },
     {
       "name": "internal-async-service",
       "kind": "service",
       "operational_class": "internal-service",
-      "description": "Long-running internal service that owns async-eventing ingress or relay behavior through the Dapr application boundary.",
-      "required_fields": [
-        "service.port",
-        "dapr.app_id",
-        "dapr.pubsub_name",
-        "dapr.topic",
-        "metrics.required_names"
-      ]
+      "description": "Long-running internal service that owns async-eventing ingress or relay behavior through the Dapr application boundary."
     },
     {
       "name": "operator-job",
       "kind": "job",
       "operational_class": "operator-job",
-      "description": "Manual or CI-triggered one-off task with explicit idempotency and bounded runtime semantics.",
-      "required_fields": [
-        "job.idempotency",
-        "operational.trigger"
-      ]
+      "description": "Manual or CI-triggered one-off task with explicit idempotency and bounded runtime semantics."
     },
     {
       "name": "scheduled-job",
       "kind": "job",
       "operational_class": "scheduled-job",
-      "description": "Recurring task launched by a scheduler and validated through runtime conformance and delivery evidence.",
-      "required_fields": [
-        "job.idempotency",
-        "operational.trigger"
-      ]
+      "description": "Recurring task launched by a scheduler and validated through runtime conformance and delivery evidence."
     },
     {
       "name": "export-job",
       "kind": "job",
       "operational_class": "scheduled-job",
-      "description": "Scheduled export job that emits platform-visible success evidence and writes dataset artifacts to a runtime-owned sink.",
-      "required_fields": [
-        "job.idempotency"
-      ]
+      "description": "Scheduled export job that emits platform-visible success evidence and writes dataset artifacts to a runtime-owned sink."
     }
   ]
 }

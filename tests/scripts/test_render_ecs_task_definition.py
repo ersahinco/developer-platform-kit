@@ -121,15 +121,11 @@ def test_render_event_consumer_task_definition_includes_repo_owned_async_runtime
         {"name": "DB_NAME", "value": "aws_sdlc_containers"},
         {"name": "DAPR_HTTP_ENDPOINT", "value": "http://localhost:3500"},
         {"name": "DAPR_HTTP_PORT", "value": "3500"},
-        {"name": "EVENT_CONSUMER_APP_PORT", "value": "8081"},
-        {"name": "EVENT_CONSUMER_WORKER_MODE", "value": "both"},
         {"name": "EVENT_CONSUMER_PUBSUB_NAME", "value": "async-events-pubsub"},
         {
             "name": "EVENT_CONSUMER_TOPIC",
             "value": "aws-sdlc-containers-async-events-v1.fifo",
         },
-        {"name": "EVENT_CONSUMER_RELAY_BATCH_SIZE", "value": "10"},
-        {"name": "EVENT_CONSUMER_IDLE_SLEEP_SECONDS", "value": "1"},
     ]
 
 
@@ -253,3 +249,7 @@ def test_backfill_renderer_uses_repository_scoped_support_job_role(
         task_definition["taskRoleArn"]
         == "arn:aws:iam::123:role/aws-sdlc-containers-backfill-worker"
     )
+    container = task_definition["containerDefinitions"][0]
+    env_names = {entry["name"] for entry in container["environment"]}
+    assert "BACKFILL_BATCH_SIZE" not in env_names
+    assert "BACKFILL_SLEEP_MS" not in env_names

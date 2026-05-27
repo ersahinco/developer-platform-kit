@@ -83,3 +83,16 @@ def test_aws_runtime_inventory_filters_out_non_admitted_workloads() -> None:
     ]
     for workload_name in non_admitted_workloads:
         assert f'"{workload_name}"' not in workload_inventory_text
+
+
+def test_aws_runtime_inventory_keeps_app_default_tuning_out_of_platform_defaults() -> (
+    None
+):
+    workload_inventory_text = read_text("infra/app/workload_inventory.tf")
+
+    assert "BACKFILL_BATCH_SIZE" not in workload_inventory_text
+    assert "BACKFILL_SLEEP_MS" not in workload_inventory_text
+    assert "DATA_EXPORT_OUTPUT_DIR" not in workload_inventory_text
+    assert "EVENT_CONSUMER_WORKER_MODE" not in workload_inventory_text
+    assert "EVENT_CONSUMER_RELAY_BATCH_SIZE" not in workload_inventory_text
+    assert "EVENT_CONSUMER_IDLE_SLEEP_SECONDS" not in workload_inventory_text

@@ -12,7 +12,7 @@ Canonical design truth lives in:
 ## Order
 
 1. Declare workload intent in `platform/workloads.json`.
-2. Choose one or more existing workload patterns from `platform/workload-patterns.json`.
+2. Choose one or more existing workload shape labels from `platform/workload-patterns.json`.
 3. Add the host under `apps/`.
 4. Reuse `packages/` only for truly shared behavior.
 5. Wire local and shared platform concerns.
@@ -38,7 +38,7 @@ make workload-capability-matrix
 make workload-use-case-matrix
 ```
 
-Preview or apply a starter workload bundle from the stable-center patterns:
+Preview or apply a starter workload bundle from the supported workload shapes:
 
 ```bash
 make scaffold-workload ARGS='--name inventory_dashboard --pattern edge-service --use-case dashboard --service-port 8092'
@@ -168,7 +168,7 @@ workload changes build/deploy inventory, runtime resources, or platform-visible
 signals.
 
 Rule: extend metadata-driven paths before adding handwritten inventory.
-Rule: prefer selecting runtime behavior from `patterns`, edge metadata, or workload capability metadata before adding new workload-name branches.
+Rule: prefer selecting runtime behavior from explicit workload contract fields, edge metadata, or workload capability metadata before adding new workload-name branches.
 Rule: reserve new runtime-target seams in docs and ownership before inventing a
 second workload specification.
 

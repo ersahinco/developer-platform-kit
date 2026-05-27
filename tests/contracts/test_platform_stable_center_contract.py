@@ -22,10 +22,10 @@ def test_workload_contract_docs_name_workloads_json_as_canonical_intent_source()
     )
     assert "`workloads.json`: canonical workload contract" in platform_readme
     assert (
-        "`platform/workload-patterns.json` is the machine-readable reusable pattern"
+        "`platform/workload-patterns.json` is the machine-readable list of supported"
         in platform_contract
     )
-    assert "`workload-patterns.json`: reusable workload pattern contract" in (
+    assert "`workload-patterns.json`: supported workload classification shapes" in (
         platform_readme
     )
 

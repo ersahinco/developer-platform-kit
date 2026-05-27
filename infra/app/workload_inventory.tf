@@ -148,21 +148,12 @@ locals {
       ROLLOUT_DRILL_FAULT_DELAY_SECONDS = "3"
       ROLLOUT_DRILL_FAULT_STATUS_CODE   = "503"
     }
-    backfill_worker = {
-      BACKFILL_BATCH_SIZE = tostring(var.backfill_batch_size)
-      BACKFILL_SLEEP_MS   = "100"
-    }
     data_export_job = {
-      DATA_EXPORT_OUTPUT_DIR = "/tmp/aws-sdlc-containers-data-hub"
-      DATA_EXPORT_S3_BUCKET  = aws_s3_bucket.data_hub.bucket
+      DATA_EXPORT_S3_BUCKET = aws_s3_bucket.data_hub.bucket
     }
     (local.primary_async_eventing_workload_name) = {
-      EVENT_CONSUMER_APP_PORT           = tostring(local.primary_async_eventing_service_port)
-      EVENT_CONSUMER_WORKER_MODE        = "both"
-      EVENT_CONSUMER_PUBSUB_NAME        = local.primary_async_eventing_pubsub_name
-      EVENT_CONSUMER_TOPIC              = local.primary_async_eventing_topic_name
-      EVENT_CONSUMER_RELAY_BATCH_SIZE   = "10"
-      EVENT_CONSUMER_IDLE_SLEEP_SECONDS = "1"
+      EVENT_CONSUMER_PUBSUB_NAME = local.primary_async_eventing_pubsub_name
+      EVENT_CONSUMER_TOPIC       = local.primary_async_eventing_topic_name
     }
   }
 
