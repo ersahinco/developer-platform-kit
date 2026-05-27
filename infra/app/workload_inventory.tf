@@ -20,6 +20,32 @@ locals {
     for workload in local.aws_admitted_workloads : workload.name => workload
   }
 
+  aws_runtime_class_defaults = {
+    edge-service = {
+      cpu                     = 512
+      memory                  = 1024
+      bootstrap_desired_count = 0
+    }
+    internal-service = {
+      cpu                     = 512
+      memory                  = 1024
+      bootstrap_desired_count = 0
+    }
+    operator-job = {
+      cpu    = 256
+      memory = 512
+    }
+    scheduled-job = {
+      cpu    = 256
+      memory = 512
+    }
+  }
+
+  aws_runtime_shapes = {
+    for name, workload in local.workloads_by_name :
+    name => local.aws_runtime_class_defaults[workload.operational.class]
+  }
+
   workload_capabilities = {
     for name, workload in local.workloads_by_name :
     name => {

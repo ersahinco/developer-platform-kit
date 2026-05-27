@@ -25,27 +25,15 @@ locals {
     if workload.kind == "job"
   }
 
-  support_job_runtime_overrides = {
-    backfill_worker = {
-      cpu    = var.backfill_worker_cpu
-      memory = var.backfill_worker_memory
-    }
-    data_export_job = {
-      cpu    = var.data_export_job_cpu
-      memory = var.data_export_job_memory
-    }
-  }
-
   support_job_workloads = {
     for name, workload in local.job_workloads :
     name => {
       family         = "${local.name}-${workload.image.repository}"
       repository     = workload.image.repository
       container_name = workload.image.repository
-      cpu            = local.support_job_runtime_overrides[name].cpu
-      memory         = local.support_job_runtime_overrides[name].memory
+      cpu            = local.aws_runtime_shapes[name].cpu
+      memory         = local.aws_runtime_shapes[name].memory
     }
-    if contains(keys(local.support_job_runtime_overrides), name)
   }
 
   scheduled_support_job_workloads = {
@@ -439,8 +427,8 @@ resource "aws_ecs_task_definition" "event_consumer" {
   family                   = "${local.name}-event-consumer"
   requires_compatibilities = local.support_task_definition_defaults.requires_compatibilities
   network_mode             = local.support_task_definition_defaults.network_mode
-  cpu                      = var.event_consumer_cpu
-  memory                   = var.event_consumer_memory
+  cpu                      = local.aws_runtime_shapes["event_consumer"].cpu
+  memory                   = local.aws_runtime_shapes["event_consumer"].memory
   execution_role_arn       = local.support_task_definition_defaults.execution_role_arn
   task_role_arn            = aws_iam_role.event_consumer.arn
 
@@ -501,7 +489,7 @@ resource "aws_ecs_service" "event_consumer" {
   name            = "event-consumer"
   cluster         = module.ecs.cluster_arn
   task_definition = aws_ecs_task_definition.event_consumer.arn
-  desired_count   = var.event_consumer_bootstrap_desired_count
+  desired_count   = local.aws_runtime_shapes["event_consumer"].bootstrap_desired_count
   launch_type     = "FARGATE"
 
   deployment_minimum_healthy_percent = 100

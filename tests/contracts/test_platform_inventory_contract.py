@@ -59,8 +59,13 @@ def test_current_aws_runtime_realizes_all_aws_admitted_job_workloads() -> None:
         if workload["kind"] == "job" and "aws-ecs" in workload["runtime"]["admitted"]
     ]
 
-    for workload_name in deployable_jobs:
-        assert f"{workload_name} =" in workload_jobs_text
+    assert deployable_jobs
+    assert "job_workloads = {" in workload_jobs_text
+    assert 'if workload.kind == "job"' in workload_jobs_text
+    assert "support_job_workloads = {" in workload_jobs_text
+    assert "for name, workload in local.job_workloads :" in workload_jobs_text
+    assert "local.aws_runtime_shapes[name].cpu" in workload_jobs_text
+    assert "local.aws_runtime_shapes[name].memory" in workload_jobs_text
 
 
 def test_aws_runtime_inventory_filters_out_non_admitted_workloads() -> None:
@@ -106,3 +111,32 @@ def test_aws_runtime_inventory_uses_generic_dapr_boundary_names() -> None:
     assert "DAPR_SUBSCRIPTION_ROUTE" in workload_inventory_text
     assert "EVENT_CONSUMER_PUBSUB_NAME" not in workload_inventory_text
     assert "EVENT_CONSUMER_TOPIC" not in workload_inventory_text
+
+
+def test_aws_runtime_sizing_follows_workload_class_defaults() -> None:
+    workload_inventory_text = read_text("infra/app/workload_inventory.tf")
+    variables_text = read_text("infra/app/variables.tf")
+    compute_text = read_text("infra/app/compute_ecs.tf")
+    workload_jobs_text = read_text("infra/app/workload_jobs.tf")
+
+    assert "aws_runtime_class_defaults" in workload_inventory_text
+    assert "aws_runtime_shapes" in workload_inventory_text
+    assert "workload.operational.class" in workload_inventory_text
+
+    legacy_knobs = [
+        "primary_edge_cpu",
+        "primary_edge_memory",
+        "primary_edge_bootstrap_desired_count",
+        "event_consumer_cpu",
+        "event_consumer_memory",
+        "event_consumer_bootstrap_desired_count",
+        "backfill_worker_cpu",
+        "backfill_worker_memory",
+        "data_export_job_cpu",
+        "data_export_job_memory",
+    ]
+
+    for legacy_knob in legacy_knobs:
+        assert legacy_knob not in variables_text
+        assert legacy_knob not in compute_text
+        assert legacy_knob not in workload_jobs_text

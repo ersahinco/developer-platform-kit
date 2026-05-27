@@ -129,8 +129,8 @@ resource "aws_ecs_task_definition" "primary_edge" {
   family                   = local.name
   requires_compatibilities = ["FARGATE"]
   network_mode             = "awsvpc"
-  cpu                      = var.primary_edge_cpu
-  memory                   = var.primary_edge_memory
+  cpu                      = local.aws_runtime_shapes[local.primary_edge_workload_name].cpu
+  memory                   = local.aws_runtime_shapes[local.primary_edge_workload_name].memory
   execution_role_arn       = aws_iam_role.task_exec.arn
   task_role_arn            = aws_iam_role.primary_edge_task_deploy.arn
   container_definitions    = jsonencode(local.primary_edge_task_definition_containers)
@@ -164,7 +164,7 @@ resource "aws_ecs_service" "primary_edge" {
   name            = local.primary_edge_repository
   cluster         = module.ecs.cluster_arn
   task_definition = data.aws_ecs_task_definition.primary_edge_current.arn
-  desired_count   = var.primary_edge_bootstrap_desired_count
+  desired_count   = local.aws_runtime_shapes[local.primary_edge_workload_name].bootstrap_desired_count
   launch_type     = "FARGATE"
 
   deployment_minimum_healthy_percent = 100

@@ -43,41 +43,15 @@ variable "primary_edge_hostname_label" {
 }
 
 # ── ECS ───────────────────────────────────────────────────────────────────────
-
-variable "primary_edge_cpu" {
-  description = "Fargate task CPU units for the primary edge workload (256, 512, 1024, 2048, 4096)."
-  type        = number
-  default     = 512
-}
-
-variable "primary_edge_memory" {
-  description = "Fargate task memory (MiB) for the primary edge workload."
-  type        = number
-  default     = 1024
-}
-
-variable "primary_edge_bootstrap_desired_count" {
-  description = "Bootstrap desired number of running primary edge tasks. Defaults to 0 so fresh infra apply creates a dormant service until the deploy workflow registers a verified image revision and activates it."
-  type        = number
-  default     = 0
-}
+#
+# Bootstrap ECS sizing now follows workload operational class defaults in
+# workload_inventory.tf. Keep app-specific runtime tuning out of tfvars until a
+# reviewed workload need proves the shared class defaults are not enough.
 
 variable "pgbouncer_pool_size" {
   description = "PgBouncer default_pool_size — server-side connections to RDS per database. Set to ~80% of RDS max_connections divided by expected task count."
   type        = number
   default     = 20
-}
-
-variable "backfill_worker_cpu" {
-  description = "Fargate task CPU units for the one-off backfill worker."
-  type        = number
-  default     = 256
-}
-
-variable "backfill_worker_memory" {
-  description = "Fargate task memory (MiB) for the one-off backfill worker."
-  type        = number
-  default     = 512
 }
 
 variable "backfill_batch_size" {
@@ -86,40 +60,10 @@ variable "backfill_batch_size" {
   default     = 1000
 }
 
-variable "data_export_job_cpu" {
-  description = "Fargate task CPU units for the scheduled data export job."
-  type        = number
-  default     = 256
-}
-
-variable "data_export_job_memory" {
-  description = "Fargate task memory (MiB) for the scheduled data export job."
-  type        = number
-  default     = 512
-}
-
 variable "data_export_schedule_expression" {
   description = "EventBridge Scheduler expression for the data export job."
   type        = string
   default     = "rate(1 day)"
-}
-
-variable "event_consumer_cpu" {
-  description = "Fargate task CPU units for the event consumer service."
-  type        = number
-  default     = 512
-}
-
-variable "event_consumer_memory" {
-  description = "Fargate task memory (MiB) for the event consumer service."
-  type        = number
-  default     = 1024
-}
-
-variable "event_consumer_bootstrap_desired_count" {
-  description = "Bootstrap desired number of running event consumer tasks. Defaults to 0 so fresh infra apply creates a dormant service until the deploy workflow registers a verified image revision and activates it."
-  type        = number
-  default     = 0
 }
 
 variable "dapr_image" {
