@@ -88,8 +88,8 @@ jobs:
           fetch-depth: 0
           persist-credentials: false
 
-      - name: Resolve root domain
-        run: scripts/ci/ci_resolve_root_domain.sh
+      - name: Require root domain
+        run: test -n "${ROOT_DOMAIN}"
 
       - name: Validate image tag
         run: scripts/ci/ci_validate_image_tag.sh "$IMAGE_TAG" "${{ github.event.repository.default_branch }}"

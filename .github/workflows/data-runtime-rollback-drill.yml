@@ -66,16 +66,13 @@ jobs:
       - name: Install verification dependencies
         run: uv sync --frozen --group scripts
 
-      - name: Resolve root domain
-        run: scripts/ci/ci_resolve_root_domain.sh
+      - name: Require root domain
+        run: test -n "${ROOT_DOMAIN}"
 
       - uses: aws-actions/configure-aws-credentials@a89a83ec143615402a01f672b6e172b7b1875000 # v6
         with:
           role-to-assume: ${{ secrets.AWS_ROLE_ARN }}
           aws-region: ${{ env.AWS_REGION }}
-
-      - name: Validate cloud settings
-        run: test -n "${ROOT_DOMAIN}"
 
       - name: Summarize dry run
         if: ${{ inputs.dry_run }}

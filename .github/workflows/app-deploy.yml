@@ -70,8 +70,8 @@ jobs:
           fetch-depth: 0
           persist-credentials: false
 
-      - name: Resolve root domain
-        run: scripts/ci/ci_resolve_root_domain.sh
+      - name: Require root domain
+        run: test -n "${ROOT_DOMAIN}"
 
       - uses: astral-sh/setup-uv@08807647e7069bb48b6ef5acd8ec9567f424441b # v8.1.0
         with:
