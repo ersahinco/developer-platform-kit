@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import re
 import sys
 from pathlib import Path
 from typing import Any
@@ -36,8 +37,14 @@ def test_render_primary_edge_task_definition_is_repo_sourced(monkeypatch) -> Non
     )
 
     assert task_definition["family"] == "aws-sdlc-containers"
-    assert task_definition["cpu"] == renderer.DEFAULT_PRIMARY_EDGE_CPU
-    assert task_definition["memory"] == renderer.DEFAULT_PRIMARY_EDGE_MEMORY
+    assert (
+        task_definition["cpu"]
+        == renderer.AWS_RUNTIME_CLASS_DEFAULTS["edge-service"]["cpu"]
+    )
+    assert (
+        task_definition["memory"]
+        == renderer.AWS_RUNTIME_CLASS_DEFAULTS["edge-service"]["memory"]
+    )
     assert (
         task_definition["taskRoleArn"]
         == "arn:aws:iam::123:role/aws-sdlc-containers-primary-edge-task"
@@ -254,3 +261,23 @@ def test_backfill_renderer_uses_repository_scoped_support_job_role(
     env_names = {entry["name"] for entry in container["environment"]}
     assert "BACKFILL_BATCH_SIZE" not in env_names
     assert "BACKFILL_SLEEP_MS" not in env_names
+
+
+def test_renderer_class_defaults_align_with_terraform_bootstrap_defaults() -> None:
+    workload_inventory = (ROOT / "infra/app/workload_inventory.tf").read_text(
+        encoding="utf-8"
+    )
+
+    parsed_defaults: dict[str, dict[str, str]] = {}
+    for class_name in renderer.AWS_RUNTIME_CLASS_DEFAULTS:
+        block_match = re.search(
+            rf"{re.escape(class_name)} = \{{(?P<body>.*?)^\s+\}}",
+            workload_inventory,
+            re.MULTILINE | re.DOTALL,
+        )
+        assert block_match is not None
+        parsed_defaults[class_name] = dict(
+            re.findall(r"(cpu|memory)\s*=\s*(\d+)", block_match.group("body"))
+        )
+
+    assert parsed_defaults == renderer.AWS_RUNTIME_CLASS_DEFAULTS

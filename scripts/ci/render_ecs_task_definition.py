@@ -19,12 +19,24 @@ from scripts.platform.workload_metadata import (  # noqa: E402
 
 DEFAULT_DB_NAME = "aws_sdlc_containers"
 DEFAULT_DB_USER = "app"
-DEFAULT_PRIMARY_EDGE_CPU = "512"
-DEFAULT_PRIMARY_EDGE_MEMORY = "1024"
-DEFAULT_SUPPORT_JOB_CPU = "256"
-DEFAULT_SUPPORT_JOB_MEMORY = "512"
-DEFAULT_INTERNAL_ASYNC_SERVICE_CPU = "512"
-DEFAULT_INTERNAL_ASYNC_SERVICE_MEMORY = "1024"
+AWS_RUNTIME_CLASS_DEFAULTS = {
+    "edge-service": {
+        "cpu": "512",
+        "memory": "1024",
+    },
+    "internal-service": {
+        "cpu": "512",
+        "memory": "1024",
+    },
+    "operator-job": {
+        "cpu": "256",
+        "memory": "512",
+    },
+    "scheduled-job": {
+        "cpu": "256",
+        "memory": "512",
+    },
+}
 DEFAULT_LIQUIBASE_CPU = "512"
 DEFAULT_LIQUIBASE_MEMORY = "1024"
 DEFAULT_PGBOUNCER_POOL_SIZE = "20"
@@ -370,6 +382,16 @@ def _expected_task_family(
     return f"{stack_name}-{container_name}"
 
 
+def _runtime_shape_for_workload(workload: dict[str, Any]) -> dict[str, str]:
+    operational_class = workload_operational_class(workload)
+    try:
+        return AWS_RUNTIME_CLASS_DEFAULTS[operational_class]
+    except KeyError as error:
+        raise RuntimeError(
+            f"unsupported workload operational class {operational_class!r}"
+        ) from error
+
+
 def _render_primary_edge(
     workload: dict[str, Any],
     *,
@@ -385,6 +407,7 @@ def _render_primary_edge(
 ) -> dict[str, Any]:
     repository = workload_repository(workload)
     service_port = int(workload["service"]["port"])
+    runtime_shape = _runtime_shape_for_workload(workload)
     enable_adot_sidecar = _parse_bool(os.getenv("ENABLE_ADOT_SIDECAR"), default=True)
     declared_env = _declared_environment(
         workload,
@@ -511,8 +534,8 @@ def _render_primary_edge(
         "family": stack_name,
         "requiresCompatibilities": ["FARGATE"],
         "networkMode": "awsvpc",
-        "cpu": DEFAULT_PRIMARY_EDGE_CPU,
-        "memory": DEFAULT_PRIMARY_EDGE_MEMORY,
+        "cpu": runtime_shape["cpu"],
+        "memory": runtime_shape["memory"],
         "executionRoleArn": _deterministic_role_arn(
             account_id, f"{stack_name}-task-exec"
         ),
@@ -534,6 +557,7 @@ def _render_support_job(
     task_role_arn: str,
 ) -> dict[str, Any]:
     repository = workload_repository(workload)
+    runtime_shape = _runtime_shape_for_workload(workload)
     runtime_values = _runtime_values_for_workload(
         workload,
         stack_name=stack_name,
@@ -569,8 +593,8 @@ def _render_support_job(
         "family": f"{stack_name}-{repository}",
         "requiresCompatibilities": ["FARGATE"],
         "networkMode": "awsvpc",
-        "cpu": DEFAULT_SUPPORT_JOB_CPU,
-        "memory": DEFAULT_SUPPORT_JOB_MEMORY,
+        "cpu": runtime_shape["cpu"],
+        "memory": runtime_shape["memory"],
         "executionRoleArn": _deterministic_role_arn(
             account_id, f"{stack_name}-task-exec"
         ),
@@ -592,6 +616,7 @@ def _render_internal_async_service(
 ) -> dict[str, Any]:
     repository = workload_repository(workload)
     service_port = int(workload["service"]["port"])
+    runtime_shape = _runtime_shape_for_workload(workload)
     dapr = workload["dapr"]
     runtime_config_bucket = f"{stack_name}-runtime-config-{account_id}"
     config_prefix = f"config/dapr/{repository}"
@@ -627,8 +652,8 @@ def _render_internal_async_service(
         "family": f"{stack_name}-{repository}",
         "requiresCompatibilities": ["FARGATE"],
         "networkMode": "awsvpc",
-        "cpu": DEFAULT_INTERNAL_ASYNC_SERVICE_CPU,
-        "memory": DEFAULT_INTERNAL_ASYNC_SERVICE_MEMORY,
+        "cpu": runtime_shape["cpu"],
+        "memory": runtime_shape["memory"],
         "executionRoleArn": _deterministic_role_arn(
             account_id, f"{stack_name}-task-exec"
         ),
@@ -865,7 +890,11 @@ def render_task_definition(
             ),
         )
 
-    if isinstance(workload.get("dapr"), dict):
+    if operational_class == "internal-service":
+        if not isinstance(workload.get("dapr"), dict):
+            raise RuntimeError(
+                f"internal-service workload {workload['name']} must declare dapr"
+            )
         return _render_internal_async_service(
             workload,
             stack_name=stack_name,

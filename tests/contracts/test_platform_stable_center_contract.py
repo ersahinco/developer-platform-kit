@@ -46,9 +46,13 @@ def test_runtime_realization_layers_do_not_replace_stable_center() -> None:
     assert "Add future runtime targets as parallel realization layers" in agents
     assert "Runtime targets are pluggable" in architecture
     assert "realizations at the platform edge" in architecture
+    assert "`platform/workloads.json` is the machine-readable workload contract" in (
+        runtime_toolkit
+    )
     assert "existing workload intent remains recognizable without reinvention" in (
         runtime_toolkit
     )
+    assert "application spec" not in runtime_toolkit
 
 
 def test_catalog_growth_rule_uses_runtime_target_subdirectories() -> None:

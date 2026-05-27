@@ -12,7 +12,7 @@ Canonical design truth lives in:
 ## Order
 
 1. Declare workload intent in `platform/workloads.json`.
-2. Choose one or more existing workload shape labels from `platform/workload-patterns.json`.
+2. Choose one or more existing workload classification labels from `platform/workload-patterns.json`.
 3. Add the host under `apps/`.
 4. Reuse `packages/` only for truly shared behavior.
 5. Wire local and shared platform concerns.
@@ -28,17 +28,18 @@ Canonical design truth lives in:
 | `operator-job` | manually or CI-triggered task |
 | `scheduled-job` | recurring scheduler-triggered task |
 
-This choice drives `platform/workloads.json`, health/readiness/metrics,
-Compose/workflow/runtime-target ownership, and alarm/evidence expectations.
+This choice anchors the workload contract, health/readiness/metrics
+expectations, and the current platform-edge wiring for Compose, workflows, and
+runtime realization.
 
-Inspect current declared shapes:
+Inspect current declared classes and labels:
 
 ```bash
 make workload-capability-matrix
 make workload-use-case-matrix
 ```
 
-Preview or apply a starter workload bundle from the supported workload shapes:
+Preview or apply a starter workload bundle from the supported workload classification labels:
 
 ```bash
 make scaffold-workload ARGS='--name inventory_dashboard --pattern edge-service --use-case dashboard --service-port 8092'

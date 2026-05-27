@@ -11,7 +11,7 @@ Use with:
 - [Architecture](architecture.md): repo and ownership boundaries
 - [Platform Capabilities](platform-capabilities.md): current capability map
 
-`platform/workloads.json` is the application spec.
+`platform/workloads.json` is the machine-readable workload contract.
 `platform/runtime-conformance.json` is the local/CI runtime proof fixture.
 `make runtime-conformance` is the main executable proof.
 
@@ -83,8 +83,8 @@ The current `aws-ecs` target is implemented through `infra/`,
 
 - AWS details stay in `infra/platform`, `infra/app`, and AWS-facing scripts.
 - The portable part is the workload contract and evidence.
-- `platform/workloads.json` remains the workload spec across runtime targets.
-- `platform/runtime-conformance.json` stays runtime-check-specific; do not grow it into a second app spec.
+- `platform/workloads.json` remains the workload contract across runtime targets.
+- `platform/runtime-conformance.json` stays runtime-check-specific; do not grow it into a second workload contract.
 
 Inspection commands:
 
