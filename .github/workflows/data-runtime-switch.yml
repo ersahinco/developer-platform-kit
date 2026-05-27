@@ -105,11 +105,14 @@ jobs:
       - name: Resolve primary edge contract
         id: primary-service
         run: |
-          primary_edge_contract=$(python3 -m scripts.platform.workload_metadata primary-edge-contract)
+          IFS=$'\t' read -r workload_name service hostname_label < <(
+            python3 -m scripts.platform.workload_metadata primary-edge-contract \
+              | jq -r '[.name, .repository, .hostname_label] | @tsv'
+          )
           {
-            echo "service=$(jq -r '.repository' <<< "${primary_edge_contract}")"
-            echo "workload_name=$(jq -r '.name' <<< "${primary_edge_contract}")"
-            echo "hostname_label=$(jq -r '.hostname_label' <<< "${primary_edge_contract}")"
+            echo "service=${service}"
+            echo "workload_name=${workload_name}"
+            echo "hostname_label=${hostname_label}"
           } >> "$GITHUB_OUTPUT"
 
       - name: Require stable primary edge service

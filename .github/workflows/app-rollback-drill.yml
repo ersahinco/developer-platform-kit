@@ -119,10 +119,13 @@ jobs:
             echo "ecr_registry=${account_id}.dkr.ecr.${AWS_REGION}.amazonaws.com"
           } >> "$GITHUB_OUTPUT"
 
-      - name: Resolve primary edge service
+      - name: Resolve primary edge contract
         id: primary-service
         run: |
-          IFS=$'\t' read -r workload_name service hostname_label < <(python3 -m scripts.platform.workload_metadata primary-edge)
+          IFS=$'\t' read -r workload_name service hostname_label < <(
+            python3 -m scripts.platform.workload_metadata primary-edge-contract \
+              | jq -r '[.name, .repository, .hostname_label] | @tsv'
+          )
           {
             echo "service=${service}"
             echo "workload_name=${workload_name}"

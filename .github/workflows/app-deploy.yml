@@ -112,13 +112,16 @@ jobs:
       - name: Resolve primary edge contract
         id: primary-service
         run: |
-          primary_edge_contract=$(python3 -m scripts.platform.workload_metadata primary-edge-contract)
+          IFS=$'\t' read -r workload_name service hostname_label auth_mode verification_profile < <(
+            python3 -m scripts.platform.workload_metadata primary-edge-contract \
+              | jq -r '[.name, .repository, .hostname_label, .auth_mode, .verification_profile] | @tsv'
+          )
           {
-            echo "service=$(jq -r '.repository' <<< "${primary_edge_contract}")"
-            echo "workload_name=$(jq -r '.name' <<< "${primary_edge_contract}")"
-            echo "hostname_label=$(jq -r '.hostname_label' <<< "${primary_edge_contract}")"
-            echo "auth_mode=$(jq -r '.auth_mode' <<< "${primary_edge_contract}")"
-            echo "verification_profile=$(jq -r '.verification_profile' <<< "${primary_edge_contract}")"
+            echo "service=${service}"
+            echo "workload_name=${workload_name}"
+            echo "hostname_label=${hostname_label}"
+            echo "auth_mode=${auth_mode}"
+            echo "verification_profile=${verification_profile}"
           } >> "$GITHUB_OUTPUT"
 
       - name: Resolve internal service inventory
