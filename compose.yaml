@@ -192,10 +192,10 @@ services:
     environment:
       <<: *direct_db_env
       DAPR_HTTP_ENDPOINT: http://event-consumer-dapr:3500
-      EVENT_CONSUMER_APP_PORT: *event_consumer_app_port
       EVENT_CONSUMER_WORKER_MODE: both
-      EVENT_CONSUMER_PUBSUB_NAME: *event_consumer_pubsub_name
-      EVENT_CONSUMER_TOPIC: *event_consumer_topic
+      DAPR_PUBSUB_NAME: *event_consumer_pubsub_name
+      DAPR_TOPIC: *event_consumer_topic
+      DAPR_SUBSCRIPTION_ROUTE: /internal/events/consume
     depends_on:
       db:
         condition: service_healthy

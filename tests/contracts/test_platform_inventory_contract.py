@@ -96,3 +96,13 @@ def test_aws_runtime_inventory_keeps_app_default_tuning_out_of_platform_defaults
     assert "EVENT_CONSUMER_WORKER_MODE" not in workload_inventory_text
     assert "EVENT_CONSUMER_RELAY_BATCH_SIZE" not in workload_inventory_text
     assert "EVENT_CONSUMER_IDLE_SLEEP_SECONDS" not in workload_inventory_text
+
+
+def test_aws_runtime_inventory_uses_generic_dapr_boundary_names() -> None:
+    workload_inventory_text = read_text("infra/app/workload_inventory.tf")
+
+    assert "DAPR_PUBSUB_NAME" in workload_inventory_text
+    assert "DAPR_TOPIC" in workload_inventory_text
+    assert "DAPR_SUBSCRIPTION_ROUTE" in workload_inventory_text
+    assert "EVENT_CONSUMER_PUBSUB_NAME" not in workload_inventory_text
+    assert "EVENT_CONSUMER_TOPIC" not in workload_inventory_text

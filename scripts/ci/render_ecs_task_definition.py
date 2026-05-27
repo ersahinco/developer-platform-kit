@@ -326,8 +326,9 @@ def _runtime_values_for_workload(
     if isinstance(dapr, dict):
         env_defaults.update(
             {
-                "EVENT_CONSUMER_PUBSUB_NAME": str(dapr["pubsub_name"]),
-                "EVENT_CONSUMER_TOPIC": f"{stack_name}-{dapr['topic']}",
+                "DAPR_PUBSUB_NAME": str(dapr["pubsub_name"]),
+                "DAPR_TOPIC": f"{stack_name}-{dapr['topic']}",
+                "DAPR_SUBSCRIPTION_ROUTE": str(dapr["subscription_route"]),
             }
         )
     values.update(

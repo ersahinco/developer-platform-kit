@@ -121,11 +121,12 @@ def test_render_event_consumer_task_definition_includes_repo_owned_async_runtime
         {"name": "DB_NAME", "value": "aws_sdlc_containers"},
         {"name": "DAPR_HTTP_ENDPOINT", "value": "http://localhost:3500"},
         {"name": "DAPR_HTTP_PORT", "value": "3500"},
-        {"name": "EVENT_CONSUMER_PUBSUB_NAME", "value": "async-events-pubsub"},
+        {"name": "DAPR_PUBSUB_NAME", "value": "async-events-pubsub"},
         {
-            "name": "EVENT_CONSUMER_TOPIC",
+            "name": "DAPR_TOPIC",
             "value": "aws-sdlc-containers-async-events-v1.fifo",
         },
+        {"name": "DAPR_SUBSCRIPTION_ROUTE", "value": "/internal/events/consume"},
     ]
 
 

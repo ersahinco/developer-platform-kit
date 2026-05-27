@@ -124,9 +124,9 @@ def test_compose_build_args_and_ports_align_with_workload_spec() -> None:
     assert command[command.index("--app-port") + 1] == str(
         order_consumer["service"]["port"]
     )
-    assert env["EVENT_CONSUMER_APP_PORT"] == str(order_consumer["service"]["port"])
-    assert env["EVENT_CONSUMER_PUBSUB_NAME"] == dapr["pubsub_name"]
-    assert env["EVENT_CONSUMER_TOPIC"] == dapr["topic"]
+    assert env["DAPR_PUBSUB_NAME"] == dapr["pubsub_name"]
+    assert env["DAPR_TOPIC"] == dapr["topic"]
+    assert env["DAPR_SUBSCRIPTION_ROUTE"] == dapr["subscription_route"]
 
 
 def test_workload_spec_config_names_match_app_settings() -> None:

@@ -152,8 +152,9 @@ locals {
       DATA_EXPORT_S3_BUCKET = aws_s3_bucket.data_hub.bucket
     }
     (local.primary_async_eventing_workload_name) = {
-      EVENT_CONSUMER_PUBSUB_NAME = local.primary_async_eventing_pubsub_name
-      EVENT_CONSUMER_TOPIC       = local.primary_async_eventing_topic_name
+      DAPR_PUBSUB_NAME        = local.primary_async_eventing_pubsub_name
+      DAPR_TOPIC              = local.primary_async_eventing_topic_name
+      DAPR_SUBSCRIPTION_ROUTE = local.primary_async_eventing_dapr.subscription_route
     }
   }
 

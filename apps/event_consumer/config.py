@@ -15,6 +15,7 @@ load_env_file()
 
 @dataclass
 class Settings(PostgresRuntimeSettings):
+    service_port = 8081
     database_url: str | None = field(default_factory=lambda: env_str("DATABASE_URL"))
     db_host: str | None = field(default_factory=lambda: env_str("DB_HOST", "localhost"))
     event_consumer_worker_mode: str = field(
@@ -31,20 +32,23 @@ class Settings(PostgresRuntimeSettings):
     event_consumer_idle_sleep_seconds: float = field(
         default_factory=lambda: env_float("EVENT_CONSUMER_IDLE_SLEEP_SECONDS", 1.0)
     )
-    event_consumer_pubsub_name: str = field(
+    dapr_pubsub_name: str = field(
         default_factory=lambda: require_value(
-            env_str("EVENT_CONSUMER_PUBSUB_NAME", "async-events-pubsub"),
-            "EVENT_CONSUMER_PUBSUB_NAME",
+            env_str("DAPR_PUBSUB_NAME", "async-events-pubsub"),
+            "DAPR_PUBSUB_NAME",
         )
     )
-    event_consumer_topic: str = field(
+    dapr_topic: str = field(
         default_factory=lambda: require_value(
-            env_str("EVENT_CONSUMER_TOPIC", "async-events-v1.fifo"),
-            "EVENT_CONSUMER_TOPIC",
+            env_str("DAPR_TOPIC", "async-events-v1.fifo"),
+            "DAPR_TOPIC",
         )
     )
-    event_consumer_app_port: int = field(
-        default_factory=lambda: env_int("EVENT_CONSUMER_APP_PORT", 8081)
+    dapr_subscription_route: str = field(
+        default_factory=lambda: require_value(
+            env_str("DAPR_SUBSCRIPTION_ROUTE", "/internal/events/consume"),
+            "DAPR_SUBSCRIPTION_ROUTE",
+        )
     )
     dapr_http_port: int = field(default_factory=lambda: env_int("DAPR_HTTP_PORT", 3500))
     dapr_http_endpoint: str | None = field(

@@ -35,7 +35,7 @@ from infrastructure.http_observability import request_observability_middleware
 from event_consumer.config import settings
 
 
-EVENT_CONSUMER_CALLBACK_ROUTE = "/internal/events/consume"
+EVENT_CONSUMER_CALLBACK_ROUTE = settings.dapr_subscription_route
 
 REQUEST_COUNT = Counter(
     "event_consumer_http_requests_total",
@@ -105,8 +105,8 @@ def _engine_and_session_factory() -> tuple[Any, Any]:
 def _publisher() -> DaprEventPublisher:
     return DaprEventPublisher(
         endpoint=settings.dapr_publish_endpoint,
-        pubsub_name=settings.event_consumer_pubsub_name,
-        topic=settings.event_consumer_topic,
+        pubsub_name=settings.dapr_pubsub_name,
+        topic=settings.dapr_topic,
     )
 
 
@@ -239,8 +239,8 @@ def dapr_subscribe() -> list[dict[str, object]]:
         return []
     return [
         {
-            "pubsubname": settings.event_consumer_pubsub_name,
-            "topic": settings.event_consumer_topic,
+            "pubsubname": settings.dapr_pubsub_name,
+            "topic": settings.dapr_topic,
             "route": EVENT_CONSUMER_CALLBACK_ROUTE,
         }
     ]
@@ -295,7 +295,7 @@ def main() -> None:
     uvicorn.run(
         app,
         host="0.0.0.0",
-        port=settings.event_consumer_app_port,
+        port=settings.service_port,
     )
 
 
