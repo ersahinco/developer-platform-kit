@@ -29,15 +29,6 @@ def workloads() -> list[dict[str, Any]]:
     return values if isinstance(values, list) else []
 
 
-@lru_cache(maxsize=1)
-def workloads_by_name() -> dict[str, dict[str, Any]]:
-    return {
-        workload["name"]: workload
-        for workload in workloads()
-        if isinstance(workload.get("name"), str)
-    }
-
-
 def workload_repository(workload: dict[str, Any]) -> str:
     image = workload.get("image", {})
     return image["repository"] if isinstance(image, dict) else ""
@@ -46,11 +37,6 @@ def workload_repository(workload: dict[str, Any]) -> str:
 def workload_owner(workload: dict[str, Any]) -> str:
     owner = workload.get("owner")
     return owner if isinstance(owner, str) else ""
-
-
-def workload_backstage_owner_ref(workload: dict[str, Any]) -> str:
-    owner = workload_owner(workload)
-    return f"group:default/{owner}" if owner else ""
 
 
 def workload_image_dockerfile(workload: dict[str, Any]) -> str:
@@ -109,10 +95,6 @@ def workload_runtime_admitted(workload: dict[str, Any]) -> list[str]:
     runtime = workload.get("runtime", {})
     values = runtime.get("admitted", []) if isinstance(runtime, dict) else []
     return [value for value in values if isinstance(value, str)]
-
-
-def workload_supports_runtime(workload: dict[str, Any], runtime_target: str) -> bool:
-    return runtime_target in workload_runtime_supported(workload)
 
 
 def workload_admitted_to_runtime(workload: dict[str, Any], runtime_target: str) -> bool:
@@ -311,14 +293,11 @@ def internal_service_workloads() -> list[dict[str, Any]]:
     ]
 
 
-def job_workloads() -> list[dict[str, Any]]:
-    return [workload for workload in workloads() if workload.get("kind") == "job"]
-
-
 def support_task_workloads() -> list[dict[str, Any]]:
     return [
         workload
-        for workload in job_workloads()
+        for workload in workloads()
+        if workload.get("kind") == "job"
         if workload_admitted_to_runtime(workload, "aws-ecs")
     ]
 
@@ -328,15 +307,6 @@ def async_eventing_workloads() -> list[dict[str, Any]]:
         workload
         for workload in workloads()
         if workload_capabilities(workload)["async_eventing"]
-    ]
-
-
-def scheduled_job_workloads() -> list[dict[str, Any]]:
-    return [
-        workload
-        for workload in workloads()
-        if workload_capabilities(workload)["scheduled_execution"]
-        and workload_admitted_to_runtime(workload, "aws-ecs")
     ]
 
 
@@ -377,12 +347,6 @@ def primary_edge_contract() -> dict[str, Any]:
     }
 
 
-def _print_repositories() -> int:
-    for workload in workloads():
-        print(workload_repository(workload))
-    return 0
-
-
 def _print_primary_edge() -> int:
     workload = primary_edge_service_workload()
     print(
@@ -408,20 +372,8 @@ def _print_internal_services() -> int:
     return 0
 
 
-def _print_job_workloads() -> int:
-    for workload in job_workloads():
-        print(f"{workload['name']}\t{workload_repository(workload)}")
-    return 0
-
-
 def _print_support_task_workloads() -> int:
     for workload in support_task_workloads():
-        print(f"{workload['name']}\t{workload_repository(workload)}")
-    return 0
-
-
-def _print_scheduled_job_workloads() -> int:
-    for workload in scheduled_job_workloads():
         print(f"{workload['name']}\t{workload_repository(workload)}")
     return 0
 
@@ -523,20 +475,17 @@ def main(argv: list[str] | None = None) -> int:
     if not argv:
         print(
             "usage: python -m scripts.platform.workload_metadata "
-            "<repositories|primary-edge|primary-edge-contract|internal-services|job-workloads|support-task-workloads|scheduled-job-workloads|image-matrix|capability-matrix|use-case-matrix|implementation-matrix|adapter-seam-matrix|inventory-json>",
+            "<primary-edge|primary-edge-contract|internal-services|support-task-workloads|image-matrix|capability-matrix|use-case-matrix|implementation-matrix|adapter-seam-matrix|inventory-json>",
             file=sys.stderr,
         )
         return 1
 
     command, *args = argv
     handlers = {
-        "repositories": lambda _args: _print_repositories(),
         "primary-edge": lambda _args: _print_primary_edge(),
         "primary-edge-contract": lambda _args: _print_primary_edge_contract(),
         "internal-services": lambda _args: _print_internal_services(),
-        "job-workloads": lambda _args: _print_job_workloads(),
         "support-task-workloads": lambda _args: _print_support_task_workloads(),
-        "scheduled-job-workloads": lambda _args: _print_scheduled_job_workloads(),
         "image-matrix": _print_image_matrix,
         "capability-matrix": lambda _args: _print_capability_matrix(),
         "use-case-matrix": lambda _args: _print_use_case_matrix(),

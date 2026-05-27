@@ -36,8 +36,8 @@ make adapter-seam-matrix
 
 Current local runtime target: `local-compose`.
 Current reviewed production runtime target: `aws-ecs`.
-Future hybrid runtime edge: managed service providers when a workload needs
-managed global database, DNS, edge, identity, or storage capabilities.
+Future provider-edge options stay horizon guidance only until a real workload
+needs them and runtime ownership is clear.
 
 Rule:
 

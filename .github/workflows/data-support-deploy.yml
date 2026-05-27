@@ -95,13 +95,17 @@ jobs:
         id: aws-context
         run: scripts/ci/ci_resolve_aws_context.sh
 
+      - name: Resolve support workload inventory
+        run: |
+          python3 -m scripts.platform.workload_metadata support-task-workloads > "$RUNNER_TEMP/support-workloads.tsv"
+
       - name: Register support task definitions
         id: register-support
         env:
           ECR_REGISTRY: ${{ steps.aws-context.outputs.ecr_registry }}
           DRY_RUN: ${{ inputs.dry_run }}
         run: |
-          available_workloads=$(python3 -m scripts.platform.workload_metadata support-task-workloads | cut -f1)
+          available_workloads=$(cut -f1 "$RUNNER_TEMP/support-workloads.tsv")
           if [[ "${{ inputs.target_workload }}" != "all" ]] && ! grep -Fxq "${{ inputs.target_workload }}" <<< "${available_workloads}"; then
             echo "Unsupported target_workload '${{ inputs.target_workload }}'." >&2
             echo "Available support workloads:" >&2
@@ -137,7 +141,7 @@ jobs:
               echo "Rendered preview task definition for ${workload_name} at ${task_definition}"
             fi
             promoted_workloads+=("${workload_name}")
-          done < <(python3 -m scripts.platform.workload_metadata support-task-workloads)
+          done < "$RUNNER_TEMP/support-workloads.tsv"
           if [[ "${#promoted_workloads[@]}" -eq 0 ]]; then
             echo "No support workloads were promoted." >&2
             exit 1

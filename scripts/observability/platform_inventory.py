@@ -90,15 +90,6 @@ def _workload_rows() -> list[dict[str, str]]:
     return [row for row in rows if isinstance(row, dict)]
 
 
-def _workload_row_by_name(name: str) -> dict[str, str]:
-    matches = [row for row in _workload_rows() if row.get("name") == name]
-    if len(matches) != 1:
-        raise ValueError(
-            f"expected exactly one workload named {name!r}, found {len(matches)}"
-        )
-    return matches[0]
-
-
 def _edge_service_row() -> dict[str, str]:
     matches = [
         row

@@ -77,14 +77,6 @@ def test_workload_metadata_primary_edge_and_workload_groups_are_contract_derived
         "metrics_required_names": expected_primary_edge["metrics"]["required_names"],
     }
 
-    job_workloads = _run_workload_metadata("job-workloads").stdout.splitlines()
-    expected_job_workloads = [
-        "\t".join([workload["name"], workload["image"]["repository"]])
-        for workload in contract["workloads"]
-        if workload["kind"] == "job"
-    ]
-    assert job_workloads == expected_job_workloads
-
     support_task_workloads = _run_workload_metadata(
         "support-task-workloads"
     ).stdout.splitlines()
