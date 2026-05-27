@@ -4,6 +4,15 @@ on:
   workflow_dispatch:
   pull_request:
     paths:
+      - ".github/workflows/app-build.yml"
+      - ".github/workflows/app-deploy.yml"
+      - ".github/workflows/app-rollback-drill.yml"
+      - ".github/workflows/data-backfill.yml"
+      - ".github/workflows/data-runtime-rollback-drill.yml"
+      - ".github/workflows/data-runtime-switch.yml"
+      - ".github/workflows/data-schema-apply.yml"
+      - ".github/workflows/data-support-deploy.yml"
+      - ".github/workflows/infra-apply.yml"
       - ".github/workflows/infra-plan.yml"
       - ".github/workflows/release-readiness.yml"
       - "infra/**"
@@ -11,6 +20,15 @@ on:
   push:
     branches: [main]
     paths:
+      - ".github/workflows/app-build.yml"
+      - ".github/workflows/app-deploy.yml"
+      - ".github/workflows/app-rollback-drill.yml"
+      - ".github/workflows/data-backfill.yml"
+      - ".github/workflows/data-runtime-rollback-drill.yml"
+      - ".github/workflows/data-runtime-switch.yml"
+      - ".github/workflows/data-schema-apply.yml"
+      - ".github/workflows/data-support-deploy.yml"
+      - ".github/workflows/infra-apply.yml"
       - ".github/workflows/infra-plan.yml"
       - ".github/workflows/release-readiness.yml"
       - "infra/**"
