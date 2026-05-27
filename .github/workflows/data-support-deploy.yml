@@ -119,7 +119,7 @@ jobs:
               continue
             fi
             task_definition="/tmp/${container}-task-definition.json"
-            scripts/ci/ci_render_ecs_task_definition.sh \
+            python3 scripts/ci/render_ecs_task_definition.py \
               "${STACK_NAME}-${container}" \
               "$container" \
               "${ECR_REGISTRY}/${STACK_NAME}/${container}:${IMAGE_TAG}" \

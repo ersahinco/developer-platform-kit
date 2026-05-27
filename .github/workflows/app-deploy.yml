@@ -149,7 +149,7 @@ jobs:
         env:
           PRIMARY_EDGE_TASK_ROLE_ARN: "arn:aws:iam::${{ steps.aws-context.outputs.account_id }}:role/${{ env.STACK_NAME }}-primary-edge-task"
         run: |
-          scripts/ci/ci_render_ecs_task_definition.sh \
+          python3 scripts/ci/render_ecs_task_definition.py \
             "${STACK_NAME}" \
             "${{ steps.primary-service.outputs.service }}" \
             "${{ steps.aws-context.outputs.ecr_registry }}/${STACK_NAME}/${{ steps.primary-service.outputs.service }}:${IMAGE_TAG}" \
@@ -167,7 +167,7 @@ jobs:
         run: |
           while IFS=$'\t' read -r _workload_name service; do
             task_definition="/tmp/${service}-task-definition.json"
-            scripts/ci/ci_render_ecs_task_definition.sh \
+            python3 scripts/ci/render_ecs_task_definition.py \
               "${STACK_NAME}-${service}" \
               "$service" \
               "${ECR_REGISTRY}/${STACK_NAME}/${service}:${IMAGE_TAG}" \

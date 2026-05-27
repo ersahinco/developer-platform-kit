@@ -184,7 +184,7 @@ jobs:
 
       - name: Render liquibase task definition
         run: |
-          scripts/ci/ci_render_ecs_task_definition.sh \
+          python3 scripts/ci/render_ecs_task_definition.py \
             "${STACK_NAME}-liquibase" \
             liquibase \
             "${{ steps.aws-context.outputs.ecr_registry }}/${STACK_NAME}/liquibase:${IMAGE_TAG}" \
