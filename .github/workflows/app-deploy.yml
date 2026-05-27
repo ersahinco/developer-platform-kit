@@ -116,6 +116,11 @@ jobs:
             echo "verification_profile=$(jq -r '.verification_profile' <<< "${primary_edge_contract}")"
           } >> "$GITHUB_OUTPUT"
 
+      - name: Resolve internal service inventory
+        if: ${{ !inputs.dry_run }}
+        run: |
+          python3 -m scripts.platform.workload_metadata internal-services > "$RUNNER_TEMP/internal-services.tsv"
+
       - name: Verify approved primary edge image exists
         if: ${{ !inputs.dry_run }}
         run: |
@@ -126,12 +131,12 @@ jobs:
       - name: Verify approved internal service images exist
         if: ${{ !inputs.dry_run }}
         run: |
-          python3 -m scripts.platform.workload_metadata internal-services | while IFS=$'\t' read -r _workload_name service; do
+          while IFS=$'\t' read -r _workload_name service; do
             [[ -z "$service" ]] && continue
             aws ecr describe-images \
               --repository-name "${STACK_NAME}/${service}" \
               --image-ids "imageTag=${IMAGE_TAG}"
-          done
+          done < "$RUNNER_TEMP/internal-services.tsv"
 
       - name: Verify approved sidecar image exists
         if: ${{ !inputs.dry_run }}
@@ -160,7 +165,7 @@ jobs:
         env:
           ECR_REGISTRY: ${{ steps.aws-context.outputs.ecr_registry }}
         run: |
-          python3 -m scripts.platform.workload_metadata internal-services | while IFS=$'\t' read -r _workload_name service; do
+          while IFS=$'\t' read -r _workload_name service; do
             task_definition="/tmp/${service}-task-definition.json"
             scripts/ci/ci_render_ecs_task_definition.sh \
               "${STACK_NAME}-${service}" \
@@ -168,7 +173,7 @@ jobs:
               "${ECR_REGISTRY}/${STACK_NAME}/${service}:${IMAGE_TAG}" \
               "$task_definition"
             scripts/ci/ci_deploy_ecs_service.sh "${STACK_NAME}" "$service" "$task_definition" 1
-          done
+          done < "$RUNNER_TEMP/internal-services.tsv"
 
       - name: Verify deployed edge service
         if: ${{ !inputs.dry_run }}

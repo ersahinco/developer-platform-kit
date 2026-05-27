@@ -95,6 +95,7 @@ def test_app_deploy_data_workflows_and_infra_apply_keep_review_boundary_split() 
     assert {
         "Resolve root domain",
         "Validate image tag",
+        "Resolve internal service inventory",
         "Deploy primary edge service",
         "Deploy service task definitions",
         "Verify deployed edge service",
@@ -109,6 +110,15 @@ def test_app_deploy_data_workflows_and_infra_apply_keep_review_boundary_split() 
     assert "ci_run_ecs_task.sh" not in deploy_runs
     assert "Run Liquibase" not in step_names(deploy_job)
     assert "Run backfill worker" not in step_names(deploy_job)
+
+    deploy_text = read_text(".github/workflows/app-deploy.yml")
+    assert (
+        deploy_text.count(
+            "python3 -m scripts.platform.workload_metadata internal-services"
+        )
+        == 1
+    )
+    assert '"$RUNNER_TEMP/internal-services.tsv"' in deploy_text
 
     data_support_inputs = data_support_workflow["on"]["workflow_dispatch"]["inputs"]
     assert {
@@ -315,7 +325,7 @@ def test_app_deploy_uses_repo_owned_task_definition_renderer() -> None:
     assert "describe-task-definition" not in python_renderer
     assert "render_task_definition(" in python_renderer
     assert "_render_primary_edge(" in python_renderer
-    assert "_render_event_consumer(" in python_renderer
+    assert "_render_internal_async_service(" in python_renderer
     assert 'workload["name"] == "backfill_worker"' not in python_renderer
     assert 'workload["name"] == "data_export_job"' not in python_renderer
     assert "workload_patterns(" not in python_renderer
