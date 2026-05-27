@@ -14,7 +14,7 @@ Root `AGENTS.md` applies here too.
 | `data-backfill.yml` | Reviewed backfill execution, release evidence |
 | `infra-plan.yml` | `terraform fmt`, validate, TFLint, Checkov, reviewed plan |
 | `infra-apply.yml` | Apply reviewed plan, release evidence |
-| `release-readiness.yml` | Dispatch dry-run readiness checks for manual app/data/infra workflows on `main` |
+| `release-readiness.yml` | Run dry-run readiness checks for manual app/data/infra workflows on `main` |
 | `security.yml` | Secret, dependency, docs, workflow, Dockerfile checks |
 | `semgrep.yml` | SAST |
 | `app-rollback-drill.yml` | App image rollback drill |

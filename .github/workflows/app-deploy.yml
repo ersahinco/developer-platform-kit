@@ -16,6 +16,21 @@ on:
         required: false
         default: false
         type: boolean
+  workflow_call:
+    inputs:
+      image_tag:
+        description: "Approved immutable image tag from the App build run, for example sha-<commit>."
+        required: true
+        type: string
+      confirm_deploy:
+        description: "Type deploy to confirm image rollout and post-deploy verification."
+        required: true
+        type: string
+      dry_run:
+        description: "Run non-destructive deploy readiness checks only."
+        required: false
+        default: false
+        type: boolean
 
 env:
   AWS_REGION: ${{ vars.AWS_REGION || 'eu-central-1' }}

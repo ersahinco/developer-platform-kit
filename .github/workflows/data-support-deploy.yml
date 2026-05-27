@@ -10,7 +10,25 @@ on:
       target_workload:
         description: "Support workload to promote."
         required: true
-        default: all
+        type: string
+      confirm_data_support_deploy:
+        description: "Type deploy-data-support to confirm support job image promotion."
+        required: true
+        type: string
+      dry_run:
+        description: "Run non-destructive support-task readiness checks only."
+        required: false
+        default: false
+        type: boolean
+  workflow_call:
+    inputs:
+      image_tag:
+        description: "Approved immutable image tag from the App build run, for example sha-<commit>."
+        required: true
+        type: string
+      target_workload:
+        description: "Support workload to promote."
+        required: true
         type: string
       confirm_data_support_deploy:
         description: "Type deploy-data-support to confirm support job image promotion."

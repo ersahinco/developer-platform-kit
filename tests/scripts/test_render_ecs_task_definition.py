@@ -95,6 +95,10 @@ def test_render_event_consumer_task_definition_includes_repo_owned_async_runtime
 
     assert task_definition["family"] == "aws-sdlc-containers-event-consumer"
     assert task_definition["volumes"] == [{"name": "dapr-config"}]
+    assert (
+        task_definition["taskRoleArn"]
+        == "arn:aws:iam::123:role/aws-sdlc-containers-event-consumer"
+    )
 
     containers = {
         container["name"]: container
@@ -217,7 +221,7 @@ def test_renderer_supports_runtime_override_env_for_restricted_local_runs(
     ]
 
 
-def test_backfill_renderer_reuses_deterministic_primary_edge_task_role(
+def test_backfill_renderer_uses_repository_scoped_support_job_role(
     monkeypatch,
 ) -> None:
     def fake_aws_json(args: list[str]) -> dict[str, Any]:
@@ -247,5 +251,5 @@ def test_backfill_renderer_reuses_deterministic_primary_edge_task_role(
 
     assert (
         task_definition["taskRoleArn"]
-        == "arn:aws:iam::123:role/aws-sdlc-containers-primary-edge-task"
+        == "arn:aws:iam::123:role/aws-sdlc-containers-backfill-worker"
     )

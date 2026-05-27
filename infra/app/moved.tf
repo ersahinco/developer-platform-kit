@@ -236,6 +236,11 @@ moved {
 }
 
 moved {
+  from = aws_iam_role.data_export_job
+  to   = aws_iam_role.support_job["data_export_job"]
+}
+
+moved {
   from = aws_iam_role.data_export_scheduler
   to   = aws_iam_role.scheduled_job_scheduler["data_export_job"]
 }

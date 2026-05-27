@@ -20,6 +20,25 @@ on:
         required: false
         default: false
         type: boolean
+  workflow_call:
+    inputs:
+      plan_run_id:
+        description: "Workflow run ID from the Infra Plan run to apply."
+        required: true
+        type: string
+      confirm_apply:
+        description: "Type apply to confirm Terraform apply against platform and app roots."
+        required: true
+        type: string
+      allow_ecs_task_definition_changes:
+        description: "Optional. Type allow-ecs-task-definition-changes only for a reviewed infra change that intentionally updates ECS task definitions."
+        required: false
+        type: string
+      dry_run:
+        description: "Run non-destructive reviewed-plan readiness checks only."
+        required: false
+        default: false
+        type: boolean
 
 env:
   AWS_REGION: ${{ vars.AWS_REGION || 'eu-central-1' }}

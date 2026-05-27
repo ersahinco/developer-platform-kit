@@ -16,6 +16,21 @@ on:
         required: false
         default: false
         type: boolean
+  workflow_call:
+    inputs:
+      image_tag:
+        description: "Approved immutable image tag from the App build run, for example sha-<commit>."
+        required: true
+        type: string
+      confirm_backfill:
+        description: "Type run-backfill to confirm this reviewed backfill run."
+        required: true
+        type: string
+      dry_run:
+        description: "Run non-destructive backfill readiness checks only."
+        required: false
+        default: false
+        type: boolean
 
 env:
   AWS_REGION: ${{ vars.AWS_REGION || 'eu-central-1' }}

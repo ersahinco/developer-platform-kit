@@ -316,6 +316,9 @@ def test_app_deploy_uses_repo_owned_task_definition_renderer() -> None:
     assert "render_task_definition(" in python_renderer
     assert "_render_primary_edge(" in python_renderer
     assert "_render_event_consumer(" in python_renderer
+    assert 'workload["name"] == "backfill_worker"' not in python_renderer
+    assert 'workload["name"] == "data_export_job"' not in python_renderer
+    assert "workload_patterns(" not in python_renderer
 
 
 def test_manual_cloud_workflows_expose_dry_run_and_main_readiness_dispatches_them() -> (
@@ -342,6 +345,7 @@ def test_manual_cloud_workflows_expose_dry_run_and_main_readiness_dispatches_the
         data_rollback,
     ]:
         assert "dry_run" in workflow["on"]["workflow_dispatch"]["inputs"]
+        assert "dry_run" in workflow["on"]["workflow_call"]["inputs"]
 
     assert (
         "auto-detect"
@@ -354,19 +358,31 @@ def test_manual_cloud_workflows_expose_dry_run_and_main_readiness_dispatches_the
         "Infra Plan",
     ]
 
-    dispatch_job = workflow_job(readiness, "dispatch")
-    dispatch_runs = step_run_text(dispatch_job)
+    resolve_job = workflow_job(readiness, "resolve")
+    summarize_job = workflow_job(readiness, "summarize")
 
-    assert "scripts/ci/ci_dispatch_workflow_dry_run.sh" in dispatch_runs
-    assert "-f dry_run=true" in dispatch_runs
-    for workflow_file in [
-        "app-deploy.yml",
-        "data-support-deploy.yml",
-        "data-schema-apply.yml",
-        "data-runtime-switch.yml",
-        "data-backfill.yml",
-        "infra-apply.yml",
-        "app-rollback-drill.yml",
-        "data-runtime-rollback-drill.yml",
+    assert "actions/github-script" in read_text(
+        ".github/workflows/release-readiness.yml"
+    )
+    assert "gh run list" not in read_text(".github/workflows/release-readiness.yml")
+    assert "ci_dispatch_workflow_dry_run.sh" not in read_text(
+        ".github/workflows/release-readiness.yml"
+    )
+    assert "Summarize readiness result" in step_names(summarize_job)
+    assert "Resolve matching App Build and Infra Plan runs" in step_names(resolve_job)
+
+    for job_name, workflow_file in [
+        ("app_deploy", "./.github/workflows/app-deploy.yml"),
+        ("data_support_deploy", "./.github/workflows/data-support-deploy.yml"),
+        ("data_schema_apply", "./.github/workflows/data-schema-apply.yml"),
+        ("data_runtime_switch", "./.github/workflows/data-runtime-switch.yml"),
+        ("data_backfill", "./.github/workflows/data-backfill.yml"),
+        ("infra_apply", "./.github/workflows/infra-apply.yml"),
+        ("app_rollback_drill", "./.github/workflows/app-rollback-drill.yml"),
+        (
+            "data_runtime_rollback_drill",
+            "./.github/workflows/data-runtime-rollback-drill.yml",
+        ),
     ]:
-        assert workflow_file in dispatch_runs
+        assert readiness["jobs"][job_name]["uses"] == workflow_file
+        assert str(readiness["jobs"][job_name]["with"]["dry_run"]).lower() == "true"

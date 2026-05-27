@@ -24,6 +24,25 @@ on:
         required: false
         default: false
         type: boolean
+  workflow_call:
+    inputs:
+      image_tag:
+        description: "Immutable app image tag to deploy for the drill, for example sha-<commit>."
+        required: true
+        type: string
+      fault_mode:
+        description: "Fault behavior to inject into /ready for the drill."
+        required: true
+        type: string
+      confirm_drill:
+        description: "Type rollback-drill to confirm this app-only drill."
+        required: true
+        type: string
+      dry_run:
+        description: "Run non-destructive rollback-drill readiness checks only."
+        required: false
+        default: false
+        type: boolean
 
 env:
   AWS_REGION: ${{ vars.AWS_REGION || 'eu-central-1' }}

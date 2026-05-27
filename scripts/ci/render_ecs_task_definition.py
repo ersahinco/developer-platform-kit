@@ -13,7 +13,6 @@ sys.path.insert(0, str(ROOT))
 
 from scripts.platform.workload_metadata import (  # noqa: E402
     workload_operational_class,
-    workload_patterns,
     workload_repository,
     workloads,
 )
@@ -251,6 +250,12 @@ def _declared_environment(
     ]
 
 
+def _declared_env_names(workload: dict[str, Any]) -> set[str]:
+    config = workload.get("config", {})
+    declared = config.get("env", []) if isinstance(config, dict) else []
+    return {env_name for env_name in declared if isinstance(env_name, str) and env_name}
+
+
 def _declared_secrets(
     workload: dict[str, Any],
     secret_values: dict[str, str],
@@ -275,6 +280,7 @@ def _runtime_values_for_workload(
     enable_adot_sidecar: bool,
 ) -> dict[str, str]:
     values: dict[str, str] = {}
+    declared_env_names = _declared_env_names(workload)
 
     database = workload.get("database")
     if isinstance(database, dict):
@@ -306,7 +312,6 @@ def _runtime_values_for_workload(
         values["DAPR_HTTP_ENDPOINT"] = "http://localhost:3500"
         values["DAPR_HTTP_PORT"] = "3500"
 
-    name = workload["name"]
     if workload_operational_class(workload) == "edge-service":
         values.update(
             {
@@ -316,30 +321,22 @@ def _runtime_values_for_workload(
                 "ROLLOUT_DRILL_FAULT_DELAY_SECONDS": "3",
             }
         )
-    elif name == "backfill_worker":
-        values.update(
+
+    env_defaults = {
+        "BACKFILL_BATCH_SIZE": os.getenv(
+            "BACKFILL_BATCH_SIZE", DEFAULT_BACKFILL_BATCH_SIZE
+        ),
+        "BACKFILL_SLEEP_MS": os.getenv("BACKFILL_SLEEP_MS", DEFAULT_BACKFILL_SLEEP_MS),
+        "DATA_EXPORT_OUTPUT_DIR": DEFAULT_DATA_EXPORT_OUTPUT_DIR,
+        "DATA_EXPORT_S3_BUCKET": data_hub_bucket_name,
+    }
+    service = workload.get("service")
+    dapr = workload.get("dapr")
+    if isinstance(service, dict):
+        env_defaults["EVENT_CONSUMER_APP_PORT"] = str(service["port"])
+    if isinstance(dapr, dict):
+        env_defaults.update(
             {
-                "BACKFILL_BATCH_SIZE": os.getenv(
-                    "BACKFILL_BATCH_SIZE", DEFAULT_BACKFILL_BATCH_SIZE
-                ),
-                "BACKFILL_SLEEP_MS": os.getenv(
-                    "BACKFILL_SLEEP_MS", DEFAULT_BACKFILL_SLEEP_MS
-                ),
-            }
-        )
-    elif name == "data_export_job":
-        values.update(
-            {
-                "DATA_EXPORT_OUTPUT_DIR": DEFAULT_DATA_EXPORT_OUTPUT_DIR,
-                "DATA_EXPORT_S3_BUCKET": data_hub_bucket_name,
-            }
-        )
-    elif name == "event_consumer":
-        dapr = workload["dapr"]
-        service = workload["service"]
-        values.update(
-            {
-                "EVENT_CONSUMER_APP_PORT": str(service["port"]),
                 "EVENT_CONSUMER_WORKER_MODE": "both",
                 "EVENT_CONSUMER_PUBSUB_NAME": str(dapr["pubsub_name"]),
                 "EVENT_CONSUMER_TOPIC": f"{stack_name}-{dapr['topic']}",
@@ -347,6 +344,13 @@ def _runtime_values_for_workload(
                 "EVENT_CONSUMER_IDLE_SLEEP_SECONDS": "1",
             }
         )
+    values.update(
+        {
+            env_name: value
+            for env_name, value in env_defaults.items()
+            if env_name in declared_env_names
+        }
+    )
 
     return values
 
@@ -874,7 +878,7 @@ def render_task_definition(
             ),
         )
 
-    if "internal-async-service" in workload_patterns(workload):
+    if isinstance(workload.get("dapr"), dict):
         return _render_event_consumer(
             workload,
             stack_name=stack_name,
@@ -886,16 +890,7 @@ def render_task_definition(
             db_secret_arn=database_runtime["secret_arn"],
         )
 
-    if workload["name"] == "backfill_worker":
-        task_role_arn = _resolve_primary_edge_task_role_arn(
-            stack_name,
-            account_id=account_id,
-        )
-    elif workload["name"] == "data_export_job":
-        task_role_arn = _deterministic_role_arn(
-            account_id, f"{stack_name}-data-export-job"
-        )
-    else:
+    if workload.get("kind") != "job":
         raise RuntimeError(f"unsupported workload renderer target {workload['name']}")
 
     return _render_support_job(
@@ -907,7 +902,7 @@ def render_task_definition(
         db_address=database_runtime["address"],
         db_port=database_runtime["port"],
         db_secret_arn=database_runtime["secret_arn"],
-        task_role_arn=task_role_arn,
+        task_role_arn=_deterministic_role_arn(account_id, f"{stack_name}-{repository}"),
     )
 
 

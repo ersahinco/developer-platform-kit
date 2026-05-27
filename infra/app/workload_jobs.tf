@@ -27,14 +27,12 @@ locals {
 
   support_job_runtime_overrides = {
     backfill_worker = {
-      cpu           = var.backfill_worker_cpu
-      memory        = var.backfill_worker_memory
-      task_role_arn = aws_iam_role.primary_edge_task_deploy.arn
+      cpu    = var.backfill_worker_cpu
+      memory = var.backfill_worker_memory
     }
     data_export_job = {
-      cpu           = var.data_export_job_cpu
-      memory        = var.data_export_job_memory
-      task_role_arn = aws_iam_role.data_export_job.arn
+      cpu    = var.data_export_job_cpu
+      memory = var.data_export_job_memory
     }
   }
 
@@ -46,7 +44,6 @@ locals {
       container_name = workload.image.repository
       cpu            = local.support_job_runtime_overrides[name].cpu
       memory         = local.support_job_runtime_overrides[name].memory
-      task_role_arn  = local.support_job_runtime_overrides[name].task_role_arn
     }
     if contains(keys(local.support_job_runtime_overrides), name)
   }
@@ -167,7 +164,7 @@ resource "aws_ecs_task_definition" "support_job" {
   cpu                      = each.value.cpu
   memory                   = each.value.memory
   execution_role_arn       = local.support_task_definition_defaults.execution_role_arn
-  task_role_arn            = each.value.task_role_arn
+  task_role_arn            = aws_iam_role.support_job[each.key].arn
 
   container_definitions = jsonencode([
     merge(local.ecs_container_defaults, {
@@ -195,17 +192,19 @@ resource "aws_cloudwatch_log_group" "support_job" {
   tags              = local.support_workload_log_group_defaults.tags
 }
 
+resource "aws_iam_role" "support_job" {
+  for_each = local.support_job_workloads
+
+  name               = "${local.name}-${each.value.repository}"
+  assume_role_policy = data.aws_iam_policy_document.task_exec_assume.json
+  tags               = local.tags
+}
+
 ################################################################################
 # Data export job — scheduled Fargate task that exports workload-owned data to
 # the data hub S3 bucket. The scheduler targets the task definition family so
 # CI-registered revisions become active without a Terraform apply.
 ################################################################################
-
-resource "aws_iam_role" "data_export_job" {
-  name               = "${local.name}-data-export-job"
-  assume_role_policy = data.aws_iam_policy_document.task_exec_assume.json
-  tags               = local.tags
-}
 
 data "aws_iam_policy_document" "data_export_job_s3" {
   statement {
@@ -220,7 +219,7 @@ data "aws_iam_policy_document" "data_export_job_s3" {
 
 resource "aws_iam_role_policy" "data_export_job_s3" {
   name   = "data-hub-write"
-  role   = aws_iam_role.data_export_job.id
+  role   = aws_iam_role.support_job["data_export_job"].id
   policy = data.aws_iam_policy_document.data_export_job_s3.json
 }
 

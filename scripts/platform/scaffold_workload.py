@@ -10,13 +10,33 @@ import sys
 import textwrap
 from typing import Any
 
-from scripts.platform.workload_metadata import workload_pattern_contract
-
 ROOT = Path(__file__).resolve().parents[2]
 
 NAME_PATTERN = re.compile(r"^[a-z][a-z0-9_]*$")
 USE_CASE_PATTERN = re.compile(r"^[a-z0-9]+(?:-[a-z0-9]+)*$")
 SCAFFOLD_RUNTIME_TARGETS = ("local-compose", "aws-ecs")
+SUPPORTED_WORKLOAD_PATTERNS: dict[str, dict[str, str]] = {
+    "edge-service": {
+        "kind": "service",
+        "operational_class": "edge-service",
+    },
+    "internal-async-service": {
+        "kind": "service",
+        "operational_class": "internal-service",
+    },
+    "operator-job": {
+        "kind": "job",
+        "operational_class": "operator-job",
+    },
+    "scheduled-job": {
+        "kind": "job",
+        "operational_class": "scheduled-job",
+    },
+    "export-job": {
+        "kind": "job",
+        "operational_class": "scheduled-job",
+    },
+}
 
 
 @dataclass
@@ -71,13 +91,7 @@ def _description(name: str, patterns: list[str]) -> str:
 
 
 def _pattern_index() -> dict[str, dict[str, Any]]:
-    payload = workload_pattern_contract()
-    patterns = payload.get("patterns", [])
-    return {
-        str(pattern["name"]): pattern
-        for pattern in patterns
-        if isinstance(pattern, dict) and isinstance(pattern.get("name"), str)
-    }
+    return SUPPORTED_WORKLOAD_PATTERNS
 
 
 def _normalized_patterns(values: list[str]) -> list[str]:

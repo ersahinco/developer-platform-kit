@@ -25,6 +25,15 @@ def _write_minimal_repo(root: Path) -> None:
         (root / relative_dir).mkdir(parents=True, exist_ok=True)
 
 
+def test_scaffold_patterns_are_supported_shapes_not_executable_contract_input() -> None:
+    source = (ROOT / "scripts" / "platform" / "scaffold_workload.py").read_text(
+        encoding="utf-8"
+    )
+
+    assert "SUPPORTED_WORKLOAD_PATTERNS" in source
+    assert "workload_pattern_contract" not in source
+
+
 def test_build_plan_infers_internal_async_defaults() -> None:
     args = scaffold_workload.parse_args(
         [

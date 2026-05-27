@@ -27,6 +27,29 @@ on:
         required: false
         default: false
         type: boolean
+  workflow_call:
+    inputs:
+      image_tag:
+        description: "Approved immutable image tag from the App build run, for example sha-<commit>."
+        required: true
+        type: string
+      schema_phase:
+        description: "Current schema phase for this reviewed migration."
+        required: true
+        type: string
+      confirm_contract_ready:
+        description: "Required only for contract phase. Type contract-ready after confirming READ_MODE=new and WRITE_MODE=new."
+        required: false
+        type: string
+      confirm_schema_apply:
+        description: "Type apply-schema to confirm this reviewed schema apply."
+        required: true
+        type: string
+      dry_run:
+        description: "Run non-destructive schema readiness checks only."
+        required: false
+        default: false
+        type: boolean
 
 env:
   AWS_REGION: ${{ vars.AWS_REGION || 'eu-central-1' }}

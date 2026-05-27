@@ -12,6 +12,17 @@ on:
         required: false
         default: false
         type: boolean
+  workflow_call:
+    inputs:
+      confirm_drill:
+        description: "Type data-rollback-drill to confirm this runtime-config drill."
+        required: true
+        type: string
+      dry_run:
+        description: "Run non-destructive runtime-rollback readiness checks only."
+        required: false
+        default: false
+        type: boolean
 
 env:
   AWS_REGION: ${{ vars.AWS_REGION || 'eu-central-1' }}
