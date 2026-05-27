@@ -40,7 +40,7 @@ TF_PLATFORM_STATE_KEY  ?= $(STACK_NAME)/platform.tfstate
 TF_APP_STATE_KEY       ?= $(STACK_NAME)/app.tfstate
 TF_PLATFORM_VARS_FILE  := stack.tfvars
 TF_APP_VARS_FILE       := stack.tfvars
-PRIMARY_EDGE_SERVICE   ?= $(shell python3 -m scripts.platform.workload_metadata primary-edge 2>/dev/null | cut -f2)
+PRIMARY_EDGE_SERVICE   ?= $(shell python3 -m scripts.platform.workload_metadata primary-edge-contract 2>/dev/null | jq -r '.repository')
 SERVICE_NAME           ?= $(PRIMARY_EDGE_SERVICE)
 LOOKBACK_MINUTES       ?= 60
 RELEASE_EVENTS_DIR     ?=
@@ -69,8 +69,8 @@ observability: ## Start local Prometheus + Loki + Promtail + Grafana
 
 .PHONY: local-up
 local-up: ## Build/start local app + Prometheus + Loki + Promtail + Grafana
-	docker compose build app
-	OTEL_TRACES_ENABLED=true docker compose --profile observability up -d db pgbouncer app prometheus loki tempo promtail grafana
+	docker compose build api
+	OTEL_TRACES_ENABLED=true docker compose --profile observability up -d db pgbouncer api prometheus loki tempo promtail grafana
 	docker compose --profile observability ps
 
 .PHONY: dapr-up
@@ -86,7 +86,7 @@ open-dataset-pipeline: ## Run the local-only open dataset workload pipeline
 
 .PHONY: local-down
 local-down: ## Stop local app and observability services without deleting volumes
-	docker compose --profile observability --profile dapr --profile data stop app prometheus loki tempo promtail grafana event-consumer event-consumer-dapr redis open-dataset-pipeline
+	docker compose --profile observability --profile dapr --profile data stop api prometheus loki tempo promtail grafana event-consumer event-consumer-dapr redis open-dataset-pipeline
 
 .PHONY: local-reset
 local-reset: ## Stop all local services and delete Compose volumes

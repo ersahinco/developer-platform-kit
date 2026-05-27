@@ -55,13 +55,6 @@ def test_workload_metadata_primary_edge_and_workload_groups_are_contract_derived
     }
     expected_primary_edge = workloads_by_name["api"]
 
-    primary_edge = _run_workload_metadata("primary-edge").stdout.strip().split("\t")
-    assert primary_edge == [
-        expected_primary_edge["name"],
-        expected_primary_edge["image"]["repository"],
-        expected_primary_edge["edge"]["hostname_label"],
-    ]
-
     primary_edge_contract = json.loads(
         _run_workload_metadata("primary-edge-contract").stdout
     )

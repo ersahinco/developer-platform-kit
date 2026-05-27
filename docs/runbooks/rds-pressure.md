@@ -49,7 +49,7 @@ aws rds describe-db-instances \
 Check app and PgBouncer logs for connection or timeout symptoms:
 
 ```bash
-aws logs tail "/ecs/${STACK_NAME}/$(python3 -m scripts.platform.workload_metadata primary-edge | cut -f2)" \
+aws logs tail "/ecs/${STACK_NAME}/$(terraform -chdir=infra/app output -raw primary_edge_service_name)" \
   --since 30m \
   --region "$AWS_REGION"
 

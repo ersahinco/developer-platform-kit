@@ -347,20 +347,6 @@ def primary_edge_contract() -> dict[str, Any]:
     }
 
 
-def _print_primary_edge() -> int:
-    workload = primary_edge_service_workload()
-    print(
-        "\t".join(
-            [
-                str(workload["name"]),
-                workload_repository(workload),
-                workload_hostname_label(workload),
-            ]
-        )
-    )
-    return 0
-
-
 def _print_primary_edge_contract() -> int:
     print(json.dumps(primary_edge_contract(), separators=(",", ":")))
     return 0
@@ -475,14 +461,13 @@ def main(argv: list[str] | None = None) -> int:
     if not argv:
         print(
             "usage: python -m scripts.platform.workload_metadata "
-            "<primary-edge|primary-edge-contract|internal-services|support-task-workloads|image-matrix|capability-matrix|use-case-matrix|implementation-matrix|adapter-seam-matrix|inventory-json>",
+            "<primary-edge-contract|internal-services|support-task-workloads|image-matrix|capability-matrix|use-case-matrix|implementation-matrix|adapter-seam-matrix|inventory-json>",
             file=sys.stderr,
         )
         return 1
 
     command, *args = argv
     handlers = {
-        "primary-edge": lambda _args: _print_primary_edge(),
         "primary-edge-contract": lambda _args: _print_primary_edge_contract(),
         "internal-services": lambda _args: _print_internal_services(),
         "support-task-workloads": lambda _args: _print_support_task_workloads(),

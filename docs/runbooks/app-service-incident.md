@@ -73,7 +73,7 @@ aws ecs list-tasks \
 Check logs and endpoints:
 
 ```bash
-aws logs tail "/ecs/${STACK_NAME}/$(python3 -m scripts.platform.workload_metadata primary-edge | cut -f2)" --since 30m --region "$AWS_REGION"
+aws logs tail "/ecs/${STACK_NAME}/$(terraform -chdir=infra/app output -raw primary_edge_service_name)" --since 30m --region "$AWS_REGION"
 curl -i "https://$(terraform -chdir=infra/app output -raw primary_edge_fqdn)/health"
 curl -i "https://$(terraform -chdir=infra/app output -raw primary_edge_fqdn)/ready"
 ```

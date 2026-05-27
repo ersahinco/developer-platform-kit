@@ -63,7 +63,7 @@ aws sqs get-queue-attributes \
 Inspect app and consumer logs:
 
 ```bash
-aws logs tail "/ecs/${STACK_NAME}/$(python3 -m scripts.platform.workload_metadata primary-edge | cut -f2)" \
+aws logs tail "/ecs/${STACK_NAME}/$(terraform -chdir=infra/app output -raw primary_edge_service_name)" \
   --since 30m \
   --region "$AWS_REGION"
 
