@@ -102,9 +102,16 @@ After fixing the underlying issue, run the current task definition once from a
 private subnet:
 
 ```bash
-GITHUB_OUTPUT=/tmp/data-export-network.env \
-  scripts/ci/ci_resolve_ecs_network.sh "${STACK_NAME}"
-source /tmp/data-export-network.env
+subnet_id=$(aws ec2 describe-subnets \
+  --filters "Name=tag:Name,Values=${STACK_NAME}-private-*" \
+  --query 'Subnets[0].SubnetId' \
+  --output text \
+  --region "$AWS_REGION")
+sg_id=$(aws ec2 describe-security-groups \
+  --filters "Name=group-name,Values=${STACK_NAME}-primary-edge-*" \
+  --query 'SecurityGroups[0].GroupId' \
+  --output text \
+  --region "$AWS_REGION")
 
 export ECS_RUN_TASK_WAIT_FOR_STOPPED=true
 export ECS_RUN_TASK_ASSERT_SUCCESS=true
