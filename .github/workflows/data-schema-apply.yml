@@ -111,7 +111,12 @@ jobs:
 
       - name: Resolve AWS image registry
         id: aws-context
-        run: scripts/ci/ci_resolve_aws_context.sh
+        run: |
+          account_id=$(aws sts get-caller-identity --query Account --output text)
+          {
+            echo "account_id=${account_id}"
+            echo "ecr_registry=${account_id}.dkr.ecr.${AWS_REGION}.amazonaws.com"
+          } >> "$GITHUB_OUTPUT"
 
       - name: Resolve primary edge contract
         id: primary-service
