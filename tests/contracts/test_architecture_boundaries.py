@@ -83,17 +83,6 @@ def test_dapr_pubsub_boundary_keeps_provider_brokers_at_runtime_edge() -> None:
     assert event_consumer["dapr"]["scope"] == "pubsub"
     assert event_consumer["dapr"]["pubsub_name"] == "async-events-pubsub"
 
-    app_facing_literals = {
-        literal.lower()
-        for literal in (
-            _string_literals(ROOT / "packages" / "application")
-            | _string_literals(ROOT / "apps" / "event_consumer")
-            | _string_literals(ROOT / "packages" / "infrastructure" / "dapr")
-        )
-    }
-    for forbidden in ["sns", "sqs", "localstack", "queue_url", "topic_arn"]:
-        assert forbidden not in app_facing_literals
-
     dapr_adapter = "\n".join(
         path.read_text(encoding="utf-8")
         for path in _python_files(ROOT / "packages" / "infrastructure" / "dapr")

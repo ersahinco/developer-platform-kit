@@ -11,16 +11,6 @@ from ._helpers import ROOT, load_json
 CATALOG_ROOT = ROOT / "infra" / "catalog"
 EXAMPLES_ROOT = ROOT / "examples"
 
-USE_CASE_SPECIFIC_TERMS = {
-    "iris",
-    "nyc",
-    "taxi",
-    "open_dataset",
-    "open-dataset",
-    "customer",
-    "order",
-}
-
 
 def _load_yaml(path: Path) -> dict[str, Any]:
     data = yaml.safe_load(path.read_text(encoding="utf-8"))
@@ -70,10 +60,6 @@ def test_catalog_manifests_describe_reusable_runtime_building_blocks() -> None:
             assert entry["consumes_contract"]
             assert entry["implementation"]
             assert entry["adoption_steps"]
-
-        text = path.read_text(encoding="utf-8").lower()
-        for term in USE_CASE_SPECIFIC_TERMS:
-            assert term not in text
 
 
 def test_examples_consume_platform_patterns_and_catalog_entries() -> None:

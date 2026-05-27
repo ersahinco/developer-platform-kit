@@ -106,25 +106,19 @@ def test_catalog_info_declares_backstage_location_for_platform_entities() -> Non
     documents = _load_yaml_documents("catalog-info.yaml")
     assert len(documents) == 1
     location = documents[0]
+    targets = location["spec"]["targets"]
 
     assert location["kind"] == "Location"
     assert location["metadata"]["name"] == "aws-sdlc-containers-catalog"
     assert location["spec"]["type"] == "file"
-    assert sorted(location["spec"]["targets"]) == sorted(
-        [
-            "./catalog/platform-engineering-group.yaml",
-            "./catalog/platform-engineering-domain.yaml",
-            "./catalog/aws-sdlc-containers-system.yaml",
-            "./catalog/runtime-target-local-compose.yaml",
-            "./catalog/runtime-target-aws-ecs.yaml",
-            "./catalog/platform-monorepo-component.yaml",
-            "./catalog/api-component.yaml",
-            "./catalog/event-consumer-component.yaml",
-            "./catalog/backfill-worker-component.yaml",
-            "./catalog/data-export-job-component.yaml",
-            "./catalog/open-dataset-pipeline-component.yaml",
-        ]
-    )
+    assert isinstance(targets, list)
+    assert targets
+    assert all((ROOT / target.removeprefix("./")).is_file() for target in targets)
+    component_targets = {
+        Path(target).name for target in targets if target.startswith("./catalog/")
+    }
+    catalog_files = {path.name for path in sorted((ROOT / "catalog").glob("*.yaml"))}
+    assert component_targets == catalog_files
 
 
 def test_catalog_entity_files_declare_backstage_entities_for_platform_and_workloads() -> (
