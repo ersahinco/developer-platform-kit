@@ -38,9 +38,8 @@ multi-runtime control plane.
   sources of workload meaning.
 - Future runtime-target catalog modules belong under
   `infra/catalog/<runtime-target>/`.
-- `infra/catalog/managed-service-provider/` is reserved for future reusable
-  provider-edge building blocks when a real workload needs hybrid database,
-  DNS, edge, storage, or identity support.
+- New runtime-target catalog branches appear only when a real workload needs
+  them and the runtime owner is clear.
 - `platform/runtime-conformance.json` remains fixture data only; it must not
   become a second workload specification.
 - Backstage remains optional as a portal and catalog UX layer over the stable

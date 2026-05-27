@@ -39,10 +39,11 @@ def _catalog_entry_refs() -> set[str]:
 
 
 def test_catalog_manifests_describe_reusable_runtime_building_blocks() -> None:
-    runtime_targets = {
-        target["id"]
-        for target in load_json("platform/platform-inventory.json")["runtime_targets"]
-    }
+    inventory = load_json("platform/platform-inventory.json")
+    runtime_targets = {target["id"] for target in inventory["runtime_targets"]}
+
+    assert inventory["current_runtime_target"] == "aws-ecs"
+    assert runtime_targets == {"local-compose", "aws-ecs"}
 
     for path, manifest in _catalog_manifests():
         assert manifest["schema_version"] == "1"

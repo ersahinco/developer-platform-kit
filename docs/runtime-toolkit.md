@@ -1,7 +1,7 @@
 # Runtime Toolkit
 
 Use this doc when evaluating or adding a runtime target such as local Compose,
-AWS/ECS, managed PostgreSQL, global DNS, edge providers, or cheaper compute.
+AWS/ECS, or a future provider-edge integration backed by a real workload need.
 Goal: prove the runtime can satisfy the workload contract without moving
 provider assumptions into app code.
 
@@ -30,14 +30,9 @@ The stable center stays the same:
 
 Do not add a runtime target just to prove portability.
 
-Managed service providers are valid runtime edges. A Supabase-style Postgres
-provider, global DNS provider, or managed edge service should realize the same
-contract surfaces as the AWS or local targets instead of becoming application
-architecture.
-
-For now, AWS is the only reviewed cloud runtime in this repo. Managed database
-and DNS providers stay on the horizon until a workload has a concrete cost or
-hybrid-design need, plus clear runtime ownership.
+For now, AWS is the only reviewed cloud runtime in this repo. Managed database,
+DNS, edge, identity, or storage providers stay on the horizon until a workload
+has a concrete need and clear runtime ownership.
 
 ## Runtime Must Provide
 
@@ -67,10 +62,9 @@ observability stack to prove the workload contract before cloud deployment.
 contract with ECS/Fargate, ALB/WAF, RDS, SNS/SQS behind Dapr, S3, EventBridge
 Scheduler, IAM, and CloudWatch.
 
-`managed-service-provider` is a reserved category for hybrid services such as
-managed PostgreSQL, global DNS, edge, identity, or storage providers. Add a
-specific provider only when a workload needs it and the ownership boundary is
-clear.
+A provider-edge integration can still be documented as a future option, but it
+should not appear as an active runtime target until there is a real workload,
+reviewed ownership, and delivery path.
 
 A workload can still be real and live under `apps/` before it is admitted to a
 cloud runtime. Local support through `local-compose` is a valid first runtime
@@ -128,7 +122,7 @@ For this repo today:
 - CI-to-Loki publishing is ready but inactive
 - AWS-managed resource metrics still rely on CloudWatch at the platform edge
 - no additional production runtime target is implemented yet
-- managed global service providers are documented as valid runtime edges but not implemented
+- no additional production runtime target is implemented yet
 - infra rollback remains reviewed plan/apply, not a permanent drill workflow
 
 ## Implementation Steps

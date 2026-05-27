@@ -20,13 +20,6 @@
       "owner": "platform-runtime",
       "implementation": "AWS ECS/Fargate + ALB/WAF + RDS + SNS/SQS + S3 + EventBridge Scheduler",
       "purpose": "Current reviewed production realization of the workload contract."
-    },
-    {
-      "id": "managed-service-provider",
-      "role": "future-runtime-edge",
-      "owner": "provider-runtime",
-      "implementation": "Managed PostgreSQL, DNS, edge, identity, or storage providers such as Supabase/Postgres or global DNS services when cost or hybrid design requires them.",
-      "purpose": "Future hybrid environment realization when a workload needs a managed global service without changing application code or workload identity."
     }
   ],
   "runtime_capabilities": [

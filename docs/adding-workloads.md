@@ -175,9 +175,9 @@ second workload specification.
 
 Managed provider-edge note:
 
-- managed Postgres, DNS, edge, identity, or storage integrations belong under `infra/catalog/managed-service-provider/` when a real workload needs them
 - keep workload identity in `platform/workloads.json`; do not turn provider-edge wiring into a second workload contract
-- do not add a new cloud runtime target until a repeated workload need and clear runtime ownership exist
+- do not add a new runtime-target catalog branch until a repeated workload need and clear runtime ownership exist
+- keep provider-edge options as documented horizon guidance until they become reviewed runtime work
 
 ## Verify
 

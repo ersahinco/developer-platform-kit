@@ -9,9 +9,8 @@
 | `infra/catalog/` | Reusable runtime-target catalog building blocks |
 
 Use `infra/catalog/<runtime-target>/` for catalog growth. The current catalog
-surface is `infra/catalog/aws/`. `infra/catalog/managed-service-provider/` is
-reserved for reusable provider-edge building blocks such as managed Postgres or
-DNS integrations when cost or hybrid design requires them.
+surface is `infra/catalog/aws/`. Add another runtime-target branch only when a
+real workload needs it and the runtime owner is clear.
 
 Companion docs:
 

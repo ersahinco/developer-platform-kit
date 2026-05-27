@@ -9,9 +9,8 @@ catalog. Together they make the monorepo a practical toolkit for engineers to
 build standardized applications without replacing the tools they already use.
 Runtime targets are pluggable implementations at the platform edge. Local
 Compose is the fast feedback runtime; AWS/ECS is the current reviewed
-production runtime. Hybrid managed services such as managed Postgres, global
-DNS, edge, or storage providers can be added as runtime-edge realizations when
-the workload contract needs them.
+production runtime. Future provider-edge integrations stay a horizon topic
+until a real workload needs them and the runtime ownership is clear.
 The repo also ships a conventional Backstage descriptor in `catalog-info.yaml`
 so a portal or software catalog can ingest the monorepo without custom glue.
 
