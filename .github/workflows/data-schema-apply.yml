@@ -121,14 +121,16 @@ jobs:
       - name: Resolve primary edge contract
         id: primary-service
         run: |
-          IFS=$'\t' read -r workload_name service hostname_label < <(
+          IFS=$'\t' read -r workload_name service hostname_label read_mode_endpoint write_mode_endpoint < <(
             python3 -m scripts.platform.workload_metadata primary-edge-contract \
-              | jq -r '[.name, .repository, .hostname_label] | @tsv'
+              | jq -r '[.name, .repository, .hostname_label, .runtime_mode_endpoints.read, .runtime_mode_endpoints.write] | @tsv'
           )
           {
             echo "service=${service}"
             echo "workload_name=${workload_name}"
             echo "hostname_label=${hostname_label}"
+            echo "read_mode_endpoint=${read_mode_endpoint}"
+            echo "write_mode_endpoint=${write_mode_endpoint}"
           } >> "$GITHUB_OUTPUT"
 
       - name: Require stable primary edge service
@@ -156,10 +158,10 @@ jobs:
 
           read_mode=$(curl --fail --show-error --silent \
             --header "Authorization: Bearer ${TOKEN}" \
-            "${BASE_URL}/admin/read-mode" | jq -r '.mode')
+            "${BASE_URL}${{ steps.primary-service.outputs.read_mode_endpoint }}" | jq -r '.mode')
           write_mode=$(curl --fail --show-error --silent \
             --header "Authorization: Bearer ${TOKEN}" \
-            "${BASE_URL}/admin/write-mode" | jq -r '.mode')
+            "${BASE_URL}${{ steps.primary-service.outputs.write_mode_endpoint }}" | jq -r '.mode')
 
           {
             echo "read_mode=${read_mode}"

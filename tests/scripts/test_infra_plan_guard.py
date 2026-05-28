@@ -33,7 +33,7 @@ Terraform will perform the following actions:
 
   # aws_cloudwatch_metric_alarm.primary_edge_target_latency[0] will be updated in-place
   ~ resource "aws_cloudwatch_metric_alarm" "primary_edge_target_latency" {
-      alarm_description = "rollback drill marker"
+      alarm_description = "latency alarm threshold"
     }
 """,
         encoding="utf-8",

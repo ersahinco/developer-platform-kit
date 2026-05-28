@@ -31,5 +31,4 @@ uv run pytest tests/ -v
 uv run pytest tests/application/ -v
 uv run pytest tests/api/ -v
 make runtime-conformance
-uv run pytest tests/ --cov=packages --cov-report=term-missing
 ```

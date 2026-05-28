@@ -100,17 +100,17 @@ Do not add:
 - use lowercase kebab-case strings such as `http-api`, `dashboard`, `connector`, `event-consumer`, or `scheduled-pipeline`
 - keep them useful for catalog search, templates, and future self-service entrypoints
 
-## Copy The Smallest Existing Pattern
+## Copy The Smallest Existing Reference
 
 Use existing workloads as examples, not a generator. Copy only the pieces that
 match the new workload and finish the contract directly.
 
-| Need | Pattern |
+| Need | Reference |
 |---|---|
-| public HTTP API | pattern `edge-service`, reference host `apps/api` |
-| internal Dapr-backed service | pattern `internal-async-service`, reference host `apps/event_consumer` |
-| operator-triggered job | pattern `operator-job`, reference host `apps/backfill_worker` |
-| scheduled export job | patterns `scheduled-job` + `export-job`, reference host `apps/data_export_job` |
+| public HTTP API | operational class `edge-service`, host `apps/api` |
+| internal Dapr-backed service | operational class `internal-service`, host `apps/event_consumer` |
+| operator-triggered job | operational class `operator-job`, host `apps/backfill_worker` |
+| scheduled export job | operational class `scheduled-job`, host `apps/data_export_job` |
 
 Reuse `platform/workload.Dockerfile` unless there is a concrete reason not to.
 If a workload needs a different container shape, declare `image.dockerfile`

@@ -73,9 +73,9 @@ Rules:
 In addition to `kind` and operational class, each workload declares one or more
 target-neutral `use_cases`. These help catalog, template, and self-service
 surfaces distinguish workloads like `http-api`, `event-consumer`, `dashboard`,
-or `connector` without encoding runtime details. Scaffold patterns stay outside
-real workload metadata so operational class remains the single workload shape
-axis.
+or `connector` without encoding runtime details. Classification patterns stay
+outside real workload metadata so operational class remains the single workload
+shape axis.
 
 Each workload declares runtime support explicitly:
 

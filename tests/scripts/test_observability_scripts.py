@@ -584,7 +584,7 @@ def test_release_event_captures_cloudwatch_alarm_snapshot(monkeypatch) -> None:
                 {
                     "AlarmName": "aws-sdlc-containers-api-target-5xx",
                     "StateValue": "ALARM",
-                    "StateReason": "5xx rollback drill fault observed",
+                    "StateReason": "5xx threshold breached",
                     "StateUpdatedTimestamp": "2026-05-12T10:00:00+00:00",
                 }
             ]

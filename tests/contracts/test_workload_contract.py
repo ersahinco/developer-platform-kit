@@ -242,3 +242,18 @@ def test_runtime_conformance_uses_declared_workload_config_names() -> None:
             workload_conformance["secrets"]
         )
         assert conformance_names.issubset(_declared_config_names(workload))
+
+
+def test_cloud_data_workflows_use_declared_runtime_mode_endpoints() -> None:
+    workflow_paths = [
+        ".github/workflows/data-backfill.yml",
+        ".github/workflows/data-runtime-switch.yml",
+        ".github/workflows/data-schema-apply.yml",
+    ]
+
+    for path in workflow_paths:
+        text = read_text(path)
+        assert "/admin/read-mode" not in text
+        assert "/admin/write-mode" not in text
+        assert "runtime_mode_endpoints.read" in text
+        assert "runtime_mode_endpoints.write" in text

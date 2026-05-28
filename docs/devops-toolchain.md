@@ -59,6 +59,5 @@ Rules:
 | `infra-plan.yml` | infrastructure validation and review evidence | `terraform fmt`, `terraform validate`, TFLint, Checkov, reviewed Terraform plan artifact/comment |
 
 `app-deploy.yml`, `data-support-deploy.yml`, `data-schema-apply.yml`,
-`data-runtime-switch.yml`, `data-backfill.yml`, rollback drills, and
-`infra-apply.yml` remain separate reviewed cloud-changing workflows, not
-pull-request gates.
+`data-runtime-switch.yml`, `data-backfill.yml`, and `infra-apply.yml` remain
+separate reviewed cloud-changing workflows, not pull-request gates.
