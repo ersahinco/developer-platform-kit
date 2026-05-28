@@ -10,8 +10,8 @@ deny contains msg if {
 
 deny contains msg if {
   data.conftest.file.name == "workloads.json"
-  input.schema_version != "7"
-  msg := "platform/workloads.json schema_version must be 7"
+  input.schema_version != "8"
+  msg := "platform/workloads.json schema_version must be 8"
 }
 
 deny contains msg if {
