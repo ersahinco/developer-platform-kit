@@ -69,11 +69,6 @@ make lint
 uv run pytest tests/ -v
 ```
 
-Agent ergonomics:
-
-- Codex sessions in this repo enable Caveman-style terse response hooks through `.codex/`.
-- Use `/caveman` for the installed skill commands; say `normal mode` to stop terse replies in-session.
-
 Useful inventory views:
 
 ```bash

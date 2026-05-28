@@ -39,6 +39,7 @@ terraform.tfvars
 !infra/platform/stack.tfvars
 
 # IDE/editor
+.codex/
 .vscode/
 .idea/
 #.kiro/
