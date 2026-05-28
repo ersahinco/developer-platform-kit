@@ -9,7 +9,7 @@ the platform edge.
 
 `platform/workloads.json` is the machine-readable workload contract.
 `platform/workload-patterns.json` is the machine-readable list of supported
-scaffold and example classification shapes.
+workload classification shapes.
 Focused pytest checks plus `make runtime-conformance` are the main proof that
 declared workloads still satisfy the contract.
 
@@ -41,7 +41,7 @@ declared workloads still satisfy the contract.
 
 - reusable workload shape names such as `edge-service`, `internal-async-service`, `scheduled-job`, and `export-job`
 - the kind and operational-class alignment for those shapes
-- a small shared vocabulary for scaffolding, examples, and self-service discovery
+- a small shared vocabulary for examples and self-service discovery
 
 It does not own:
 
