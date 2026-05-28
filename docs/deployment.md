@@ -154,6 +154,20 @@ make db-seed
 Prefer downloaded `release-evidence-*` artifacts and the incident bundle over
 ad hoc console review.
 
+## Safe Cloud Readiness
+
+Before dispatching cloud-changing workflows, run the local dry-readiness gate:
+
+```bash
+make platform-toolkit-validate-cloud
+```
+
+It does not call AWS mutating APIs. It lints GitHub workflow shape, checks
+platform policy, and runs the contract/script tests that prove workflows,
+Terraform helpers, task-definition rendering, post-deploy verification, release
+evidence, and incident evidence still derive from the platform contract where
+appropriate.
+
 For workflow-specific recovery paths, use [Runbooks](runbooks/README.md).
 
 ## Access

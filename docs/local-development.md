@@ -47,6 +47,24 @@ curl --fail --show-error http://localhost:8000/health
 Use stepwise Docker commands only when you intentionally want the API without
 the full local profile.
 
+## Platform Toolkit Validation
+
+Use this when validating the repo as a local-first delivery toolkit, not just
+as a running API:
+
+```bash
+make platform-toolkit-validate-local
+```
+
+It runs the standard local startup path, verifies `/health`, `/ready`, and
+`/metrics`, publishes a CloudEvent through the local Dapr sidecar and confirms
+the event consumer recorded it, runs the data export job, runs the
+`open_dataset_pipeline` workload, and finishes with `make runtime-conformance`.
+
+If Docker reports orphan Compose containers after a branch change, run
+`make local-reset` once to stop the old project shape and remove orphaned
+containers and volumes.
+
 ## Migration Rollout Walkthrough
 
 1. Start Postgres and PgBouncer.

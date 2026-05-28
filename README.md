@@ -69,6 +69,20 @@ make lint
 uv run pytest tests/ -v
 ```
 
+Platform toolkit validation:
+
+```bash
+make platform-toolkit-validate-local
+make platform-toolkit-validate-cloud
+```
+
+The local validation target proves startup, migrations, API health/readiness,
+Prometheus metrics, Dapr event consumption, local data export, the local-only
+open dataset pipeline, and runtime conformance. The cloud validation target is
+safe to run before AWS credentials are ready; it checks workflow shape, platform
+policy, contract alignment, and release/operator scripts without changing cloud
+resources.
+
 Useful inventory views:
 
 ```bash

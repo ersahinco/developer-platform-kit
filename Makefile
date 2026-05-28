@@ -10,8 +10,12 @@
 #   make dev                 — start local Postgres + PgBouncer
 #   make local-up            — build/start app + local observability
 #   make dapr-up             — build/start local Dapr event consumer runtime
+#   make platform-toolkit-validate-local
+#                             — prove the local workload journey end to end
 #   make test                — run test suite
 #   make runtime-conformance — build/run workload images against platform contract
+#   make platform-toolkit-validate-cloud
+#                             — run safe cloud readiness checks without mutating AWS
 #   make lint                — run all linters (app + infra)
 #   make fmt                 — auto-format everything
 #
@@ -54,7 +58,7 @@ GH_RUN_ID              ?=
 .PHONY: help
 help:
 	@grep -E '^[a-zA-Z_-]+:.*?## .*$$' $(MAKEFILE_LIST) \
-		| awk 'BEGIN {FS = ":.*?## "}; {printf "  %-24s %s\n", $$1, $$2}'
+		| awk 'BEGIN {FS = ":.*?## "}; {printf "  %-36s %s\n", $$1, $$2}'
 
 # ── Local dev ─────────────────────────────────────────────────────────────────
 
@@ -79,6 +83,10 @@ dapr-up: ## Build/start local Dapr event consumer runtime with Redis pub/sub
 	docker compose build event-consumer
 	docker compose --profile dapr up -d db redis event-consumer event-consumer-dapr
 	docker compose --profile dapr ps
+
+.PHONY: dapr-smoke
+dapr-smoke: ## Publish a local Dapr event and verify the consumer records it
+	uv run python scripts/platform/local_dapr_smoke.py
 
 .PHONY: open-dataset-pipeline
 open-dataset-pipeline: ## Run the local-only open dataset workload pipeline
@@ -116,6 +124,16 @@ test: ## Run test suite (requires local services and app running)
 .PHONY: runtime-conformance
 runtime-conformance: ## Build/run workload containers against the portable runtime contract
 	uv run pytest tests/runtime -v --run-runtime-conformance
+
+.PHONY: platform-toolkit-validate-local
+platform-toolkit-validate-local: dev migrate seed local-up dapr-up ## Validate local startup, API, Dapr, jobs, and runtime conformance
+	curl --fail --show-error http://localhost:8000/health
+	curl --fail --show-error http://localhost:8000/ready
+	curl --fail --show-error http://localhost:8000/metrics | grep -q 'http_requests_total'
+	$(MAKE) dapr-smoke
+	$(MAKE) data-export
+	$(MAKE) open-dataset-pipeline
+	$(MAKE) runtime-conformance
 
 # ── Lint & format ─────────────────────────────────────────────────────────────
 
@@ -212,6 +230,12 @@ fmt: ## Auto-format Python and Terraform
 pre-commit: ## Install and run pre-commit hooks
 	pre-commit install
 	pre-commit run --all-files
+
+.PHONY: platform-toolkit-validate-cloud
+platform-toolkit-validate-cloud: ## Run safe cloud readiness checks without mutating AWS
+	$(MAKE) lint-workflows
+	$(MAKE) lint-policy
+	uv run pytest tests/contracts tests/scripts -v
 
 # ── Infra — bootstrap (run once per AWS account) ──────────────────────────────
 
