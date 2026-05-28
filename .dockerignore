@@ -7,7 +7,10 @@
 **/*.egg-info/
 .pytest_cache/
 .ruff_cache/
+.hypothesis/
 .codex/
+.vscode/
+.idea/
 .kiro/
 
 # Local environment and credentials
@@ -26,6 +29,9 @@ crash.log
 # Local runtime noise
 *.log
 *.pid
+*.swp
+*~
+.logs.txt
 compose.override.yaml
 compose.override.yml
 compose.*.yaml
