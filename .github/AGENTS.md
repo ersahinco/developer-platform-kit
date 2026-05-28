@@ -16,8 +16,6 @@ Root `AGENTS.md` applies here too.
 | `infra-apply.yml` | Apply reviewed plan, release evidence |
 | `security.yml` | Secret, dependency, docs, workflow, Dockerfile checks |
 | `semgrep.yml` | SAST |
-| `app-rollback-drill.yml` | App image rollback drill |
-| `data-runtime-rollback-drill.yml` | Runtime data-phase rollback drill |
 
 Keep build separate from deploy. Keep plan separate from apply.
 

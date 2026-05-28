@@ -168,12 +168,6 @@ locals {
   }
 
   workload_static_env_overrides = {
-    (local.primary_edge_workload_name) = {
-      ROLLOUT_DRILL_FAULT_MODE          = "off"
-      ROLLOUT_DRILL_FAULT_PATHS         = "/ready"
-      ROLLOUT_DRILL_FAULT_DELAY_SECONDS = "3"
-      ROLLOUT_DRILL_FAULT_STATUS_CODE   = "503"
-    }
     data_export_job = {
       DATA_EXPORT_S3_BUCKET = aws_s3_bucket.data_hub.bucket
     }

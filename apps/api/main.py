@@ -1,4 +1,3 @@
-import asyncio
 import logging
 import re
 from secrets import compare_digest
@@ -41,7 +40,6 @@ from infrastructure.http_health import (
     database_readiness_response,
     health_payload,
 )
-from infrastructure.http_faults import maybe_build_fault_response
 from application.ports import ConfigStore, CustomerRepository, OrderRepository
 from infrastructure.http_observability import request_observability_middleware
 from api.config import settings
@@ -98,17 +96,6 @@ REQUEST_LATENCY = Histogram(
 PRIMARY_EDGE_AUTH_EXEMPT_PATHS = frozenset({"/health", "/ready", "/metrics"})
 
 
-async def _rollout_fault_response(request: Request) -> Response | None:
-    return await maybe_build_fault_response(
-        mode=settings.rollout_drill_fault_mode,
-        path=request.url.path,
-        configured_paths=settings.rollout_drill_fault_paths,
-        status_code=settings.rollout_drill_fault_status_code,
-        delay_seconds=settings.rollout_drill_fault_delay_seconds,
-        sleep=asyncio.sleep,
-    )
-
-
 def _http_request_event(
     request: Request,
     response: Response,
@@ -147,7 +134,6 @@ app.middleware("http")(
         request_count=REQUEST_COUNT,
         request_latency=REQUEST_LATENCY,
         event_payload=_http_request_event,
-        before_request=_rollout_fault_response,
     )
 )
 

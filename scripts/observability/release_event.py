@@ -147,14 +147,9 @@ def build_event(
     service_name: str,
     image_tag: str | None,
     task_definition: str | None,
-    previous_task_definition: str | None,
-    drill_task_definition: str | None,
     plan_run_id: str | None,
-    fault_mode: str | None,
     read_mode: str | None,
     write_mode: str | None,
-    rollback_seconds: int | None,
-    rollback_slo_seconds: int | None,
     verify_seconds: int | None,
     verify_slo_seconds: int | None,
     runtime_id: str | None = None,
@@ -211,18 +206,13 @@ def build_event(
         "revision": {
             "image_tag": image_tag,
             "task_definition": task_definition,
-            "previous_task_definition": previous_task_definition,
-            "drill_task_definition": drill_task_definition,
             "plan_run_id": plan_run_id,
         },
         "runtime": {
-            "fault_mode": fault_mode,
             "read_mode": read_mode,
             "write_mode": write_mode,
         },
         "slo": {
-            "rollback_seconds": rollback_seconds,
-            "rollback_slo_seconds": rollback_slo_seconds,
             "verify_seconds": verify_seconds,
             "verify_slo_seconds": verify_slo_seconds,
         },
@@ -296,26 +286,15 @@ def render_markdown(event: dict[str, Any]) -> str:
         lines.append(f"- Image tag: `{revision['image_tag']}`")
     if revision.get("task_definition"):
         lines.append(f"- Task definition: `{revision['task_definition']}`")
-    if revision.get("previous_task_definition"):
-        lines.append(
-            f"- Previous task definition: `{revision['previous_task_definition']}`"
-        )
-    if revision.get("drill_task_definition"):
-        lines.append(f"- Drill task definition: `{revision['drill_task_definition']}`")
     if revision.get("plan_run_id"):
         lines.append(f"- Plan run: `{revision['plan_run_id']}`")
 
-    rollback_line = None
-    if slo.get("rollback_seconds") is not None:
-        rollback_line = f"- Rollback: {slo['rollback_seconds']}s"
-        if slo.get("rollback_slo_seconds") is not None:
-            rollback_line += f" / {slo['rollback_slo_seconds']}s"
     verify_line = None
     if slo.get("verify_seconds") is not None:
         verify_line = f"- Verification: {slo['verify_seconds']}s"
         if slo.get("verify_slo_seconds") is not None:
             verify_line += f" / {slo['verify_slo_seconds']}s"
-    slo_lines = [rollback_line, verify_line]
+    slo_lines = [verify_line]
     present_slo_lines = [line for line in slo_lines if line is not None]
     if present_slo_lines:
         lines.extend(["", "## SLO Evidence", *present_slo_lines])
@@ -429,14 +408,9 @@ def main() -> int:
     parser.add_argument("--service-name", default=edge_service_repository())
     parser.add_argument("--image-tag")
     parser.add_argument("--task-definition")
-    parser.add_argument("--previous-task-definition")
-    parser.add_argument("--drill-task-definition")
     parser.add_argument("--plan-run-id")
-    parser.add_argument("--fault-mode")
     parser.add_argument("--read-mode")
     parser.add_argument("--write-mode")
-    parser.add_argument("--rollback-seconds")
-    parser.add_argument("--rollback-slo-seconds")
     parser.add_argument("--verify-seconds")
     parser.add_argument("--verify-slo-seconds")
     parser.add_argument("--runtime-id")
@@ -496,14 +470,9 @@ def main() -> int:
         service_name=args.service_name,
         image_tag=_clean_optional(args.image_tag),
         task_definition=_clean_optional(args.task_definition),
-        previous_task_definition=_clean_optional(args.previous_task_definition),
-        drill_task_definition=_clean_optional(args.drill_task_definition),
         plan_run_id=_clean_optional(args.plan_run_id),
-        fault_mode=_clean_optional(args.fault_mode),
         read_mode=_clean_optional(args.read_mode),
         write_mode=_clean_optional(args.write_mode),
-        rollback_seconds=_int_optional(args.rollback_seconds),
-        rollback_slo_seconds=_int_optional(args.rollback_slo_seconds),
         verify_seconds=_int_optional(args.verify_seconds),
         verify_slo_seconds=_int_optional(args.verify_slo_seconds),
         runtime_id=_clean_optional(args.runtime_id),

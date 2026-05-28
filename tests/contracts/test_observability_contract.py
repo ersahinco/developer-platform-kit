@@ -21,7 +21,6 @@ def test_cloud_observability_is_adot_sidecar_not_hosted_lgtm() -> None:
         [
             _read(".github/workflows/app-build.yml"),
             _read(".github/workflows/app-deploy.yml"),
-            _read(".github/workflows/app-rollback-drill.yml"),
         ]
     )
     infra = "\n".join(

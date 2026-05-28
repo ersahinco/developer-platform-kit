@@ -9,8 +9,6 @@ workflow_dispatch_only := {
   "data-schema-apply.yml",
   "data-support-deploy.yml",
   "infra-apply.yml",
-  "app-rollback-drill.yml",
-  "data-runtime-rollback-drill.yml",
 }
 
 pull_request_gated := {
@@ -28,8 +26,6 @@ release_evidence_required := {
   "data-schema-apply.yml": "Upload data schema apply evidence",
   "data-support-deploy.yml": "Upload data support deploy evidence",
   "infra-apply.yml": "Upload infra apply evidence",
-  "app-rollback-drill.yml": "Upload app rollback drill evidence",
-  "data-runtime-rollback-drill.yml": "Upload data runtime rollback evidence",
 }
 
 aws_environment_required := {

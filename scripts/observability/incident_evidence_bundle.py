@@ -146,13 +146,9 @@ def _release_event_summary(
         "workflow": github.get("workflow"),
         "image_tag": revision.get("image_tag"),
         "task_definition": revision.get("task_definition"),
-        "previous_task_definition": revision.get("previous_task_definition"),
-        "drill_task_definition": revision.get("drill_task_definition"),
         "plan_run_id": revision.get("plan_run_id"),
-        "fault_mode": runtime.get("fault_mode"),
         "read_mode": runtime.get("read_mode"),
         "write_mode": runtime.get("write_mode"),
-        "rollback_seconds": slo.get("rollback_seconds"),
         "verify_seconds": slo.get("verify_seconds"),
     }
     if source:

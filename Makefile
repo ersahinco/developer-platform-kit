@@ -329,7 +329,7 @@ release-evidence-runs: ## List recent cloud-changing GitHub workflow runs that e
 	gh run list \
 		--limit 50 \
 		--json databaseId,workflowName,displayTitle,headBranch,status,conclusion,createdAt,url \
-		--jq '.[] | select(.workflowName as $name | ["App Build", "App Deploy", "Data Support Deploy", "Data Runtime Switch", "Data Schema Apply", "Data Backfill", "Infra Apply", "App Rollback Drill", "Data Runtime Rollback Drill"] | index($name)) | [.databaseId, .workflowName, .headBranch, .status, (.conclusion // "-"), .createdAt, .displayTitle, .url] | @tsv'
+		--jq '.[] | select(.workflowName as $name | ["App Build", "App Deploy", "Data Support Deploy", "Data Runtime Switch", "Data Schema Apply", "Data Backfill", "Infra Apply"] | index($name)) | [.databaseId, .workflowName, .headBranch, .status, (.conclusion // "-"), .createdAt, .displayTitle, .url] | @tsv'
 
 .PHONY: release-evidence-download
 release-evidence-download: ## Download GitHub release-evidence-* artifacts for GH_RUN_ID into $(RELEASE_EVIDENCE_DIR)/$(GH_RUN_ID)

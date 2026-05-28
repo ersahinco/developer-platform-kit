@@ -18,11 +18,7 @@
         "OTEL_TRACES_ENABLED": "false",
         "OTEL_EXPORTER_OTLP_TRACES_ENDPOINT": "http://127.0.0.1:4318/v1/traces",
         "OTEL_SERVICE_NAME": "aws-sdlc-containers-api-conformance",
-        "OTEL_DEPLOYMENT_ENVIRONMENT": "conformance",
-        "ROLLOUT_DRILL_FAULT_MODE": "off",
-        "ROLLOUT_DRILL_FAULT_PATHS": "/ready",
-        "ROLLOUT_DRILL_FAULT_STATUS_CODE": "503",
-        "ROLLOUT_DRILL_FAULT_DELAY_SECONDS": "3"
+        "OTEL_DEPLOYMENT_ENVIRONMENT": "conformance"
       },
       "expected_log_event": "http_request",
       "expected_log_fields": ["event", "request_id", "route", "status_code"]

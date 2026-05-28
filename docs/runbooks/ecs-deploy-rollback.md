@@ -17,27 +17,6 @@ accepted as completed. One-off tasks such as Liquibase, backfill, and data
 export do not have ECS service rollback; their recovery path is rerun, stop, or
 restore according to their specific runbook.
 
-For an app-only practice path, use the GitHub Actions workflow
-`App Rollback Drill`. It deploys only an app service revision with
-disabled-by-default fault-injection environment variables set to make `/ready`
-slow or erroring. ECS deployment circuit breaker and deployment CloudWatch
-alarms perform the rollback automatically to the last completed app service
-revision. The workflow does not run Liquibase, backfill, data export, or runtime
-mode changes. The latency path can take over ten minutes because ECS waits
-through the deployment bake window and then stabilizes the restored revision.
-
-Run the drill twice when practicing:
-
-- `fault_mode=error` makes `/ready` return 503 and should trip the ALB target
-  5xx deployment alarm.
-- `fault_mode=latency` delays `/ready` and should trip the ALB p95 latency
-  deployment alarm.
-
-The drill enforces the app rollback objectives in
-[Rollback Drill SLOs](rollback-drill-slos.md): error rollback observed within
-10 minutes, latency rollback observed within 15 minutes, and restored app
-verification within 2 minutes.
-
 Use Terraform outputs and environment variables in examples:
 
 ```bash

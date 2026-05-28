@@ -24,12 +24,10 @@ DEFAULT_ALLOWED_EXTRA_STACK_LOG_GROUP_SUFFIXES = [
 DELIVERY_EVENT_TYPES = [
     "app_build",
     "app_deploy",
-    "app_rollback_drill",
     "data_backfill",
     "data_runtime_switch",
     "data_schema_apply",
     "data_support_deploy",
-    "data_runtime_rollback_drill",
     "infra_apply",
 ]
 
@@ -58,7 +56,6 @@ _EDGE_RELEASE_ALARM_SUFFIX_ENDINGS = [
     "target-5xx",
     "target-latency",
     "log-errors",
-    "log-rollback-drill-faults",
 ]
 
 _EDGE_INCIDENT_ONLY_ALARM_SUFFIX_ENDINGS = [

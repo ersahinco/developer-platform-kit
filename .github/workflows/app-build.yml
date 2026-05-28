@@ -11,9 +11,7 @@ on:
     paths:
       - ".github/workflows/app-build.yml"
       - ".github/workflows/app-deploy.yml"
-      - ".github/workflows/app-rollback-drill.yml"
       - ".github/workflows/data-backfill.yml"
-      - ".github/workflows/data-runtime-rollback-drill.yml"
       - ".github/workflows/data-runtime-switch.yml"
       - ".github/workflows/data-schema-apply.yml"
       - ".github/workflows/data-support-deploy.yml"
@@ -33,9 +31,7 @@ on:
     paths:
       - ".github/workflows/app-build.yml"
       - ".github/workflows/app-deploy.yml"
-      - ".github/workflows/app-rollback-drill.yml"
       - ".github/workflows/data-backfill.yml"
-      - ".github/workflows/data-runtime-rollback-drill.yml"
       - ".github/workflows/data-runtime-switch.yml"
       - ".github/workflows/data-schema-apply.yml"
       - ".github/workflows/data-support-deploy.yml"

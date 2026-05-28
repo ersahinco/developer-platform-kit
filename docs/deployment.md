@@ -22,10 +22,8 @@ tasks, not duplicated infrastructure.
 |---|---|---|---|
 | `app-build.yml` | Manual `workflow_dispatch` with `confirm_build=build` after PR review on the default branch | builds, scans, attests, and pushes immutable images only | `release-evidence-app-build-*` artifact and build summary |
 | `app-deploy.yml` | Manual `workflow_dispatch` with approved immutable `image_tag` and `confirm_deploy=deploy` on the default branch | updates ECS service revisions and verifies runtime health only | `release-evidence-app-deploy-*` artifact and step summary |
-| `app-rollback-drill.yml` | Manual `workflow_dispatch` with approved immutable `image_tag`, `fault_mode`, and `confirm_drill=rollback-drill` on the default branch | exercises app service rollback only; does not run data or infra stages | `release-evidence-app-rollback-drill-*` artifact and step summary |
 | `data-support-deploy.yml` | Manual `workflow_dispatch` with approved immutable `image_tag` and `confirm_data_support_deploy=deploy-data-support` on the default branch | promotes support job task-definition revisions for explicit data workloads | `release-evidence-data-support-deploy-*` artifact and step summary |
 | `data-runtime-switch.yml` | Manual `workflow_dispatch` with reviewed `switch_step` and `confirm_switch=switch-runtime` on the default branch | advances runtime mode through one guarded forward transition at a time | `release-evidence-data-runtime-switch-*` artifact and step summary |
-| `data-runtime-rollback-drill.yml` | Manual `workflow_dispatch` with `confirm_drill=rollback-drill` on the default branch | exercises runtime data-phase rollback only; does not deploy app or infra changes | `release-evidence-data-runtime-rollback-drill-*` artifact and step summary |
 | `data-schema-apply.yml` | Manual `workflow_dispatch` with approved immutable `image_tag`, reviewed `schema_phase`, and `confirm_schema_apply=apply-schema` on the default branch | runs reviewed Liquibase schema apply as an explicit data stage; contract phase additionally requires `confirm_contract_ready=contract-ready` and `READ_MODE=new` plus `WRITE_MODE=new` | `release-evidence-data-schema-apply-*` artifact and step summary |
 | `data-backfill.yml` | Manual `workflow_dispatch` with approved immutable `image_tag` and `confirm_backfill=run-backfill` on the default branch | runs reviewed backfill after confirming runtime modes are in the dual-write stage | `release-evidence-data-backfill-*` artifact and step summary |
 | `infra-plan.yml` | pull request, main push, or manual run | produces reviewed Terraform plans without changing cloud resources | uploaded Terraform plan artifact and optional PR comment |
@@ -123,7 +121,7 @@ Rule: do not admit a workload to AWS just because it exists under `apps/`.
 
 ## Review Loop
 
-Use the same loop for deploys, applies, and drills:
+Use the same loop for deploys and applies:
 
 ```bash
 make release-evidence-runs
@@ -138,7 +136,7 @@ Checks:
 2. App deploy: confirm `release-evidence-app-deploy-*` records the expected service, image tag, and task definition, and `make post-deploy-verify` or the incident bundle shows no unresolved alarm or verification failures.
 3. Data workflow: confirm the matching `release-evidence-data-*` artifact records the intended image tag, task definition, and stage-specific preconditions or outputs.
 4. Infra apply: confirm the selected `Infra Apply` run matches the reviewed `Infra Plan` for the current default-branch SHA, and the plan plus release evidence match the intended Terraform surface.
-5. Rollback or drill: confirm the evidence timeline shows the failing revision, restored revision, relevant alarm window, and verification outcome.
+5. Rollback: redeploy a known-good immutable image tag or restore the reviewed runtime mode, then confirm verification and alarm state.
 
 ## Common Commands
 

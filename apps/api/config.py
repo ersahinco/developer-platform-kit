@@ -2,8 +2,6 @@ from dataclasses import dataclass
 from dataclasses import field
 
 from infrastructure.config import env_bool
-from infrastructure.config import env_float
-from infrastructure.config import env_int
 from infrastructure.config import env_str
 from infrastructure.config import load_env_file
 from infrastructure.config import PostgresRuntimeSettings
@@ -37,23 +35,6 @@ class Settings(PostgresRuntimeSettings):
             env_str("OTEL_DEPLOYMENT_ENVIRONMENT", "local"),
             "OTEL_DEPLOYMENT_ENVIRONMENT",
         )
-    )
-    rollout_drill_fault_mode: str = field(
-        default_factory=lambda: require_value(
-            env_str("ROLLOUT_DRILL_FAULT_MODE", "off"), "ROLLOUT_DRILL_FAULT_MODE"
-        )
-    )
-    rollout_drill_fault_paths: str = field(
-        default_factory=lambda: require_value(
-            env_str("ROLLOUT_DRILL_FAULT_PATHS", "/ready"),
-            "ROLLOUT_DRILL_FAULT_PATHS",
-        )
-    )
-    rollout_drill_fault_status_code: int = field(
-        default_factory=lambda: env_int("ROLLOUT_DRILL_FAULT_STATUS_CODE", 503)
-    )
-    rollout_drill_fault_delay_seconds: float = field(
-        default_factory=lambda: env_float("ROLLOUT_DRILL_FAULT_DELAY_SECONDS", 3.0)
     )
 
     def __post_init__(self) -> None:

@@ -44,14 +44,9 @@ def _release_event(**overrides: Any) -> dict[str, Any]:
         "service_name": "api",
         "image_tag": TEST_IMAGE_TAG,
         "task_definition": TEST_TASK_DEFINITION,
-        "previous_task_definition": None,
-        "drill_task_definition": None,
         "plan_run_id": None,
-        "fault_mode": None,
         "read_mode": "legacy",
         "write_mode": "legacy",
-        "rollback_seconds": None,
-        "rollback_slo_seconds": None,
         "verify_seconds": 12,
         "verify_slo_seconds": 120,
         "env": env,
@@ -521,33 +516,27 @@ def test_release_event_writes_markdown_json_and_jsonl(tmp_path: Path) -> None:
     assert event["alarm_snapshot"]["alarms"][0]["state"] == "OK"
 
 
-def test_incident_evidence_bundle_surfaces_rollback_metadata(
+def test_incident_evidence_bundle_surfaces_release_metadata(
     monkeypatch, tmp_path: Path
 ) -> None:
     now = datetime.now(UTC)
     release_events_dir = tmp_path / "release-events"
     release_events_dir.mkdir()
-    rollback_event = _release_event(
-        event_type="app_rollback_drill",
-        summary="App rollback drill completed",
+    deploy_event = _release_event(
+        event_type="app_deploy",
+        summary="App deploy completed",
         task_definition="arn:aws:ecs:task-definition/aws-sdlc-containers:8",
-        previous_task_definition="arn:aws:ecs:task-definition/aws-sdlc-containers:7",
-        drill_task_definition="arn:aws:ecs:task-definition/aws-sdlc-containers:9",
-        fault_mode="error",
         read_mode=None,
         write_mode=None,
-        rollback_category="app_image",
-        rollback_seconds=90,
-        rollback_slo_seconds=600,
         verify_seconds=15,
         now=now,
         env={
             "GITHUB_RUN_ID": TEST_RUN_ID,
-            "GITHUB_WORKFLOW": "App Rollback Drill",
+            "GITHUB_WORKFLOW": "App Deploy",
         },
     )
     (release_events_dir / "release-event.json").write_text(
-        json.dumps(rollback_event), encoding="utf-8"
+        json.dumps(deploy_event), encoding="utf-8"
     )
 
     def fake_aws_json(args: list[str], region: str) -> dict[str, Any]:
@@ -569,10 +558,8 @@ def test_incident_evidence_bundle_surfaces_rollback_metadata(
     )
     _, markdown_path = evidence.write_bundle(bundle, tmp_path / "bundle")
 
-    assert bundle["release_events"][0]["rollback_category"] == "app_image"
     assert bundle["release_events"][0]["workload_id"] == "api"
     markdown = markdown_path.read_text(encoding="utf-8")
-    assert "rollback_category: `app_image`" in markdown
     assert "workload_id: `api`" in markdown
 
 
@@ -682,19 +669,14 @@ def test_release_event_pushes_loki_stream(monkeypatch) -> None:
 
     monkeypatch.setattr(release_event.request, "urlopen", fake_urlopen)
     event = _release_event(
-        event_type="app_rollback_drill",
+        event_type="app_deploy",
         summary=None,
         image_tag="sha-test",
-        task_definition="restored",
-        previous_task_definition="restored",
-        drill_task_definition="bad",
-        fault_mode="latency",
+        task_definition="current",
         read_mode=None,
         write_mode=None,
-        rollback_seconds=120,
-        rollback_slo_seconds=900,
         verify_seconds=20,
-        env={"GITHUB_WORKFLOW": "App Rollback Drill"},
+        env={"GITHUB_WORKFLOW": "App Deploy"},
     )
 
     release_event.push_loki(event, "http://loki:3100/loki/api/v1/push")
@@ -702,11 +684,11 @@ def test_release_event_pushes_loki_stream(monkeypatch) -> None:
     assert len(requests) == 1
     payload = json.loads(getattr(requests[0], "data").decode("utf-8"))
     stream = payload["streams"][0]
-    assert stream["stream"]["event_type"] == "app_rollback_drill"
+    assert stream["stream"]["event_type"] == "app_deploy"
     assert stream["stream"]["status"] == "success"
     assert stream["stream"]["github_run_id"] == TEST_RUN_ID
-    assert stream["stream"]["workflow"] == "App_Rollback_Drill"
-    assert "app_rollback_drill" in stream["values"][0][1]
+    assert stream["stream"]["workflow"] == "App_Deploy"
+    assert "app_deploy" in stream["values"][0][1]
 
 
 def test_release_event_delivery_verifier_derives_query_url_from_push_url() -> None:

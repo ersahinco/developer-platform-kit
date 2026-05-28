@@ -321,16 +321,6 @@ def _runtime_values_for_workload(
         values["DAPR_HTTP_ENDPOINT"] = "http://localhost:3500"
         values["DAPR_HTTP_PORT"] = "3500"
 
-    if workload_operational_class(workload) == "edge-service":
-        values.update(
-            {
-                "ROLLOUT_DRILL_FAULT_MODE": "off",
-                "ROLLOUT_DRILL_FAULT_PATHS": "/ready",
-                "ROLLOUT_DRILL_FAULT_STATUS_CODE": "503",
-                "ROLLOUT_DRILL_FAULT_DELAY_SECONDS": "3",
-            }
-        )
-
     env_defaults = {
         "DATA_EXPORT_S3_BUCKET": data_hub_bucket_name,
     }
