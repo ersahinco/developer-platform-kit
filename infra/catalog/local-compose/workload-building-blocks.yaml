@@ -3,7 +3,7 @@ runtime_target: local-compose
 owner: platform-toolkit
 description: >
   Reusable local runtime building blocks for developing and testing workload
-  patterns with the same platform contract vocabulary used by reviewed runtime
+  hosts with the same platform contract vocabulary used by reviewed runtime
   targets.
 entries:
   - id: local-container-service

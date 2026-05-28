@@ -1001,7 +1001,6 @@ def _build_workload_entry(
     entry: dict[str, Any] = {
         "name": name,
         "kind": kind,
-        "patterns": patterns,
         "use_cases": use_cases,
         "owner": owner,
         "app_path": f"apps/{name}",

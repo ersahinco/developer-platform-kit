@@ -12,12 +12,11 @@ Canonical design truth lives in:
 ## Order
 
 1. Declare workload intent in `platform/workloads.json`.
-2. Choose one or more existing workload classification labels from `platform/workload-patterns.json`.
-3. Add the host under `apps/`.
-4. Reuse `packages/` only for truly shared behavior.
-5. Wire local and shared platform concerns.
-6. Wire the current runtime-target realization.
-7. Add tests and docs.
+2. Add the host under `apps/`.
+3. Reuse `packages/` only for truly shared behavior.
+4. Wire local and shared platform concerns.
+5. Wire the current runtime-target realization.
+6. Add tests and docs.
 
 ## Pick The Operational Class First
 
@@ -39,7 +38,7 @@ make workload-capability-matrix
 make workload-use-case-matrix
 ```
 
-Preview or apply a starter workload bundle from the supported workload classification labels:
+Preview or apply a starter workload bundle from the supported scaffold patterns:
 
 ```bash
 make scaffold-workload ARGS='--name inventory_dashboard --pattern edge-service --use-case dashboard --service-port 8092'
@@ -94,7 +93,6 @@ Add the workload to `platform/workloads.json` with:
 
 - `name`
 - `kind`
-- `patterns`
 - `use_cases`
 - `owner`
 - `app_path`
@@ -123,7 +121,11 @@ Do not add:
 - use lowercase kebab-case strings such as `http-api`, `dashboard`, `connector`, `event-consumer`, or `scheduled-pipeline`
 - keep them useful for catalog search, templates, and future self-service entrypoints
 
-## Choose The Smallest Existing Pattern
+## Scaffold From The Smallest Existing Pattern
+
+Scaffold patterns are starter inputs, not fields to preserve in
+`platform/workloads.json`. They infer `kind`, `operational.class`, and starter
+host wiring before you finish the workload contract directly.
 
 | Need | Pattern |
 |---|---|
@@ -201,5 +203,5 @@ Add narrower tests when possible:
 - host stayed thin
 - provider details stayed at the platform edge
 - stable center stayed recognizable: no second workload-intent source was added
-- existing Dapr, observability, and delivery patterns were reused
+- existing Dapr, observability, and delivery concerns were reused
 - smallest complete set of tests and docs was updated

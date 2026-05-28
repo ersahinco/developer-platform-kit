@@ -80,6 +80,7 @@ def test_workload_registry_has_required_shape() -> None:
     assert set(conformance["workloads"]) == workload_names
 
     for workload in contract["workloads"]:
+        assert "patterns" not in workload
         workload_conformance = _workload_conformance(workload, conformance)
         if workload["kind"] == "service":
             assert "startup_timeout_seconds" in workload_conformance

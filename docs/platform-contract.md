@@ -9,7 +9,7 @@ the platform edge.
 
 `platform/workloads.json` is the machine-readable workload contract.
 `platform/workload-patterns.json` is the machine-readable list of supported
-workload classification shapes.
+scaffold and example classification shapes.
 Focused pytest checks plus `make runtime-conformance` are the main proof that
 declared workloads still satisfy the contract.
 
@@ -41,11 +41,12 @@ declared workloads still satisfy the contract.
 
 - reusable workload shape names such as `edge-service`, `internal-async-service`, `scheduled-job`, and `export-job`
 - the kind and operational-class alignment for those shapes
-- a small shared vocabulary for catalog and self-service discovery
+- a small shared vocabulary for scaffolding, examples, and self-service discovery
 
 It does not own:
 
 - required workload fields; those belong in the workload contract and its policy checks
+- real workload classification; use `operational.class` and `use_cases` in `platform/workloads.json`
 - provider and runtime resource names
 - AWS queue, topic, bucket, ALB, ECS, IAM, or RDS details for the current target
 - Dapr component backing implementations for an environment profile
@@ -72,11 +73,9 @@ Rules:
 In addition to `kind` and operational class, each workload declares one or more
 target-neutral `use_cases`. These help catalog, template, and self-service
 surfaces distinguish workloads like `http-api`, `event-consumer`, `dashboard`,
-or `connector` without encoding runtime details.
-
-Each workload also declares one or more stable-center `patterns`. These support
-classification and discovery while keeping reusable workload shapes explicit
-instead of hiding them in Terraform locals or workflow conditionals.
+or `connector` without encoding runtime details. Scaffold patterns stay outside
+real workload metadata so operational class remains the single workload shape
+axis.
 
 Each workload declares runtime support explicitly:
 

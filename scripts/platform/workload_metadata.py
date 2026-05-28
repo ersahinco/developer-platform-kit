@@ -80,11 +80,6 @@ def workload_use_cases(workload: dict[str, Any]) -> list[str]:
     return [value for value in values if isinstance(value, str)]
 
 
-def workload_patterns(workload: dict[str, Any]) -> list[str]:
-    values = workload.get("patterns", [])
-    return [value for value in values if isinstance(value, str)]
-
-
 def workload_runtime_supported(workload: dict[str, Any]) -> list[str]:
     runtime = workload.get("runtime", {})
     values = runtime.get("supported", []) if isinstance(runtime, dict) else []
@@ -220,7 +215,6 @@ def workload_capability_rows() -> list[dict[str, str]]:
                 "kind": str(workload.get("kind", "")),
                 "owner": workload_owner(workload),
                 "class": workload_operational_class(workload),
-                "patterns": ",".join(workload_patterns(workload)),
                 "use_cases": ",".join(workload_use_cases(workload)),
                 "runtime_supported": ",".join(workload_runtime_supported(workload)),
                 "runtime_admitted": ",".join(workload_runtime_admitted(workload)),
@@ -384,7 +378,6 @@ def _print_capability_matrix() -> int:
         "kind",
         "owner",
         "class",
-        "patterns",
         "use_cases",
         "runtime_supported",
         "runtime_admitted",

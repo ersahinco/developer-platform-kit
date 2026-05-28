@@ -57,6 +57,16 @@ deny contains msg if {
 deny contains msg if {
   data.conftest.file.name == "workloads.json"
   some workload in input.workloads
+  workload.patterns
+  msg := sprintf(
+    "workload %q must not declare patterns; use operational.class and use_cases",
+    [workload.name],
+  )
+}
+
+deny contains msg if {
+  data.conftest.file.name == "workloads.json"
+  some workload in input.workloads
   not workload.owner
   msg := sprintf("workload %q must declare owner", [workload.name])
 }

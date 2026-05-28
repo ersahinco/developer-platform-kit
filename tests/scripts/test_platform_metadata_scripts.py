@@ -43,7 +43,6 @@ def test_workload_metadata_capability_matrix_matches_workload_contract() -> None
         assert row["runtime_supported"] == ",".join(workload["runtime"]["supported"])
         assert row["runtime_admitted"] == ",".join(workload["runtime"]["admitted"])
         assert row["use_cases"] == ",".join(workload["use_cases"])
-        assert row["patterns"] == ",".join(workload["patterns"])
 
 
 def test_workload_metadata_primary_edge_and_workload_groups_are_contract_derived() -> (

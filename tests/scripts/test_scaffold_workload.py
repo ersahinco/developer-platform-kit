@@ -105,7 +105,7 @@ def test_apply_scaffolds_edge_service_and_updates_repo_files(tmp_path: Path) -> 
         if workload["name"] == "inventory_dashboard"
     )
 
-    assert inventory_dashboard["patterns"] == ["edge-service"]
+    assert "patterns" not in inventory_dashboard
     assert inventory_dashboard["owner"] == "platform-engineering"
     assert inventory_dashboard["runtime"] == {
         "supported": ["local-compose"],
