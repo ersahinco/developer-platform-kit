@@ -17,8 +17,8 @@ accepted as completed. One-off tasks such as Liquibase, backfill, and data
 export do not have ECS service rollback; their recovery path is rerun, stop, or
 restore according to their specific runbook.
 
-For a no-data practice path, use the GitHub Actions workflow
-`App No-Data Rollback Drill`. It deploys only an app service revision with
+For an app-only practice path, use the GitHub Actions workflow
+`App Rollback Drill`. It deploys only an app service revision with
 disabled-by-default fault-injection environment variables set to make `/ready`
 slow or erroring. ECS deployment circuit breaker and deployment CloudWatch
 alarms perform the rollback automatically to the last completed app service

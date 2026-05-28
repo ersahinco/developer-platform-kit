@@ -83,7 +83,7 @@ curl -fsS http://localhost:8000/metrics | rg 'http_requests_total.*route="/ready
 
 Grafana's `AWS SDLC Containers / App Overview` dashboard should show the
 readiness-failure stat increasing. Loki should show the corresponding `/ready`
-requests in local app logs.
+requests in local API logs.
 
 ## Investigation
 

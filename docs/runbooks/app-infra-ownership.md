@@ -10,7 +10,7 @@ configuration.
 | Surface | Owner | Normal rollback path |
 |---|---|---|
 | ECS cluster, ECS service shape except app-owned rollout knobs, deployment circuit breaker, deployment alarms, ALB, target groups, security groups, IAM, log groups, ECR repositories, S3 buckets, queues, schedules | Terraform via `Infra Plan` and `Infra Apply` | Revert the infra commit, review the new plan, then apply the reviewed revert plan. |
-| App image tag, app ECS task-definition revision after bootstrap, and desired rollout settings such as service desired count | GitHub Actions `App Deploy` and `App No-Data Rollback Drill` | ECS native rollback to the last completed deployment, observed by the workflow. |
+| App image tag, app ECS task-definition revision after bootstrap, and desired rollout settings such as service desired count | GitHub Actions `App Deploy` and `App Rollback Drill` | ECS native rollback to the last completed deployment, observed by the workflow. |
 | Support job image promotion for backfill and scheduled export workloads | GitHub Actions `Data Support Deploy` | Re-promote the previous verified image tag for the support workload family. |
 | Runtime data-phase switches, currently `READ_MODE` and `WRITE_MODE` in `app_runtime_config` | GitHub Actions `Data Runtime Switch` and admin API | Move one reviewed phase transition at a time; use the rollback drill or restore the captured value if verification fails. |
 | Schema apply task-definition revision and Liquibase execution | GitHub Actions `Data Schema Apply` | Forward fix with an additive reviewed migration; do not treat app image rollback as schema rollback. |

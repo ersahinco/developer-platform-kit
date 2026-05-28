@@ -68,7 +68,7 @@ observability: ## Start local Prometheus + Loki + Promtail + Grafana
 	docker compose --profile observability ps
 
 .PHONY: local-up
-local-up: ## Build/start local app + Prometheus + Loki + Promtail + Grafana
+local-up: ## Build/start local API + Prometheus + Loki + Promtail + Grafana
 	docker compose build api
 	OTEL_TRACES_ENABLED=true docker compose --profile observability up -d db pgbouncer api prometheus loki tempo promtail grafana
 	docker compose --profile observability ps
@@ -85,7 +85,7 @@ open-dataset-pipeline: ## Run the local-only open dataset workload pipeline
 	docker compose --profile data run --rm open-dataset-pipeline
 
 .PHONY: local-down
-local-down: ## Stop local app and observability services without deleting volumes
+local-down: ## Stop local API and observability services without deleting volumes
 	docker compose --profile observability --profile dapr --profile data stop api prometheus loki tempo promtail grafana event-consumer event-consumer-dapr redis open-dataset-pipeline
 
 .PHONY: local-reset
@@ -328,7 +328,7 @@ release-evidence-runs: ## List recent cloud-changing GitHub workflow runs that e
 	gh run list \
 		--limit 20 \
 		--json databaseId,workflowName,displayTitle,headBranch,status,conclusion,createdAt,url \
-		--jq '.[] | select(.workflowName == "App Build" or .workflowName == "App Deploy" or .workflowName == "Infra Apply" or .workflowName == "App No-Data Rollback Drill" or .workflowName == "Data Runtime Rollback Drill") | [.databaseId, .workflowName, .headBranch, .status, (.conclusion // "-"), .createdAt, .displayTitle, .url] | @tsv'
+		--jq '.[] | select(.workflowName as $name | ["App Build", "App Deploy", "Data Support Deploy", "Data Runtime Switch", "Data Schema Apply", "Data Backfill", "Infra Apply", "App Rollback Drill", "Data Runtime Rollback Drill"] | index($name)) | [.databaseId, .workflowName, .headBranch, .status, (.conclusion // "-"), .createdAt, .displayTitle, .url] | @tsv'
 
 .PHONY: release-evidence-download
 release-evidence-download: ## Download GitHub release-evidence-* artifacts for GH_RUN_ID into $(RELEASE_EVIDENCE_DIR)/$(GH_RUN_ID)

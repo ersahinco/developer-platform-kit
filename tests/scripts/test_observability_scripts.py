@@ -543,7 +543,7 @@ def test_incident_evidence_bundle_surfaces_rollback_metadata(
         now=now,
         env={
             "GITHUB_RUN_ID": TEST_RUN_ID,
-            "GITHUB_WORKFLOW": "App No-Data Rollback Drill",
+            "GITHUB_WORKFLOW": "App Rollback Drill",
         },
     )
     (release_events_dir / "release-event.json").write_text(
@@ -694,7 +694,7 @@ def test_release_event_pushes_loki_stream(monkeypatch) -> None:
         rollback_seconds=120,
         rollback_slo_seconds=900,
         verify_seconds=20,
-        env={"GITHUB_WORKFLOW": "App No-Data Rollback Drill"},
+        env={"GITHUB_WORKFLOW": "App Rollback Drill"},
     )
 
     release_event.push_loki(event, "http://loki:3100/loki/api/v1/push")
@@ -705,7 +705,7 @@ def test_release_event_pushes_loki_stream(monkeypatch) -> None:
     assert stream["stream"]["event_type"] == "app_rollback_drill"
     assert stream["stream"]["status"] == "success"
     assert stream["stream"]["github_run_id"] == TEST_RUN_ID
-    assert stream["stream"]["workflow"] == "App_No-Data_Rollback_Drill"
+    assert stream["stream"]["workflow"] == "App_Rollback_Drill"
     assert "app_rollback_drill" in stream["values"][0][1]
 
 

@@ -8,9 +8,9 @@ toolkit restore a known-good state quickly enough to keep iteration safe?
 
 | Drill | Trigger | SLO | Evidence |
 |---|---|---:|---|
-| App rollback, error mode | `/ready` returns 503 and trips the ALB target 5xx deployment alarm. | ECS automatic rollback observed within 10 min; restored app verification within 2 min. | `App No-Data Rollback Drill` summary, ECS service events, 5xx alarm history, `verify_post_deploy.py`. |
-| App rollback, latency mode | `/ready` delays 3s and trips the ALB p95 latency deployment alarm. | ECS automatic rollback observed within 15 min; restored app verification within 2 min. | `App No-Data Rollback Drill` summary, ECS service events, latency alarm history, `verify_post_deploy.py`. |
-| Infra no-data rollback | A reversible Terraform-only change is applied and then reverted. | Reviewed plan in <= 5 min, apply in <= 15 min, revert plan+apply in <= 30 min. | `Infra Plan` and `Infra Apply` run IDs, reviewed no-data plan, restored resource state. |
+| App rollback, error mode | `/ready` returns 503 and trips the ALB target 5xx deployment alarm. | ECS automatic rollback observed within 10 min; restored app verification within 2 min. | `App Rollback Drill` summary, ECS service events, 5xx alarm history, `verify_post_deploy.py`. |
+| App rollback, latency mode | `/ready` delays 3s and trips the ALB p95 latency deployment alarm. | ECS automatic rollback observed within 15 min; restored app verification within 2 min. | `App Rollback Drill` summary, ECS service events, latency alarm history, `verify_post_deploy.py`. |
+| Infra rollback | A reversible Terraform-only change is applied and then reverted. | Reviewed plan in <= 5 min, apply in <= 15 min, revert plan+apply in <= 30 min. | `Infra Plan` and `Infra Apply` run IDs, reviewed Terraform-only plan, restored resource state. |
 | Runtime data-phase rollback | `WRITE_MODE` is moved from `legacy` to `dual` and back to the captured safe phase. | API write-mode rollback verified within 2 min; restored app verification within 2 min. | `Data Runtime Rollback Drill` summary, admin API response, 5s runtime-config cache expiry, `verify_post_deploy.py`. |
 
 Each cloud-changing apply/deploy/drill path also uploads a release evidence
@@ -77,7 +77,7 @@ Run data-phase rollback tests before any release that advances `READ_MODE`,
 
 The rollback drill workflows are intentionally split by ownership boundary:
 
-- `App No-Data Rollback Drill` exercises app task-definition rollback only.
+- `App Rollback Drill` exercises app task-definition rollback only.
 - `Data Runtime Rollback Drill` exercises runtime data-phase rollback only.
 - Infra rollback drills use reviewed `Infra Plan` and `Infra Apply` runs.
 
@@ -85,7 +85,7 @@ There are exactly two permanent rollback drill workflows. One-off migration
 workflows must be removed after successful execution so they do not become
 parallel rollback paths.
 
-## Infra No-Data Drill
+## Infra Drill
 
 Use the normal Terraform path:
 
