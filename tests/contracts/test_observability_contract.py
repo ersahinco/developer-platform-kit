@@ -82,3 +82,13 @@ def test_alb_access_logs_are_not_coupled_to_observability_stack() -> None:
     assert "aws_s3_bucket_policy.alb_access_logs" in edge_tf
     assert re.search(r'resource\s+"aws_s3_bucket"\s+"alb_access_logs"', edge_logs_tf)
     assert "observability_bucket_name" not in edge_tf
+
+
+def test_data_export_success_metric_filter_matches_job_log_shape() -> None:
+    workload_jobs_tf = _read("infra/app/workload_jobs.tf")
+
+    assert "$.event" in workload_jobs_tf
+    assert "data_export_succeeded" in workload_jobs_tf
+    assert "$.status" in workload_jobs_tf
+    assert "succeeded" in workload_jobs_tf
+    assert "$.log" not in workload_jobs_tf

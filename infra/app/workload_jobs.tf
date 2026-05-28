@@ -216,7 +216,7 @@ resource "aws_cloudwatch_log_metric_filter" "data_export_success" {
 
   name           = "${local.name}-data-export-success"
   log_group_name = aws_cloudwatch_log_group.support_job["data_export_job"].name
-  pattern        = "{ ($.log = *event*) && ($.log = *data_export_succeeded*) && ($.log = *status*) && ($.log = *succeeded*) }"
+  pattern        = "{ ($.event = \"data_export_succeeded\") && ($.status = \"succeeded\") }"
 
   metric_transformation {
     name      = "SuccessCount"
