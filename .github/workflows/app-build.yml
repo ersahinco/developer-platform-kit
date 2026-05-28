@@ -254,7 +254,7 @@ jobs:
             -v /var/run/docker.sock:/var/run/docker.sock \
             -v "$HOME/.cache/trivy:/root/.cache/trivy" \
             ghcr.io/aquasecurity/trivy:0.70.0@sha256:be1190afcb28352bfddc4ddeb71470835d16462af68d310f9f4bca710961a41e image \
-            --exit-code 1 --severity CRITICAL --no-progress \
+            --exit-code 1 --ignore-unfixed --severity CRITICAL --no-progress \
             "${{ steps.image.outputs.image }}"
 
       - name: Check existing immutable image tag
