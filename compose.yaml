@@ -215,7 +215,7 @@ services:
       - *event_consumer_app_id
       - --dapr-http-port
       - "3500"
-      - --components-path
+      - --resources-path
       - /components
       - --config
       - /config/config.yaml

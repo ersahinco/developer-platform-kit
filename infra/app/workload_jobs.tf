@@ -110,7 +110,7 @@ locals {
     tostring(local.primary_async_eventing_service_port),
     "--dapr-http-port",
     "3500",
-    "--components-path",
+    "--resources-path",
     "${local.async_eventing_dapr_mount_path}/components",
     "--config",
     "${local.async_eventing_dapr_mount_path}/config/config.yaml",
@@ -283,7 +283,7 @@ data "aws_iam_policy_document" "scheduled_job_scheduler" {
     actions = ["iam:PassRole"]
     resources = [
       aws_iam_role.task_exec.arn,
-      each.value.task_role_arn,
+      aws_iam_role.support_job[each.key].arn,
     ]
 
     condition {

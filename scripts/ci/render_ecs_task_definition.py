@@ -704,7 +704,7 @@ def _render_internal_async_service(
                         str(service_port),
                         "--dapr-http-port",
                         "3500",
-                        "--components-path",
+                        "--resources-path",
                         "/dapr/components",
                         "--config",
                         "/dapr/config/config.yaml",

@@ -33,6 +33,7 @@
 STACK_NAME             ?= $(notdir $(CURDIR))
 AWS_REGION             ?= eu-central-1
 ACCOUNT_ID             ?= $(shell aws sts get-caller-identity --query Account --output text 2>/dev/null)
+LOCAL_DATABASE_URL     ?= postgresql://postgres:postgres@localhost:6432/aws_sdlc_containers
 TF_STATE_BUCKET        ?= $(STACK_NAME)-tfstate-$(ACCOUNT_ID)
 ROOT_DOMAIN            ?=
 PRIMARY_EDGE_TOKEN_SECRET ?= $(STACK_NAME)/edge-token
@@ -102,7 +103,7 @@ migrate: ## Run Liquibase migrations against local DB
 
 .PHONY: seed
 seed: ## Seed local DB with test data
-	uv run python scripts/data/seed_data.py
+	DATABASE_URL="$(or $(DATABASE_URL),$(LOCAL_DATABASE_URL))" uv run python scripts/data/seed_data.py
 
 .PHONY: data-export
 data-export: ## Run local data export job into the data_exports Docker volume

@@ -54,12 +54,6 @@ variable "pgbouncer_pool_size" {
   default     = 20
 }
 
-variable "backfill_batch_size" {
-  description = "Number of rows per backfill batch."
-  type        = number
-  default     = 1000
-}
-
 variable "data_export_schedule_expression" {
   description = "EventBridge Scheduler expression for the data export job."
   type        = string

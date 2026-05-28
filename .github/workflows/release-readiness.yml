@@ -18,9 +18,6 @@ permissions:
 jobs:
   resolve:
     name: Resolve Readiness Context
-    if: >
-      github.event.workflow_run.conclusion == 'success' &&
-      github.event.workflow_run.head_branch == github.event.repository.default_branch
     runs-on: ubuntu-latest
     permissions:
       actions: read
@@ -41,6 +38,22 @@ jobs:
             const repo = context.repo.repo;
             const headSha = context.payload.workflow_run.head_sha;
             const branch = context.payload.workflow_run.head_branch;
+            const conclusion = context.payload.workflow_run.conclusion;
+            const defaultBranch = context.payload.repository.default_branch;
+
+            if (conclusion !== "success" || branch !== defaultBranch) {
+              core.setOutput("ready", "false");
+              core.setOutput("head_sha", headSha);
+              core.setOutput("branch", branch);
+              core.summary
+                .addHeading("Main readiness deferred", 3)
+                .addRaw(`- Head SHA: ${headSha}\n`)
+                .addRaw(`- Branch: ${branch}\n`)
+                .addRaw(`- Triggering workflow conclusion: ${conclusion}\n`);
+              await core.summary.write();
+              return;
+            }
+
             const { data } = await github.rest.actions.listWorkflowRunsForRepo({
               owner,
               repo,
