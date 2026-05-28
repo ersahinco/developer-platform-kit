@@ -54,11 +54,11 @@ Rules:
 | Workflow | Pull request role | Owned gates |
 |---|---|---|
 | `app-build.yml` | app and workload validation | Ruff format check, Ruff lint, Pyright, shell script syntax, pytest, runtime conformance |
-| `release-readiness.yml` | automatic dry-run readiness on `main` | dispatches non-destructive app/data/infra/rollback workflow checks |
 | `security.yml` | repo hygiene and dependency safety | `make secret-scan`, `make lint-docs`, `make lint-policy`, `make lint-workflows`, `make lint-dockerfiles`, `make dependency-audit` |
 | `semgrep.yml` | static application security testing | Semgrep CE scan for `apps/`, `packages/`, and `scripts/` |
 | `infra-plan.yml` | infrastructure validation and review evidence | `terraform fmt`, `terraform validate`, TFLint, Checkov, reviewed Terraform plan artifact/comment |
 
 `app-deploy.yml`, `data-support-deploy.yml`, `data-schema-apply.yml`,
-`data-backfill.yml`, and `infra-apply.yml` remain separate reviewed
-cloud-changing workflows, not pull-request gates.
+`data-runtime-switch.yml`, `data-backfill.yml`, rollback drills, and
+`infra-apply.yml` remain separate reviewed cloud-changing workflows, not
+pull-request gates.
