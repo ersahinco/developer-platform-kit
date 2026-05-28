@@ -326,7 +326,7 @@ release-event-delivery-verify: ## Verify release-event push/query round-trip thr
 release-evidence-runs: ## List recent cloud-changing GitHub workflow runs that emit release evidence
 	@printf "RUN_ID\tWORKFLOW\tBRANCH\tSTATUS\tCONCLUSION\tCREATED_AT\tTITLE\tURL\n"
 	gh run list \
-		--limit 20 \
+		--limit 50 \
 		--json databaseId,workflowName,displayTitle,headBranch,status,conclusion,createdAt,url \
 		--jq '.[] | select(.workflowName as $name | ["App Build", "App Deploy", "Data Support Deploy", "Data Runtime Switch", "Data Schema Apply", "Data Backfill", "Infra Apply", "App Rollback Drill", "Data Runtime Rollback Drill"] | index($name)) | [.databaseId, .workflowName, .headBranch, .status, (.conclusion // "-"), .createdAt, .displayTitle, .url] | @tsv'
 
@@ -382,8 +382,8 @@ incident-evidence: ## Build portable Markdown/JSON incident evidence bundle
 
 # ── DB access — no bastion needed ─────────────────────────────────────────────
 #
-# All three targets delegate to shell scripts under scripts/ to avoid Make's
-# $(shell ...) quoting limitations with JMESPath backtick filters.
+# Remote DB access targets delegate to shell scripts under scripts/ to avoid
+# Make's quoting limitations with JMESPath backtick filters.
 #
 # Prerequisites:
 #   AWS CLI Session Manager plugin installed from AWS's official channel.
