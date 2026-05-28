@@ -27,7 +27,7 @@ lives in canonical docs:
 |---|---|---|
 | Runbook quality | keep operator docs parameterized with outputs, placeholders, and runtime-owned commands | any runbook still assumes a demo stack name or fixed region |
 | Workflow guardrails | expand tests around workflow ownership and approved cloud-changing paths | a workflow picks up a new responsibility |
-| Workload onboarding | keep scaffold patterns and workload classes current in docs and tests | a real workload introduces a new class or concern |
+| Workload onboarding | keep workload classes and copy-from examples current in docs and tests | a real workload introduces a new class or concern |
 | Platform catalog shape | keep reusable modules, concerns, and templates recognizable as one catalog surface | catalog logic starts fragmenting across unrelated folders or scripts |
 | Observability inventory | derive alarm, log-group, and evidence defaults from workload metadata where practical | a workload or signal path adds handwritten inventory |
 | Runtime target ergonomics | prefer Terraform outputs, runtime inventory, and small scripts over repeated shell literals | examples or scripts duplicate target-specific naming rules |
@@ -67,7 +67,6 @@ Rule: predictable extension over maximal abstraction.
 
 | Date | Decision |
 |---|---|
-| 2026-05-26 | Default new workload scaffolds to local-first support; require explicit AWS admission promotion. |
 | 2026-05-21 | Treat the workload contract and platform catalog as the stable center; runtime targets are pluggable realizations. |
 | 2026-05-19 | Harden one workload intent source and one AWS runtime realization layer. |
 | 2026-05-19 | Reframe runbooks and drills around outputs, placeholders, and operator-owned action. |

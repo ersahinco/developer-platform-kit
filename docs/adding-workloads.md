@@ -38,27 +38,6 @@ make workload-capability-matrix
 make workload-use-case-matrix
 ```
 
-Preview or apply a starter workload bundle from the supported scaffold patterns:
-
-```bash
-make scaffold-workload ARGS='--name inventory_dashboard --pattern edge-service --use-case dashboard --service-port 8092'
-make scaffold-workload ARGS='--name inventory_dashboard --pattern edge-service --use-case dashboard --service-port 8092 --apply'
-```
-
-Promote the scaffold to the current reviewed AWS runtime only when it is ready:
-
-```bash
-make scaffold-workload ARGS='--name inventory_dashboard --pattern edge-service --use-case dashboard --service-port 8092 --admitted-runtime aws-ecs --apply'
-```
-
-The scaffold command creates a thin host under `apps/`, a starter app test,
-updates `platform/workloads.json`, updates `platform/runtime-conformance.json`,
-adds a Backstage component, and inserts a local Compose service block. It
-defaults to `local-compose` support so new workloads can start locally before
-they are admitted to a cloud runtime. Treat it as the starting point, then keep
-the host thin and finish any bespoke business behavior or runtime wiring
-explicitly.
-
 ## Add The Host
 
 Create:
@@ -121,11 +100,10 @@ Do not add:
 - use lowercase kebab-case strings such as `http-api`, `dashboard`, `connector`, `event-consumer`, or `scheduled-pipeline`
 - keep them useful for catalog search, templates, and future self-service entrypoints
 
-## Scaffold From The Smallest Existing Pattern
+## Copy The Smallest Existing Pattern
 
-Scaffold patterns are starter inputs, not fields to preserve in
-`platform/workloads.json`. They infer `kind`, `operational.class`, and starter
-host wiring before you finish the workload contract directly.
+Use existing workloads as examples, not a generator. Copy only the pieces that
+match the new workload and finish the contract directly.
 
 | Need | Pattern |
 |---|---|
