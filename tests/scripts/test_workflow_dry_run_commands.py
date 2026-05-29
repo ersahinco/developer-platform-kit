@@ -17,8 +17,17 @@ def test_dry_run_commands_are_non_destructive() -> None:
         for workflow in workflow_dry_run_commands.dry_run_workflows()
     ]
 
-    assert all("-f dry_run=true" in command for command in commands)
-    assert not any("app-build.yml" in command for command in commands)
+    assert any("app-build.yml" in command for command in commands)
+    assert any(
+        "app-build.yml" in command and "-f confirm_build=dry-run" in command
+        for command in commands
+    )
+    assert not any("-f confirm_build=build" in command for command in commands)
+    assert all(
+        "-f dry_run=true" in command
+        or ("app-build.yml" in command and "-f confirm_build=dry-run" in command)
+        for command in commands
+    )
 
 
 def test_validate_local_accepts_current_workflows(capsys) -> None:

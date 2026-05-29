@@ -35,7 +35,7 @@ def default_image_tag() -> str:
             capture_output=True,
             text=True,
         )
-    except OSError, subprocess.CalledProcessError:
+    except (OSError, subprocess.CalledProcessError) as _exc:
         return "sha-<commit>"
     return f"sha-{completed.stdout.strip()}"
 
@@ -48,6 +48,10 @@ def dry_run_workflows() -> tuple[DryRunWorkflow, ...]:
     plan_run_id = env("PLAN_RUN_ID", "<infra-plan-run-id>")
 
     return (
+        DryRunWorkflow(
+            "app-build.yml",
+            (("confirm_build", "dry-run"),),
+        ),
         DryRunWorkflow(
             "app-deploy.yml",
             (

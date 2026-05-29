@@ -179,7 +179,9 @@ prints an actionable readiness message instead of treating an expired or missing
 token as a Terraform syntax failure.
 
 `make workflow-dry-run-commands` prints copy-ready `gh workflow run` commands
-for each non-destructive workflow dry run. Override the defaults when needed:
+for each non-destructive workflow dry run, including the app-build validation
+path that skips image build and push unless `confirm_build=build`. Override the
+defaults when needed:
 
 ```bash
 IMAGE_TAG=sha-<commit> \
@@ -196,14 +198,11 @@ to confirm GitHub CLI authentication and list the remote workflows before
 dispatch.
 
 The dry-run dispatches still run inside the `aws` GitHub environment and may
-read AWS state, validate image tags, inspect current runtime mode, render task
-definitions, or resolve a reviewed plan. They skip the mutation steps: service
-updates, task-definition registration, one-off task execution, runtime-mode
-writes, Terraform apply, and release-evidence emission.
-
-`app-build.yml` is intentionally not in the dry-run command list. It creates
-and pushes immutable build artifacts, so use PR checks and
-`make platform-toolkit-validate-cloud` before running the real build workflow.
+run the app-build validation job, read AWS state, validate image tags, inspect
+current runtime mode, render task definitions, or resolve a reviewed plan. They
+skip the mutation steps: image build/push, service updates, task-definition
+registration, one-off task execution, runtime-mode writes, Terraform apply, and
+release-evidence emission.
 
 ## Runtime Mode Switches
 
