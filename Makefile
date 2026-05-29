@@ -10,6 +10,8 @@
 #   make dev                 — start local Postgres + PgBouncer
 #   make local-up            — build/start app + local observability
 #   make dapr-up             — build/start local Dapr event consumer runtime
+#   make platform-toolkit-smoke-local
+#                             — fast local confidence check
 #   make platform-toolkit-validate-local
 #                             — prove the local workload journey end to end
 #   make test                — run test suite
@@ -23,6 +25,8 @@
 #
 #   make infra-platform-plan — terraform plan for platform/bootstrap root
 #   make infra-app-plan      — terraform plan for app-owned root
+#   make infra-validate-local
+#                             — terraform fmt/init/validate without remote backend
 #
 #   make app-deploy          — force new ECS deployment
 #
@@ -53,7 +57,8 @@ RELEASE_EVENTS_DIR     ?=
 INCIDENT_EVIDENCE_DIR  ?= /tmp/aws-sdlc-containers-incident-evidence
 RELEASE_EVIDENCE_DIR   ?= /tmp/aws-sdlc-containers-release-evidence
 GH_RUN_ID              ?=
-IMAGE_TAG              ?= sha-$(shell git rev-parse HEAD 2>/dev/null)
+BACKFILL_MAX_BATCHES   ?= 1
+IMAGE_TAG              ?=
 PLAN_RUN_ID            ?= <infra-plan-run-id>
 TARGET_WORKLOAD        ?= all
 SCHEMA_PHASE           ?= expand
@@ -134,6 +139,10 @@ seed: ## Seed local DB with test data
 data-export: ## Run local data export job into the data_exports Docker volume
 	docker compose --profile data run --rm --remove-orphans data-export-job
 
+.PHONY: backfill-once
+backfill-once: ## Run one bounded local backfill batch
+	docker compose run --rm --remove-orphans -e BACKFILL_MAX_BATCHES=$(BACKFILL_MAX_BATCHES) backfill-worker
+
 .PHONY: data-artifacts-list
 data-artifacts-list: ## List local data-export and open-dataset artifacts
 	docker compose --profile data run --rm --remove-orphans --entrypoint sh open-dataset-pipeline -c 'find /exports -mindepth 1 -maxdepth 6 -type f -print | sort || true'
@@ -176,6 +185,19 @@ platform-toolkit-validate-local: ## Validate local startup, API, Dapr, jobs, and
 	@$(MAKE) open-dataset-pipeline
 	@printf "\n==> Running portable runtime conformance\n"
 	@$(MAKE) runtime-conformance
+
+.PHONY: platform-toolkit-smoke-local
+platform-toolkit-smoke-local: ## Fast local smoke: API, Dapr, and one backfill batch
+	@printf "\n==> Starting local app and Dapr surfaces\n"
+	@$(MAKE) dev
+	@$(MAKE) migrate
+	@$(MAKE) local-up
+	@$(MAKE) dapr-up
+	@printf "\n==> Verifying API and Dapr\n"
+	@$(MAKE) api-smoke
+	@$(MAKE) dapr-smoke
+	@printf "\n==> Running one bounded backfill batch\n"
+	@$(MAKE) backfill-once
 
 # ── Lint & format ─────────────────────────────────────────────────────────────
 
@@ -263,6 +285,10 @@ lint-infra: ## Lint Terraform (fmt check + tflint + checkov)
 	cd infra/app && tflint --init && tflint --format compact
 	checkov -d infra --framework terraform --config-file infra/.checkov.yaml
 
+.PHONY: infra-validate-local
+infra-validate-local: ## Validate Terraform syntax locally without backend or cloud mutation
+	python3 scripts/ci/terraform_readiness.py
+
 .PHONY: fmt
 fmt: ## Auto-format Python and Terraform
 	uv run ruff format apps/ examples/ packages/ tests/ scripts/
@@ -279,19 +305,24 @@ platform-toolkit-validate-cloud: ## Run safe cloud readiness checks without muta
 	@$(MAKE) lint-workflows
 	@printf "\n==> Checking platform policy\n"
 	@$(MAKE) lint-policy
+	@printf "\n==> Validating generated workflow dry-run commands\n"
+	@$(MAKE) workflow-dry-run-validate
 	@printf "\n==> Running contract and operator-script tests\n"
 	@uv run pytest tests/contracts tests/scripts -v
 
 .PHONY: workflow-dry-run-commands
 workflow-dry-run-commands: ## Print safe GitHub workflow dry-run dispatch commands
-	@printf "Use these after pushing the reviewed branch to the default branch.\n"
-	@printf "IMAGE_TAG defaults to %s; override it with IMAGE_TAG=sha-<commit>.\n\n" "$(IMAGE_TAG)"
-	@printf "gh workflow run app-deploy.yml --ref main -f image_tag=%s -f confirm_deploy=dry-run -f dry_run=true\n" "$(IMAGE_TAG)"
-	@printf "gh workflow run data-support-deploy.yml --ref main -f image_tag=%s -f target_workload=%s -f confirm_data_support_deploy=dry-run -f dry_run=true\n" "$(IMAGE_TAG)" "$(TARGET_WORKLOAD)"
-	@printf "gh workflow run data-schema-apply.yml --ref main -f image_tag=%s -f schema_phase=%s -f confirm_schema_apply=dry-run -f dry_run=true\n" "$(IMAGE_TAG)" "$(SCHEMA_PHASE)"
-	@printf "gh workflow run data-runtime-switch.yml --ref main -f switch_step=%s -f confirm_switch=dry-run -f dry_run=true\n" "$(SWITCH_STEP)"
-	@printf "gh workflow run data-backfill.yml --ref main -f image_tag=%s -f confirm_backfill=dry-run -f dry_run=true\n" "$(IMAGE_TAG)"
-	@printf "gh workflow run infra-apply.yml --ref main -f plan_run_id=%s -f confirm_apply=dry-run -f dry_run=true\n" "$(PLAN_RUN_ID)"
+	@IMAGE_TAG="$(IMAGE_TAG)" PLAN_RUN_ID="$(PLAN_RUN_ID)" TARGET_WORKLOAD="$(TARGET_WORKLOAD)" SCHEMA_PHASE="$(SCHEMA_PHASE)" SWITCH_STEP="$(SWITCH_STEP)" \
+		python3 scripts/ci/workflow_dry_run_commands.py commands
+
+.PHONY: workflow-dry-run-validate
+workflow-dry-run-validate: ## Validate dry-run commands against local workflow input names
+	python3 scripts/ci/workflow_dry_run_commands.py validate-local
+
+.PHONY: workflow-dry-run-validate-gh
+workflow-dry-run-validate-gh: workflow-dry-run-validate ## Check GitHub CLI auth before dispatching workflow dry runs
+	gh auth status
+	gh workflow list --all --limit 50
 
 # ── Infra — bootstrap (run once per AWS account) ──────────────────────────────
 

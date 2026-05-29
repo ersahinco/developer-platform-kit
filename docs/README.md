@@ -6,6 +6,7 @@ Canonical doc map. Find the owner before adding a new page.
 
 | Topic | Owning doc | Use it for |
 |---|---|---|
+| First local-to-cloud validation pass | [First 30 Minutes](first-30-minutes.md) | New developer happy path through local proof and safe cloud readiness |
 | Repo shape and ownership boundaries | [Architecture](architecture.md) | Where code, Terraform, scripts, and docs belong |
 | Portable workload expectations | [Platform Contract](platform-contract.md) | Workload contract, metadata ownership, external contract rules |
 | Current platform capability surface | [Platform Capabilities](platform-capabilities.md) | What exists today and where to extend it |
@@ -19,6 +20,7 @@ Canonical doc map. Find the owner before adding a new page.
 
 | Task | Read |
 |---|---|
+| Validate the toolkit quickly | [First 30 Minutes](first-30-minutes.md) |
 | Learn the vocabulary | [Ubiquitous Language](ubiquitous-language.md) |
 | Understand the monorepo model | [Architecture](architecture.md), [ADR 0001](adr/0001-aws-first-platform-monorepo-seed.md), [ADR 0002](adr/0002-stable-center-and-pluggable-runtime-targets.md) |
 | Understand the platform itself | [Platform Contract](platform-contract.md), [Platform Capabilities](platform-capabilities.md) |

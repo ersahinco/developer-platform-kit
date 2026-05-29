@@ -160,6 +160,8 @@ Before dispatching cloud-changing workflows, run the local dry-readiness gate:
 
 ```bash
 make platform-toolkit-validate-cloud
+make infra-validate-local
+make workflow-dry-run-validate
 make workflow-dry-run-commands
 ```
 
@@ -168,6 +170,13 @@ platform policy, and runs the contract/script tests that prove workflows,
 Terraform helpers, task-definition rendering, post-deploy verification, release
 evidence, and incident evidence still derive from the platform contract where
 appropriate.
+
+`make infra-validate-local` mirrors the Terraform parse/validate portion of
+`infra-plan.yml` without remote backend initialization or cloud mutation. It can
+still download provider plugins through Terraform if they are not already
+cached. If provider initialization reaches AWS credential checks, the target
+prints an actionable readiness message instead of treating an expired or missing
+token as a Terraform syntax failure.
 
 `make workflow-dry-run-commands` prints copy-ready `gh workflow run` commands
 for each non-destructive workflow dry run. Override the defaults when needed:
@@ -180,6 +189,11 @@ SWITCH_STEP=auto-detect \
 PLAN_RUN_ID=<infra-plan-run-id> \
 make workflow-dry-run-commands
 ```
+
+`make workflow-dry-run-validate` checks the generated command inputs against the
+local workflow files. Use `make workflow-dry-run-validate-gh` when you also want
+to confirm GitHub CLI authentication and list the remote workflows before
+dispatch.
 
 The dry-run dispatches still run inside the `aws` GitHub environment and may
 read AWS state, validate image tags, inspect current runtime mode, render task

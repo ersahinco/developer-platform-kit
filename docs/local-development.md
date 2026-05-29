@@ -55,6 +55,13 @@ as a running API:
 make platform-toolkit-validate-local
 ```
 
+Use this shorter target when the local stack is already warm and you want a
+fast confidence pass:
+
+```bash
+make platform-toolkit-smoke-local
+```
+
 It runs the standard local startup path, verifies `/health`, `/ready`, and
 `/metrics`, publishes a CloudEvent through the local Dapr sidecar and confirms
 the event consumer recorded it, runs the data export job, runs the
@@ -104,7 +111,7 @@ curl --fail --show-error \
   --data '{"mode":"dual"}' \
   http://127.0.0.1:8000/admin/write-mode
 
-docker compose run --rm -e BACKFILL_MAX_BATCHES=1 backfill-worker
+make backfill-once
 
 curl --fail --show-error \
   -X POST \
@@ -146,6 +153,7 @@ make dapr-up
 make migrate
 make seed
 make api-smoke
+make backfill-once
 make data-export
 make data-artifacts-list
 make open-dataset-pipeline

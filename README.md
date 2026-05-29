@@ -43,6 +43,7 @@ so a portal or software catalog can ingest the monorepo without custom glue.
 | Need | Read |
 |---|---|
 | Canonical doc map | [docs/README.md](docs/README.md) |
+| First local-to-cloud validation pass | [docs/first-30-minutes.md](docs/first-30-minutes.md) |
 | Repo boundaries | [docs/architecture.md](docs/architecture.md) |
 | Portable workload expectations | [docs/platform-contract.md](docs/platform-contract.md) |
 | Runtime hosts and reusable packages | [apps/README.md](apps/README.md), [packages/README.md](packages/README.md) |
@@ -73,6 +74,7 @@ Platform toolkit validation:
 
 ```bash
 make platform-toolkit-validate-local
+make platform-toolkit-smoke-local
 make platform-toolkit-validate-cloud
 ```
 
@@ -90,6 +92,7 @@ make workload-capability-matrix
 make workload-use-case-matrix
 make platform-inventory-json
 make workflow-dry-run-commands
+make workflow-dry-run-validate
 ```
 
 Optional local extras:
