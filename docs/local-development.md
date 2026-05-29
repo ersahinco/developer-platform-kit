@@ -14,7 +14,6 @@ Reference workloads:
 - `apps/backfill_worker`
 - `apps/data_export_job`
 - `apps/event_consumer`
-
 - `apps/open_dataset_pipeline`
 
 Local-only workloads still belong in `apps/` when they have a real contract,
@@ -41,7 +40,7 @@ make dev
 make migrate
 make seed
 make local-up
-curl --fail --show-error http://localhost:8000/health
+curl --fail --show-error http://127.0.0.1:8000/health
 ```
 
 Use stepwise Docker commands only when you intentionally want the API without
@@ -61,9 +60,27 @@ It runs the standard local startup path, verifies `/health`, `/ready`, and
 the event consumer recorded it, runs the data export job, runs the
 `open_dataset_pipeline` workload, and finishes with `make runtime-conformance`.
 
-If Docker reports orphan Compose containers after a branch change, run
-`make local-reset` once to stop the old project shape and remove orphaned
-containers and volumes.
+The target prints section headers before each slice. Docker and pytest still
+show their native output so failures stay close to the tool that produced them.
+The API check uses `make api-smoke`, which retries briefly while the container
+finishes startup.
+
+Startup targets pass Compose's orphan cleanup flag so stale containers from an
+older project shape do not obscure the current run. Use `make local-reset` only
+when you also want to remove local volumes.
+
+## Local Data Artifacts
+
+The data export and open dataset workloads write to the `data_exports` Docker
+volume. Use these helpers to inspect or reset the local artifact surface:
+
+```bash
+make data-export
+make open-dataset-pipeline
+make data-artifacts-list
+make data-artifacts-shell
+make data-artifacts-clean
+```
 
 ## Migration Rollout Walkthrough
 
@@ -85,15 +102,15 @@ curl --fail --show-error \
   -X POST \
   -H "Content-Type: application/json" \
   --data '{"mode":"dual"}' \
-  http://localhost:8000/admin/write-mode
+  http://127.0.0.1:8000/admin/write-mode
 
-docker compose run --rm -e BACKFILL_MAX_BATCHES=1 worker
+docker compose run --rm -e BACKFILL_MAX_BATCHES=1 backfill-worker
 
 curl --fail --show-error \
   -X POST \
   -H "Content-Type: application/json" \
   --data '{"mode":"new"}' \
-  http://localhost:8000/admin/read-mode
+  http://127.0.0.1:8000/admin/read-mode
 ```
 
 ## Quality Checks
@@ -128,6 +145,9 @@ make observability
 make dapr-up
 make migrate
 make seed
+make api-smoke
+make data-export
+make data-artifacts-list
 make open-dataset-pipeline
 make test
 make lint

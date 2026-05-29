@@ -38,6 +38,7 @@ STACK_NAME             ?= $(notdir $(CURDIR))
 AWS_REGION             ?= eu-central-1
 ACCOUNT_ID             ?= $(shell aws sts get-caller-identity --query Account --output text 2>/dev/null)
 LOCAL_DATABASE_URL     ?= postgresql://postgres:postgres@localhost:6432/aws_sdlc_containers
+LOCAL_API_BASE_URL     ?= http://127.0.0.1:8000
 TF_STATE_BUCKET        ?= $(STACK_NAME)-tfstate-$(ACCOUNT_ID)
 ROOT_DOMAIN            ?=
 PRIMARY_EDGE_TOKEN_SECRET ?= $(STACK_NAME)/edge-token
@@ -52,6 +53,11 @@ RELEASE_EVENTS_DIR     ?=
 INCIDENT_EVIDENCE_DIR  ?= /tmp/aws-sdlc-containers-incident-evidence
 RELEASE_EVIDENCE_DIR   ?= /tmp/aws-sdlc-containers-release-evidence
 GH_RUN_ID              ?=
+IMAGE_TAG              ?= sha-$(shell git rev-parse HEAD 2>/dev/null)
+PLAN_RUN_ID            ?= <infra-plan-run-id>
+TARGET_WORKLOAD        ?= all
+SCHEMA_PHASE           ?= expand
+SWITCH_STEP            ?= auto-detect
 
 # ── Help ──────────────────────────────────────────────────────────────────────
 
@@ -64,34 +70,45 @@ help:
 
 .PHONY: dev
 dev: ## Start local Postgres + PgBouncer
-	docker compose up -d db pgbouncer
-	docker compose ps
+	docker compose up -d --remove-orphans db pgbouncer
+	docker compose ps db pgbouncer
 
 .PHONY: observability
 observability: ## Start local Prometheus + Loki + Promtail + Grafana
-	docker compose --profile observability up -d prometheus loki tempo promtail grafana
-	docker compose --profile observability ps
+	docker compose --profile observability up -d --remove-orphans prometheus loki tempo promtail grafana
+	docker compose --profile observability ps prometheus loki tempo promtail grafana
 
 .PHONY: local-up
 local-up: ## Build/start local API + Prometheus + Loki + Promtail + Grafana
 	docker compose build api
-	OTEL_TRACES_ENABLED=true docker compose --profile observability up -d db pgbouncer api prometheus loki tempo promtail grafana
-	docker compose --profile observability ps
+	OTEL_TRACES_ENABLED=true docker compose --profile observability up -d --remove-orphans db pgbouncer api prometheus loki tempo promtail grafana
+	docker compose --profile observability ps db pgbouncer api prometheus loki tempo promtail grafana
 
 .PHONY: dapr-up
 dapr-up: ## Build/start local Dapr event consumer runtime with Redis pub/sub
 	docker compose build event-consumer
-	docker compose --profile dapr up -d db redis event-consumer event-consumer-dapr
-	docker compose --profile dapr ps
+	docker compose --profile dapr up -d --remove-orphans db redis event-consumer event-consumer-dapr
+	docker compose --profile dapr ps db redis event-consumer event-consumer-dapr
 
 .PHONY: dapr-smoke
 dapr-smoke: ## Publish a local Dapr event and verify the consumer records it
 	uv run python scripts/platform/local_dapr_smoke.py
 
+.PHONY: api-smoke
+api-smoke: ## Verify local API health, readiness, and Prometheus metrics
+	@printf "Checking /health... "
+	@curl --fail --silent --show-error --retry 20 --retry-delay 2 --retry-connrefused --retry-all-errors "$(LOCAL_API_BASE_URL)/health"
+	@printf "\nChecking /ready... "
+	@curl --fail --silent --show-error --retry 20 --retry-delay 2 --retry-connrefused --retry-all-errors "$(LOCAL_API_BASE_URL)/ready"
+	@printf "\n"
+	@printf "Checking /metrics... "
+	@curl --fail --silent --show-error --retry 20 --retry-delay 2 --retry-connrefused --retry-all-errors "$(LOCAL_API_BASE_URL)/metrics" | grep -q 'http_requests_total'
+	@printf "ok\n"
+
 .PHONY: open-dataset-pipeline
 open-dataset-pipeline: ## Run the local-only open dataset workload pipeline
 	docker compose build open-dataset-pipeline
-	docker compose --profile data run --rm open-dataset-pipeline
+	docker compose --profile data run --rm --remove-orphans open-dataset-pipeline
 
 .PHONY: local-down
 local-down: ## Stop local API and observability services without deleting volumes
@@ -107,7 +124,7 @@ observability-stop: ## Stop local observability services
 
 .PHONY: migrate
 migrate: ## Run Liquibase migrations against local DB
-	docker compose --profile migration run --rm liquibase update
+	docker compose --profile migration run --rm --remove-orphans liquibase update
 
 .PHONY: seed
 seed: ## Seed local DB with test data
@@ -115,7 +132,19 @@ seed: ## Seed local DB with test data
 
 .PHONY: data-export
 data-export: ## Run local data export job into the data_exports Docker volume
-	docker compose --profile data run --rm data-export-job
+	docker compose --profile data run --rm --remove-orphans data-export-job
+
+.PHONY: data-artifacts-list
+data-artifacts-list: ## List local data-export and open-dataset artifacts
+	docker compose --profile data run --rm --remove-orphans --entrypoint sh open-dataset-pipeline -c 'find /exports -mindepth 1 -maxdepth 6 -type f -print | sort || true'
+
+.PHONY: data-artifacts-shell
+data-artifacts-shell: ## Open a shell with the local data artifact volume mounted
+	docker compose --profile data run --rm --remove-orphans --entrypoint sh open-dataset-pipeline
+
+.PHONY: data-artifacts-clean
+data-artifacts-clean: ## Delete files from the local data_exports Docker volume
+	docker compose --profile data run --rm --remove-orphans --entrypoint sh open-dataset-pipeline -c 'find /exports -mindepth 1 -delete'
 
 .PHONY: test
 test: ## Run test suite (requires local services and app running)
@@ -126,14 +155,27 @@ runtime-conformance: ## Build/run workload containers against the portable runti
 	uv run pytest tests/runtime -v --run-runtime-conformance
 
 .PHONY: platform-toolkit-validate-local
-platform-toolkit-validate-local: dev migrate seed local-up dapr-up ## Validate local startup, API, Dapr, jobs, and runtime conformance
-	curl --fail --show-error http://localhost:8000/health
-	curl --fail --show-error http://localhost:8000/ready
-	curl --fail --show-error http://localhost:8000/metrics | grep -q 'http_requests_total'
-	$(MAKE) dapr-smoke
-	$(MAKE) data-export
-	$(MAKE) open-dataset-pipeline
-	$(MAKE) runtime-conformance
+platform-toolkit-validate-local: ## Validate local startup, API, Dapr, jobs, and runtime conformance
+	@printf "\n==> Starting local database and PgBouncer\n"
+	@$(MAKE) dev
+	@printf "\n==> Applying local migrations\n"
+	@$(MAKE) migrate
+	@printf "\n==> Seeding local data\n"
+	@$(MAKE) seed
+	@printf "\n==> Starting API and local observability\n"
+	@$(MAKE) local-up
+	@printf "\n==> Starting Dapr event consumer runtime\n"
+	@$(MAKE) dapr-up
+	@printf "\n==> Verifying API health, readiness, and metrics\n"
+	@$(MAKE) api-smoke
+	@printf "\n==> Verifying local Dapr publish and consume path\n"
+	@$(MAKE) dapr-smoke
+	@printf "\n==> Running local data export job\n"
+	@$(MAKE) data-export
+	@printf "\n==> Running local open dataset pipeline\n"
+	@$(MAKE) open-dataset-pipeline
+	@printf "\n==> Running portable runtime conformance\n"
+	@$(MAKE) runtime-conformance
 
 # ── Lint & format ─────────────────────────────────────────────────────────────
 
@@ -233,9 +275,23 @@ pre-commit: ## Install and run pre-commit hooks
 
 .PHONY: platform-toolkit-validate-cloud
 platform-toolkit-validate-cloud: ## Run safe cloud readiness checks without mutating AWS
-	$(MAKE) lint-workflows
-	$(MAKE) lint-policy
-	uv run pytest tests/contracts tests/scripts -v
+	@printf "\n==> Linting GitHub workflow shape\n"
+	@$(MAKE) lint-workflows
+	@printf "\n==> Checking platform policy\n"
+	@$(MAKE) lint-policy
+	@printf "\n==> Running contract and operator-script tests\n"
+	@uv run pytest tests/contracts tests/scripts -v
+
+.PHONY: workflow-dry-run-commands
+workflow-dry-run-commands: ## Print safe GitHub workflow dry-run dispatch commands
+	@printf "Use these after pushing the reviewed branch to the default branch.\n"
+	@printf "IMAGE_TAG defaults to %s; override it with IMAGE_TAG=sha-<commit>.\n\n" "$(IMAGE_TAG)"
+	@printf "gh workflow run app-deploy.yml --ref main -f image_tag=%s -f confirm_deploy=dry-run -f dry_run=true\n" "$(IMAGE_TAG)"
+	@printf "gh workflow run data-support-deploy.yml --ref main -f image_tag=%s -f target_workload=%s -f confirm_data_support_deploy=dry-run -f dry_run=true\n" "$(IMAGE_TAG)" "$(TARGET_WORKLOAD)"
+	@printf "gh workflow run data-schema-apply.yml --ref main -f image_tag=%s -f schema_phase=%s -f confirm_schema_apply=dry-run -f dry_run=true\n" "$(IMAGE_TAG)" "$(SCHEMA_PHASE)"
+	@printf "gh workflow run data-runtime-switch.yml --ref main -f switch_step=%s -f confirm_switch=dry-run -f dry_run=true\n" "$(SWITCH_STEP)"
+	@printf "gh workflow run data-backfill.yml --ref main -f image_tag=%s -f confirm_backfill=dry-run -f dry_run=true\n" "$(IMAGE_TAG)"
+	@printf "gh workflow run infra-apply.yml --ref main -f plan_run_id=%s -f confirm_apply=dry-run -f dry_run=true\n" "$(PLAN_RUN_ID)"
 
 # ── Infra — bootstrap (run once per AWS account) ──────────────────────────────
 

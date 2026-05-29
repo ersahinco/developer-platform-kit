@@ -58,7 +58,7 @@ make dev
 make migrate
 make seed
 make local-up
-curl --fail --show-error http://localhost:8000/health
+curl --fail --show-error http://127.0.0.1:8000/health
 ```
 
 Common checks:
@@ -89,6 +89,7 @@ Useful inventory views:
 make workload-capability-matrix
 make workload-use-case-matrix
 make platform-inventory-json
+make workflow-dry-run-commands
 ```
 
 Optional local extras:
@@ -96,6 +97,7 @@ Optional local extras:
 ```bash
 make observability
 make dapr-up
+make data-artifacts-list
 ```
 
 For full local setup, use [docs/local-development.md](docs/local-development.md).

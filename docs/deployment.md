@@ -160,6 +160,7 @@ Before dispatching cloud-changing workflows, run the local dry-readiness gate:
 
 ```bash
 make platform-toolkit-validate-cloud
+make workflow-dry-run-commands
 ```
 
 It does not call AWS mutating APIs. It lints GitHub workflow shape, checks
@@ -167,6 +168,41 @@ platform policy, and runs the contract/script tests that prove workflows,
 Terraform helpers, task-definition rendering, post-deploy verification, release
 evidence, and incident evidence still derive from the platform contract where
 appropriate.
+
+`make workflow-dry-run-commands` prints copy-ready `gh workflow run` commands
+for each non-destructive workflow dry run. Override the defaults when needed:
+
+```bash
+IMAGE_TAG=sha-<commit> \
+TARGET_WORKLOAD=backfill_worker \
+SCHEMA_PHASE=expand \
+SWITCH_STEP=auto-detect \
+PLAN_RUN_ID=<infra-plan-run-id> \
+make workflow-dry-run-commands
+```
+
+The dry-run dispatches still run inside the `aws` GitHub environment and may
+read AWS state, validate image tags, inspect current runtime mode, render task
+definitions, or resolve a reviewed plan. They skip the mutation steps: service
+updates, task-definition registration, one-off task execution, runtime-mode
+writes, Terraform apply, and release-evidence emission.
+
+`app-build.yml` is intentionally not in the dry-run command list. It creates
+and pushes immutable build artifacts, so use PR checks and
+`make platform-toolkit-validate-cloud` before running the real build workflow.
+
+## Runtime Mode Switches
+
+Use one forward transition at a time:
+
+| Current state | Reviewed switch step | Target state |
+|---|---|---|
+| `READ_MODE=legacy`, `WRITE_MODE=legacy` | `write-legacy-to-dual` | `READ_MODE=legacy`, `WRITE_MODE=dual` |
+| `READ_MODE=legacy`, `WRITE_MODE=dual` | `read-legacy-to-new` | `READ_MODE=new`, `WRITE_MODE=dual` |
+| `READ_MODE=new`, `WRITE_MODE=dual` | `write-dual-to-new` | `READ_MODE=new`, `WRITE_MODE=new` |
+
+`auto-detect` is for dry-run planning only. Use the explicit reviewed step for
+the workflow that changes runtime mode.
 
 For workflow-specific recovery paths, use [Runbooks](runbooks/README.md).
 
