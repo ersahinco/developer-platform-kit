@@ -259,6 +259,21 @@ def test_cloud_data_workflows_use_declared_runtime_mode_endpoints() -> None:
         assert "runtime_mode_endpoints.write" in text
 
 
+def test_cloud_dry_runs_still_validate_image_availability() -> None:
+    workflow_paths = [
+        ".github/workflows/app-deploy.yml",
+        ".github/workflows/data-backfill.yml",
+        ".github/workflows/data-schema-apply.yml",
+        ".github/workflows/data-support-deploy.yml",
+    ]
+
+    for path in workflow_paths:
+        text = read_text(path)
+        for match in re.finditer(r"aws ecr describe-images", text):
+            preceding_lines = text[: match.start()].splitlines()[-3:]
+            assert "if: ${{ !inputs.dry_run }}" not in "\n".join(preceding_lines)
+
+
 def test_primary_edge_task_definition_revisions_are_deploy_owned() -> None:
     compute_ecs = read_text("infra/app/compute_ecs.tf")
 

@@ -101,7 +101,8 @@ jobs:
             echo "### Data schema dry run"
             echo ""
             echo "- Mode: non-destructive readiness check"
-            echo "- Liquibase task definition is rendered but not registered or executed"
+            echo "- Liquibase image availability and task definition rendering are checked"
+            echo "- Liquibase task definition is not registered or executed"
           } >> "$GITHUB_STEP_SUMMARY"
 
       - uses: aws-actions/configure-aws-credentials@a89a83ec143615402a01f672b6e172b7b1875000 # v6
@@ -182,7 +183,6 @@ jobs:
           fi
 
       - name: Verify approved Liquibase image exists
-        if: ${{ !inputs.dry_run }}
         run: |
           aws ecr describe-images \
             --repository-name "${STACK_NAME}/liquibase" \

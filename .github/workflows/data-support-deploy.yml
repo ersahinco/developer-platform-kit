@@ -83,7 +83,8 @@ jobs:
             echo "### Data support deploy dry run"
             echo ""
             echo "- Mode: non-destructive readiness check"
-            echo "- Support task definitions are rendered but not registered"
+            echo "- Support image availability and task definition rendering are checked"
+            echo "- Support task definitions are not registered"
           } >> "$GITHUB_STEP_SUMMARY"
 
       - uses: aws-actions/configure-aws-credentials@a89a83ec143615402a01f672b6e172b7b1875000 # v6
@@ -129,10 +130,10 @@ jobs:
               "$container" \
               "${ECR_REGISTRY}/${STACK_NAME}/${container}:${IMAGE_TAG}" \
               "$task_definition"
+            aws ecr describe-images \
+              --repository-name "${STACK_NAME}/${container}" \
+              --image-ids "imageTag=${IMAGE_TAG}"
             if [[ "$DRY_RUN" != "true" ]]; then
-              aws ecr describe-images \
-                --repository-name "${STACK_NAME}/${container}" \
-                --image-ids "imageTag=${IMAGE_TAG}"
               task_def_arn=$(aws ecs register-task-definition \
                 --cli-input-json "file://${task_definition}" \
                 --query 'taskDefinition.taskDefinitionArn' \

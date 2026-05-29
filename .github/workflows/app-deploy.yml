@@ -91,7 +91,7 @@ jobs:
             echo "### App deploy dry run"
             echo ""
             echo "- Mode: non-destructive readiness check"
-            echo "- Image tag syntax and branch reachability are still validated"
+            echo "- Image tag syntax, branch reachability, and ECR image availability are still validated"
             echo "- AWS state mutation steps are skipped"
           } >> "$GITHUB_STEP_SUMMARY"
 
@@ -125,19 +125,16 @@ jobs:
           } >> "$GITHUB_OUTPUT"
 
       - name: Resolve internal service inventory
-        if: ${{ !inputs.dry_run }}
         run: |
           python3 -m scripts.platform.workload_metadata internal-services > "$RUNNER_TEMP/internal-services.tsv"
 
       - name: Verify approved primary edge image exists
-        if: ${{ !inputs.dry_run }}
         run: |
           aws ecr describe-images \
             --repository-name "${STACK_NAME}/${{ steps.primary-service.outputs.service }}" \
             --image-ids "imageTag=${IMAGE_TAG}"
 
       - name: Verify approved internal service images exist
-        if: ${{ !inputs.dry_run }}
         run: |
           while IFS=$'\t' read -r _workload_name service; do
             [[ -z "$service" ]] && continue
@@ -147,7 +144,6 @@ jobs:
           done < "$RUNNER_TEMP/internal-services.tsv"
 
       - name: Verify approved sidecar image exists
-        if: ${{ !inputs.dry_run }}
         run: |
           aws ecr describe-images \
             --repository-name "${STACK_NAME}/pgbouncer" \
