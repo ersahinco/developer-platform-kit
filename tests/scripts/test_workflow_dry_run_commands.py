@@ -30,6 +30,10 @@ def test_dry_run_commands_are_non_destructive() -> None:
     )
 
 
+def test_default_image_tag_requires_built_image_input() -> None:
+    assert workflow_dry_run_commands.default_image_tag() == "sha-<built-image-commit>"
+
+
 def test_validate_local_accepts_current_workflows(capsys) -> None:
     assert workflow_dry_run_commands.validate_local() == 0
 

@@ -4,7 +4,6 @@ from dataclasses import dataclass
 import os
 from pathlib import Path
 import shlex
-import subprocess
 import sys
 
 
@@ -27,17 +26,7 @@ def env(name: str, default: str) -> str:
 
 
 def default_image_tag() -> str:
-    try:
-        completed = subprocess.run(
-            ["git", "rev-parse", "HEAD"],
-            check=True,
-            cwd=ROOT,
-            capture_output=True,
-            text=True,
-        )
-    except (OSError, subprocess.CalledProcessError) as _exc:
-        return "sha-<commit>"
-    return f"sha-{completed.stdout.strip()}"
+    return "sha-<built-image-commit>"
 
 
 def dry_run_workflows() -> tuple[DryRunWorkflow, ...]:
@@ -171,8 +160,8 @@ def validate_local() -> int:
 def print_commands() -> int:
     print("Use these after pushing the reviewed branch to the default branch.")
     print(
-        "IMAGE_TAG defaults to the current commit; override it with "
-        "IMAGE_TAG=sha-<commit>."
+        "Set IMAGE_TAG to an immutable image tag from a successful app-build run, "
+        "for example IMAGE_TAG=sha-<commit>."
     )
     print()
     for workflow in dry_run_workflows():

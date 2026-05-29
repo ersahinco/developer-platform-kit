@@ -180,7 +180,9 @@ token as a Terraform syntax failure.
 
 `make workflow-dry-run-commands` prints copy-ready `gh workflow run` commands
 for each non-destructive workflow dry run, including the app-build validation
-path that skips image build and push unless `confirm_build=build`. Override the
+path that skips image build and push unless `confirm_build=build`. Set
+`IMAGE_TAG` to a tag from a successful app-build run for the image-based
+dry-runs; those dry-runs validate ECR image availability. Override the other
 defaults when needed:
 
 ```bash
