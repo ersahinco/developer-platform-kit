@@ -1,10 +1,14 @@
 from __future__ import annotations
 
 from collections.abc import Callable
+import logging
 from typing import Any
 
 from starlette import status
 from starlette.responses import JSONResponse
+
+
+logger = logging.getLogger(__name__)
 
 
 def health_payload() -> dict[str, str]:
@@ -25,6 +29,7 @@ def database_readiness_response(
     try:
         check()
     except Exception:
+        logger.warning("database_readiness_failed", exc_info=True)
         return JSONResponse(
             status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
             content=unready_payload(),

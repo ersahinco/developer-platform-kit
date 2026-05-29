@@ -454,6 +454,11 @@ def _render_primary_edge(
                         },
                     ],
                     "readonlyRootFilesystem": False,
+                    "logConfiguration": _log_configuration(
+                        f"/ecs/{stack_name}/adot",
+                        region,
+                        "adot",
+                    ),
                 }
             )
         )
@@ -483,6 +488,11 @@ def _render_primary_edge(
                 ],
                 "healthCheck": _health_check(service_port, interval=5, start_period=15),
                 "readonlyRootFilesystem": False,
+                "logConfiguration": _log_configuration(
+                    f"/ecs/{stack_name}/{repository}",
+                    region,
+                    repository,
+                ),
             }
         )
     )
@@ -516,6 +526,11 @@ def _render_primary_edge(
                     {"name": "DB_PASSWORD", "valueFrom": f"{db_secret_arn}:password::"},
                 ],
                 "readonlyRootFilesystem": False,
+                "logConfiguration": _log_configuration(
+                    f"/ecs/{stack_name}/pgbouncer",
+                    region,
+                    "pgbouncer",
+                ),
             }
         )
     )

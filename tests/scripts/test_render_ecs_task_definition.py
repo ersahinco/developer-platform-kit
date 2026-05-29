@@ -70,6 +70,30 @@ def test_render_primary_edge_task_definition_is_repo_sourced(monkeypatch) -> Non
             "valueFrom": "arn:aws:secretsmanager:eu-central-1:123:secret:aws-sdlc-containers/edge-token",
         },
     ]
+    assert containers["api"]["logConfiguration"] == {
+        "logDriver": "awslogs",
+        "options": {
+            "awslogs-group": "/ecs/aws-sdlc-containers/api",
+            "awslogs-region": "eu-central-1",
+            "awslogs-stream-prefix": "api",
+        },
+    }
+    assert containers["pgbouncer"]["logConfiguration"] == {
+        "logDriver": "awslogs",
+        "options": {
+            "awslogs-group": "/ecs/aws-sdlc-containers/pgbouncer",
+            "awslogs-region": "eu-central-1",
+            "awslogs-stream-prefix": "pgbouncer",
+        },
+    }
+    assert containers["adot"]["logConfiguration"] == {
+        "logDriver": "awslogs",
+        "options": {
+            "awslogs-group": "/ecs/aws-sdlc-containers/adot",
+            "awslogs-region": "eu-central-1",
+            "awslogs-stream-prefix": "adot",
+        },
+    }
 
 
 def test_render_event_consumer_task_definition_includes_repo_owned_async_runtime(

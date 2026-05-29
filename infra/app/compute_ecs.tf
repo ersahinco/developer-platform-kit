@@ -136,6 +136,12 @@ resource "aws_ecs_task_definition" "primary_edge" {
   container_definitions    = jsonencode(local.primary_edge_task_definition_containers)
 
   tags = local.tags
+
+  # Terraform bootstraps the task-definition family. GitHub Actions owns
+  # deploy-time revisions, including images, sidecars, and container wiring.
+  lifecycle {
+    ignore_changes = [container_definitions]
+  }
 }
 
 data "aws_ecs_task_definition" "primary_edge_current" {

@@ -163,9 +163,10 @@ def test_ready_reports_database_ok_when_ping_succeeds() -> None:
     assert response.json() == {"status": "ready", "checks": {"database": "ok"}}
 
 
-def test_ready_reports_unavailable_when_ping_fails() -> None:
+def test_ready_reports_unavailable_when_ping_fails(caplog) -> None:
     _override_db(_FailingSession())
     try:
+        caplog.set_level("WARNING", logger="infrastructure.http_health")
         with TestClient(app) as client:
             response = client.get("/ready")
     finally:
@@ -176,6 +177,8 @@ def test_ready_reports_unavailable_when_ping_fails() -> None:
         "status": "unready",
         "checks": {"database": "unavailable"},
     }
+    assert "database_readiness_failed" in caplog.text
+    assert "database unavailable" in caplog.text
 
 
 def test_request_id_header_is_generated_when_absent() -> None:

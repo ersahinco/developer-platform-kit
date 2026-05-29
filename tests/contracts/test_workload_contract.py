@@ -257,3 +257,26 @@ def test_cloud_data_workflows_use_declared_runtime_mode_endpoints() -> None:
         assert "/admin/write-mode" not in text
         assert "runtime_mode_endpoints.read" in text
         assert "runtime_mode_endpoints.write" in text
+
+
+def test_primary_edge_task_definition_revisions_are_deploy_owned() -> None:
+    compute_ecs = read_text("infra/app/compute_ecs.tf")
+
+    task_definition_block = re.search(
+        r'resource "aws_ecs_task_definition" "primary_edge" \{(?P<body>.*?)^}',
+        compute_ecs,
+        re.MULTILINE | re.DOTALL,
+    )
+    assert task_definition_block is not None
+    assert "ignore_changes = [container_definitions]" in task_definition_block.group(
+        "body"
+    )
+
+    service_block = re.search(
+        r'resource "aws_ecs_service" "primary_edge" \{(?P<body>.*?)^}',
+        compute_ecs,
+        re.MULTILINE | re.DOTALL,
+    )
+    assert service_block is not None
+    assert "task_definition" in service_block.group("body")
+    assert "ignore_changes" in service_block.group("body")
