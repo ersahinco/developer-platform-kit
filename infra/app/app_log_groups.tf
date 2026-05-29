@@ -21,3 +21,11 @@ resource "aws_cloudwatch_log_group" "pgbouncer" {
 
   tags = local.tags
 }
+
+resource "aws_cloudwatch_log_group" "adot" {
+  name              = "/ecs/${local.name}/adot"
+  retention_in_days = 14
+  kms_key_id        = aws_kms_key.cloudwatch_logs.arn
+
+  tags = local.tags
+}

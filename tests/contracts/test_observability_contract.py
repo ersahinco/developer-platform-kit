@@ -14,6 +14,7 @@ def _read(path: str) -> str:
 
 def test_cloud_observability_is_adot_sidecar_not_hosted_lgtm() -> None:
     observability_tf = _read("infra/app/observability.tf")
+    app_log_groups_tf = _read("infra/app/app_log_groups.tf")
     compute_tf = _read("infra/app/compute_ecs.tf")
     workload_inventory_tf = _read("infra/app/workload_inventory.tf")
     variables_tf = _read("infra/app/variables.tf")
@@ -45,6 +46,8 @@ def test_cloud_observability_is_adot_sidecar_not_hosted_lgtm() -> None:
     assert "local.workload_environment[local.primary_edge_workload_name]" in compute_tf
     assert "default_adot_collector_config" in observability_tf
     assert "job_name: ${local.primary_edge_repository}" in observability_tf
+    assert 'resource "aws_cloudwatch_log_group" "adot"' in app_log_groups_tf
+    assert 'name              = "/ecs/${local.name}/adot"' in app_log_groups_tf
 
     for retired in [
         'resource "aws_ecs_service" "grafana"',
