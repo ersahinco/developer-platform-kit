@@ -152,6 +152,7 @@ def build_event(
     write_mode: str | None,
     verify_seconds: int | None,
     verify_slo_seconds: int | None,
+    rollout_seconds: int | None = None,
     runtime_id: str | None = None,
     workload_id: str | None = None,
     deployment_id: str | None = None,
@@ -213,6 +214,7 @@ def build_event(
             "write_mode": write_mode,
         },
         "slo": {
+            "rollout_seconds": rollout_seconds,
             "verify_seconds": verify_seconds,
             "verify_slo_seconds": verify_slo_seconds,
         },
@@ -290,11 +292,14 @@ def render_markdown(event: dict[str, Any]) -> str:
         lines.append(f"- Plan run: `{revision['plan_run_id']}`")
 
     verify_line = None
+    rollout_line = None
+    if slo.get("rollout_seconds") is not None:
+        rollout_line = f"- ECS rollout: {slo['rollout_seconds']}s"
     if slo.get("verify_seconds") is not None:
         verify_line = f"- Verification: {slo['verify_seconds']}s"
         if slo.get("verify_slo_seconds") is not None:
             verify_line += f" / {slo['verify_slo_seconds']}s"
-    slo_lines = [verify_line]
+    slo_lines = [rollout_line, verify_line]
     present_slo_lines = [line for line in slo_lines if line is not None]
     if present_slo_lines:
         lines.extend(["", "## SLO Evidence", *present_slo_lines])
@@ -413,6 +418,7 @@ def main() -> int:
     parser.add_argument("--write-mode")
     parser.add_argument("--verify-seconds")
     parser.add_argument("--verify-slo-seconds")
+    parser.add_argument("--rollout-seconds")
     parser.add_argument("--runtime-id")
     parser.add_argument("--workload-id")
     parser.add_argument("--deployment-id")
@@ -475,6 +481,7 @@ def main() -> int:
         write_mode=_clean_optional(args.write_mode),
         verify_seconds=_int_optional(args.verify_seconds),
         verify_slo_seconds=_int_optional(args.verify_slo_seconds),
+        rollout_seconds=_int_optional(args.rollout_seconds),
         runtime_id=_clean_optional(args.runtime_id),
         workload_id=_clean_optional(args.workload_id),
         deployment_id=_clean_optional(args.deployment_id),

@@ -133,10 +133,71 @@ make incident-evidence
 Checks:
 
 1. App build: confirm branch, SHA, immutable `sha-...` image tag, and expected `release-evidence-app-build-*` artifacts.
-2. App deploy: confirm `release-evidence-app-deploy-*` records the expected service, image tag, and task definition, and `make post-deploy-verify` or the incident bundle shows no unresolved alarm or verification failures.
+2. App deploy: confirm `release-evidence-app-deploy-*` records the expected service, image tag, task definition, and rollout timing, and `make post-deploy-verify` or the incident bundle shows no unresolved alarm or verification failures.
 3. Data workflow: confirm the matching `release-evidence-data-*` artifact records the intended image tag, task definition, and stage-specific preconditions or outputs.
 4. Infra apply: confirm the selected `Infra Apply` run matches the reviewed `Infra Plan` for the current default-branch SHA, and the plan plus release evidence match the intended Terraform surface.
 5. Rollback: redeploy a known-good immutable image tag or restore the reviewed runtime mode, then confirm verification and alarm state.
+
+## Slow ECS Deployments
+
+`app-deploy.yml` observes each ECS service rollout after `update-service`.
+The workflow log and step summary include:
+
+- elapsed rollout time
+- target task definition
+- deployment status, desired/running/pending/failed task counts
+- target-group health summary when the service has an ALB target group
+- recent ECS service events
+
+Use those events first. They usually show whether the deploy is waiting for
+image pull, task start, target health, circuit breaker rollback, or capacity.
+
+If the rollout is slow or stuck, collect the same context locally:
+
+```bash
+aws ecs describe-services \
+  --cluster "${STACK_NAME:-aws-sdlc-containers}" \
+  --services api \
+  --query 'services[0].{desired:desiredCount,running:runningCount,pending:pendingCount,deployments:deployments[*].{status:status,rolloutState:rolloutState,reason:rolloutStateReason,taskDefinition:taskDefinition,desired:desiredCount,running:runningCount,pending:pendingCount,failed:failedTasks},events:events[:10]}'
+```
+
+For the primary edge service, inspect target health if ECS says tasks are
+running but the service is not stable:
+
+```bash
+target_group_arn=$(aws ecs describe-services \
+  --cluster "${STACK_NAME:-aws-sdlc-containers}" \
+  --services api \
+  --query 'services[0].loadBalancers[0].targetGroupArn' \
+  --output text)
+aws elbv2 describe-target-health --target-group-arn "$target_group_arn"
+```
+
+For container start failures, look at the recent stopped tasks and logs:
+
+```bash
+aws ecs list-tasks \
+  --cluster "${STACK_NAME:-aws-sdlc-containers}" \
+  --service-name api \
+  --desired-status STOPPED \
+  --max-items 5
+
+aws logs describe-log-streams \
+  --log-group-name "/ecs/${STACK_NAME:-aws-sdlc-containers}/api" \
+  --order-by LastEventTime \
+  --descending \
+  --max-items 5
+```
+
+If the failed deploy came from GitHub Actions, download the release evidence
+and build an incident bundle before changing state:
+
+```bash
+make release-evidence-runs
+GH_RUN_ID=<workflow-run-id> make release-evidence-download
+RELEASE_EVENTS_DIR=/tmp/aws-sdlc-containers-release-evidence/<workflow-run-id> \
+make incident-evidence
+```
 
 ## Common Commands
 

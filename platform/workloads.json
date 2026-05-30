@@ -246,6 +246,47 @@
       "job": {
         "idempotency": "run_id"
       }
+    },
+    {
+      "name": "operational_snapshot_job",
+      "kind": "job",
+      "use_cases": ["operational-readiness", "operator-task"],
+      "owner": "platform-engineering",
+      "app_path": "apps/operational_snapshot_job",
+      "runtime": {
+        "supported": ["local-compose", "aws-ecs"],
+        "admitted": ["aws-ecs"]
+      },
+      "operational": {
+        "class": "operator-job",
+        "trigger": "manual"
+      },
+      "image": {
+        "repository": "operational-snapshot-job",
+        "package": "aws-sdlc-containers-operational-snapshot-job",
+        "command": "python -m operational_snapshot_job.main"
+      },
+      "traces": {
+        "supported": false
+      },
+      "database": {
+        "semantics": "postgresql",
+        "pooling": "direct"
+      },
+      "config": {
+        "env": [
+          "DATABASE_URL",
+          "DB_HOST",
+          "DB_PORT",
+          "DB_USER",
+          "DB_NAME",
+          "OPERATIONAL_SNAPSHOT_RUN_ID"
+        ],
+        "secrets": ["DB_PASSWORD"]
+      },
+      "job": {
+        "idempotency": "read_only"
+      }
     }
   ]
 }

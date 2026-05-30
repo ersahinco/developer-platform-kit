@@ -18,3 +18,4 @@ Example:
 - `packages/application/data_export.py` -> export use case
 - `packages/infrastructure/data_export.py` -> SQL, file, S3 adapters
 - `apps/data_export_job/` -> runnable host
+- `apps/operational_snapshot_job/` -> read-only operational readiness snapshot

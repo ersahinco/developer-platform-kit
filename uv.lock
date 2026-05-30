@@ -13,6 +13,7 @@ members = [
     "aws-sdlc-containers-event-consumer",
     "aws-sdlc-containers-infrastructure",
     "aws-sdlc-containers-open-dataset-pipeline",
+    "aws-sdlc-containers-operational-snapshot-job",
 ]
 
 [[package]]
@@ -238,6 +239,21 @@ dependencies = [
 
 [package.metadata]
 requires-dist = [{ name = "duckdb", specifier = ">=1.4.2" }]
+
+[[package]]
+name = "aws-sdlc-containers-operational-snapshot-job"
+version = "0.1.0"
+source = { editable = "apps/operational_snapshot_job" }
+dependencies = [
+    { name = "aws-sdlc-containers-application" },
+    { name = "aws-sdlc-containers-infrastructure" },
+]
+
+[package.metadata]
+requires-dist = [
+    { name = "aws-sdlc-containers-application", editable = "packages/application" },
+    { name = "aws-sdlc-containers-infrastructure", editable = "packages/infrastructure" },
+]
 
 [[package]]
 name = "boolean-py"

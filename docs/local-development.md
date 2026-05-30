@@ -15,6 +15,7 @@ Reference workloads:
 - `apps/data_export_job`
 - `apps/event_consumer`
 - `apps/open_dataset_pipeline`
+- `apps/operational_snapshot_job`
 
 Local-only workloads still belong in `apps/` when they have a real contract,
 local proof, and owner. Reserve `examples/` for teaching, demo, and
@@ -64,8 +65,9 @@ make platform-toolkit-smoke-local
 
 It runs the standard local startup path, verifies `/health`, `/ready`, and
 `/metrics`, publishes a CloudEvent through the local Dapr sidecar and confirms
-the event consumer recorded it, runs the data export job, runs the
-`open_dataset_pipeline` workload, and finishes with `make runtime-conformance`.
+the event consumer recorded it, runs the data export job, emits an operational
+snapshot, runs the `open_dataset_pipeline` workload, and finishes with
+`make runtime-conformance`.
 
 The target prints section headers before each slice. Docker and pytest still
 show their native output so failures stay close to the tool that produced them.
@@ -83,6 +85,7 @@ volume. Use these helpers to inspect or reset the local artifact surface:
 
 ```bash
 make data-export
+make operational-snapshot
 make open-dataset-pipeline
 make data-artifacts-list
 make data-artifacts-shell
@@ -137,6 +140,7 @@ assertions when needed.
 make observability
 make dapr-up
 make data-export
+make operational-snapshot
 make open-dataset-pipeline
 ```
 
@@ -155,6 +159,7 @@ make seed
 make api-smoke
 make backfill-once
 make data-export
+make operational-snapshot
 make data-artifacts-list
 make open-dataset-pipeline
 make test

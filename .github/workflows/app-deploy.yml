@@ -62,6 +62,7 @@ jobs:
     outputs:
       primary_service: ${{ steps.primary-service.outputs.service }}
       task_definition: ${{ steps.deploy-app.outputs.task_def_arn || '' }}
+      rollout_seconds: ${{ steps.deploy-app.outputs.rollout_seconds || '' }}
       verify_seconds: ${{ steps.verify-app.outputs.verify_seconds || steps.verify-current.outputs.verify_seconds }}
 
     steps:
@@ -273,6 +274,7 @@ jobs:
             --service-name "${{ needs.deploy.outputs.primary_service }}" \
             --image-tag "${{ env.IMAGE_TAG }}" \
             --task-definition "${{ needs.deploy.outputs.task_definition }}" \
+            --rollout-seconds "${{ needs.deploy.outputs.rollout_seconds }}" \
             --verify-seconds "${{ needs.deploy.outputs.verify_seconds }}" \
             --include-alarms \
             --push-loki \

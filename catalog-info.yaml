@@ -17,3 +17,4 @@ spec:
     - ./catalog/backfill-worker-component.yaml
     - ./catalog/data-export-job-component.yaml
     - ./catalog/open-dataset-pipeline-component.yaml
+    - ./catalog/operational-snapshot-job-component.yaml

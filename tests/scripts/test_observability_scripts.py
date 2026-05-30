@@ -47,6 +47,7 @@ def _release_event(**overrides: Any) -> dict[str, Any]:
         "plan_run_id": None,
         "read_mode": "legacy",
         "write_mode": "legacy",
+        "rollout_seconds": 45,
         "verify_seconds": 12,
         "verify_slo_seconds": 120,
         "env": env,
@@ -505,6 +506,7 @@ def test_release_event_writes_markdown_json_and_jsonl(tmp_path: Path) -> None:
     assert "app_deploy" in markdown
     assert TEST_RUN_ID in markdown
     assert "aws-ecs" in markdown
+    assert "ECS rollout: 45s" in markdown
     assert "Alarm Snapshot" in markdown
     assert "aws-sdlc-containers-api-target-5xx: OK" in markdown
     assert event["runtime_id"] == "aws-ecs"
@@ -513,6 +515,7 @@ def test_release_event_writes_markdown_json_and_jsonl(tmp_path: Path) -> None:
     assert event["source_workflow"] == "App Deploy"
     assert event["correlation"]["github_run_id"] == TEST_RUN_ID
     assert event["revision"]["image_tag"].startswith("sha-")
+    assert event["slo"]["rollout_seconds"] == 45
     assert event["alarm_snapshot"]["alarms"][0]["state"] == "OK"
 
 

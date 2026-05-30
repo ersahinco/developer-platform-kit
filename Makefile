@@ -29,6 +29,8 @@
 #                             — terraform fmt/init/validate without remote backend
 #
 #   make app-deploy          — force new ECS deployment
+#   make operational-snapshot
+#                             — emit local operational readiness snapshot
 #
 #   make db-tunnel           — SSM port-forward localhost:LOCAL_PORT → RDS:5432
 #   make db-exec             — open psql inside a running app task
@@ -117,11 +119,11 @@ open-dataset-pipeline: ## Run the local-only open dataset workload pipeline
 
 .PHONY: local-down
 local-down: ## Stop local API and observability services without deleting volumes
-	docker compose --profile observability --profile dapr --profile data stop api prometheus loki tempo promtail grafana event-consumer event-consumer-dapr redis open-dataset-pipeline
+	docker compose --profile observability --profile dapr --profile data --profile ops stop api prometheus loki tempo promtail grafana event-consumer event-consumer-dapr redis open-dataset-pipeline operational-snapshot-job
 
 .PHONY: local-reset
 local-reset: ## Stop all local services and delete Compose volumes
-	docker compose --profile observability --profile tools --profile migration --profile data --profile dapr down -v --remove-orphans
+	docker compose --profile observability --profile tools --profile migration --profile data --profile dapr --profile ops down -v --remove-orphans
 
 .PHONY: observability-stop
 observability-stop: ## Stop local observability services
@@ -138,6 +140,10 @@ seed: ## Seed local DB with test data
 .PHONY: data-export
 data-export: ## Run local data export job into the data_exports Docker volume
 	docker compose --profile data run --rm --remove-orphans data-export-job
+
+.PHONY: operational-snapshot
+operational-snapshot: ## Run local read-only operational readiness snapshot
+	docker compose --profile ops run --rm --remove-orphans operational-snapshot-job
 
 .PHONY: backfill-once
 backfill-once: ## Run one bounded local backfill batch
@@ -181,6 +187,8 @@ platform-toolkit-validate-local: ## Validate local startup, API, Dapr, jobs, and
 	@$(MAKE) dapr-smoke
 	@printf "\n==> Running local data export job\n"
 	@$(MAKE) data-export
+	@printf "\n==> Running local operational snapshot job\n"
+	@$(MAKE) operational-snapshot
 	@printf "\n==> Running local open dataset pipeline\n"
 	@$(MAKE) open-dataset-pipeline
 	@printf "\n==> Running portable runtime conformance\n"

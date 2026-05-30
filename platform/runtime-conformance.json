@@ -74,6 +74,24 @@
       },
       "expected_success_event": "open_dataset_pipeline_succeeded",
       "expected_log_fields": ["event", "job_name", "dataset", "run_id", "status", "row_count"]
+    },
+    "operational_snapshot_job": {
+      "timeout_seconds": 60,
+      "env": {
+        "DATABASE_URL": "postgresql://postgres:postgres@db:5432/aws_sdlc_containers",
+        "OPERATIONAL_SNAPSHOT_RUN_ID": "conformance"
+      },
+      "expected_success_event": "operational_snapshot_succeeded",
+      "expected_log_fields": [
+        "event",
+        "job_name",
+        "run_id",
+        "status",
+        "read_mode",
+        "write_mode",
+        "orders_count",
+        "customers_count"
+      ]
     }
   }
 }

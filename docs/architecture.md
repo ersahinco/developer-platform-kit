@@ -80,6 +80,7 @@ Operational classes point outward:
 - `event_consumer`: internal async service
 - `backfill_worker`: operator-triggered job
 - `data_export_job`: scheduler-triggered job
+- `operational_snapshot_job`: read-only operator-triggered readiness job
 
 Portable meaning lives in
 [Platform Contract](platform-contract.md#operational-class).

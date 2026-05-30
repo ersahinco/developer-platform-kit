@@ -149,6 +149,7 @@ def _release_event_summary(
         "plan_run_id": revision.get("plan_run_id"),
         "read_mode": runtime.get("read_mode"),
         "write_mode": runtime.get("write_mode"),
+        "rollout_seconds": slo.get("rollout_seconds"),
         "verify_seconds": slo.get("verify_seconds"),
     }
     if source:

@@ -116,6 +116,7 @@ Current jobs:
 - `apps/backfill_worker`
 - `apps/data_export_job`
 - `apps/open_dataset_pipeline`
+- `apps/operational_snapshot_job`
 
 ## Operational Class
 
@@ -132,6 +133,7 @@ Current mapping:
 - `event_consumer`: `internal-service`
 - `backfill_worker`: `operator-job`
 - `data_export_job`: `scheduled-job`
+- `operational_snapshot_job`: `operator-job`
 
 Runtime details like ALB, ECS service count, EventBridge Scheduler, managed
 Kubernetes manifests, or manual operator flow stay at the platform edge.

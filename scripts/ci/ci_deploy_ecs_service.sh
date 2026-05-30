@@ -39,9 +39,12 @@ fi
 aws ecs update-service "${update_args[@]}" > /dev/null
 
 if [[ "${ECS_DEPLOY_WAIT_FOR_STABLE:-true}" == "true" ]]; then
-  if ! aws ecs wait services-stable \
+  if ! python3 scripts/ci/observe_ecs_rollout.py \
     --cluster "$CLUSTER" \
-    --services "$SERVICE"; then
+    --service "$SERVICE" \
+    --task-definition "$TASK_DEF_ARN" \
+    --poll-seconds "${ECS_DEPLOY_POLL_SECONDS:-15}" \
+    --timeout-seconds "${ECS_DEPLOY_TIMEOUT_SECONDS:-900}"; then
     echo "ECS service ${SERVICE} failed to reach stable state. Recent rollout context:" >&2
     service_context_file="$(mktemp)"
     aws ecs describe-services \

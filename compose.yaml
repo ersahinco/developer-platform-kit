@@ -174,6 +174,23 @@ services:
     profiles:
       - data
 
+  operational-snapshot-job:
+    build:
+      <<: *workload_build
+      args:
+        APP_PATH: apps/operational_snapshot_job
+        UV_PACKAGE: aws-sdlc-containers-operational-snapshot-job
+        WORKLOAD_CMD: python -m operational_snapshot_job.main
+    environment:
+      <<: *direct_db_env
+      DATABASE_URL: *direct_database_url
+      OPERATIONAL_SNAPSHOT_RUN_ID: ${OPERATIONAL_SNAPSHOT_RUN_ID:-local}
+    depends_on:
+      db:
+        condition: service_healthy
+    profiles:
+      - ops
+
   redis:
     image: redis:8.2.1
     ports:

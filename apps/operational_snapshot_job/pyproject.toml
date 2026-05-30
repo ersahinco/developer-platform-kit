@@ -1,0 +1,16 @@
+[project]
+name = "aws-sdlc-containers-operational-snapshot-job"
+version = "0.1.0"
+requires-python = ">=3.14"
+dependencies = [
+    "aws-sdlc-containers-application",
+    "aws-sdlc-containers-infrastructure",
+]
+
+[build-system]
+requires = ["setuptools>=69"]
+build-backend = "setuptools.build_meta"
+
+[tool.setuptools]
+packages = ["operational_snapshot_job"]
+package-dir = { operational_snapshot_job = "." }
