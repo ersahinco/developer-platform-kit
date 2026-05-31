@@ -18,19 +18,19 @@ ACTIONABLE_BLOCKERS = (
 )
 
 
+def terraform_env() -> dict[str, str]:
+    env = dict(os.environ)
+    env.setdefault("AWS_EC2_METADATA_DISABLED", "true")
+    return env
+
+
 def run(command: list[str], *, cwd: Path = ROOT, allow_blocker: bool = False) -> bool:
     completed = subprocess.run(
         command,
         cwd=cwd,
         capture_output=True,
         text=True,
-        env={
-            **os.environ,
-            "AWS_ACCESS_KEY_ID": "local",
-            "AWS_SECRET_ACCESS_KEY": "local",
-            "AWS_SESSION_TOKEN": "",
-            "AWS_EC2_METADATA_DISABLED": "true",
-        },
+        env=terraform_env(),
     )
     if completed.returncode == 0:
         if completed.stdout:
