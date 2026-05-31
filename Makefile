@@ -458,6 +458,14 @@ release-evidence-download: ## Download GitHub release-evidence-* artifacts for G
 		--pattern 'release-evidence-*' \
 		--dir "$(RELEASE_EVIDENCE_DIR)/$(GH_RUN_ID)"
 
+.PHONY: operator-payload-download
+operator-payload-download: ## Download operator-payload-* artifacts for GH_RUN_ID into $(RELEASE_EVIDENCE_DIR)/$(GH_RUN_ID)
+	@[ -n "$(GH_RUN_ID)" ] || (echo "Set GH_RUN_ID=<workflow-run-id>" >&2; exit 1)
+	@mkdir -p "$(RELEASE_EVIDENCE_DIR)/$(GH_RUN_ID)"
+	gh run download "$(GH_RUN_ID)" \
+		--pattern 'operator-payload-*' \
+		--dir "$(RELEASE_EVIDENCE_DIR)/$(GH_RUN_ID)"
+
 .PHONY: operational-snapshot-dry-run
 operational-snapshot-dry-run: ## Dispatch non-destructive Operational Snapshot readiness checks
 	gh workflow run operational-snapshot.yml --ref main \

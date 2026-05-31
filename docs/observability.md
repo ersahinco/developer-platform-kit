@@ -138,12 +138,17 @@ For a fresh cloud readiness point-in-time snapshot, run the
 `confirm_snapshot=run-operational-snapshot`. The workflow starts the promoted
 `operational_snapshot_job` ECS task, waits for exit code `0`, extracts the
 `operational_snapshot_succeeded` log event, and uploads
-`release-evidence-operational-snapshot-*`.
+`release-evidence-operational-snapshot-*` plus
+`operator-payload-operational-snapshot-*`.
 
 ```bash
 make operational-snapshot-dry-run
 make operational-snapshot-cloud
+GH_RUN_ID=<workflow-run-id> make operator-payload-download
 ```
+
+`Data Backfill` follows the same operator payload pattern for
+`backfill_complete` and `backfill_paused` terminal events.
 
 Release and incident evidence is produced by:
 

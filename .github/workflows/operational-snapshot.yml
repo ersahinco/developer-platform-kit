@@ -193,8 +193,9 @@ jobs:
               --start-time "${{ steps.snapshot-context.outputs.started_at_ms }}" \
               --filter-pattern '"operational_snapshot_succeeded"' \
               --output json > /tmp/operational-snapshot-events.json
-            if python3 scripts/ci/extract_operational_snapshot_event.py \
+            if python3 scripts/ci/extract_operator_event.py \
               /tmp/operational-snapshot-events.json \
+              --event-name operational_snapshot_succeeded \
               --run-id "${{ steps.snapshot-context.outputs.snapshot_run_id }}" \
               > /tmp/operational-snapshot-event.json; then
               break
@@ -206,11 +207,23 @@ jobs:
             fi
             sleep 10
           done
+          mkdir -p /tmp/operator-evidence/operational-snapshot
+          cp /tmp/operational-snapshot-event.json /tmp/operator-evidence/operational-snapshot/operator-event.json
           cat /tmp/operational-snapshot-event.json
-          python3 scripts/ci/extract_operational_snapshot_event.py \
+          python3 scripts/ci/extract_operator_event.py \
             /tmp/operational-snapshot-events.json \
+            --event-name operational_snapshot_succeeded \
             --run-id "${{ steps.snapshot-context.outputs.snapshot_run_id }}" \
-            --summary >> "$GITHUB_STEP_SUMMARY"
+            --summary operational-snapshot \
+            | tee /tmp/operator-evidence/operational-snapshot/operator-event.md >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Upload operational snapshot payload
+        if: ${{ !inputs.dry_run && always() }}
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
+        with:
+          name: operator-payload-operational-snapshot-${{ github.run_id }}
+          path: /tmp/operator-evidence/operational-snapshot
+          retention-days: 30
 
   evidence:
     name: Evidence

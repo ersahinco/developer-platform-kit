@@ -140,6 +140,14 @@ Checks:
 4. Infra apply: confirm the selected `Infra Apply` run matches the reviewed `Infra Plan` for the current default-branch SHA, and the plan plus release evidence match the intended Terraform surface.
 5. Rollback: redeploy a known-good immutable image tag or restore the reviewed runtime mode, then confirm verification and alarm state.
 
+Operator workflows also upload an `operator-payload-*` artifact with the
+structured terminal job event as `operator-event.json` and an operator-readable
+`operator-event.md` summary:
+
+```bash
+GH_RUN_ID=<workflow-run-id> make operator-payload-download
+```
+
 ## Slow ECS Deployments
 
 `app-deploy.yml` observes each ECS service rollout after `update-service`.

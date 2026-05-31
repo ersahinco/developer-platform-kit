@@ -60,6 +60,7 @@ jobs:
       id-token: write
     outputs:
       task_definition: ${{ steps.register-backfill.outputs.task_def_arn }}
+      task_arn: ${{ steps.run-backfill.outputs.task_arn }}
       read_mode: ${{ steps.current.outputs.read_mode }}
       write_mode: ${{ steps.current.outputs.write_mode }}
 
@@ -215,8 +216,15 @@ jobs:
           fi
           echo "task_def_arn=${task_def_arn}" >> "$GITHUB_OUTPUT"
 
+      - name: Build backfill context
+        if: ${{ !inputs.dry_run }}
+        id: backfill-context
+        run: |
+          echo "started_at_ms=$(($(date +%s) * 1000))" >> "$GITHUB_OUTPUT"
+
       - name: Run backfill worker
         if: ${{ !inputs.dry_run }}
+        id: run-backfill
         env:
           ECS_RUN_TASK_WAIT_FOR_STOPPED: "true"
           ECS_RUN_TASK_ASSERT_SUCCESS: "true"
@@ -228,6 +236,7 @@ jobs:
             "${{ steps.net.outputs.subnet_id }}" \
             "${{ steps.net.outputs.sg_id }}")
           echo "Backfill task: ${TASK_ARN}"
+          echo "task_arn=${TASK_ARN}" >> "$GITHUB_OUTPUT"
           {
             echo "### Data backfill"
             echo ""
@@ -237,6 +246,35 @@ jobs:
             echo "- Backfill task: ${TASK_ARN}"
             echo "- Monitor: CloudWatch Logs /ecs/${STACK_NAME}/backfill-worker"
           } >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Capture backfill terminal event
+        if: ${{ !inputs.dry_run }}
+        run: |
+          aws logs filter-log-events \
+            --log-group-name "/ecs/${STACK_NAME}/backfill-worker" \
+            --start-time "${{ steps.backfill-context.outputs.started_at_ms }}" \
+            --output json > /tmp/backfill-events.json
+          mkdir -p /tmp/operator-evidence/data-backfill
+          python3 scripts/ci/extract_operator_event.py \
+            /tmp/backfill-events.json \
+            --event-name backfill_complete \
+            --event-name backfill_paused \
+            > /tmp/operator-evidence/data-backfill/operator-event.json
+          cat /tmp/operator-evidence/data-backfill/operator-event.json
+          python3 scripts/ci/extract_operator_event.py \
+            /tmp/backfill-events.json \
+            --event-name backfill_complete \
+            --event-name backfill_paused \
+            --summary backfill \
+            | tee /tmp/operator-evidence/data-backfill/operator-event.md >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Upload data backfill payload
+        if: ${{ !inputs.dry_run && always() }}
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
+        with:
+          name: operator-payload-data-backfill-${{ github.run_id }}
+          path: /tmp/operator-evidence/data-backfill
+          retention-days: 30
 
       - name: Summarize dry-run backfill readiness
         if: ${{ inputs.dry_run }}
@@ -288,6 +326,7 @@ jobs:
             --workload-id backfill_worker \
             --image-tag "${{ env.IMAGE_TAG }}" \
             --task-definition "${{ needs.run_backfill.outputs.task_definition }}" \
+            --deployment-id "${{ needs.run_backfill.outputs.task_arn }}" \
             --read-mode "${{ needs.run_backfill.outputs.read_mode }}" \
             --write-mode "${{ needs.run_backfill.outputs.write_mode }}" \
             --rollback-category runtime_data_phase \

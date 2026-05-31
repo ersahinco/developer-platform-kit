@@ -7,8 +7,8 @@ from pathlib import Path
 
 import pytest
 
-from scripts.ci.extract_operational_snapshot_event import extract_event
-from scripts.ci.extract_operational_snapshot_event import render_summary
+from scripts.ci.extract_operator_event import extract_event
+from scripts.ci.extract_operator_event import render_summary
 
 
 ROOT = Path(__file__).resolve().parents[2]
@@ -52,15 +52,23 @@ def test_extract_operational_snapshot_event_selects_latest_matching_run() -> Non
         ]
     }
 
-    event = extract_event(document, run_id="github-1")
+    event = extract_event(
+        document,
+        event_names={"operational_snapshot_succeeded"},
+        run_id="github-1",
+    )
 
     assert event["run_id"] == "github-1"
     assert event["orders_count"] == 2
 
 
 def test_extract_operational_snapshot_event_rejects_missing_match() -> None:
-    with pytest.raises(ValueError, match="no operational_snapshot_succeeded"):
-        extract_event({"events": [{"message": "not json"}]}, run_id="github-1")
+    with pytest.raises(ValueError, match="no operator event"):
+        extract_event(
+            {"events": [{"message": "not json"}]},
+            event_names={"operational_snapshot_succeeded"},
+            run_id="github-1",
+        )
 
 
 def test_operational_snapshot_summary_is_operator_readable() -> None:
@@ -72,7 +80,8 @@ def test_operational_snapshot_summary_is_operator_readable() -> None:
             "write_mode": "new",
             "orders_count": 2,
             "outbox_pending_count": 0,
-        }
+        },
+        summary_type="operational-snapshot",
     )
 
     assert "Operational snapshot" in summary
@@ -80,7 +89,7 @@ def test_operational_snapshot_summary_is_operator_readable() -> None:
     assert "Pending outbox rows: 0" in summary
 
 
-def test_operational_snapshot_extractor_cli_outputs_json(tmp_path: Path) -> None:
+def test_operator_event_extractor_cli_outputs_json(tmp_path: Path) -> None:
     events_path = tmp_path / "events.json"
     events_path.write_text(
         json.dumps(
@@ -105,8 +114,10 @@ def test_operational_snapshot_extractor_cli_outputs_json(tmp_path: Path) -> None
     completed = subprocess.run(
         [
             sys.executable,
-            "scripts/ci/extract_operational_snapshot_event.py",
+            "scripts/ci/extract_operator_event.py",
             str(events_path),
+            "--event-name",
+            "operational_snapshot_succeeded",
             "--run-id",
             "github-1",
         ],
@@ -117,3 +128,44 @@ def test_operational_snapshot_extractor_cli_outputs_json(tmp_path: Path) -> None
     )
 
     assert json.loads(completed.stdout)["run_id"] == "github-1"
+
+
+def test_operator_event_extractor_accepts_multiple_terminal_events() -> None:
+    event = extract_event(
+        {
+            "events": [
+                {
+                    "timestamp": 1,
+                    "message": json.dumps(
+                        {
+                            "event": "backfill_paused",
+                            "job_name": "order_contact_email_backfill",
+                            "message": "backfill paused",
+                            "rows_processed": 10,
+                        }
+                    ),
+                }
+            ]
+        },
+        event_names={"backfill_complete", "backfill_paused"},
+        run_id=None,
+    )
+
+    assert event["event"] == "backfill_paused"
+    assert event["rows_processed"] == 10
+
+
+def test_backfill_summary_is_operator_readable() -> None:
+    summary = render_summary(
+        {
+            "event": "backfill_complete",
+            "job_name": "order_contact_email_backfill",
+            "message": "backfill complete",
+            "rows_processed": 12,
+        },
+        summary_type="backfill",
+    )
+
+    assert "Data backfill event" in summary
+    assert "backfill_complete" in summary
+    assert "Rows processed: 12" in summary

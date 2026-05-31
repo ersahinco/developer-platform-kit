@@ -23,7 +23,7 @@ make adapter-seam-matrix
 | HTTP service edge | `/health`, `/ready`, `/metrics`, structured logs, immutable image rollout | `apps/api`, `platform/workloads.json`, `infra/app/edge.tf`, workflows |
 | Internal async service | long-running internal service shape, direct DB access, Dapr-backed event handling | `apps/event_consumer`, `platform/workloads.json`, `infra/app/workload_jobs.tf`, `infra/app/messaging.tf` |
 | Dapr pub/sub | app id, pub/sub name, topic, resiliency semantics | `platform/concerns/dapr/`, `platform/workloads.json`, `packages/infrastructure/dapr` |
-| Operator job execution | one-off job shape, rerun expectation, structured completion events | `apps/backfill_worker`, `apps/operational_snapshot_job`, workflows, `infra/app/workload_jobs.tf` |
+| Operator job execution | one-off job shape, rerun expectation, structured completion events, payload artifacts | `apps/backfill_worker`, `apps/operational_snapshot_job`, workflows, `infra/app/workload_jobs.tf` |
 | Scheduled job execution | recurring job shape, scheduler-driven run, export success expectations | `apps/data_export_job`, `infra/app/workload_jobs.tf`, `infra/app/object_storage.tf` |
 | Database rollout safety | read/write mode switches, backfill, contract migration flow | `db/`, `apps/api`, `packages/application`, runbooks |
 | Local observability | Prometheus, Loki, Tempo, Grafana, Promtail | `platform/concerns/observability/`, `compose.yaml` |
