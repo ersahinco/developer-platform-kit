@@ -7,7 +7,7 @@
           "uid": "Loki"
         },
         "enable": true,
-        "expr": "{stack=\"$stack\",environment=\"$environment\",service=~\"app|infra|data-support|runtime-config|liquibase|backfill-worker\",event_type=~\"app_deploy|data_backfill|data_runtime_switch|data_schema_apply|data_support_deploy|infra_apply\"} | json",
+        "expr": "{stack=\"$stack\",environment=\"$environment\",service=~\"app|infra|data-support|runtime-config|liquibase|backfill-worker|operational-snapshot-job\",event_type=~\"app_deploy|data_backfill|data_runtime_switch|data_schema_apply|data_support_deploy|infra_apply|operational_snapshot\"} | json",
         "iconColor": "rgba(31, 120, 193, 1)",
         "name": "Delivery Events",
         "tagKeys": "event_type,status,service,github_run_id",
@@ -418,7 +418,7 @@
             "uid": "Loki"
           },
           "editorMode": "code",
-          "expr": "{stack=\"$stack\", environment=\"$environment\", event_type=~\"app_deploy|data_backfill|data_runtime_switch|data_schema_apply|data_support_deploy|infra_apply\"} | json",
+          "expr": "{stack=\"$stack\", environment=\"$environment\", event_type=~\"app_deploy|data_backfill|data_runtime_switch|data_schema_apply|data_support_deploy|infra_apply|operational_snapshot\"} | json",
           "queryType": "range",
           "refId": "A"
         }

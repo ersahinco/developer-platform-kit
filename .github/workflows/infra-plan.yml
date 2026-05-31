@@ -12,6 +12,7 @@ on:
       - ".github/workflows/data-support-deploy.yml"
       - ".github/workflows/infra-apply.yml"
       - ".github/workflows/infra-plan.yml"
+      - ".github/workflows/operational-snapshot.yml"
       - "infra/**"
       - "platform/concerns/**"
   push:
@@ -25,6 +26,7 @@ on:
       - ".github/workflows/data-support-deploy.yml"
       - ".github/workflows/infra-apply.yml"
       - ".github/workflows/infra-plan.yml"
+      - ".github/workflows/operational-snapshot.yml"
       - "infra/**"
       - "platform/concerns/**"
 

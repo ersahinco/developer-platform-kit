@@ -12,6 +12,7 @@ Root `AGENTS.md` applies here too.
 | `data-runtime-switch.yml` | Reviewed runtime mode transitions, release evidence |
 | `data-schema-apply.yml` | Reviewed schema apply, release evidence |
 | `data-backfill.yml` | Reviewed backfill execution, release evidence |
+| `operational-snapshot.yml` | Reviewed operational snapshot execution, release evidence |
 | `infra-plan.yml` | `terraform fmt`, validate, TFLint, Checkov, reviewed plan |
 | `infra-apply.yml` | Apply reviewed plan, release evidence |
 | `security.yml` | Secret, dependency, docs, workflow, Dockerfile checks |

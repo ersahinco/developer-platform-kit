@@ -30,7 +30,7 @@ make adapter-seam-matrix
 | Cloud observability signals | CloudWatch logs, CloudWatch alarms, optional ADOT sidecar | `infra/app`, `scripts/observability/`, runbooks |
 | Release evidence | portable release event, artifact upload, optional Loki push | workflows, `scripts/observability/release_event.py` |
 | Incident evidence | portable bundle with ECS, alarms, release context, query hints | `scripts/observability/incident_evidence_bundle.py` |
-| Operational snapshot | read-only job that emits runtime mode and data posture for release or incident context | `apps/operational_snapshot_job`, `make operational-snapshot` |
+| Operational snapshot | read-only job that emits runtime mode and data posture for release or incident context | `apps/operational_snapshot_job`, `operational-snapshot.yml`, `make operational-snapshot`, `make operational-snapshot-cloud` |
 | Runtime conformance | external proof that workloads satisfy the declared contract | `platform/runtime-conformance.json`, `tests/runtime/`, `make runtime-conformance` |
 
 ## Runtime Targets

@@ -448,7 +448,7 @@ release-evidence-runs: ## List recent cloud-changing GitHub workflow runs that e
 	gh run list \
 		--limit 50 \
 		--json databaseId,workflowName,displayTitle,headBranch,status,conclusion,createdAt,url \
-		--jq '.[] | select(.workflowName as $name | ["App Build", "App Deploy", "Data Support Deploy", "Data Runtime Switch", "Data Schema Apply", "Data Backfill", "Infra Apply"] | index($name)) | [.databaseId, .workflowName, .headBranch, .status, (.conclusion // "-"), .createdAt, .displayTitle, .url] | @tsv'
+		--jq '.[] | select(.workflowName as $name | ["App Build", "App Deploy", "Data Support Deploy", "Data Runtime Switch", "Data Schema Apply", "Data Backfill", "Operational Snapshot", "Infra Apply"] | index($name)) | [.databaseId, .workflowName, .headBranch, .status, (.conclusion // "-"), .createdAt, .displayTitle, .url] | @tsv'
 
 .PHONY: release-evidence-download
 release-evidence-download: ## Download GitHub release-evidence-* artifacts for GH_RUN_ID into $(RELEASE_EVIDENCE_DIR)/$(GH_RUN_ID)
@@ -457,6 +457,18 @@ release-evidence-download: ## Download GitHub release-evidence-* artifacts for G
 	gh run download "$(GH_RUN_ID)" \
 		--pattern 'release-evidence-*' \
 		--dir "$(RELEASE_EVIDENCE_DIR)/$(GH_RUN_ID)"
+
+.PHONY: operational-snapshot-dry-run
+operational-snapshot-dry-run: ## Dispatch non-destructive Operational Snapshot readiness checks
+	gh workflow run operational-snapshot.yml --ref main \
+		-f confirm_snapshot=dry-run \
+		-f dry_run=true
+
+.PHONY: operational-snapshot-cloud
+operational-snapshot-cloud: ## Dispatch the reviewed AWS operational snapshot operator job
+	gh workflow run operational-snapshot.yml --ref main \
+		-f confirm_snapshot=run-operational-snapshot \
+		-f dry_run=false
 
 .PHONY: workload-capability-matrix
 workload-capability-matrix: ## Print the declared workload capability matrix from platform/workloads.json

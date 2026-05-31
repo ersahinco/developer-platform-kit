@@ -75,6 +75,7 @@ Cloud log groups:
 | `/ecs/<stack-name>/data-export-job` | scheduled export task |
 | `/ecs/<stack-name>/liquibase` | migration task |
 | `/ecs/<stack-name>/backfill-worker` | backfill worker |
+| `/ecs/<stack-name>/operational-snapshot-job` | operational snapshot operator job |
 
 CloudWatch namespaces:
 
@@ -130,6 +131,18 @@ make incident-evidence
 LOKI_URL=http://127.0.0.1:3100 make incident-evidence
 make release-event-delivery-verify
 LOKI_URL=http://127.0.0.1:3100 make release-event-delivery-verify
+```
+
+For a fresh cloud readiness point-in-time snapshot, run the
+`Operational Snapshot` GitHub workflow with
+`confirm_snapshot=run-operational-snapshot`. The workflow starts the promoted
+`operational_snapshot_job` ECS task, waits for exit code `0`, extracts the
+`operational_snapshot_succeeded` log event, and uploads
+`release-evidence-operational-snapshot-*`.
+
+```bash
+make operational-snapshot-dry-run
+make operational-snapshot-cloud
 ```
 
 Release and incident evidence is produced by:

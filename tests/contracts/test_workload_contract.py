@@ -265,6 +265,7 @@ def test_cloud_dry_runs_still_validate_image_availability() -> None:
         ".github/workflows/data-backfill.yml",
         ".github/workflows/data-schema-apply.yml",
         ".github/workflows/data-support-deploy.yml",
+        ".github/workflows/operational-snapshot.yml",
     ]
 
     for path in workflow_paths:

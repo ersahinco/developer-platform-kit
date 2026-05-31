@@ -62,8 +62,8 @@
       "capability": "operator_job_execution",
       "contract_surface": "operator-job operational class",
       "runtime_target": "aws-ecs",
-      "implementation": "manual/CI ECS run-task",
-      "replacement_seam": ".github/workflows/data-backfill.yml + infra/app/workload_jobs.tf"
+      "implementation": "reviewed GitHub/AWS ECS run-task",
+      "replacement_seam": ".github/workflows/data-backfill.yml + .github/workflows/operational-snapshot.yml + infra/app/workload_jobs.tf"
     },
     {
       "capability": "object_storage",

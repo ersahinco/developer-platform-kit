@@ -9,6 +9,7 @@ workflow_dispatch_only := {
   "data-schema-apply.yml",
   "data-support-deploy.yml",
   "infra-apply.yml",
+  "operational-snapshot.yml",
 }
 
 pull_request_gated := {
@@ -26,6 +27,7 @@ release_evidence_required := {
   "data-schema-apply.yml": "Upload data schema apply evidence",
   "data-support-deploy.yml": "Upload data support deploy evidence",
   "infra-apply.yml": "Upload infra apply evidence",
+  "operational-snapshot.yml": "Upload operational snapshot evidence",
 }
 
 aws_environment_required := {
@@ -36,6 +38,7 @@ aws_environment_required := {
   "data-schema-apply.yml": "apply_schema",
   "data-support-deploy.yml": "deploy_support",
   "infra-apply.yml": "apply",
+  "operational-snapshot.yml": "run_operational_snapshot",
 }
 
 deny contains msg if {

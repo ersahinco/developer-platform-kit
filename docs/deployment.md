@@ -23,6 +23,7 @@ tasks, not duplicated infrastructure.
 | `app-build.yml` | Manual `workflow_dispatch` with `confirm_build=build` after PR review on the default branch | builds, scans, attests, and pushes immutable images only | `release-evidence-app-build-*` artifact and build summary |
 | `app-deploy.yml` | Manual `workflow_dispatch` with approved immutable `image_tag` and `confirm_deploy=deploy` on the default branch | updates ECS service revisions and verifies runtime health only | `release-evidence-app-deploy-*` artifact and step summary |
 | `data-support-deploy.yml` | Manual `workflow_dispatch` with approved immutable `image_tag` and `confirm_data_support_deploy=deploy-data-support` on the default branch | promotes support job task-definition revisions for explicit data workloads | `release-evidence-data-support-deploy-*` artifact and step summary |
+| `operational-snapshot.yml` | Manual `workflow_dispatch` with `confirm_snapshot=run-operational-snapshot` on the default branch | runs the promoted `operational_snapshot_job` task definition and captures its structured readiness event | `release-evidence-operational-snapshot-*` artifact and step summary |
 | `data-runtime-switch.yml` | Manual `workflow_dispatch` with reviewed `switch_step` and `confirm_switch=switch-runtime` on the default branch | advances runtime mode through one guarded forward transition at a time | `release-evidence-data-runtime-switch-*` artifact and step summary |
 | `data-schema-apply.yml` | Manual `workflow_dispatch` with approved immutable `image_tag`, reviewed `schema_phase`, and `confirm_schema_apply=apply-schema` on the default branch | runs reviewed Liquibase schema apply as an explicit data stage; contract phase additionally requires `confirm_contract_ready=contract-ready` and `READ_MODE=new` plus `WRITE_MODE=new` | `release-evidence-data-schema-apply-*` artifact and step summary |
 | `data-backfill.yml` | Manual `workflow_dispatch` with approved immutable `image_tag` and `confirm_backfill=run-backfill` on the default branch | runs reviewed backfill after confirming runtime modes are in the dual-write stage | `release-evidence-data-backfill-*` artifact and step summary |
@@ -88,10 +89,11 @@ make infra-app-apply
 3. Roll out service images with `app-deploy.yml`.
 4. Advance runtime mode with `data-runtime-switch.yml` from `legacy` to `dual` only when the app release is ready for dual-write.
 5. Promote support-job image revisions with `data-support-deploy.yml` only for the specific workload that needs the new image.
-6. Run `data-backfill.yml` only after dual-write is active and the change needs a backfill stage.
-7. Advance runtime mode with `data-runtime-switch.yml` from `READ_MODE=legacy` to `READ_MODE=new`.
-8. Advance runtime mode with `data-runtime-switch.yml` from `WRITE_MODE=dual` to `WRITE_MODE=new`.
-9. Run a reviewed contract-phase schema apply only after app reads and writes no longer depend on the old shape.
+6. Run `operational-snapshot.yml` when you need a point-in-time readiness snapshot for release or incident evidence.
+7. Run `data-backfill.yml` only after dual-write is active and the change needs a backfill stage.
+8. Advance runtime mode with `data-runtime-switch.yml` from `READ_MODE=legacy` to `READ_MODE=new`.
+9. Advance runtime mode with `data-runtime-switch.yml` from `WRITE_MODE=dual` to `WRITE_MODE=new`.
+10. Run a reviewed contract-phase schema apply only after app reads and writes no longer depend on the old shape.
 
 The intended data path stays explicit:
 
@@ -134,7 +136,7 @@ Checks:
 
 1. App build: confirm branch, SHA, immutable `sha-...` image tag, and expected `release-evidence-app-build-*` artifacts.
 2. App deploy: confirm `release-evidence-app-deploy-*` records the expected service, image tag, task definition, and rollout timing, and `make post-deploy-verify` or the incident bundle shows no unresolved alarm or verification failures.
-3. Data workflow: confirm the matching `release-evidence-data-*` artifact records the intended image tag, task definition, and stage-specific preconditions or outputs.
+3. Data or operator workflow: confirm the matching `release-evidence-data-*` or `release-evidence-operational-snapshot-*` artifact records the intended image tag, task definition, and stage-specific preconditions or outputs.
 4. Infra apply: confirm the selected `Infra Apply` run matches the reviewed `Infra Plan` for the current default-branch SHA, and the plan plus release evidence match the intended Terraform surface.
 5. Rollback: redeploy a known-good immutable image tag or restore the reviewed runtime mode, then confirm verification and alarm state.
 

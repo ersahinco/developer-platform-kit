@@ -29,6 +29,7 @@ DELIVERY_EVENT_TYPES = [
     "data_schema_apply",
     "data_support_deploy",
     "infra_apply",
+    "operational_snapshot",
 ]
 
 

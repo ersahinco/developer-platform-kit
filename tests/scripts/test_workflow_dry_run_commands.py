@@ -18,6 +18,7 @@ def test_dry_run_commands_are_non_destructive() -> None:
     ]
 
     assert any("app-build.yml" in command for command in commands)
+    assert any("operational-snapshot.yml" in command for command in commands)
     assert any(
         "app-build.yml" in command and "-f confirm_build=dry-run" in command
         for command in commands

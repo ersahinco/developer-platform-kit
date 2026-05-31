@@ -79,6 +79,18 @@ def test_workload_metadata_primary_edge_and_workload_groups_are_contract_derived
     ]
     assert support_task_workloads == expected_support_task_workloads
 
+    operator_job_workloads = _run_workload_metadata(
+        "operator-job-workloads"
+    ).stdout.splitlines()
+    expected_operator_job_workloads = [
+        "\t".join([workload["name"], workload["image"]["repository"]])
+        for workload in contract["workloads"]
+        if workload["kind"] == "job"
+        and workload["operational"]["class"] == "operator-job"
+        and "aws-ecs" in workload["runtime"]["admitted"]
+    ]
+    assert operator_job_workloads == expected_operator_job_workloads
+
 
 def test_workload_metadata_image_matrix_matches_declared_apps() -> None:
     contract = json.loads((ROOT / "platform" / "workloads.json").read_text())

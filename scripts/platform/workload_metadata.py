@@ -296,6 +296,15 @@ def support_task_workloads() -> list[dict[str, Any]]:
     ]
 
 
+def operator_job_workloads() -> list[dict[str, Any]]:
+    return [
+        workload
+        for workload in workloads()
+        if workload_capabilities(workload)["operator_execution"]
+        and workload_admitted_to_runtime(workload, "aws-ecs")
+    ]
+
+
 def async_eventing_workloads() -> list[dict[str, Any]]:
     return [
         workload
@@ -354,6 +363,12 @@ def _print_internal_services() -> int:
 
 def _print_support_task_workloads() -> int:
     for workload in support_task_workloads():
+        print(f"{workload['name']}\t{workload_repository(workload)}")
+    return 0
+
+
+def _print_operator_job_workloads() -> int:
+    for workload in operator_job_workloads():
         print(f"{workload['name']}\t{workload_repository(workload)}")
     return 0
 
@@ -454,7 +469,7 @@ def main(argv: list[str] | None = None) -> int:
     if not argv:
         print(
             "usage: python -m scripts.platform.workload_metadata "
-            "<primary-edge-contract|internal-services|support-task-workloads|image-matrix|capability-matrix|use-case-matrix|implementation-matrix|adapter-seam-matrix|inventory-json>",
+            "<primary-edge-contract|internal-services|support-task-workloads|operator-job-workloads|image-matrix|capability-matrix|use-case-matrix|implementation-matrix|adapter-seam-matrix|inventory-json>",
             file=sys.stderr,
         )
         return 1
@@ -464,6 +479,7 @@ def main(argv: list[str] | None = None) -> int:
         "primary-edge-contract": lambda _args: _print_primary_edge_contract(),
         "internal-services": lambda _args: _print_internal_services(),
         "support-task-workloads": lambda _args: _print_support_task_workloads(),
+        "operator-job-workloads": lambda _args: _print_operator_job_workloads(),
         "image-matrix": _print_image_matrix,
         "capability-matrix": lambda _args: _print_capability_matrix(),
         "use-case-matrix": lambda _args: _print_use_case_matrix(),

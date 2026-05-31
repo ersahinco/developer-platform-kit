@@ -1,0 +1,274 @@
+name: Operational Snapshot
+
+on:
+  workflow_dispatch:
+    inputs:
+      confirm_snapshot:
+        description: "Type run-operational-snapshot to confirm this operator snapshot."
+        required: true
+        type: string
+      dry_run:
+        description: "Run non-destructive operator-job readiness checks only."
+        required: false
+        default: false
+        type: boolean
+
+env:
+  AWS_REGION: ${{ vars.AWS_REGION || 'eu-central-1' }}
+  STACK_NAME: ${{ vars.STACK_NAME || github.event.repository.name }}
+  SNAPSHOT_WORKLOAD: operational_snapshot_job
+
+concurrency:
+  group: operational-snapshot-aws
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+jobs:
+  run_operational_snapshot:
+    name: Run Operational Snapshot
+    if: >
+      (inputs.dry_run || inputs.confirm_snapshot == 'run-operational-snapshot') &&
+      github.ref_name == github.event.repository.default_branch
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    environment: aws
+    permissions:
+      contents: read
+      id-token: write
+    outputs:
+      task_definition: ${{ steps.task-definition.outputs.task_definition }}
+      task_arn: ${{ steps.run-task.outputs.task_arn }}
+      image_tag: ${{ steps.task-definition.outputs.image_tag }}
+      snapshot_run_id: ${{ steps.snapshot-context.outputs.snapshot_run_id }}
+
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
+        with:
+          persist-credentials: false
+
+      - name: Summarize dry run
+        if: ${{ inputs.dry_run }}
+        run: |
+          {
+            echo "### Operational snapshot dry run"
+            echo ""
+            echo "- Mode: non-destructive readiness check"
+            echo "- Existing task definition, network placement, and log group are checked"
+            echo "- The ECS task is not started"
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      - uses: aws-actions/configure-aws-credentials@a89a83ec143615402a01f672b6e172b7b1875000 # v6
+        with:
+          role-to-assume: ${{ secrets.AWS_ROLE_ARN }}
+          aws-region: ${{ env.AWS_REGION }}
+
+      - name: Resolve operational snapshot workload
+        id: workload
+        run: |
+          row=$(python3 -m scripts.platform.workload_metadata operator-job-workloads \
+            | awk -F '\t' -v workload="${SNAPSHOT_WORKLOAD}" '$1 == workload { print $0 }')
+          if [[ -z "$row" ]]; then
+            echo "Workload ${SNAPSHOT_WORKLOAD} is not an AWS-admitted operator job." >&2
+            exit 1
+          fi
+          IFS=$'\t' read -r workload_name repository <<< "$row"
+          {
+            echo "workload_name=${workload_name}"
+            echo "repository=${repository}"
+            echo "family=${STACK_NAME}-${repository}"
+            echo "log_group=/ecs/${STACK_NAME}/${repository}"
+          } >> "$GITHUB_OUTPUT"
+
+      - name: Resolve network config
+        id: net
+        run: |
+          subnet_id=$(aws ec2 describe-subnets \
+            --filters "Name=tag:Name,Values=${STACK_NAME}-private-*" \
+            --query 'Subnets[0].SubnetId' \
+            --output text)
+          sg_id=$(aws ec2 describe-security-groups \
+            --filters "Name=group-name,Values=${STACK_NAME}-primary-edge-*" \
+            --query 'SecurityGroups[0].GroupId' \
+            --output text)
+          if [[ -z "$subnet_id" || "$subnet_id" == "None" ]]; then
+            echo "Failed to resolve private subnet for stack ${STACK_NAME}." >&2
+            exit 1
+          fi
+          if [[ -z "$sg_id" || "$sg_id" == "None" ]]; then
+            echo "Failed to resolve primary edge security group for stack ${STACK_NAME}." >&2
+            exit 1
+          fi
+          {
+            echo "subnet_id=${subnet_id}"
+            echo "sg_id=${sg_id}"
+          } >> "$GITHUB_OUTPUT"
+
+      - name: Resolve task definition
+        id: task-definition
+        run: |
+          task_json=$(aws ecs describe-task-definition \
+            --task-definition "${{ steps.workload.outputs.family }}" \
+            --output json)
+          task_definition=$(echo "$task_json" | jq -r '.taskDefinition.taskDefinitionArn')
+          image=$(echo "$task_json" | jq -r --arg container "${{ steps.workload.outputs.repository }}" '.taskDefinition.containerDefinitions[] | select(.name == $container) | .image')
+          if [[ -z "$task_definition" || "$task_definition" == "None" ]]; then
+            echo "Failed to resolve task definition for ${{ steps.workload.outputs.family }}." >&2
+            exit 1
+          fi
+          if [[ -z "$image" || "$image" == "None" ]]; then
+            echo "Failed to resolve container image for ${{ steps.workload.outputs.repository }}." >&2
+            exit 1
+          fi
+          {
+            echo "task_definition=${task_definition}"
+            echo "image=${image}"
+            echo "image_tag=${image##*:}"
+          } >> "$GITHUB_OUTPUT"
+
+      - name: Verify log group
+        run: |
+          aws logs describe-log-groups \
+            --log-group-name-prefix "${{ steps.workload.outputs.log_group }}" \
+            --query "logGroups[?logGroupName=='${{ steps.workload.outputs.log_group }}'] | length(@)" \
+            --output text | grep -qx "1"
+
+      - name: Summarize dry-run readiness
+        if: ${{ inputs.dry_run }}
+        run: |
+          {
+            echo ""
+            echo "- Workload: ${{ steps.workload.outputs.workload_name }}"
+            echo "- Task definition: ${{ steps.task-definition.outputs.task_definition }}"
+            echo "- Image tag: ${{ steps.task-definition.outputs.image_tag }}"
+            echo "- Log group: ${{ steps.workload.outputs.log_group }}"
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Build snapshot context
+        if: ${{ !inputs.dry_run }}
+        id: snapshot-context
+        run: |
+          snapshot_run_id="github-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}"
+          started_at_ms="$(($(date +%s) * 1000))"
+          overrides=$(jq -cn --arg container "${{ steps.workload.outputs.repository }}" --arg run_id "$snapshot_run_id" \
+            '{containerOverrides: [{name: $container, environment: [{name: "OPERATIONAL_SNAPSHOT_RUN_ID", value: $run_id}]}]}')
+          {
+            echo "snapshot_run_id=${snapshot_run_id}"
+            echo "started_at_ms=${started_at_ms}"
+            echo "overrides=${overrides}"
+          } >> "$GITHUB_OUTPUT"
+
+      - name: Run operational snapshot task
+        if: ${{ !inputs.dry_run }}
+        id: run-task
+        env:
+          ECS_RUN_TASK_WAIT_FOR_STOPPED: "true"
+          ECS_RUN_TASK_ASSERT_SUCCESS: "true"
+          ECS_RUN_TASK_LABEL: "Operational snapshot"
+          ECS_RUN_TASK_STARTED_BY: operational-snapshot-${{ github.run_id }}
+          ECS_RUN_TASK_OVERRIDES_JSON: ${{ steps.snapshot-context.outputs.overrides }}
+        run: |
+          task_arn=$(scripts/ci/ci_run_ecs_task.sh \
+            "${STACK_NAME}" \
+            "${{ steps.task-definition.outputs.task_definition }}" \
+            "${{ steps.net.outputs.subnet_id }}" \
+            "${{ steps.net.outputs.sg_id }}")
+          echo "task_arn=${task_arn}" >> "$GITHUB_OUTPUT"
+          {
+            echo "### Operational snapshot task"
+            echo ""
+            echo "- Task definition: ${{ steps.task-definition.outputs.task_definition }}"
+            echo "- Task: ${task_arn}"
+            echo "- Snapshot run ID: ${{ steps.snapshot-context.outputs.snapshot_run_id }}"
+            echo "- Monitor: CloudWatch Logs ${{ steps.workload.outputs.log_group }}"
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Capture operational snapshot event
+        if: ${{ !inputs.dry_run }}
+        run: |
+          for attempt in {1..12}; do
+            aws logs filter-log-events \
+              --log-group-name "${{ steps.workload.outputs.log_group }}" \
+              --start-time "${{ steps.snapshot-context.outputs.started_at_ms }}" \
+              --filter-pattern '"operational_snapshot_succeeded"' \
+              --output json > /tmp/operational-snapshot-events.json
+            if python3 scripts/ci/extract_operational_snapshot_event.py \
+              /tmp/operational-snapshot-events.json \
+              --run-id "${{ steps.snapshot-context.outputs.snapshot_run_id }}" \
+              > /tmp/operational-snapshot-event.json; then
+              break
+            fi
+            if [[ "$attempt" -eq 12 ]]; then
+              echo "Timed out waiting for operational snapshot log event." >&2
+              cat /tmp/operational-snapshot-events.json >&2
+              exit 1
+            fi
+            sleep 10
+          done
+          cat /tmp/operational-snapshot-event.json
+          python3 scripts/ci/extract_operational_snapshot_event.py \
+            /tmp/operational-snapshot-events.json \
+            --run-id "${{ steps.snapshot-context.outputs.snapshot_run_id }}" \
+            --summary >> "$GITHUB_STEP_SUMMARY"
+
+  evidence:
+    name: Evidence
+    needs:
+      - run_operational_snapshot
+    if: >
+      always() &&
+      !inputs.dry_run &&
+      inputs.confirm_snapshot == 'run-operational-snapshot' &&
+      github.ref_name == github.event.repository.default_branch
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    environment: aws
+    permissions:
+      contents: read
+      id-token: write
+
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
+        with:
+          persist-credentials: false
+
+      - uses: aws-actions/configure-aws-credentials@a89a83ec143615402a01f672b6e172b7b1875000 # v6
+        with:
+          role-to-assume: ${{ secrets.AWS_ROLE_ARN }}
+          aws-region: ${{ env.AWS_REGION }}
+
+      - name: Write operational snapshot evidence
+        env:
+          LOKI_PUSH_URL: ${{ secrets.LOKI_PUSH_URL || vars.LOKI_PUSH_URL }}
+          LOKI_URL: ${{ vars.LOKI_URL }}
+        run: |
+          python3 -m scripts.observability.release_event \
+            --event-type operational_snapshot \
+            --status "${{ needs.run_operational_snapshot.result }}" \
+            --summary "Operational snapshot completed with status ${{ needs.run_operational_snapshot.result }}" \
+            --service-name operational-snapshot-job \
+            --workload-id operational_snapshot_job \
+            --image-tag "${{ needs.run_operational_snapshot.outputs.image_tag }}" \
+            --task-definition "${{ needs.run_operational_snapshot.outputs.task_definition }}" \
+            --deployment-id "${{ needs.run_operational_snapshot.outputs.task_arn }}" \
+            --rollback-category runtime_observability \
+            --include-alarms \
+            --push-loki \
+            --loki-push-best-effort \
+            --output-dir /tmp/release-evidence/operational-snapshot
+          cat /tmp/release-evidence/operational-snapshot/release-event.md >> "$GITHUB_STEP_SUMMARY"
+          if [[ -n "${{ needs.run_operational_snapshot.outputs.snapshot_run_id }}" ]]; then
+            {
+              echo ""
+              echo "- Snapshot run ID: ${{ needs.run_operational_snapshot.outputs.snapshot_run_id }}"
+            } >> "$GITHUB_STEP_SUMMARY"
+          fi
+
+      - name: Upload operational snapshot evidence
+        if: ${{ always() }}
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
+        with:
+          name: release-evidence-operational-snapshot-${{ github.run_id }}
+          path: /tmp/release-evidence/operational-snapshot
+          retention-days: 30

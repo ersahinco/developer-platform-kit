@@ -10,14 +10,28 @@ ASSIGN_PUBLIC_IP=${ECS_RUN_TASK_ASSIGN_PUBLIC_IP:-DISABLED}
 WAIT_FOR_STOPPED=${ECS_RUN_TASK_WAIT_FOR_STOPPED:-false}
 ASSERT_SUCCESS=${ECS_RUN_TASK_ASSERT_SUCCESS:-false}
 LABEL=${ECS_RUN_TASK_LABEL:-Task}
+OVERRIDES_JSON=${ECS_RUN_TASK_OVERRIDES_JSON:-}
+STARTED_BY=${ECS_RUN_TASK_STARTED_BY:-}
 
-TASK_ARN=$(aws ecs run-task \
-  --cluster "$CLUSTER" \
-  --task-definition "$TASK_DEFINITION" \
-  --launch-type "$LAUNCH_TYPE" \
-  --network-configuration "awsvpcConfiguration={subnets=[${SUBNET_ID}],securityGroups=[${SG_ID}],assignPublicIp=${ASSIGN_PUBLIC_IP}}" \
-  --query 'tasks[0].taskArn' \
-  --output text)
+run_task_args=(
+  aws ecs run-task
+  --cluster "$CLUSTER"
+  --task-definition "$TASK_DEFINITION"
+  --launch-type "$LAUNCH_TYPE"
+  --network-configuration "awsvpcConfiguration={subnets=[${SUBNET_ID}],securityGroups=[${SG_ID}],assignPublicIp=${ASSIGN_PUBLIC_IP}}"
+  --query 'tasks[0].taskArn'
+  --output text
+)
+
+if [[ -n "$OVERRIDES_JSON" ]]; then
+  run_task_args+=(--overrides "$OVERRIDES_JSON")
+fi
+
+if [[ -n "$STARTED_BY" ]]; then
+  run_task_args+=(--started-by "$STARTED_BY")
+fi
+
+TASK_ARN=$("${run_task_args[@]}")
 
 if [ -z "$TASK_ARN" ] || [ "$TASK_ARN" = "None" ]; then
   echo "Failed to start ECS task ${TASK_DEFINITION} on cluster ${CLUSTER}" >&2

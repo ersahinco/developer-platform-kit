@@ -84,6 +84,13 @@ def dry_run_workflows() -> tuple[DryRunWorkflow, ...]:
             ),
         ),
         DryRunWorkflow(
+            "operational-snapshot.yml",
+            (
+                ("confirm_snapshot", "dry-run"),
+                ("dry_run", "true"),
+            ),
+        ),
+        DryRunWorkflow(
             "infra-apply.yml",
             (
                 ("plan_run_id", plan_run_id),
