@@ -494,8 +494,15 @@ data "aws_iam_policy_document" "github_actions_edge_dns" {
 
 data "aws_iam_policy_document" "github_actions_logs_secrets" {
   statement {
-    sid       = "LogsDescribe"
-    actions   = ["logs:DescribeLogGroups", "logs:ListTagsForResource", "logs:ListTagsLogGroup"]
+    sid = "LogsDescribe"
+    actions = [
+      "logs:DescribeLogGroups",
+      "logs:DescribeLogStreams",
+      "logs:FilterLogEvents",
+      "logs:GetLogEvents",
+      "logs:ListTagsForResource",
+      "logs:ListTagsLogGroup",
+    ]
     resources = ["*"]
   }
 

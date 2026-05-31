@@ -54,3 +54,14 @@ def test_github_actions_oidc_role_can_describe_primary_edge_runtime_secret() -> 
         platform_identity,
     )
     assert '"secretsmanager:GetResourcePolicy"' in platform_identity
+
+
+def test_github_actions_oidc_role_can_read_operator_job_logs() -> None:
+    platform_identity = (ROOT / "infra/platform/github_actions.tf").read_text(
+        encoding="utf-8"
+    )
+
+    assert '"logs:FilterLogEvents"' in platform_identity
+    assert '"logs:GetLogEvents"' in platform_identity
+    assert '"logs:DescribeLogStreams"' in platform_identity
+    assert "github_actions_logs_manage_resources" in platform_identity
