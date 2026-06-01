@@ -58,6 +58,18 @@ def _tool_check(name: str, *, required: bool, hint: str) -> CheckResult:
     return CheckResult(status, name, hint)
 
 
+def _tool_check_with_docker_fallback(name: str, *, fallback_target: str) -> CheckResult:
+    if _tool_exists(name):
+        return CheckResult("ok", name)
+    if _tool_exists("docker"):
+        return CheckResult(
+            "ok", name, f"Docker fallback available through {fallback_target}"
+        )
+    return CheckResult(
+        "warn", name, f"install {name} or use {fallback_target} with Docker"
+    )
+
+
 def _command_check(
     name: str,
     command: list[str],
@@ -157,11 +169,13 @@ def doctor_results(*, cloud: bool, runner: Runner = _run) -> list[CheckResult]:
         ("aws", "install AWS CLI"),
         ("terraform", "install Terraform"),
         ("tflint", "install TFLint"),
-        ("checkov", "install Checkov or use the Docker fallback targets"),
-        ("conftest", "install Conftest or use the Docker fallback targets"),
+        ("checkov", "install Checkov for make lint-infra"),
     ]
     for name, hint in cloud_tools:
         results.append(_tool_check(name, required=False, hint=hint))
+    results.append(
+        _tool_check_with_docker_fallback("conftest", fallback_target="make lint-policy")
+    )
 
     if cloud:
         results.append(

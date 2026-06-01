@@ -471,12 +471,10 @@ release-event-delivery-verify: ## Verify release-event push/query round-trip thr
 	uv run python scripts/observability/verify_release_event_loki_delivery.py
 
 .PHONY: release-evidence-runs
-release-evidence-runs: ## List recent cloud-changing GitHub workflow runs that emit release evidence
-	@printf "RUN_ID\tWORKFLOW\tBRANCH\tSTATUS\tCONCLUSION\tCREATED_AT\tTITLE\tURL\n"
-	gh run list \
-		--limit 50 \
-		--json databaseId,workflowName,displayTitle,headBranch,status,conclusion,createdAt,url \
-		--jq '.[] | select(.workflowName as $name | ["App Build", "App Deploy", "Data Support Deploy", "Data Runtime Switch", "Data Schema Apply", "Data Backfill", "Operational Snapshot", "Infra Apply"] | index($name)) | [.databaseId, .workflowName, .headBranch, .status, (.conclusion // "-"), .createdAt, .displayTitle, .url] | @tsv'
+release-evidence-runs: ## List recent downloadable release evidence and operator payload artifacts
+	@printf "RUN_ID\tBRANCH\tSHA\tCREATED_AT\tARTIFACT\n"
+	@gh api 'repos/:owner/:repo/actions/artifacts?per_page=100' \
+		--jq '.artifacts[] | select((.expired | not) and (.name | test("^(release-evidence|operator-payload)-"))) | [.workflow_run.id, .workflow_run.head_branch, (.workflow_run.head_sha[0:12]), .created_at, .name] | @tsv'
 
 .PHONY: release-evidence-download
 release-evidence-download: ## Download GitHub release-evidence-* artifacts for GH_RUN_ID into $(RELEASE_EVIDENCE_DIR)/$(GH_RUN_ID)
@@ -546,7 +544,7 @@ incident-evidence: ## Build portable Markdown/JSON incident evidence bundle
 	STACK_NAME="$(STACK_NAME)" \
 	ROOT_DOMAIN="$(ROOT_DOMAIN)" \
 	RELEASE_EVENTS_DIR="$(RELEASE_EVENTS_DIR)" \
-	uv run python scripts/observability/incident_evidence_bundle.py \
+	uv run python -m scripts.observability.incident_evidence_bundle \
 		--service-name "$(SERVICE_NAME)" \
 		--lookback-minutes "$(LOOKBACK_MINUTES)" \
 		--output-dir "$(INCIDENT_EVIDENCE_DIR)"

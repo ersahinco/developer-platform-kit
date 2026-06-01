@@ -107,3 +107,18 @@ def test_make_post_deploy_verify_uses_primary_edge_metadata() -> None:
     assert "PRIMARY_EDGE_HOSTNAME_LABEL" in text
     assert "https://api.$(ROOT_DOMAIN)" not in text
     assert "https://$(PRIMARY_EDGE_HOSTNAME_LABEL).$(ROOT_DOMAIN)" in text
+
+
+def test_release_evidence_runs_lists_downloadable_artifacts() -> None:
+    text = _read("Makefile")
+
+    assert "repos/:owner/:repo/actions/artifacts?per_page=100" in text
+    assert 'test("^(release-evidence|operator-payload)-")' in text
+    assert "gh run list" not in text
+
+
+def test_incident_evidence_make_target_uses_module_execution() -> None:
+    text = _read("Makefile")
+
+    assert "uv run python -m scripts.observability.incident_evidence_bundle" in text
+    assert "uv run python scripts/observability/incident_evidence_bundle.py" not in text

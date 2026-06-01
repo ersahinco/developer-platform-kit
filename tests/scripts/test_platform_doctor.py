@@ -46,6 +46,34 @@ def test_platform_doctor_marks_missing_required_tools_as_fail(monkeypatch) -> No
     assert by_name["terraform"].status == "warn"
 
 
+def test_platform_doctor_uses_conftest_docker_fallback(monkeypatch) -> None:
+    monkeypatch.setattr(
+        "scripts.platform.doctor._tool_exists",
+        lambda name: name != "conftest",
+    )
+
+    results = doctor_results(cloud=False, runner=_runner)
+    by_name = {result.name: result for result in results}
+
+    assert by_name["conftest"].status == "ok"
+    assert (
+        by_name["conftest"].hint == "Docker fallback available through make lint-policy"
+    )
+
+
+def test_platform_doctor_checkov_hint_matches_makefile(monkeypatch) -> None:
+    monkeypatch.setattr(
+        "scripts.platform.doctor._tool_exists",
+        lambda name: name != "checkov",
+    )
+
+    results = doctor_results(cloud=False, runner=_runner)
+    by_name = {result.name: result for result in results}
+
+    assert by_name["checkov"].status == "warn"
+    assert by_name["checkov"].hint == "install Checkov for make lint-infra"
+
+
 def test_platform_doctor_output_is_short_and_actionable(capsys, monkeypatch) -> None:
     monkeypatch.setattr("scripts.platform.doctor._tool_exists", lambda _name: True)
 

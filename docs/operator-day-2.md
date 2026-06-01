@@ -11,7 +11,8 @@ Use this order when moving from local confidence to AWS operation:
 1. Check the operator workstation and workload contract.
 2. Run safe cloud readiness before any workflow that can change cloud state.
 3. Dispatch reviewed dry runs or cloud-changing workflows from GitHub.
-4. Download release evidence and operator payloads for the selected run.
+4. List artifact-backed runs and download release evidence and operator
+   payloads for the selected run.
 5. Build incident evidence before changing state during a failure.
 
 ```bash
@@ -78,7 +79,9 @@ INTEGRATION_CHECK_TARGETS=api=https://api.<root-domain>/health make integration-
 ## Incident Evidence
 
 Download the matching release evidence first when the incident follows a
-GitHub workflow run.
+GitHub workflow run. `make release-evidence-runs` lists currently downloadable
+`release-evidence-*` and `operator-payload-*` artifacts, so dry runs without
+artifacts are not shown.
 
 ```bash
 make release-evidence-runs
