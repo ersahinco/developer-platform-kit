@@ -1,0 +1,62 @@
+{
+  "name": "foreign_inventory_sync",
+  "kind": "service",
+  "use_cases": ["internal-api", "connector"],
+  "owner": "supply-chain-platform",
+  "runtime": {
+    "supported": ["local-compose"],
+    "admitted": []
+  },
+  "operational": {
+    "class": "internal-service",
+    "exposure": "internal"
+  },
+  "service": {
+    "port": 8080
+  },
+  "image": {
+    "repository": "foreign-inventory-sync",
+    "package": "foreign-inventory-sync",
+    "command": "python -m foreign_inventory_sync.main"
+  },
+  "metrics": {
+    "format": "prometheus",
+    "required_names": ["workload_info", "http_requests_total"]
+  },
+  "traces": {
+    "supported": false
+  },
+  "database": {
+    "semantics": "rds",
+    "pooling": "direct",
+    "host": "inventory-db.cluster-abcd1234.eu-central-1.rds.amazonaws.com"
+  },
+  "config": {
+    "env": [
+      "DATABASE_URL",
+      "DB_HOST",
+      "DB_PORT",
+      "DB_USER",
+      "DB_NAME",
+      "DD_SERVICE"
+    ],
+    "secrets": ["DB_PASSWORD", "SPLUNK_TOKEN"]
+  },
+  "account_id": "123456789012",
+  "dns": {
+    "fqdn": "inventory-sync.internal.example.com"
+  },
+  "iam": {
+    "role_arn": "arn:aws:iam::123456789012:role/inventory-sync-task-role"
+  },
+  "ci": {
+    "jenkins": "inventory-sync-main"
+  },
+  "terraform": {
+    "workspace": "supply-chain-prod"
+  },
+  "observability": {
+    "datadog_index": "inventory-prod",
+    "splunk_source": "inventory-sync"
+  }
+}

@@ -302,13 +302,31 @@ def _key_leaks(candidate: dict[str, Any]) -> list[EdgeLeak]:
         for key in value:
             normalized = str(key).lower().replace("-", "_")
             if _forbidden_key(normalized):
-                leaks.append(
+                forbidden_path = _path_join(path, str(key))
+                leaks.extend(
                     EdgeLeak(
-                        path=_path_join(path, str(key)),
+                        path=leaf_path,
                         reason="is platform-edge wiring",
                     )
+                    for leaf_path in _removal_paths(value[key], forbidden_path)
                 )
     return leaks
+
+
+def _removal_paths(value: Any, path: str) -> list[str]:
+    if isinstance(value, dict) and value:
+        return [
+            leaf
+            for key, nested in value.items()
+            for leaf in _removal_paths(nested, _path_join(path, str(key)))
+        ]
+    if isinstance(value, list) and value:
+        return [
+            leaf
+            for index, nested in enumerate(value)
+            for leaf in _removal_paths(nested, f"{path}[{index}]")
+        ]
+    return [path]
 
 
 def _forbidden_key(normalized: str) -> bool:

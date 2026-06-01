@@ -9,6 +9,7 @@ from scripts.platform.workload_fit_check import evaluate_candidate
 
 
 ROOT = Path(__file__).resolve().parents[2]
+WORKLOAD_FIXTURES = ROOT / "tests" / "fixtures" / "workloads"
 
 
 def _valid_candidate() -> dict[str, object]:
@@ -160,3 +161,43 @@ def test_workload_fit_check_cli_groups_removals_on_failure(tmp_path: Path) -> No
     assert "- owner" in completed.stdout
     assert "- use_cases" in completed.stdout
     assert "- database semantics" in completed.stdout
+
+
+def test_workload_fit_check_rejects_messy_foreign_fixture() -> None:
+    completed = subprocess.run(
+        [
+            sys.executable,
+            "scripts/platform/workload_fit_check.py",
+            "--candidate",
+            str(WORKLOAD_FIXTURES / "foreign_internal_service_bad.json"),
+        ],
+        check=False,
+        capture_output=True,
+        text=True,
+        cwd=ROOT,
+    )
+
+    assert completed.returncode == 1
+    assert "fit: no" in completed.stdout
+    assert "- dns.fqdn" in completed.stdout
+    assert "- iam.role_arn" in completed.stdout
+    assert "- observability.datadog_index" in completed.stdout
+    assert "- terraform.workspace" in completed.stdout
+
+
+def test_workload_fit_check_accepts_corrected_foreign_fixture() -> None:
+    completed = subprocess.run(
+        [
+            sys.executable,
+            "scripts/platform/workload_fit_check.py",
+            "--candidate",
+            str(WORKLOAD_FIXTURES / "foreign_internal_service_good.json"),
+        ],
+        check=True,
+        capture_output=True,
+        text=True,
+        cwd=ROOT,
+    )
+
+    assert "fit: yes" in completed.stdout
+    assert "next make workload-readiness" in completed.stdout
