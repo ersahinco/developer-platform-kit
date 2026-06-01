@@ -21,6 +21,8 @@
 #                             — fail on missing paved-road workload coverage
 #   make workload-fit-init   — generate a draft externally operated workload
 #   make workload-fit-check  — evaluate a draft externally operated workload
+#   make workload-local-proof-plan
+#                             — plan local proof work for a passing candidate
 #   make platform-toolkit-validate-cloud
 #                             — run safe cloud readiness checks without mutating AWS
 #   make platform-doctor      — check human workstation readiness
@@ -540,6 +542,11 @@ workload-fit-init: ## Generate a draft externally operated workload candidate
 	@[ -n "$(CLASS)" ] || (echo "Set CLASS=<operational-class>" >&2; exit 1)
 	@[ -n "$(OWNER)" ] || (echo "Set OWNER=<team-name>" >&2; exit 1)
 	python3 scripts/platform/workload_fit_init.py --name "$(NAME)" --kind "$(KIND)" --class "$(CLASS)" --owner "$(OWNER)" $(if $(OUTPUT),--output "$(OUTPUT)",)
+
+.PHONY: workload-local-proof-plan
+workload-local-proof-plan: ## Plan local proof work for a passing workload candidate
+	@[ -n "$(WORKLOAD_CANDIDATE)" ] || (echo "Set WORKLOAD_CANDIDATE=/path/to/workload.json" >&2; exit 1)
+	python3 scripts/platform/workload_local_proof_plan.py --candidate "$(WORKLOAD_CANDIDATE)"
 
 .PHONY: capability-implementation-matrix
 capability-implementation-matrix: ## Print the current runtime capability-to-implementation matrix
