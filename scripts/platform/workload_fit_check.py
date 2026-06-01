@@ -4,6 +4,7 @@ from __future__ import annotations
 import argparse
 from dataclasses import asdict
 from dataclasses import dataclass
+from dataclasses import field
 import json
 import os
 from pathlib import Path
@@ -80,14 +81,38 @@ class FitResult:
     area: str
     status: str
     message: str
+    details: dict[str, list[str]] = field(default_factory=dict)
+
+
+@dataclass(frozen=True)
+class EdgeLeak:
+    path: str
+    reason: str
+
+
+KEEP_AS_WORKLOAD_CONTRACT = (
+    "owner",
+    "use_cases",
+    "kind and operational.class",
+    "service port or job idempotency",
+    "config env/secrets",
+    "database semantics",
+    "Prometheus metric identity",
+    "structured workload events",
+)
 
 
 def _ok(area: str, message: str) -> FitResult:
     return FitResult(area=area, status="ok", message=message)
 
 
-def _fail(area: str, message: str) -> FitResult:
-    return FitResult(area=area, status="fail", message=message)
+def _fail(
+    area: str,
+    message: str,
+    *,
+    details: dict[str, list[str]] | None = None,
+) -> FitResult:
+    return FitResult(area=area, status="fail", message=message, details=details or {})
 
 
 def _path_join(path: str, key: str) -> str:
@@ -269,15 +294,20 @@ def _runtime_scope(candidate: dict[str, Any]) -> FitResult:
     return _ok("runtime_scope", "runtime support and admission use known targets")
 
 
-def _key_leaks(candidate: dict[str, Any]) -> list[str]:
-    leaks: list[str] = []
+def _key_leaks(candidate: dict[str, Any]) -> list[EdgeLeak]:
+    leaks: list[EdgeLeak] = []
     for path, value in _walk(candidate):
         if not isinstance(value, dict):
             continue
         for key in value:
             normalized = str(key).lower().replace("-", "_")
             if _forbidden_key(normalized):
-                leaks.append(f"{_path_join(path, str(key))} is platform-edge wiring")
+                leaks.append(
+                    EdgeLeak(
+                        path=_path_join(path, str(key)),
+                        reason="is platform-edge wiring",
+                    )
+                )
     return leaks
 
 
@@ -290,8 +320,8 @@ def _forbidden_key(normalized: str) -> bool:
     )
 
 
-def _value_leaks(candidate: dict[str, Any]) -> list[str]:
-    leaks: list[str] = []
+def _value_leaks(candidate: dict[str, Any]) -> list[EdgeLeak]:
+    leaks: list[EdgeLeak] = []
     for path, value in _walk(candidate):
         if not isinstance(value, str):
             continue
@@ -306,17 +336,22 @@ def _value_leaks(candidate: dict[str, Any]) -> list[str]:
             patterns = FORBIDDEN_VALUE_PATTERNS
         for label, pattern in patterns:
             if pattern.search(value):
-                leaks.append(f"{path} contains {label}")
+                leaks.append(EdgeLeak(path=path, reason=f"contains {label}"))
                 break
         if any(name in lower_value for name in OBSERVABILITY_BACKEND_NAMES):
-            leaks.append(f"{path} mentions Datadog/Splunk backend wiring")
+            leaks.append(
+                EdgeLeak(
+                    path=path,
+                    reason="mentions Datadog/Splunk backend wiring",
+                )
+            )
         if "jenkins" in lower_value or "azure devops" in lower_value:
-            leaks.append(f"{path} mentions CI system wiring")
+            leaks.append(EdgeLeak(path=path, reason="mentions CI system wiring"))
     return leaks
 
 
-def _config_backend_leaks(candidate: dict[str, Any]) -> list[str]:
-    leaks: list[str] = []
+def _config_backend_leaks(candidate: dict[str, Any]) -> list[EdgeLeak]:
+    leaks: list[EdgeLeak] = []
     for path in ["config.env", "config.secrets"]:
         values = _get_path(candidate, path)
         if not isinstance(values, list):
@@ -325,7 +360,12 @@ def _config_backend_leaks(candidate: dict[str, Any]) -> list[str]:
             if not isinstance(value, str):
                 continue
             if value.startswith(OBSERVABILITY_CONFIG_PREFIXES):
-                leaks.append(f"{path} contains backend-specific name {value}")
+                leaks.append(
+                    EdgeLeak(
+                        path=f"{path}.{value}",
+                        reason="contains backend-specific observability config",
+                    )
+                )
     return leaks
 
 
@@ -336,10 +376,13 @@ def _platform_edge_boundary(candidate: dict[str, Any]) -> FitResult:
         + _config_backend_leaks(candidate)
     )
     if leaks:
+        remove_paths = sorted({leak.path for leak in leaks})
+        messages = sorted({f"{leak.path} {leak.reason}" for leak in leaks})
         return _fail(
             "platform_edge_boundary",
             "move platform-edge details out of the workload contract: "
-            + "; ".join(sorted(dict.fromkeys(leaks))),
+            + "; ".join(messages),
+            details={"remove_from_stable_center": remove_paths},
         )
     return _ok(
         "platform_edge_boundary",
@@ -436,9 +479,31 @@ def _load_candidate(path: Path) -> dict[str, Any]:
 
 
 def _print_table(results: list[FitResult]) -> None:
+    fits = not any(result.status == "fail" for result in results)
+    print(f"fit: {'yes' if fits else 'no'}")
     print("\t".join(["area", "status", "message"]))
     for result in results:
         print("\t".join([result.area, result.status, result.message]))
+    if fits:
+        print("next make workload-readiness")
+        print("next make platform-doctor")
+        print("next add to platform/workloads.json only after local proof exists")
+        return
+
+    remove_paths = sorted(
+        {
+            path
+            for result in results
+            for path in result.details.get("remove_from_stable_center", [])
+        }
+    )
+    if remove_paths:
+        print("remove from stable center:")
+        for path in remove_paths:
+            print(f"- {path}")
+    print("keep as workload contract:")
+    for item in KEEP_AS_WORKLOAD_CONTRACT:
+        print(f"- {item}")
 
 
 def main(argv: list[str] | None = None) -> int:

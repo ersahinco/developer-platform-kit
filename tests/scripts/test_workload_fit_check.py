@@ -99,3 +99,64 @@ def test_workload_fit_check_cli_outputs_json(tmp_path: Path) -> None:
     rows = json.loads(completed.stdout)
     assert rows[0]["area"] == "stable_center_fields"
     assert {row["status"] for row in rows} == {"ok"}
+
+
+def test_workload_fit_check_cli_prints_next_actions_on_success(tmp_path: Path) -> None:
+    candidate_path = tmp_path / "candidate.json"
+    candidate_path.write_text(json.dumps(_valid_candidate()), encoding="utf-8")
+
+    completed = subprocess.run(
+        [
+            sys.executable,
+            "scripts/platform/workload_fit_check.py",
+            "--candidate",
+            str(candidate_path),
+        ],
+        check=True,
+        capture_output=True,
+        text=True,
+        cwd=ROOT,
+    )
+
+    assert "fit: yes" in completed.stdout
+    assert "next make workload-readiness" in completed.stdout
+    assert "next make platform-doctor" in completed.stdout
+    assert (
+        "next add to platform/workloads.json only after local proof exists"
+        in completed.stdout
+    )
+
+
+def test_workload_fit_check_cli_groups_removals_on_failure(tmp_path: Path) -> None:
+    candidate = {
+        **_valid_candidate(),
+        "dns": {"fqdn": "payments.internal.example.com"},
+        "iam": {"role_arn": "arn:aws:iam::123456789012:role/payments-task-role"},
+        "observability": {"datadog_index": "payments-prod"},
+    }
+    candidate_path = tmp_path / "candidate.json"
+    candidate_path.write_text(json.dumps(candidate), encoding="utf-8")
+
+    completed = subprocess.run(
+        [
+            sys.executable,
+            "scripts/platform/workload_fit_check.py",
+            "--candidate",
+            str(candidate_path),
+        ],
+        check=False,
+        capture_output=True,
+        text=True,
+        cwd=ROOT,
+    )
+
+    assert completed.returncode == 1
+    assert "fit: no" in completed.stdout
+    assert "remove from stable center:" in completed.stdout
+    assert "- dns.fqdn" in completed.stdout
+    assert "- iam.role_arn" in completed.stdout
+    assert "- observability.datadog_index" in completed.stdout
+    assert "keep as workload contract:" in completed.stdout
+    assert "- owner" in completed.stdout
+    assert "- use_cases" in completed.stdout
+    assert "- database semantics" in completed.stdout
