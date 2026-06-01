@@ -23,7 +23,7 @@ make adapter-seam-matrix
 | HTTP service edge | `/health`, `/ready`, `/metrics`, structured logs, immutable image rollout | `apps/api`, `platform/workloads.json`, `infra/app/edge.tf`, workflows |
 | Internal async service | long-running internal service shape, direct DB access, Dapr-backed event handling | `apps/event_consumer`, `platform/workloads.json`, `infra/app/workload_jobs.tf`, `infra/app/messaging.tf` |
 | Dapr pub/sub | app id, pub/sub name, topic, resiliency semantics | `platform/concerns/dapr/`, `platform/workloads.json`, `packages/infrastructure/dapr` |
-| Operator job execution | one-off job shape, rerun expectation, structured completion events, payload artifacts | `apps/backfill_worker`, `apps/operational_snapshot_job`, workflows, `infra/app/workload_jobs.tf` |
+| Operator job execution | one-off job shape, rerun expectation, structured completion events, payload artifacts | `apps/backfill_worker`, `apps/operational_snapshot_job`, `apps/integration_check_job`, workflows, `infra/app/workload_jobs.tf` |
 | Scheduled job execution | recurring job shape, scheduler-driven run, export success expectations | `apps/data_export_job`, `infra/app/workload_jobs.tf`, `infra/app/object_storage.tf` |
 | Database rollout safety | read/write mode switches, backfill, contract migration flow | `db/`, `apps/api`, `packages/application`, runbooks |
 | Local observability | Prometheus, Loki, Tempo, Grafana, Promtail | `platform/concerns/observability/`, `compose.yaml` |
@@ -31,6 +31,7 @@ make adapter-seam-matrix
 | Release evidence | portable release event, artifact upload, optional Loki push | workflows, `scripts/observability/release_event.py` |
 | Incident evidence | portable bundle with ECS, alarms, release context, query hints | `scripts/observability/incident_evidence_bundle.py` |
 | Operational snapshot | read-only job that emits runtime mode and data posture for release or incident context | `apps/operational_snapshot_job`, `operational-snapshot.yml`, `make operational-snapshot`, `make operational-snapshot-cloud` |
+| Integration checks | configured HTTP checks that emit a local operator evidence payload | `apps/integration_check_job`, `make integration-check` |
 | Runtime conformance | external proof that workloads satisfy the declared contract | `platform/runtime-conformance.json`, `tests/runtime/`, `make runtime-conformance` |
 
 ## Runtime Targets

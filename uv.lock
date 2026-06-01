@@ -12,6 +12,7 @@ members = [
     "aws-sdlc-containers-domain",
     "aws-sdlc-containers-event-consumer",
     "aws-sdlc-containers-infrastructure",
+    "aws-sdlc-containers-integration-check-job",
     "aws-sdlc-containers-open-dataset-pipeline",
     "aws-sdlc-containers-operational-snapshot-job",
 ]
@@ -228,6 +229,17 @@ requires-dist = [
     { name = "psycopg2-binary", specifier = ">=2.9.9" },
     { name = "sqlalchemy", specifier = ">=2.0.30" },
 ]
+
+[[package]]
+name = "aws-sdlc-containers-integration-check-job"
+version = "0.1.0"
+source = { editable = "apps/integration_check_job" }
+dependencies = [
+    { name = "aws-sdlc-containers-infrastructure" },
+]
+
+[package.metadata]
+requires-dist = [{ name = "aws-sdlc-containers-infrastructure", editable = "packages/infrastructure" }]
 
 [[package]]
 name = "aws-sdlc-containers-open-dataset-pipeline"

@@ -14,6 +14,7 @@ Reference workloads:
 - `apps/backfill_worker`
 - `apps/data_export_job`
 - `apps/event_consumer`
+- `apps/integration_check_job`
 - `apps/open_dataset_pipeline`
 - `apps/operational_snapshot_job`
 
@@ -66,7 +67,8 @@ make platform-toolkit-smoke-local
 It runs the standard local startup path, verifies `/health`, `/ready`, and
 `/metrics`, publishes a CloudEvent through the local Dapr sidecar and confirms
 the event consumer recorded it, runs the data export job, emits an operational
-snapshot, runs the `open_dataset_pipeline` workload, and finishes with
+snapshot, runs configured integration checks, runs the `open_dataset_pipeline`
+workload, and finishes with
 `make runtime-conformance`.
 
 The target prints section headers before each slice. Docker and pytest still
@@ -86,6 +88,7 @@ volume. Use these helpers to inspect or reset the local artifact surface:
 ```bash
 make data-export
 make operational-snapshot
+INTEGRATION_CHECK_TARGETS=api=http://api:8000/health make integration-check
 make open-dataset-pipeline
 make data-artifacts-list
 make data-artifacts-shell
@@ -141,6 +144,7 @@ make observability
 make dapr-up
 make data-export
 make operational-snapshot
+make integration-check
 make open-dataset-pipeline
 ```
 
@@ -160,6 +164,7 @@ make api-smoke
 make backfill-once
 make data-export
 make operational-snapshot
+make integration-check
 make data-artifacts-list
 make open-dataset-pipeline
 make test

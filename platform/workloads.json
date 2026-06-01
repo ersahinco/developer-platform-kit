@@ -287,6 +287,41 @@
       "job": {
         "idempotency": "read_only"
       }
+    },
+    {
+      "name": "integration_check_job",
+      "kind": "job",
+      "use_cases": ["integration-check", "operational-readiness", "operator-task"],
+      "owner": "platform-engineering",
+      "app_path": "apps/integration_check_job",
+      "runtime": {
+        "supported": ["local-compose"],
+        "admitted": []
+      },
+      "operational": {
+        "class": "operator-job",
+        "trigger": "manual"
+      },
+      "image": {
+        "repository": "integration-check-job",
+        "package": "aws-sdlc-containers-integration-check-job",
+        "command": "python -m integration_check_job.main"
+      },
+      "traces": {
+        "supported": false
+      },
+      "config": {
+        "env": [
+          "INTEGRATION_CHECK_TARGETS",
+          "INTEGRATION_CHECK_TIMEOUT_SECONDS",
+          "INTEGRATION_CHECK_RUN_ID",
+          "INTEGRATION_CHECK_OUTPUT_DIR"
+        ],
+        "secrets": []
+      },
+      "job": {
+        "idempotency": "run_id"
+      }
     }
   ]
 }

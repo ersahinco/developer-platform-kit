@@ -177,6 +177,52 @@ def readiness_rows() -> list[dict[str, str]]:
     return rows
 
 
+def readiness_failures(rows: list[dict[str, str]]) -> list[str]:
+    failures: list[str] = []
+    for row in rows:
+        workload = row["workload"]
+
+        if row["local"] == "yes":
+            if row["config_contract"] != "declared":
+                failures.append(f"{workload}: local workload lacks config contract")
+            if row["kind"] == "service" and row["service_endpoints"] == "missing":
+                failures.append(
+                    f"{workload}: local service lacks /health, /ready, or /metrics"
+                )
+            if row["kind"] == "job" and row["job_terminal_event"] == "missing":
+                failures.append(f"{workload}: local job lacks terminal success event")
+
+        if row["aws_ecs"] != "yes":
+            continue
+
+        required_fields = {
+            "build_matrix": "AWS-admitted workload is missing image build coverage",
+            "config_contract": "AWS-admitted workload lacks config contract",
+        }
+        for field, message in required_fields.items():
+            expected = "yes" if field == "build_matrix" else "declared"
+            if row[field] != expected:
+                failures.append(f"{workload}: {message}")
+
+        if row["run_workflow"] in {"missing", "local-only"}:
+            failures.append(f"{workload}: AWS-admitted workload lacks run workflow")
+        if row["evidence"] == "n/a":
+            failures.append(f"{workload}: AWS-admitted workload lacks evidence surface")
+        if not row["log_group"].startswith("/ecs/<stack>/"):
+            failures.append(
+                f"{workload}: AWS-admitted workload lacks log group convention"
+            )
+        if row["kind"] == "service" and row["service_endpoints"] == "missing":
+            failures.append(
+                f"{workload}: AWS-admitted service lacks /health, /ready, or /metrics"
+            )
+        if row["kind"] == "job" and row["job_terminal_event"] == "missing":
+            failures.append(
+                f"{workload}: AWS-admitted job lacks terminal success event"
+            )
+    return failures
+
+
 def _print_table(rows: list[dict[str, str]]) -> None:
     headers = [
         "workload",
@@ -202,6 +248,11 @@ def main() -> int:
         description="Report workload paved-road readiness from platform contracts and conventional delivery files."
     )
     parser.add_argument("--format", choices=["table", "json"], default="table")
+    parser.add_argument(
+        "--check",
+        action="store_true",
+        help="Fail when declared workloads are missing paved-road delivery surfaces.",
+    )
     args = parser.parse_args()
 
     rows = readiness_rows()
@@ -209,6 +260,12 @@ def main() -> int:
         print(json.dumps(rows, sort_keys=True))
     else:
         _print_table(rows)
+    failures = readiness_failures(rows)
+    if args.check and failures:
+        print("\nReadiness check failed:", file=sys.stderr)
+        for failure in failures:
+            print(f"- {failure}", file=sys.stderr)
+        return 1
     return 0
 
 

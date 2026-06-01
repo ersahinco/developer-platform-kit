@@ -37,6 +37,7 @@ Inspect current declared classes and labels:
 make workload-capability-matrix
 make workload-use-case-matrix
 make workload-readiness
+make workload-readiness-check
 ```
 
 ## Add The Host
@@ -164,6 +165,7 @@ Managed provider-edge note:
 
 ```bash
 make workload-readiness
+make workload-readiness-check
 uv run pytest tests/contracts -q
 uv run pytest tests/apps -q
 make runtime-conformance
@@ -181,6 +183,7 @@ Run these before asking for AWS admission:
 
 ```bash
 make workload-readiness
+make workload-readiness-check
 make lint-app
 make lint-workflows
 make lint-policy
@@ -204,9 +207,10 @@ GH_RUN_ID=<workflow-run-id> make release-evidence-download
 GH_RUN_ID=<workflow-run-id> make operator-payload-download
 ```
 
-Use the report first. If `make workload-readiness` says a workload lacks a
-run workflow, evidence surface, terminal job event, log group, or config
-contract, fix that paved-road gap before adding more workload behavior.
+Use the report first, then the check. If `make workload-readiness-check` says a
+workload lacks a run workflow, evidence surface, terminal job event, log group,
+or config contract, fix that paved-road gap before adding more workload
+behavior.
 
 ## Done Checklist
 

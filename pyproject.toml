@@ -30,6 +30,7 @@ members = [
     "apps/backfill_worker",
     "apps/data_export_job",
     "apps/event_consumer",
+    "apps/integration_check_job",
     "apps/open_dataset_pipeline",
     "apps/operational_snapshot_job",
     "packages/domain",

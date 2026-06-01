@@ -122,7 +122,6 @@ For this repo today:
 - CI-to-Loki publishing is ready but inactive
 - AWS-managed resource metrics still rely on CloudWatch at the platform edge
 - no additional production runtime target is implemented yet
-- no additional production runtime target is implemented yet
 - infra rollback remains reviewed plan/apply, not a permanent drill workflow
 
 ## Implementation Steps

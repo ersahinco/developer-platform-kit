@@ -191,6 +191,23 @@ services:
     profiles:
       - ops
 
+  integration-check-job:
+    build:
+      <<: *workload_build
+      args:
+        APP_PATH: apps/integration_check_job
+        UV_PACKAGE: aws-sdlc-containers-integration-check-job
+        WORKLOAD_CMD: python -m integration_check_job.main
+    environment:
+      INTEGRATION_CHECK_TARGETS: ${INTEGRATION_CHECK_TARGETS:-}
+      INTEGRATION_CHECK_TIMEOUT_SECONDS: ${INTEGRATION_CHECK_TIMEOUT_SECONDS:-5}
+      INTEGRATION_CHECK_RUN_ID: ${INTEGRATION_CHECK_RUN_ID:-local}
+      INTEGRATION_CHECK_OUTPUT_DIR: /exports/integration-checks
+    volumes:
+      - data_exports:/exports
+    profiles:
+      - ops
+
   redis:
     image: redis:8.2.1
     ports:

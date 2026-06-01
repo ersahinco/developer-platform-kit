@@ -78,7 +78,7 @@ Declare one class in `platform/workloads.json` for every workload:
 
 Current: `api` -> `edge-service`; `event_consumer` -> `internal-service`;
 `backfill_worker` -> `operator-job`; `data_export_job` -> `scheduled-job`;
-`operational_snapshot_job` -> `operator-job`
+`operational_snapshot_job` -> `operator-job`; `integration_check_job` -> `operator-job`
 
 ## Workload Contract
 

@@ -92,6 +92,24 @@
         "orders_count",
         "customers_count"
       ]
+    },
+    "integration_check_job": {
+      "timeout_seconds": 60,
+      "env": {
+        "INTEGRATION_CHECK_TARGETS": "",
+        "INTEGRATION_CHECK_TIMEOUT_SECONDS": "1",
+        "INTEGRATION_CHECK_RUN_ID": "conformance",
+        "INTEGRATION_CHECK_OUTPUT_DIR": "/tmp/integration-checks"
+      },
+      "expected_success_event": "integration_check_succeeded",
+      "expected_log_fields": [
+        "event",
+        "job_name",
+        "run_id",
+        "status",
+        "checked_count",
+        "failed_count"
+      ]
     }
   }
 }

@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import re
+import tomllib
 from typing import Any
 
 import yaml
@@ -128,6 +129,14 @@ def test_compose_build_args_and_ports_align_with_workload_spec() -> None:
     assert env["DAPR_PUBSUB_NAME"] == dapr["pubsub_name"]
     assert env["DAPR_TOPIC"] == dapr["topic"]
     assert env["DAPR_SUBSCRIPTION_ROUTE"] == dapr["subscription_route"]
+
+
+def test_shared_workload_dockerfile_copies_workspace_pyproject_files() -> None:
+    workspace = tomllib.loads(read_text("pyproject.toml"))["tool"]["uv"]["workspace"]
+    dockerfile = read_text("platform/workload.Dockerfile")
+
+    for member in workspace["members"]:
+        assert f"COPY {member}/pyproject.toml {member}/pyproject.toml" in dockerfile
 
 
 def test_workload_spec_config_names_match_app_settings() -> None:

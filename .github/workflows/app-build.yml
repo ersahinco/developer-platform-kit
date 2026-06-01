@@ -124,6 +124,9 @@ jobs:
       - name: Check shell script syntax
         run: find scripts -name '*.sh' -print0 | xargs -0 bash -n
 
+      - name: Check workload paved-road readiness
+        run: make workload-readiness-check
+
       - name: Init DB schema
         run: |
           PGPASSWORD=postgres psql -h localhost -U postgres -d aws_sdlc_containers \

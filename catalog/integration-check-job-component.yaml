@@ -1,0 +1,16 @@
+apiVersion: backstage.io/v1alpha1
+kind: Component
+metadata:
+  name: integration_check_job
+  description: Local-first operator-job workload host for configured HTTP integration checks.
+  tags:
+    - integration-check
+    - operational-readiness
+    - operator-task
+spec:
+  type: job
+  lifecycle: experimental
+  owner: group:default/platform-engineering
+  system: aws-sdlc-containers
+  dependsOn:
+    - resource:default/runtime-target-local-compose

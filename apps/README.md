@@ -19,3 +19,4 @@ Example:
 - `packages/infrastructure/data_export.py` -> SQL, file, S3 adapters
 - `apps/data_export_job/` -> runnable host
 - `apps/operational_snapshot_job/` -> read-only operational readiness snapshot
+- `apps/integration_check_job/` -> configured HTTP integration check job

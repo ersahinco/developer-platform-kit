@@ -17,6 +17,8 @@
 #   make test                — run test suite
 #   make runtime-conformance — build/run workload images against platform contract
 #   make workload-readiness  — show paved-road coverage for each workload
+#   make workload-readiness-check
+#                             — fail on missing paved-road workload coverage
 #   make platform-toolkit-validate-cloud
 #                             — run safe cloud readiness checks without mutating AWS
 #   make lint                — run all linters (app + infra)
@@ -32,6 +34,7 @@
 #   make app-deploy          — force new ECS deployment
 #   make operational-snapshot
 #                             — emit local operational readiness snapshot
+#   make integration-check    — run configured local HTTP integration checks
 #
 #   make db-tunnel           — SSM port-forward localhost:LOCAL_PORT → RDS:5432
 #   make db-exec             — open psql inside a running app task
@@ -120,7 +123,7 @@ open-dataset-pipeline: ## Run the local-only open dataset workload pipeline
 
 .PHONY: local-down
 local-down: ## Stop local API and observability services without deleting volumes
-	docker compose --profile observability --profile dapr --profile data --profile ops stop api prometheus loki tempo promtail grafana event-consumer event-consumer-dapr redis open-dataset-pipeline operational-snapshot-job
+	docker compose --profile observability --profile dapr --profile data --profile ops stop api prometheus loki tempo promtail grafana event-consumer event-consumer-dapr redis open-dataset-pipeline operational-snapshot-job integration-check-job
 
 .PHONY: local-reset
 local-reset: ## Stop all local services and delete Compose volumes
@@ -145,6 +148,10 @@ data-export: ## Run local data export job into the data_exports Docker volume
 .PHONY: operational-snapshot
 operational-snapshot: ## Run local read-only operational readiness snapshot
 	docker compose --profile ops run --rm --remove-orphans operational-snapshot-job
+
+.PHONY: integration-check
+integration-check: ## Run configured local HTTP integration checks
+	docker compose --profile ops run --rm --remove-orphans integration-check-job
 
 .PHONY: backfill-once
 backfill-once: ## Run one bounded local backfill batch
@@ -190,6 +197,8 @@ platform-toolkit-validate-local: ## Validate local startup, API, Dapr, jobs, and
 	@$(MAKE) data-export
 	@printf "\n==> Running local operational snapshot job\n"
 	@$(MAKE) operational-snapshot
+	@printf "\n==> Running local integration check job\n"
+	@INTEGRATION_CHECK_TARGETS="api=http://api:8000/health" $(MAKE) integration-check
 	@printf "\n==> Running local open dataset pipeline\n"
 	@$(MAKE) open-dataset-pipeline
 	@printf "\n==> Running portable runtime conformance\n"
@@ -490,6 +499,10 @@ workload-use-case-matrix: ## Print the declared workload use-case matrix from pl
 .PHONY: workload-readiness
 workload-readiness: ## Print workload paved-road readiness from contract, workflows, and evidence surfaces
 	python3 scripts/platform/workload_readiness.py
+
+.PHONY: workload-readiness-check
+workload-readiness-check: ## Fail when declared workloads lack paved-road readiness
+	python3 scripts/platform/workload_readiness.py --check
 
 .PHONY: capability-implementation-matrix
 capability-implementation-matrix: ## Print the current runtime capability-to-implementation matrix
