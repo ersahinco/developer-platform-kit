@@ -69,6 +69,8 @@ PLAN_RUN_ID            ?= <infra-plan-run-id>
 TARGET_WORKLOAD        ?= all
 SCHEMA_PHASE           ?= expand
 SWITCH_STEP            ?= auto-detect
+INTEGRATION_CHECK_TARGETS ?=
+INTEGRATION_CHECK_TIMEOUT_SECONDS ?= 5
 
 # ── Help ──────────────────────────────────────────────────────────────────────
 
@@ -151,7 +153,9 @@ operational-snapshot: ## Run local read-only operational readiness snapshot
 
 .PHONY: integration-check
 integration-check: ## Run configured local HTTP integration checks
-	docker compose --profile ops run --rm --remove-orphans integration-check-job
+	@[ -n "$(INTEGRATION_CHECK_TARGETS)" ] || (echo "Set INTEGRATION_CHECK_TARGETS, for example: INTEGRATION_CHECK_TARGETS=api=http://api:8000/health make integration-check" >&2; exit 1)
+	INTEGRATION_CHECK_TARGETS="$(INTEGRATION_CHECK_TARGETS)" INTEGRATION_CHECK_TIMEOUT_SECONDS="$(INTEGRATION_CHECK_TIMEOUT_SECONDS)" \
+		docker compose --profile ops run --rm --remove-orphans integration-check-job
 
 .PHONY: backfill-once
 backfill-once: ## Run one bounded local backfill batch
@@ -220,7 +224,7 @@ platform-toolkit-smoke-local: ## Fast local smoke: API, Dapr, and one backfill b
 # ── Lint & format ─────────────────────────────────────────────────────────────
 
 .PHONY: lint
-lint: secret-scan dependency-audit lint-app lint-scripts lint-docs lint-workflows lint-dockerfiles lint-policy lint-infra ## Run all linters
+lint: secret-scan dependency-audit lint-app lint-scripts lint-docs lint-workflows lint-dockerfiles lint-policy workload-readiness-check lint-infra ## Run all linters
 
 .PHONY: lint-app
 lint-app: ## Lint and type-check Python
@@ -319,6 +323,8 @@ pre-commit: ## Install and run pre-commit hooks
 
 .PHONY: platform-toolkit-validate-cloud
 platform-toolkit-validate-cloud: ## Run safe cloud readiness checks without mutating AWS
+	@printf "\n==> Checking workload paved-road readiness\n"
+	@$(MAKE) workload-readiness-check
 	@printf "\n==> Linting GitHub workflow shape\n"
 	@$(MAKE) lint-workflows
 	@printf "\n==> Checking platform policy\n"

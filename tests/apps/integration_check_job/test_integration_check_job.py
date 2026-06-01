@@ -52,4 +52,6 @@ def test_run_checks_writes_evidence_payload(tmp_path: Path) -> None:
     assert event["checked_count"] == 1
     output_path = Path(str(event["output_path"]))
     assert output_path.exists()
-    assert json.loads(output_path.read_text())["run_id"] == "test-run"
+    payload = json.loads(output_path.read_text())
+    assert payload["run_id"] == "test-run"
+    assert payload["output_path"] == str(output_path)

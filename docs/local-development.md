@@ -144,7 +144,7 @@ make observability
 make dapr-up
 make data-export
 make operational-snapshot
-make integration-check
+INTEGRATION_CHECK_TARGETS=api=http://api:8000/health make integration-check
 make open-dataset-pipeline
 ```
 
@@ -164,7 +164,7 @@ make api-smoke
 make backfill-once
 make data-export
 make operational-snapshot
-make integration-check
+INTEGRATION_CHECK_TARGETS=api=http://api:8000/health make integration-check
 make data-artifacts-list
 make open-dataset-pipeline
 make test

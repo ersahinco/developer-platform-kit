@@ -76,20 +76,23 @@ Platform toolkit validation:
 make platform-toolkit-validate-local
 make platform-toolkit-smoke-local
 make platform-toolkit-validate-cloud
+make workload-readiness-check
 ```
 
 The local validation target proves startup, migrations, API health/readiness,
 Prometheus metrics, Dapr event consumption, local data export, operational
-snapshot, the local-only open dataset pipeline, and runtime conformance. The
-cloud validation target is safe to run before AWS credentials are ready; it
-checks workflow shape, platform policy, contract alignment, and release/operator
-scripts without changing cloud resources.
+snapshot, configured integration checks, the local-only open dataset pipeline,
+and runtime conformance. The cloud validation target is safe to run before AWS
+credentials are ready; it checks paved-road workload readiness, workflow shape,
+platform policy, contract alignment, and release/operator scripts without
+changing cloud resources.
 
 Useful inventory views:
 
 ```bash
 make workload-capability-matrix
 make workload-use-case-matrix
+make workload-readiness
 make platform-inventory-json
 make workflow-dry-run-commands
 make workflow-dry-run-validate

@@ -134,10 +134,10 @@ def run_checks(
     output_root = Path(output_dir or settings.integration_check_output_dir)
     output_root.mkdir(parents=True, exist_ok=True)
     output_path = output_root / f"{effective_run_id}.json"
+    event["output_path"] = str(output_path)
     output_path.write_text(
         json.dumps(event, indent=2, sort_keys=True), encoding="utf-8"
     )
-    event["output_path"] = str(output_path)
     print(json.dumps(event, sort_keys=True), flush=True)
     return event
 
