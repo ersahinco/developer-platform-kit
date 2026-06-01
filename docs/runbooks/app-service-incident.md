@@ -82,7 +82,7 @@ If Grafana/Loki/Prometheus are reachable, inspect the same window in the `App
 Overview` dashboard and corresponding logs:
 
 ```logql
-{stack="<stack-name>", service="api"} |= "ERROR"
+{stack="<stack-name>", service="<primary-edge-service-name>"} |= "ERROR"
 ```
 
 If the incident follows a GitHub workflow run, use

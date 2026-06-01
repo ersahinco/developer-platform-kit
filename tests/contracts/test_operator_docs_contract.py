@@ -28,8 +28,14 @@ def test_runbooks_keep_runtime_inventory_resolution_in_existing_helper() -> None
     data_export_runbook = _read("docs/runbooks/data-export-job-failure.md")
 
     assert "scripts/ci/resolve_ecs_task_context.py" in data_export_runbook
+    assert (
+        "scripts.platform.workload_metadata support-task-workloads"
+        in data_export_runbook
+    )
     assert "aws ec2 describe-subnets" not in data_export_runbook
     assert "aws ec2 describe-security-groups" not in data_export_runbook
+    assert "--repository data-export-job" not in data_export_runbook
+    assert "${STACK_NAME}-data-export-job" not in data_export_runbook
 
 
 def test_runbooks_do_not_pin_historical_workflow_run_ids() -> None:
@@ -63,7 +69,41 @@ def test_operator_day_2_remains_short_operator_path() -> None:
 
     assert "[Operator Day 2 Commands]" not in text
     assert "make release-evidence-runs" in text
+    assert "SERVICE_NAME=api" not in text
     assert (
         "RELEASE_EVENTS_DIR=/tmp/aws-sdlc-containers-release-evidence/<workflow-run-id>"
         in text
     )
+
+
+def test_runbooks_do_not_hardcode_workload_log_groups() -> None:
+    hardcoded_workload_log_group = re.compile(
+        r'"/ecs/\$\{STACK_NAME\}/'
+        r"(api|event-consumer|data-export-job|backfill-worker|operational-snapshot-job)"
+        r'"'
+    )
+
+    for path in [
+        *sorted((ROOT / "docs" / "runbooks").glob("*.md")),
+        *sorted((ROOT / "docs" / "drills").glob("*.md")),
+    ]:
+        text = path.read_text(encoding="utf-8")
+        assert not hardcoded_workload_log_group.search(text), path
+
+
+def test_runbooks_use_placeholder_service_labels_not_current_workload_literals() -> (
+    None
+):
+    fixed_service_label = re.compile(r'service="(api|event-consumer|data-export-job)"')
+
+    for path in sorted((ROOT / "docs" / "runbooks").glob("*.md")):
+        text = path.read_text(encoding="utf-8")
+        assert not fixed_service_label.search(text), path
+
+
+def test_make_post_deploy_verify_uses_primary_edge_metadata() -> None:
+    text = _read("Makefile")
+
+    assert "PRIMARY_EDGE_HOSTNAME_LABEL" in text
+    assert "https://api.$(ROOT_DOMAIN)" not in text
+    assert "https://$(PRIMARY_EDGE_HOSTNAME_LABEL).$(ROOT_DOMAIN)" in text

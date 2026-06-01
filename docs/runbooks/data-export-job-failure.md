@@ -50,9 +50,18 @@ aws scheduler get-schedule \
 Check recent stopped tasks for the data export family:
 
 ```bash
+DATA_EXPORT_REPOSITORY="$(python3 -m scripts.platform.workload_metadata support-task-workloads | awk -F '\t' '$1 == "data_export_job" { print $2 }')"
+DATA_EXPORT_CONTEXT="$(python3 scripts/ci/resolve_ecs_task_context.py \
+  --stack-name "$STACK_NAME" \
+  --repository "$DATA_EXPORT_REPOSITORY" \
+  --resolve-task-definition \
+  --verify-log-group \
+  --region "$AWS_REGION" \
+  --format json)"
+
 aws ecs list-tasks \
   --cluster "$(terraform -chdir=infra/app output -raw ecs_cluster_name)" \
-  --family "${STACK_NAME}-data-export-job" \
+  --family "$(jq -r '.family' <<< "$DATA_EXPORT_CONTEXT")" \
   --desired-status STOPPED \
   --region "$AWS_REGION"
 ```
@@ -69,7 +78,7 @@ aws ecs describe-tasks \
 Inspect application logs:
 
 ```bash
-aws logs tail "/ecs/${STACK_NAME}/data-export-job" \
+aws logs tail "$(jq -r '.log_group' <<< "$DATA_EXPORT_CONTEXT")" \
   --since 2h \
   --region "$AWS_REGION"
 ```
@@ -80,7 +89,7 @@ When a reachable Loki endpoint contains data export logs, inspect successful
 and failed manifest log records there before changing CloudWatch alarms:
 
 ```logql
-{stack="<stack-name>", service="data-export-job"} | json | event="data_export_succeeded"
+{stack="<stack-name>", service="<data-export-service-name>"} | json | event="data_export_succeeded"
 ```
 
 A future Grafana freshness alert should be based on either that successful
@@ -104,7 +113,7 @@ the current task definition once from a private subnet:
 ```bash
 context_json=$(python3 scripts/ci/resolve_ecs_task_context.py \
   --stack-name "$STACK_NAME" \
-  --repository data-export-job \
+  --repository "$DATA_EXPORT_REPOSITORY" \
   --resolve-task-definition \
   --verify-log-group \
   --region "$AWS_REGION" \

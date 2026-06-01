@@ -58,6 +58,7 @@ TF_APP_STATE_KEY       ?= $(STACK_NAME)/app.tfstate
 TF_PLATFORM_VARS_FILE  := stack.tfvars
 TF_APP_VARS_FILE       := stack.tfvars
 PRIMARY_EDGE_SERVICE   ?= $(shell python3 -m scripts.platform.workload_metadata primary-edge-contract 2>/dev/null | jq -r '.repository')
+PRIMARY_EDGE_HOSTNAME_LABEL ?= $(shell python3 -m scripts.platform.workload_metadata primary-edge-contract 2>/dev/null | jq -r '.hostname_label')
 SERVICE_NAME           ?= $(PRIMARY_EDGE_SERVICE)
 LOOKBACK_MINUTES       ?= 60
 RELEASE_EVENTS_DIR     ?=
@@ -451,7 +452,7 @@ post-deploy-verify: ## Verify deployed app readiness, metrics, modes, and ECS im
 		--secret-id $(PRIMARY_EDGE_TOKEN_SECRET) \
 		--region $(AWS_REGION) \
 		--query SecretString --output text)}" \
-	BASE_URL="$${BASE_URL:-https://api.$(ROOT_DOMAIN)}" \
+	BASE_URL="$${BASE_URL:-https://$(PRIMARY_EDGE_HOSTNAME_LABEL).$(ROOT_DOMAIN)}" \
 	ECS_CLUSTER="$${ECS_CLUSTER:-$(STACK_NAME)}" \
 	ECS_SERVICE="$${ECS_SERVICE:-$(PRIMARY_EDGE_SERVICE)}" \
 	EXPECTED_TASK_FAMILY="$${EXPECTED_TASK_FAMILY:-$(STACK_NAME)}" \

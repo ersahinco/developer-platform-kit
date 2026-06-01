@@ -63,11 +63,13 @@ aws sqs get-queue-attributes \
 Inspect app and consumer logs:
 
 ```bash
+EVENT_CONSUMER_REPOSITORY="$(python3 -m scripts.platform.workload_metadata internal-services | awk -F '\t' '$1 == "event_consumer" { print $2 }')"
+
 aws logs tail "/ecs/${STACK_NAME}/$(terraform -chdir=infra/app output -raw primary_edge_service_name)" \
   --since 30m \
   --region "$AWS_REGION"
 
-aws logs tail "/ecs/${STACK_NAME}/event-consumer" \
+aws logs tail "/ecs/${STACK_NAME}/${EVENT_CONSUMER_REPOSITORY}" \
   --since 30m \
   --region "$AWS_REGION"
 ```
@@ -78,11 +80,11 @@ When Grafana or Loki is reachable, inspect app and consumer logs in the same
 window:
 
 ```logql
-{stack="<stack-name>", service="api"} |= "order_event_publish_failed"
+{stack="<stack-name>", service="<primary-edge-service-name>"} |= "order_event_publish_failed"
 ```
 
 ```logql
-{stack="<stack-name>", service="event-consumer"}
+{stack="<stack-name>", service="<event-consumer-service-name>"}
 ```
 
 Keep the SQS DLQ CloudWatch alarm in the flow because Dapr delegates queue and

@@ -103,10 +103,11 @@ For an AWS incident with the same symptoms, use the same split:
 ```bash
 curl -i "https://$(terraform -chdir=infra/app output -raw primary_edge_fqdn)/health"
 curl -i "https://$(terraform -chdir=infra/app output -raw primary_edge_fqdn)/ready"
-aws logs tail "/ecs/${STACK_NAME}/$(terraform -chdir=infra/app output -raw primary_edge_service_name)" --since 30m --region "$AWS_REGION"
+PRIMARY_EDGE_SERVICE="$(terraform -chdir=infra/app output -raw primary_edge_service_name)"
+aws logs tail "/ecs/${STACK_NAME}/${PRIMARY_EDGE_SERVICE}" --since 30m --region "$AWS_REGION"
 aws ecs describe-services \
   --cluster "$(terraform -chdir=infra/app output -raw ecs_cluster_name)" \
-  --services "$(terraform -chdir=infra/app output -raw primary_edge_service_name)" \
+  --services "$PRIMARY_EDGE_SERVICE" \
   --region "$AWS_REGION"
 aws rds describe-db-instances --region "$AWS_REGION"
 ```

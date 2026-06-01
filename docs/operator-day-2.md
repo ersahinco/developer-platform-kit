@@ -23,7 +23,7 @@ make workflow-dry-run-commands
 make release-evidence-runs
 GH_RUN_ID=<workflow-run-id> make release-evidence-download
 GH_RUN_ID=<workflow-run-id> make operator-payload-download
-SERVICE_NAME=api LOOKBACK_MINUTES=60 make incident-evidence
+LOOKBACK_MINUTES=60 make incident-evidence
 ```
 
 ## Workstation Readiness
@@ -81,7 +81,7 @@ GitHub workflow run.
 make release-evidence-runs
 GH_RUN_ID=<workflow-run-id> make release-evidence-download
 RELEASE_EVENTS_DIR=/tmp/aws-sdlc-containers-release-evidence/<workflow-run-id> \
-SERVICE_NAME=api LOOKBACK_MINUTES=60 make incident-evidence
+LOOKBACK_MINUTES=60 make incident-evidence
 ```
 
 ## Local Data Evidence
