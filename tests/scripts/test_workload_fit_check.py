@@ -1,0 +1,101 @@
+from __future__ import annotations
+
+import json
+import subprocess
+import sys
+from pathlib import Path
+
+from scripts.platform.workload_fit_check import evaluate_candidate
+
+
+ROOT = Path(__file__).resolve().parents[2]
+
+
+def _valid_candidate() -> dict[str, object]:
+    return {
+        "name": "payments_gateway",
+        "kind": "service",
+        "use_cases": ["internal-api", "connector"],
+        "owner": "payments-platform",
+        "runtime": {"supported": ["local-compose"], "admitted": []},
+        "operational": {"class": "internal-service", "exposure": "internal"},
+        "service": {"port": 8080},
+        "image": {
+            "repository": "payments-gateway",
+            "package": "payments-gateway",
+            "command": "python -m payments_gateway.main",
+        },
+        "metrics": {
+            "format": "prometheus",
+            "required_names": ["workload_info", "http_requests_total"],
+        },
+        "traces": {"supported": False},
+        "database": {"semantics": "postgresql", "pooling": "direct"},
+        "config": {
+            "env": ["DATABASE_URL", "DB_HOST", "DB_PORT", "DB_USER", "DB_NAME"],
+            "secrets": ["DB_PASSWORD"],
+        },
+    }
+
+
+def test_workload_fit_check_accepts_stable_center_candidate() -> None:
+    results = evaluate_candidate(_valid_candidate())
+
+    assert {result.status for result in results} == {"ok"}
+
+
+def test_workload_fit_check_rejects_platform_edge_wiring() -> None:
+    candidate = {
+        **_valid_candidate(),
+        "runtime": {"supported": ["local-compose"], "admitted": ["aws-ecs"]},
+        "account_id": "123456789012",
+        "dns": {"fqdn": "payments.internal.example.com"},
+        "iam": {"role_arn": "arn:aws:iam::123456789012:role/payments-task-role"},
+        "ci": {"jenkins": "payments-main"},
+        "observability": {"datadog_index": "payments-prod"},
+        "database": {
+            "semantics": "rds",
+            "pooling": "direct",
+            "host": "payments-db.cluster-abc.eu-central-1.rds.amazonaws.com",
+        },
+        "config": {
+            "env": ["DATABASE_URL", "DD_SERVICE"],
+            "secrets": ["DB_PASSWORD", "SPLUNK_TOKEN"],
+        },
+    }
+
+    results = evaluate_candidate(candidate)
+    failures = {
+        result.area: result.message for result in results if result.status == "fail"
+    }
+
+    assert "runtime_scope" in failures
+    assert "platform_edge_boundary" in failures
+    assert "database_intent" in failures
+    assert "observability_contract" in failures
+    assert "account_id" in failures["platform_edge_boundary"]
+    assert "Datadog/Splunk" in failures["platform_edge_boundary"]
+
+
+def test_workload_fit_check_cli_outputs_json(tmp_path: Path) -> None:
+    candidate_path = tmp_path / "candidate.json"
+    candidate_path.write_text(json.dumps(_valid_candidate()), encoding="utf-8")
+
+    completed = subprocess.run(
+        [
+            sys.executable,
+            "scripts/platform/workload_fit_check.py",
+            "--candidate",
+            str(candidate_path),
+            "--format",
+            "json",
+        ],
+        check=True,
+        capture_output=True,
+        text=True,
+        cwd=ROOT,
+    )
+
+    rows = json.loads(completed.stdout)
+    assert rows[0]["area"] == "stable_center_fields"
+    assert {row["status"] for row in rows} == {"ok"}

@@ -1,0 +1,476 @@
+#!/usr/bin/env python3
+from __future__ import annotations
+
+import argparse
+from dataclasses import asdict
+from dataclasses import dataclass
+import json
+import os
+from pathlib import Path
+import re
+import sys
+from typing import Any
+
+
+KNOWN_RUNTIME_TARGETS = {"local-compose", "aws-ecs"}
+VALID_KINDS = {"service", "job"}
+SERVICE_CLASSES = {"edge-service", "internal-service"}
+JOB_CLASSES = {"operator-job", "scheduled-job"}
+VALID_TRIGGERS = {"manual", "schedule"}
+
+KEBAB_CASE = re.compile(r"^[a-z0-9]+(?:-[a-z0-9]+)*$")
+ENV_NAME = re.compile(r"^[A-Z][A-Z0-9_]*$")
+AWS_ACCOUNT_ID = re.compile(r"\b\d{12}\b")
+AWS_ARN = re.compile(r"\barn:aws[a-z-]*:", re.IGNORECASE)
+AWS_HOST = re.compile(r"\b[a-z0-9.-]+\.amazonaws\.com\b", re.IGNORECASE)
+URL = re.compile(r"\b[a-z][a-z0-9+.-]*://", re.IGNORECASE)
+FQDN = re.compile(
+    r"\b(?!(?:python|uvicorn|gunicorn|pytest|alembic)\b)"
+    r"[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?"
+    r"(?:\.[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?)+\b",
+    re.IGNORECASE,
+)
+
+FORBIDDEN_KEY_PARTS = {
+    "account_id",
+    "aws_account",
+    "azure_devops",
+    "ci",
+    "ci_pipeline",
+    "cluster",
+    "database_host",
+    "database_url",
+    "datadog",
+    "desired_count",
+    "dns",
+    "ecs",
+    "fqdn",
+    "hosted_zone",
+    "iam",
+    "jenkins",
+    "log_group",
+    "observability",
+    "pipeline",
+    "policy_arn",
+    "role_arn",
+    "root_domain",
+    "service_name",
+    "splunk",
+    "subnet",
+    "target_group",
+    "task_definition",
+    "terraform",
+    "workflow",
+}
+
+FORBIDDEN_VALUE_PATTERNS = (
+    ("AWS account id", AWS_ACCOUNT_ID),
+    ("AWS ARN", AWS_ARN),
+    ("AWS endpoint", AWS_HOST),
+    ("URL or connection string", URL),
+    ("FQDN", FQDN),
+)
+
+OBSERVABILITY_BACKEND_NAMES = ("datadog", "splunk")
+OBSERVABILITY_CONFIG_PREFIXES = ("DD_", "DATADOG_", "SPLUNK_")
+
+
+@dataclass(frozen=True)
+class FitResult:
+    area: str
+    status: str
+    message: str
+
+
+def _ok(area: str, message: str) -> FitResult:
+    return FitResult(area=area, status="ok", message=message)
+
+
+def _fail(area: str, message: str) -> FitResult:
+    return FitResult(area=area, status="fail", message=message)
+
+
+def _path_join(path: str, key: str) -> str:
+    return f"{path}.{key}" if path else key
+
+
+def _walk(value: Any, path: str = "") -> list[tuple[str, Any]]:
+    rows = [(path, value)]
+    if isinstance(value, dict):
+        for key, nested in value.items():
+            rows.extend(_walk(nested, _path_join(path, str(key))))
+    elif isinstance(value, list):
+        for index, nested in enumerate(value):
+            rows.extend(_walk(nested, f"{path}[{index}]"))
+    return rows
+
+
+def _get_path(value: dict[str, Any], path: str) -> Any:
+    current: Any = value
+    for part in path.split("."):
+        if not isinstance(current, dict) or part not in current:
+            return None
+        current = current[part]
+    return current
+
+
+def _is_non_empty_string(value: Any) -> bool:
+    return isinstance(value, str) and bool(value.strip())
+
+
+def _is_string_list(value: Any) -> bool:
+    return isinstance(value, list) and all(isinstance(item, str) for item in value)
+
+
+def _stable_center_fields(candidate: dict[str, Any]) -> FitResult:
+    required = [
+        "name",
+        "kind",
+        "owner",
+        "use_cases",
+        "runtime.supported",
+        "runtime.admitted",
+        "operational.class",
+        "image.repository",
+        "image.package",
+        "image.command",
+        "config.env",
+        "config.secrets",
+        "traces.supported",
+    ]
+    missing = [path for path in required if _get_path(candidate, path) is None]
+    if missing:
+        return _fail(
+            "stable_center_fields",
+            "missing stable-center fields: " + ", ".join(missing),
+        )
+
+    failures: list[str] = []
+    for path in ["name", "owner", "image.repository", "image.package", "image.command"]:
+        if not _is_non_empty_string(_get_path(candidate, path)):
+            failures.append(f"{path} must be a non-empty string")
+    if _is_non_empty_string(candidate.get("name")) and not re.fullmatch(
+        r"[a-z0-9_]+", str(candidate["name"])
+    ):
+        failures.append("name must use lowercase snake_case")
+    if _is_non_empty_string(candidate.get("owner")) and not KEBAB_CASE.fullmatch(
+        str(candidate["owner"])
+    ):
+        failures.append("owner must use lowercase kebab-case")
+    if not _is_string_list(_get_path(candidate, "use_cases")):
+        failures.append("use_cases must be a string array")
+    elif not candidate["use_cases"]:
+        failures.append("use_cases must not be empty")
+    elif any(not KEBAB_CASE.fullmatch(value) for value in candidate["use_cases"]):
+        failures.append("use_cases entries must use lowercase kebab-case")
+    for path in ["config.env", "config.secrets"]:
+        values = _get_path(candidate, path)
+        if not _is_string_list(values):
+            failures.append(f"{path} must be a string array")
+        elif any(not ENV_NAME.fullmatch(value) for value in values):
+            failures.append(f"{path} entries must look like environment variable names")
+    if _get_path(candidate, "traces.supported") not in {True, False}:
+        failures.append("traces.supported must be boolean")
+
+    if failures:
+        return _fail("stable_center_fields", "; ".join(failures))
+    return _ok("stable_center_fields", "candidate declares the stable workload shape")
+
+
+def _service_or_job_shape(candidate: dict[str, Any]) -> FitResult:
+    kind = candidate.get("kind")
+    operational = candidate.get("operational", {})
+    operational_class = (
+        operational.get("class") if isinstance(operational, dict) else None
+    )
+    failures: list[str] = []
+
+    if kind not in VALID_KINDS:
+        failures.append("kind must be service or job")
+    elif kind == "service":
+        if operational_class not in SERVICE_CLASSES:
+            failures.append(
+                "service operational.class must be edge-service or internal-service"
+            )
+        port = _get_path(candidate, "service.port")
+        if not isinstance(port, int) or port <= 0:
+            failures.append("service workloads must declare a positive service.port")
+        required_names = _get_path(candidate, "metrics.required_names")
+        if not _is_string_list(required_names) or "workload_info" not in required_names:
+            failures.append(
+                "service workloads must declare metrics.required_names including workload_info"
+            )
+        if operational_class == "edge-service":
+            edge = candidate.get("edge")
+            if not isinstance(edge, dict):
+                failures.append("edge-service workloads must declare edge metadata")
+            elif not all(
+                _is_non_empty_string(edge.get(key))
+                for key in ["hostname_label", "hostname_label_convention", "auth_mode"]
+            ):
+                failures.append(
+                    "edge-service edge metadata must include hostname_label, "
+                    "hostname_label_convention, and auth_mode"
+                )
+    elif kind == "job":
+        if operational_class not in JOB_CLASSES:
+            failures.append(
+                "job operational.class must be operator-job or scheduled-job"
+            )
+        trigger = operational.get("trigger") if isinstance(operational, dict) else None
+        if trigger not in VALID_TRIGGERS:
+            failures.append("job workloads must declare operational.trigger")
+        idempotency = _get_path(candidate, "job.idempotency")
+        if not _is_non_empty_string(idempotency):
+            failures.append("job workloads must declare job.idempotency")
+
+    if failures:
+        return _fail("workload_shape", "; ".join(failures))
+    return _ok("workload_shape", "kind and operational class match the contract")
+
+
+def _runtime_scope(candidate: dict[str, Any]) -> FitResult:
+    supported = _get_path(candidate, "runtime.supported")
+    admitted = _get_path(candidate, "runtime.admitted")
+    failures: list[str] = []
+
+    if not _is_string_list(supported) or not supported:
+        failures.append("runtime.supported must be a non-empty string array")
+        supported_set: set[str] = set()
+    else:
+        supported_set = set(supported)
+        unknown_supported = sorted(supported_set - KNOWN_RUNTIME_TARGETS)
+        if unknown_supported:
+            failures.append(
+                "runtime.supported contains unknown targets: "
+                + ", ".join(unknown_supported)
+            )
+
+    if not _is_string_list(admitted):
+        failures.append("runtime.admitted must be a string array")
+        admitted_set: set[str] = set()
+    else:
+        admitted_set = set(admitted)
+        unknown_admitted = sorted(admitted_set - KNOWN_RUNTIME_TARGETS)
+        if unknown_admitted:
+            failures.append(
+                "runtime.admitted contains unknown targets: "
+                + ", ".join(unknown_admitted)
+            )
+        missing_support = sorted(admitted_set - supported_set)
+        if missing_support:
+            failures.append(
+                "runtime.admitted must be a subset of runtime.supported: "
+                + ", ".join(missing_support)
+            )
+
+    if failures:
+        return _fail("runtime_scope", "; ".join(failures))
+    return _ok("runtime_scope", "runtime support and admission use known targets")
+
+
+def _key_leaks(candidate: dict[str, Any]) -> list[str]:
+    leaks: list[str] = []
+    for path, value in _walk(candidate):
+        if not isinstance(value, dict):
+            continue
+        for key in value:
+            normalized = str(key).lower().replace("-", "_")
+            if _forbidden_key(normalized):
+                leaks.append(f"{_path_join(path, str(key))} is platform-edge wiring")
+    return leaks
+
+
+def _forbidden_key(normalized: str) -> bool:
+    return any(
+        normalized == part
+        or normalized.startswith(f"{part}_")
+        or normalized.endswith(f"_{part}")
+        for part in FORBIDDEN_KEY_PARTS
+    )
+
+
+def _value_leaks(candidate: dict[str, Any]) -> list[str]:
+    leaks: list[str] = []
+    for path, value in _walk(candidate):
+        if not isinstance(value, str):
+            continue
+        lower_value = value.lower()
+        if path.endswith("image.command"):
+            patterns = [
+                (label, pattern)
+                for label, pattern in FORBIDDEN_VALUE_PATTERNS
+                if label not in {"URL or connection string", "FQDN"}
+            ]
+        else:
+            patterns = FORBIDDEN_VALUE_PATTERNS
+        for label, pattern in patterns:
+            if pattern.search(value):
+                leaks.append(f"{path} contains {label}")
+                break
+        if any(name in lower_value for name in OBSERVABILITY_BACKEND_NAMES):
+            leaks.append(f"{path} mentions Datadog/Splunk backend wiring")
+        if "jenkins" in lower_value or "azure devops" in lower_value:
+            leaks.append(f"{path} mentions CI system wiring")
+    return leaks
+
+
+def _config_backend_leaks(candidate: dict[str, Any]) -> list[str]:
+    leaks: list[str] = []
+    for path in ["config.env", "config.secrets"]:
+        values = _get_path(candidate, path)
+        if not isinstance(values, list):
+            continue
+        for value in values:
+            if not isinstance(value, str):
+                continue
+            if value.startswith(OBSERVABILITY_CONFIG_PREFIXES):
+                leaks.append(f"{path} contains backend-specific name {value}")
+    return leaks
+
+
+def _platform_edge_boundary(candidate: dict[str, Any]) -> FitResult:
+    leaks = (
+        _key_leaks(candidate)
+        + _value_leaks(candidate)
+        + _config_backend_leaks(candidate)
+    )
+    if leaks:
+        return _fail(
+            "platform_edge_boundary",
+            "move platform-edge details out of the workload contract: "
+            + "; ".join(sorted(dict.fromkeys(leaks))),
+        )
+    return _ok(
+        "platform_edge_boundary",
+        "account, DNS, IAM, CI, logs, and backend routing stay outside the contract",
+    )
+
+
+def _database_intent(candidate: dict[str, Any]) -> FitResult:
+    database = candidate.get("database")
+    if database is None:
+        return _ok("database_intent", "candidate does not declare database capability")
+    if not isinstance(database, dict):
+        return _fail("database_intent", "database must be an object when declared")
+
+    allowed_keys = {"semantics", "pooling"}
+    extra_keys = sorted(set(database) - allowed_keys)
+    failures: list[str] = []
+    if extra_keys:
+        failures.append(
+            "database must only declare portable semantics and pooling; extra keys: "
+            + ", ".join(extra_keys)
+        )
+    if database.get("semantics") != "postgresql":
+        failures.append("database.semantics must be postgresql")
+    if database.get("pooling") not in {"direct", "transaction_pool"}:
+        failures.append("database.pooling must be direct or transaction_pool")
+
+    if failures:
+        return _fail("database_intent", "; ".join(failures))
+    return _ok(
+        "database_intent",
+        "database declaration is PostgreSQL intent, not managed database wiring",
+    )
+
+
+def _observability_contract(candidate: dict[str, Any]) -> FitResult:
+    failures: list[str] = []
+    if candidate.get("kind") == "service":
+        required_names = _get_path(candidate, "metrics.required_names")
+        if not _is_string_list(required_names) or "workload_info" not in required_names:
+            failures.append("services must expose Prometheus workload_info metrics")
+        if _get_path(candidate, "metrics.format") != "prometheus":
+            failures.append("services must declare metrics.format as prometheus")
+    if candidate.get("kind") == "job":
+        idempotency = _get_path(candidate, "job.idempotency")
+        if not _is_non_empty_string(idempotency):
+            failures.append("jobs must declare idempotency for terminal event evidence")
+    config_names = [
+        value
+        for path in ["config.env", "config.secrets"]
+        for value in (_get_path(candidate, path) or [])
+        if isinstance(value, str)
+    ]
+    backend_names = [
+        value
+        for value in config_names
+        if value.startswith(OBSERVABILITY_CONFIG_PREFIXES)
+    ]
+    if backend_names:
+        failures.append(
+            "Datadog/Splunk config belongs at the platform edge: "
+            + ", ".join(backend_names)
+        )
+
+    if failures:
+        return _fail("observability_contract", "; ".join(failures))
+    return _ok(
+        "observability_contract",
+        "telemetry can route to Datadog/Splunk if workload fields are preserved",
+    )
+
+
+def evaluate_candidate(candidate: dict[str, Any]) -> list[FitResult]:
+    return [
+        _stable_center_fields(candidate),
+        _service_or_job_shape(candidate),
+        _runtime_scope(candidate),
+        _platform_edge_boundary(candidate),
+        _database_intent(candidate),
+        _observability_contract(candidate),
+    ]
+
+
+def _load_candidate(path: Path) -> dict[str, Any]:
+    try:
+        document = json.loads(path.read_text(encoding="utf-8"))
+    except FileNotFoundError as exc:
+        raise SystemExit(f"candidate file not found: {path}") from exc
+    except json.JSONDecodeError as exc:
+        raise SystemExit(f"candidate file is not valid JSON: {exc}") from exc
+    if not isinstance(document, dict):
+        raise SystemExit("candidate JSON must be one workload object")
+    return document
+
+
+def _print_table(results: list[FitResult]) -> None:
+    print("\t".join(["area", "status", "message"]))
+    for result in results:
+        print("\t".join([result.area, result.status, result.message]))
+
+
+def main(argv: list[str] | None = None) -> int:
+    parser = argparse.ArgumentParser(
+        description=(
+            "Evaluate a draft externally operated workload against the workload "
+            "contract boundary before adding it to platform/workloads.json."
+        )
+    )
+    parser.add_argument(
+        "--candidate",
+        default=os.environ.get("WORKLOAD_CANDIDATE"),
+        help="Path to a draft workload JSON object. Defaults to WORKLOAD_CANDIDATE.",
+    )
+    parser.add_argument("--format", choices=["table", "json"], default="table")
+    args = parser.parse_args(argv)
+
+    if not args.candidate:
+        print(
+            "set WORKLOAD_CANDIDATE=<path> or pass --candidate <path>",
+            file=sys.stderr,
+        )
+        return 2
+
+    candidate = _load_candidate(Path(args.candidate))
+    results = evaluate_candidate(candidate)
+    if args.format == "json":
+        print(json.dumps([asdict(result) for result in results], sort_keys=True))
+    else:
+        _print_table(results)
+    return 1 if any(result.status == "fail" for result in results) else 0
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())

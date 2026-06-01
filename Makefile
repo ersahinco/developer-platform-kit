@@ -19,6 +19,7 @@
 #   make workload-readiness  — show paved-road coverage for each workload
 #   make workload-readiness-check
 #                             — fail on missing paved-road workload coverage
+#   make workload-fit-check  — evaluate a draft externally operated workload
 #   make platform-toolkit-validate-cloud
 #                             — run safe cloud readiness checks without mutating AWS
 #   make platform-doctor      — check human workstation readiness
@@ -525,6 +526,11 @@ workload-readiness: ## Print workload paved-road readiness from contract, workfl
 .PHONY: workload-readiness-check
 workload-readiness-check: ## Fail when declared workloads lack paved-road readiness
 	python3 scripts/platform/workload_readiness.py --check
+
+.PHONY: workload-fit-check
+workload-fit-check: ## Evaluate a draft externally operated workload before admission
+	@[ -n "$(WORKLOAD_CANDIDATE)" ] || (echo "Set WORKLOAD_CANDIDATE=/path/to/workload.json" >&2; exit 1)
+	python3 scripts/platform/workload_fit_check.py --candidate "$(WORKLOAD_CANDIDATE)"
 
 .PHONY: capability-implementation-matrix
 capability-implementation-matrix: ## Print the current runtime capability-to-implementation matrix

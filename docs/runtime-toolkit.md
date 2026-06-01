@@ -70,6 +70,79 @@ A workload can still be real and live under `apps/` before it is admitted to a
 cloud runtime. Local support through `local-compose` is a valid first runtime
 target, not a reason to demote the host into `examples/`.
 
+## Foreign Workload Evaluation
+
+Use this path when an existing internal workload already runs through
+team-owned AWS account wiring, Terraform, Jenkins or Azure DevOps, Datadog or
+Splunk, nonstandard DNS, an externally managed PostgreSQL database, and its own
+runbooks. The useful test is whether the workload can fit the delivery toolkit
+without forcing the stable center to absorb platform-edge details.
+
+Draft one workload JSON object outside the repo, then run:
+
+```bash
+WORKLOAD_CANDIDATE=/tmp/payments-gateway.json make workload-fit-check
+```
+
+Keep only workload identity and intent in the candidate:
+
+```json
+{
+  "name": "payments_gateway",
+  "kind": "service",
+  "use_cases": ["internal-api", "connector"],
+  "owner": "payments-platform",
+  "runtime": {
+    "supported": ["local-compose"],
+    "admitted": []
+  },
+  "operational": {
+    "class": "internal-service",
+    "exposure": "internal"
+  },
+  "service": {
+    "port": 8080
+  },
+  "image": {
+    "repository": "payments-gateway",
+    "package": "payments-gateway",
+    "command": "python -m payments_gateway.main"
+  },
+  "metrics": {
+    "format": "prometheus",
+    "required_names": ["workload_info"]
+  },
+  "traces": {
+    "supported": false
+  },
+  "database": {
+    "semantics": "postgresql",
+    "pooling": "direct"
+  },
+  "config": {
+    "env": ["DATABASE_URL", "DB_HOST", "DB_PORT", "DB_USER", "DB_NAME"],
+    "secrets": ["DB_PASSWORD"]
+  }
+}
+```
+
+Account IDs, DNS names, externally managed database endpoints, IAM roles,
+Jenkins or Azure DevOps pipelines, Datadog or Splunk routing, log indexes,
+Terraform resources, incident practices, and runbook links stay at the
+platform edge. Release evidence, operator payloads, and incident evidence still
+correlate through workload id, run id, image tag, timestamp, status, and
+runtime identifiers.
+
+After a candidate fits, use the normal discovery and validation path:
+
+```bash
+make platform-doctor
+make workload-readiness
+make workload-readiness-check
+make platform-toolkit-validate-local
+make platform-toolkit-validate-cloud
+```
+
 ## AWS ECS Target
 
 The current `aws-ecs` target is implemented through `infra/`,

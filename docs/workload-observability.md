@@ -78,6 +78,21 @@ make operational-snapshot-cloud
 GH_RUN_ID=<workflow-run-id> make operator-payload-download
 ```
 
+## External Backends
+
+Datadog and Splunk can satisfy workload observability without app code changes
+when the platform edge preserves the workload contract:
+
+- Prometheus-compatible metrics include `workload_info` with stable workload
+  identity.
+- Structured logs preserve `workload`, `event`, `status`, `timestamp`, and
+  request or run correlation fields.
+- Release evidence, operator payloads, and incident evidence preserve workload
+  id, run id, image tag, timestamp, status, and runtime identifiers.
+
+Backend-specific collectors, indexes, sources, account routing, and API tokens
+stay outside `platform/workloads.json`.
+
 ## Checks
 
 Run the contract and local verification path:
