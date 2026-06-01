@@ -182,7 +182,9 @@ Add narrower tests when possible:
 
 ## Paved Road Commands
 
-Run these before asking for AWS admission:
+Run these before asking for AWS admission, then use
+[Operator Day 2 Commands](operator-day-2.md) for the full operator path from
+doctor checks through evidence download:
 
 ```bash
 make workload-readiness
@@ -205,9 +207,6 @@ For safe cloud readiness:
 
 ```bash
 make platform-toolkit-validate-cloud
-make release-evidence-runs
-GH_RUN_ID=<workflow-run-id> make release-evidence-download
-GH_RUN_ID=<workflow-run-id> make operator-payload-download
 ```
 
 Use the report first, then the check. If `make workload-readiness-check` says a

@@ -128,6 +128,9 @@ Use [Data](data.md) for schema and storage flow and
 
 ## Evidence Commands
 
+Use [Operator Day 2 Commands](operator-day-2.md) for the full operator path.
+The local evidence commands are:
+
 ```bash
 make incident-evidence
 LOKI_URL=http://127.0.0.1:3100 make incident-evidence

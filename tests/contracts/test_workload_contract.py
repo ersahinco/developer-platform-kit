@@ -69,6 +69,48 @@ def _declared_config_names(workload: dict[str, Any]) -> set[str]:
     return set(workload["config"]["env"]) | set(workload["config"]["secrets"])
 
 
+WORKLOAD_CHOREOGRAPHY_KEYS = {
+    "aws",
+    "ecs",
+    "terraform",
+    "workflow",
+    "cluster",
+    "subnet",
+    "security_group",
+    "task_definition",
+    "service_name",
+    "desired_count",
+    "cpu",
+    "memory",
+    "iam",
+    "role_arn",
+    "policy_arn",
+    "bucket",
+    "queue",
+    "topic_arn",
+    "load_balancer",
+    "target_group",
+    "schedule_expression",
+    "cron",
+}
+
+
+def _walk_keys(value: Any) -> set[str]:
+    if isinstance(value, dict):
+        return set(value) | {
+            nested_key
+            for nested_value in value.values()
+            for nested_key in _walk_keys(nested_value)
+        }
+    if isinstance(value, list):
+        return {
+            nested_key
+            for nested_value in value
+            for nested_key in _walk_keys(nested_value)
+        }
+    return set()
+
+
 def test_workload_registry_has_required_shape() -> None:
     contract = load_json("platform/workloads.json")
     conformance = _runtime_conformance()
@@ -87,6 +129,14 @@ def test_workload_registry_has_required_shape() -> None:
             assert "startup_timeout_seconds" in workload_conformance
         else:
             assert "timeout_seconds" in workload_conformance
+
+
+def test_workload_contract_does_not_encode_deployment_choreography() -> None:
+    contract = load_json("platform/workloads.json")
+
+    for workload in contract["workloads"]:
+        forbidden_keys = _walk_keys(workload) & WORKLOAD_CHOREOGRAPHY_KEYS
+        assert forbidden_keys == set()
 
 
 def test_compose_build_args_and_ports_align_with_workload_spec() -> None:

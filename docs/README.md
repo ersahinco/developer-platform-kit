@@ -23,14 +23,30 @@ Canonical doc map. Find the owner before adding a new page.
 | Task | Read |
 |---|---|
 | Validate the toolkit quickly | [First 30 Minutes](first-30-minutes.md) |
+| Review a platform-facing change | [Architecture](architecture.md), [Platform Contract](platform-contract.md), [Operator Day 2 Commands](operator-day-2.md) |
 | Learn the vocabulary | [Ubiquitous Language](ubiquitous-language.md) |
 | Understand the monorepo model | [Architecture](architecture.md), [ADR 0001](adr/0001-aws-first-platform-monorepo-seed.md), [ADR 0002](adr/0002-stable-center-and-pluggable-runtime-targets.md) |
 | Understand the platform itself | [Platform Contract](platform-contract.md), [Platform Capabilities](platform-capabilities.md) |
 | Add a workload | [Adding Workloads](adding-workloads.md), `make workload-readiness`, `make workload-readiness-check`, [Platform Contract](platform-contract.md#workload-checklist) |
 | Work locally | [Local Development](local-development.md), `make platform-doctor` |
-| Deploy or operate AWS | [Operator Day 2 Commands](operator-day-2.md), [Deployment](deployment.md), `make platform-doctor-cloud`, [Infrastructure](../infra/README.md), [Runbooks](runbooks/README.md) |
+| Deploy or operate AWS | [Operator Day 2 Commands](operator-day-2.md), [Deployment](deployment.md), [Infrastructure](../infra/README.md), [Runbooks](runbooks/README.md) |
 | Add or evaluate another runtime | [Runtime Toolkit](runtime-toolkit.md) |
 | Work on telemetry or release evidence | [Workload Observability](workload-observability.md), [Observability](observability.md) |
+
+## Critical Review
+
+For platform-facing changes, use a short multi-lens review before adding new
+machinery:
+
+1. Architecture: does the change preserve the workload contract, platform
+   catalog, and runtime-target boundary?
+2. Data and evidence: can release evidence, operator payloads, and incident
+   evidence still be correlated by workload, run id, image tag, and timestamp?
+3. Security: are trust boundaries, secrets, and release controls explicit?
+4. Operations: does the change fit the path in
+   [Operator Day 2 Commands](operator-day-2.md)?
+5. Pragmatism: can a smaller doc, test, or command clarification solve the same
+   problem without adding a new layer?
 
 ## Rules
 

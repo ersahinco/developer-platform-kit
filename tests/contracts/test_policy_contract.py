@@ -119,6 +119,24 @@ def test_workload_contract_policy_rejects_workload_patterns(
     assert "must not declare patterns" in (completed.stderr + completed.stdout)
 
 
+def test_workload_contract_policy_rejects_deployment_choreography_fields(
+    tmp_path: Path,
+) -> None:
+    workload_contract = json.loads((ROOT / "platform" / "workloads.json").read_text())
+    invalid = dict(workload_contract)
+    invalid["workloads"] = [dict(workload_contract["workloads"][0])]
+    invalid["workloads"][0]["ecs"] = {"desired_count": 2}
+    fixture = tmp_path / "workloads.json"
+    fixture.write_text(json.dumps(invalid), encoding="utf-8")
+
+    completed = _run_conftest(fixture, cwd=tmp_path)
+
+    assert completed.returncode != 0
+    assert "must not encode deployment choreography key" in (
+        completed.stderr + completed.stdout
+    )
+
+
 def test_runtime_conformance_policy_rejects_workload_shape_fields(
     tmp_path: Path,
 ) -> None:

@@ -123,7 +123,8 @@ Rule: do not admit a workload to AWS just because it exists under `apps/`.
 
 ## Review Loop
 
-Use the same loop for deploys and applies:
+Use [Operator Day 2 Commands](operator-day-2.md) as the short command sheet.
+The same evidence loop applies to deploys and applies:
 
 ```bash
 make release-evidence-runs
@@ -227,7 +228,9 @@ ad hoc console review.
 
 ## Safe Cloud Readiness
 
-Before dispatching cloud-changing workflows, run the local dry-readiness gate:
+Before dispatching cloud-changing workflows, start with
+[Operator Day 2 Commands](operator-day-2.md), then run the local
+dry-readiness gate:
 
 ```bash
 make platform-doctor-cloud

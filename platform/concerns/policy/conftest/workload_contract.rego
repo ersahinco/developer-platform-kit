@@ -328,8 +328,48 @@ deny contains msg if {
   )
 }
 
+deny contains msg if {
+  data.conftest.file.name == "workloads.json"
+  some workload in input.workloads
+  forbidden := workload_choreography_key[_]
+  walk_contains_key(workload, forbidden)
+  msg := sprintf(
+    "workload %q must not encode deployment choreography key %q",
+    [workload.name, forbidden],
+  )
+}
+
+workload_choreography_key contains "aws"
+workload_choreography_key contains "ecs"
+workload_choreography_key contains "terraform"
+workload_choreography_key contains "workflow"
+workload_choreography_key contains "cluster"
+workload_choreography_key contains "subnet"
+workload_choreography_key contains "security_group"
+workload_choreography_key contains "task_definition"
+workload_choreography_key contains "service_name"
+workload_choreography_key contains "desired_count"
+workload_choreography_key contains "cpu"
+workload_choreography_key contains "memory"
+workload_choreography_key contains "iam"
+workload_choreography_key contains "role_arn"
+workload_choreography_key contains "policy_arn"
+workload_choreography_key contains "bucket"
+workload_choreography_key contains "queue"
+workload_choreography_key contains "topic_arn"
+workload_choreography_key contains "load_balancer"
+workload_choreography_key contains "target_group"
+workload_choreography_key contains "schedule_expression"
+workload_choreography_key contains "cron"
+
 walk_contains_string(value, needle) if {
   some _, item in walk(value)
   is_string(item)
   contains(lower(item), lower(needle))
+}
+
+walk_contains_key(value, needle) if {
+  some _, item in walk(value)
+  is_object(item)
+  _ = item[needle]
 }
