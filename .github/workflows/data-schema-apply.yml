@@ -79,6 +79,7 @@ jobs:
       id-token: write
     outputs:
       task_definition: ${{ steps.register-liquibase.outputs.task_def_arn }}
+      task_arn: ${{ steps.run-liquibase.outputs.task_arn }}
       read_mode: ${{ steps.current.outputs.read_mode }}
       write_mode: ${{ steps.current.outputs.write_mode }}
 
@@ -236,6 +237,7 @@ jobs:
 
       - name: Run Liquibase
         if: ${{ !inputs.dry_run }}
+        id: run-liquibase
         env:
           ECS_RUN_TASK_WAIT_FOR_STOPPED: "true"
           ECS_RUN_TASK_ASSERT_SUCCESS: "true"
@@ -247,6 +249,7 @@ jobs:
             "${{ steps.net.outputs.subnet_id }}" \
             "${{ steps.net.outputs.sg_id }}")
           echo "Liquibase task: $TASK_ARN"
+          echo "task_arn=${TASK_ARN}" >> "$GITHUB_OUTPUT"
           {
             echo "### Data schema apply"
             echo ""
@@ -307,6 +310,7 @@ jobs:
             --workload-id liquibase \
             --image-tag "${{ env.IMAGE_TAG }}" \
             --task-definition "${{ needs.apply_schema.outputs.task_definition }}" \
+            --deployment-id "${{ needs.apply_schema.outputs.task_arn }}" \
             --read-mode "${{ needs.apply_schema.outputs.read_mode }}" \
             --write-mode "${{ needs.apply_schema.outputs.write_mode }}" \
             --rollback-category schema_phase \

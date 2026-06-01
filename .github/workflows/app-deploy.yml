@@ -61,6 +61,7 @@ jobs:
       id-token: write
     outputs:
       primary_service: ${{ steps.primary-service.outputs.service }}
+      primary_workload: ${{ steps.primary-service.outputs.workload_name }}
       task_definition: ${{ steps.deploy-app.outputs.task_def_arn || '' }}
       rollout_seconds: ${{ steps.deploy-app.outputs.rollout_seconds || '' }}
       verify_seconds: ${{ steps.verify-app.outputs.verify_seconds || steps.verify-current.outputs.verify_seconds }}
@@ -272,6 +273,7 @@ jobs:
             --status "${status}" \
             --summary "${summary}" \
             --service-name "${{ needs.deploy.outputs.primary_service }}" \
+            --workload-id "${{ needs.deploy.outputs.primary_workload }}" \
             --image-tag "${{ env.IMAGE_TAG }}" \
             --task-definition "${{ needs.deploy.outputs.task_definition }}" \
             --rollout-seconds "${{ needs.deploy.outputs.rollout_seconds }}" \

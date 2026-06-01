@@ -85,16 +85,10 @@ Overview` dashboard and corresponding logs:
 {stack="<stack-name>", service="api"} |= "ERROR"
 ```
 
-If you have downloaded recent `release-evidence-*` artifacts from GitHub
-Actions, build an incident bundle first so deploy/apply/build evidence and
-current runtime context sit in one place:
-
-```bash
-make release-evidence-runs
-GH_RUN_ID=<workflow-run-id> make release-evidence-download
-RELEASE_EVENTS_DIR=/tmp/aws-sdlc-containers-release-evidence/<workflow-run-id> \
-make incident-evidence
-```
+If the incident follows a GitHub workflow run, use
+[Operator Day 2 Commands](../operator-day-2.md#incident-evidence) to download
+the matching `release-evidence-*` artifacts and build an incident bundle before
+branching into deeper console checks.
 
 Read `/tmp/aws-sdlc-containers-incident-evidence/incident-evidence.md` before
 branching into deeper console checks.

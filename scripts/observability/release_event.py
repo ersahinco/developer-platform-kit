@@ -44,6 +44,12 @@ REQUIRED_EVENT_FIELDS = [
 ]
 
 
+def _task_arn_from_deployment_id(deployment_id: str | None) -> str | None:
+    if deployment_id and ":task/" in deployment_id:
+        return deployment_id
+    return None
+
+
 def _clean_optional(value: str | None) -> str | None:
     if value is None or value == "":
         return None
@@ -237,6 +243,7 @@ def build_event(
             "image_digest": image_digest or env.get("IMAGE_DIGEST"),
             "image_tag": image_tag,
             "task_definition": task_definition,
+            "task_arn": _task_arn_from_deployment_id(resolved_deployment_id),
             "github_run_id": env.get("GITHUB_RUN_ID"),
         },
     }

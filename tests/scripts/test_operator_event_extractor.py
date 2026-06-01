@@ -7,6 +7,7 @@ from pathlib import Path
 
 import pytest
 
+from scripts.ci.extract_operator_event import enrich_operator_event
 from scripts.ci.extract_operator_event import extract_event
 from scripts.ci.extract_operator_event import render_summary
 
@@ -128,6 +129,28 @@ def test_operator_event_extractor_cli_outputs_json(tmp_path: Path) -> None:
     )
 
     assert json.loads(completed.stdout)["run_id"] == "github-1"
+
+
+def test_operator_payload_preserves_required_correlation_keys() -> None:
+    enriched = enrich_operator_event(
+        {
+            "workload": "operational_snapshot_job",
+            "event": "operational_snapshot_succeeded",
+            "run_id": "github-123",
+            "status": "succeeded",
+            "timestamp": "2026-06-01T10:00:00+00:00",
+        },
+        evidence_path="/tmp/operator-evidence/operational-snapshot/operator-event.json",
+    )
+
+    assert enriched["workload"] == "operational_snapshot_job"
+    assert enriched["run_id"] == "github-123"
+    assert enriched["status"] == "succeeded"
+    assert enriched["timestamp"] == "2026-06-01T10:00:00+00:00"
+    assert (
+        enriched["evidence_path"]
+        == "/tmp/operator-evidence/operational-snapshot/operator-event.json"
+    )
 
 
 def test_operator_event_extractor_accepts_multiple_terminal_events() -> None:

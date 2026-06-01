@@ -74,10 +74,14 @@ INTEGRATION_CHECK_TARGETS=api=https://api.<root-domain>/health make integration-
 
 ## Incident Evidence
 
+Download the matching release evidence first when the incident follows a
+GitHub workflow run.
+
 ```bash
-SERVICE_NAME=api LOOKBACK_MINUTES=60 make incident-evidence
 make release-evidence-runs
 GH_RUN_ID=<workflow-run-id> make release-evidence-download
+RELEASE_EVENTS_DIR=/tmp/aws-sdlc-containers-release-evidence/<workflow-run-id> \
+SERVICE_NAME=api LOOKBACK_MINUTES=60 make incident-evidence
 ```
 
 ## Local Data Evidence

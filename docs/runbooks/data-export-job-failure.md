@@ -98,20 +98,17 @@ alarm remain authoritative.
 
 ## Recovery
 
-After fixing the underlying issue, run the current task definition once from a
-private subnet:
+After fixing the underlying issue, resolve the current runtime context and run
+the current task definition once from a private subnet:
 
 ```bash
-subnet_id=$(aws ec2 describe-subnets \
-  --filters "Name=tag:Name,Values=${STACK_NAME}-private-*" \
-  --query 'Subnets[0].SubnetId' \
-  --output text \
-  --region "$AWS_REGION")
-sg_id=$(aws ec2 describe-security-groups \
-  --filters "Name=group-name,Values=${STACK_NAME}-primary-edge-*" \
-  --query 'SecurityGroups[0].GroupId' \
-  --output text \
-  --region "$AWS_REGION")
+context_json=$(python3 scripts/ci/resolve_ecs_task_context.py \
+  --stack-name "$STACK_NAME" \
+  --repository data-export-job \
+  --resolve-task-definition \
+  --verify-log-group \
+  --region "$AWS_REGION" \
+  --format json)
 
 export ECS_RUN_TASK_WAIT_FOR_STOPPED=true
 export ECS_RUN_TASK_ASSERT_SUCCESS=true
@@ -119,9 +116,9 @@ export ECS_RUN_TASK_LABEL="Data export job"
 
 TASK_ARN=$(scripts/ci/ci_run_ecs_task.sh \
   "$(terraform -chdir=infra/app output -raw ecs_cluster_name)" \
-  "${STACK_NAME}-data-export-job" \
-  "$subnet_id" \
-  "$sg_id")
+  "$(jq -r '.task_definition' <<< "$context_json")" \
+  "$(jq -r '.subnet_id' <<< "$context_json")" \
+  "$(jq -r '.sg_id' <<< "$context_json")")
 ```
 
 Confirm that the expected S3 objects exist:

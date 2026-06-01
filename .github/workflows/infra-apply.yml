@@ -238,6 +238,7 @@ jobs:
             --status "${{ needs.apply.result }}" \
             --summary "Infra apply workflow completed with apply=${{ needs.apply.result }}" \
             --service-name infra \
+            --workload-id infra \
             --plan-run-id "${{ env.PLAN_RUN_ID }}" \
             --include-alarms \
             --push-loki \

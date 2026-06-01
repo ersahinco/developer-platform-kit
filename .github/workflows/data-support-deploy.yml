@@ -66,6 +66,7 @@ jobs:
       id-token: write
     outputs:
       promoted_workloads: ${{ steps.register-support.outputs.promoted_workloads }}
+      promoted_task_definitions: ${{ steps.register-support.outputs.promoted_task_definitions }}
 
     steps:
       - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
@@ -119,6 +120,7 @@ jobs:
             exit 1
           fi
           promoted_workloads=()
+          promoted_task_definitions=()
           while IFS=$'\t' read -r workload_name container; do
             [[ -z "$workload_name" || -z "$container" ]] && continue
             if [[ "${{ inputs.target_workload }}" != "all" && "${{ inputs.target_workload }}" != "${workload_name}" ]]; then
@@ -143,6 +145,7 @@ jobs:
                 exit 1
               fi
               echo "Promoted ${workload_name} to ${task_def_arn}"
+              promoted_task_definitions+=("${task_def_arn}")
             else
               echo "Rendered preview task definition for ${workload_name} at ${task_definition}"
             fi
@@ -153,6 +156,7 @@ jobs:
             exit 1
           fi
           echo "promoted_workloads=$(IFS=,; echo "${promoted_workloads[*]}")" >> "$GITHUB_OUTPUT"
+          echo "promoted_task_definitions=$(IFS=,; echo "${promoted_task_definitions[*]}")" >> "$GITHUB_OUTPUT"
           summary_prefix=""
           if [[ "$DRY_RUN" == "true" ]]; then
             summary_prefix="dry-run "
@@ -203,6 +207,7 @@ jobs:
             --service-name data-support \
             --workload-id support-tasks \
             --image-tag "${{ env.IMAGE_TAG }}" \
+            --deployment-id "${{ needs.deploy_support.outputs.promoted_task_definitions }}" \
             --include-alarms \
             --push-loki \
             --loki-push-best-effort \

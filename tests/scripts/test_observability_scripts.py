@@ -519,6 +519,30 @@ def test_release_event_writes_markdown_json_and_jsonl(tmp_path: Path) -> None:
     assert event["alarm_snapshot"]["alarms"][0]["state"] == "OK"
 
 
+def test_release_event_exposes_required_correlation_keys() -> None:
+    task_arn = "arn:aws:ecs:eu-central-1:123456789012:task/cluster/task-id"
+    event = _release_event(deployment_id=task_arn)
+
+    assert event["timestamp"]
+    assert event["status"] == "success"
+    assert event["workload_id"] == "api"
+    assert event["revision"]["image_tag"] == TEST_IMAGE_TAG
+    assert event["revision"]["task_definition"] == TEST_TASK_DEFINITION
+    assert event["correlation"] == {
+        "stack": "aws-sdlc-containers",
+        "environment": "aws",
+        "service": "api",
+        "runtime_id": "aws-ecs",
+        "workload_id": "api",
+        "deployment_id": task_arn,
+        "image_digest": None,
+        "image_tag": TEST_IMAGE_TAG,
+        "task_definition": TEST_TASK_DEFINITION,
+        "task_arn": task_arn,
+        "github_run_id": TEST_RUN_ID,
+    }
+
+
 def test_incident_evidence_bundle_surfaces_release_metadata(
     monkeypatch, tmp_path: Path
 ) -> None:
@@ -564,6 +588,66 @@ def test_incident_evidence_bundle_surfaces_release_metadata(
     assert bundle["release_events"][0]["workload_id"] == "api"
     markdown = markdown_path.read_text(encoding="utf-8")
     assert "workload_id: `api`" in markdown
+
+
+def test_incident_evidence_bundle_preserves_release_correlation_keys(
+    monkeypatch, tmp_path: Path
+) -> None:
+    now = datetime.now(UTC)
+    task_arn = "arn:aws:ecs:eu-central-1:123456789012:task/cluster/task-id"
+    release_events_dir = tmp_path / "release-events"
+    release_events_dir.mkdir()
+    deploy_event = _release_event(
+        event_type="app_deploy",
+        summary="App deploy completed",
+        deployment_id=task_arn,
+        now=now,
+        env={
+            "GITHUB_RUN_ID": TEST_RUN_ID,
+            "GITHUB_WORKFLOW": "App Deploy",
+        },
+    )
+    (release_events_dir / "release-event.json").write_text(
+        json.dumps(deploy_event), encoding="utf-8"
+    )
+
+    def fake_aws_json(args: list[str], region: str) -> dict[str, Any]:
+        if args[:2] == ["ecs", "describe-services"]:
+            return {"services": [{"deployments": []}]}
+        if args[:2] == ["cloudwatch", "describe-alarms"]:
+            return {"MetricAlarms": []}
+        raise AssertionError(f"unexpected AWS call: {args}")
+
+    monkeypatch.setattr(evidence, "_aws_json", fake_aws_json)
+
+    bundle = evidence.build_bundle(
+        stack_name="aws-sdlc-containers",
+        service_name="api",
+        region="eu-central-1",
+        root_domain="ersahinco-sandbox.eu",
+        lookback_minutes=60,
+        release_events_dir=release_events_dir,
+    )
+
+    release_summary = bundle["release_events"][0]
+    assert release_summary["workload_id"] == "api"
+    assert release_summary["run_id"] == TEST_RUN_ID
+    assert release_summary["github_run_id"] == TEST_RUN_ID
+    assert release_summary["status"] == "success"
+    assert release_summary["timestamp"] == deploy_event["timestamp"]
+    assert release_summary["image_tag"] == TEST_IMAGE_TAG
+    assert release_summary["task_definition"] == TEST_TASK_DEFINITION
+    assert release_summary["task_arn"] == task_arn
+    for field in [
+        "workload_id",
+        "run_id",
+        "status",
+        "timestamp",
+        "image_tag",
+        "task_definition",
+        "task_arn",
+    ]:
+        assert field in bundle["correlation_fields"]
 
 
 def test_release_event_contract_requires_portable_fields() -> None:

@@ -34,16 +34,10 @@ The steady-state deploy path is repo-sourced:
 
 ## Terraform State Ownership
 
-The app task-definition ownership migration completed in reviewed run
-`25704521559`, followed by a clean post-migration `Infra Plan` run
-`25704608943` and reviewed `Infra Apply` run `25704755534`.
-
 The steady-state model is:
 
 - `moved` blocks transfer the app task IAM role, internal policy, and policy
   attachment from the ECS service module to root Terraform resources.
-- The old module-managed app task-definition state address has been forgotten,
-  so Terraform does not deregister app pipeline-owned revisions.
 - The ECS service keeps `ignore_task_definition_changes = true`, ignores
   desired-count drift, reads the current app task-definition family for
   create/read purposes, and leaves app revision and rollout changes to GitHub

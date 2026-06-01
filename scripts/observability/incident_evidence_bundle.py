@@ -43,8 +43,13 @@ CORRELATION_FIELDS = [
     "request_id",
     "trace_id",
     "task_definition",
+    "task_arn",
     "image_tag",
+    "workload_id",
     "github_run_id",
+    "run_id",
+    "status",
+    "timestamp",
     "order_id",
     "event_id",
     "export_run_id",
@@ -123,6 +128,7 @@ def _release_event_summary(
     revision = event.get("revision", {})
     runtime = event.get("runtime", {})
     slo = event.get("slo", {})
+    correlation = event.get("correlation", {})
     if not isinstance(github, dict):
         github = {}
     if not isinstance(revision, dict):
@@ -131,6 +137,8 @@ def _release_event_summary(
         runtime = {}
     if not isinstance(slo, dict):
         slo = {}
+    if not isinstance(correlation, dict):
+        correlation = {}
 
     summary = {
         "event_type": event.get("event_type"),
@@ -142,10 +150,12 @@ def _release_event_summary(
         "deployment_id": event.get("deployment_id"),
         "rollback_category": event.get("rollback_category"),
         "github_run_id": github.get("run_id"),
+        "run_id": github.get("run_id"),
         "github_run_url": github.get("run_url"),
         "workflow": github.get("workflow"),
         "image_tag": revision.get("image_tag"),
         "task_definition": revision.get("task_definition"),
+        "task_arn": correlation.get("task_arn"),
         "plan_run_id": revision.get("plan_run_id"),
         "read_mode": runtime.get("read_mode"),
         "write_mode": runtime.get("write_mode"),

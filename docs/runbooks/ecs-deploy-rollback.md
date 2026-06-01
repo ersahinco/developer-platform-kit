@@ -52,16 +52,10 @@ that was healthy immediately before the bad deploy. If the deploy also advanced
 schema phase or runtime flags, confirm the target revision is compatible with
 the current database state before updating the service.
 
-If the failing deploy came from GitHub Actions, download the recent
-`release-evidence-*` artifacts and build an incident bundle before choosing the
-rollback target:
-
-```bash
-make release-evidence-runs
-GH_RUN_ID=<workflow-run-id> make release-evidence-download
-RELEASE_EVENTS_DIR=/tmp/aws-sdlc-containers-release-evidence/<workflow-run-id> \
-make incident-evidence
-```
+If the failing deploy came from GitHub Actions, use
+[Operator Day 2 Commands](../operator-day-2.md#incident-evidence) to download
+the matching `release-evidence-*` artifacts and build an incident bundle before
+choosing the rollback target.
 
 Use `/tmp/aws-sdlc-containers-incident-evidence/incident-evidence.md` to line
 up the bad image tag, task definition, alarm window, and the most recent
