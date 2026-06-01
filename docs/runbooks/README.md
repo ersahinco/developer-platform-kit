@@ -3,7 +3,7 @@
 Use during AWS incidents and failed deploys.
 
 Runbooks own operator action only. Shared deploy/apply review commands live in
-[Deployment](../deployment.md#review-checklist). Architecture, contract, and
+[Deployment](../deployment.md#review-loop). Architecture, contract, and
 capability truth live in the canonical docs under [../README.md](../README.md).
 
 | Situation | Runbook |
