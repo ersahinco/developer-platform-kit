@@ -71,8 +71,7 @@ def test_operator_day_2_remains_short_operator_path() -> None:
     assert "make release-evidence-runs" in text
     assert "SERVICE_NAME=api" not in text
     assert (
-        "RELEASE_EVENTS_DIR=/tmp/aws-sdlc-containers-release-evidence/<workflow-run-id>"
-        in text
+        "GH_RUN_ID=<workflow-run-id> LOOKBACK_MINUTES=60 make incident-evidence" in text
     )
 
 
@@ -114,7 +113,16 @@ def test_release_evidence_runs_lists_downloadable_artifacts() -> None:
 
     assert "repos/:owner/:repo/actions/artifacts?per_page=100" in text
     assert 'test("^(release-evidence|operator-payload)-")' in text
+    assert "group_by(.workflow_run.id)" in text
+    assert r"RELEASE_EVIDENCE\tOPERATOR_PAYLOAD\tARTIFACTS" in text
     assert "gh run list" not in text
+
+
+def test_evidence_download_targets_explain_missing_artifacts() -> None:
+    text = _read("Makefile")
+
+    assert "choose a listed RUN_ID with RELEASE_EVIDENCE > 0" in text
+    assert "choose a listed RUN_ID with OPERATOR_PAYLOAD > 0" in text
 
 
 def test_incident_evidence_make_target_uses_module_execution() -> None:
@@ -122,3 +130,27 @@ def test_incident_evidence_make_target_uses_module_execution() -> None:
 
     assert "uv run python -m scripts.observability.incident_evidence_bundle" in text
     assert "uv run python scripts/observability/incident_evidence_bundle.py" not in text
+    assert (
+        "RELEASE_EVENTS_DIR     ?= $(if $(GH_RUN_ID),$(RELEASE_EVIDENCE_DIR)/$(GH_RUN_ID),)"
+        in text
+    )
+
+
+def test_operator_docs_do_not_send_dry_runs_to_evidence_download() -> None:
+    paths = [
+        ROOT / "docs" / "operator-day-2.md",
+        ROOT / "docs" / "deployment.md",
+        *sorted((ROOT / "docs" / "runbooks").glob("*.md")),
+    ]
+
+    dry_run_download_hint = re.compile(
+        r"(dry[- ]run workflow.{0,160}GH_RUN_ID|GH_RUN_ID.{0,160}dry[- ]run workflow)",
+        re.IGNORECASE | re.DOTALL,
+    )
+
+    for path in paths:
+        text = path.read_text(encoding="utf-8")
+        assert not dry_run_download_hint.search(text), path
+
+    operator_day_2 = _read("docs/operator-day-2.md")
+    assert "dry runs without\nartifacts are not shown" in operator_day_2

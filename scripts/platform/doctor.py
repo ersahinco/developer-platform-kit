@@ -26,7 +26,7 @@ CLOUD_OPERATOR_PATH = (
     "make release-evidence-runs",
     "GH_RUN_ID=<workflow-run-id> make release-evidence-download",
     "GH_RUN_ID=<workflow-run-id> make operator-payload-download",
-    "LOOKBACK_MINUTES=60 make incident-evidence",
+    "GH_RUN_ID=<workflow-run-id> LOOKBACK_MINUTES=60 make incident-evidence",
 )
 
 

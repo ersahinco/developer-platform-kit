@@ -24,7 +24,7 @@ make workflow-dry-run-commands
 make release-evidence-runs
 GH_RUN_ID=<workflow-run-id> make release-evidence-download
 GH_RUN_ID=<workflow-run-id> make operator-payload-download
-LOOKBACK_MINUTES=60 make incident-evidence
+GH_RUN_ID=<workflow-run-id> LOOKBACK_MINUTES=60 make incident-evidence
 ```
 
 ## Workstation Readiness
@@ -81,13 +81,12 @@ INTEGRATION_CHECK_TARGETS=api=https://api.<root-domain>/health make integration-
 Download the matching release evidence first when the incident follows a
 GitHub workflow run. `make release-evidence-runs` lists currently downloadable
 `release-evidence-*` and `operator-payload-*` artifacts, so dry runs without
-artifacts are not shown.
+artifacts are not shown. Use a listed `RUN_ID` with `RELEASE_EVIDENCE > 0`.
 
 ```bash
 make release-evidence-runs
 GH_RUN_ID=<workflow-run-id> make release-evidence-download
-RELEASE_EVENTS_DIR=/tmp/aws-sdlc-containers-release-evidence/<workflow-run-id> \
-LOOKBACK_MINUTES=60 make incident-evidence
+GH_RUN_ID=<workflow-run-id> LOOKBACK_MINUTES=60 make incident-evidence
 ```
 
 ## Local Data Evidence

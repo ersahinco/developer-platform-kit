@@ -61,10 +61,10 @@ PRIMARY_EDGE_SERVICE   ?= $(shell python3 -m scripts.platform.workload_metadata 
 PRIMARY_EDGE_HOSTNAME_LABEL ?= $(shell python3 -m scripts.platform.workload_metadata primary-edge-contract 2>/dev/null | jq -r '.hostname_label')
 SERVICE_NAME           ?= $(PRIMARY_EDGE_SERVICE)
 LOOKBACK_MINUTES       ?= 60
-RELEASE_EVENTS_DIR     ?=
 INCIDENT_EVIDENCE_DIR  ?= /tmp/aws-sdlc-containers-incident-evidence
 RELEASE_EVIDENCE_DIR   ?= /tmp/aws-sdlc-containers-release-evidence
 GH_RUN_ID              ?=
+RELEASE_EVENTS_DIR     ?= $(if $(GH_RUN_ID),$(RELEASE_EVIDENCE_DIR)/$(GH_RUN_ID),)
 BACKFILL_MAX_BATCHES   ?= 1
 IMAGE_TAG              ?=
 PLAN_RUN_ID            ?= <infra-plan-run-id>
@@ -472,25 +472,31 @@ release-event-delivery-verify: ## Verify release-event push/query round-trip thr
 
 .PHONY: release-evidence-runs
 release-evidence-runs: ## List recent downloadable release evidence and operator payload artifacts
-	@printf "RUN_ID\tBRANCH\tSHA\tCREATED_AT\tARTIFACT\n"
+	@printf "RUN_ID\tBRANCH\tSHA\tLATEST_ARTIFACT_AT\tRELEASE_EVIDENCE\tOPERATOR_PAYLOAD\tARTIFACTS\n"
 	@gh api 'repos/:owner/:repo/actions/artifacts?per_page=100' \
-		--jq '.artifacts[] | select((.expired | not) and (.name | test("^(release-evidence|operator-payload)-"))) | [.workflow_run.id, .workflow_run.head_branch, (.workflow_run.head_sha[0:12]), .created_at, .name] | @tsv'
+		--jq '[.artifacts[] | select((.expired | not) and (.name | test("^(release-evidence|operator-payload)-")))] | group_by(.workflow_run.id) | map({run_id: .[0].workflow_run.id, branch: .[0].workflow_run.head_branch, sha: .[0].workflow_run.head_sha[0:12], latest_artifact_at: (map(.created_at) | max), release_evidence: (map(select(.name | startswith("release-evidence-"))) | length), operator_payload: (map(select(.name | startswith("operator-payload-"))) | length), artifacts: length}) | sort_by(.latest_artifact_at) | reverse[] | [.run_id, .branch, .sha, .latest_artifact_at, .release_evidence, .operator_payload, .artifacts] | @tsv'
 
 .PHONY: release-evidence-download
 release-evidence-download: ## Download GitHub release-evidence-* artifacts for GH_RUN_ID into $(RELEASE_EVIDENCE_DIR)/$(GH_RUN_ID)
 	@[ -n "$(GH_RUN_ID)" ] || (echo "Set GH_RUN_ID=<workflow-run-id>" >&2; exit 1)
 	@mkdir -p "$(RELEASE_EVIDENCE_DIR)/$(GH_RUN_ID)"
-	gh run download "$(GH_RUN_ID)" \
+	@gh run download "$(GH_RUN_ID)" \
 		--pattern 'release-evidence-*' \
-		--dir "$(RELEASE_EVIDENCE_DIR)/$(GH_RUN_ID)"
+		--dir "$(RELEASE_EVIDENCE_DIR)/$(GH_RUN_ID)" || \
+		(echo "No release-evidence-* artifact found for GH_RUN_ID=$(GH_RUN_ID)." >&2; \
+		 echo "Run 'make release-evidence-runs' and choose a listed RUN_ID with RELEASE_EVIDENCE > 0." >&2; \
+		 exit 1)
 
 .PHONY: operator-payload-download
 operator-payload-download: ## Download operator-payload-* artifacts for GH_RUN_ID into $(RELEASE_EVIDENCE_DIR)/$(GH_RUN_ID)
 	@[ -n "$(GH_RUN_ID)" ] || (echo "Set GH_RUN_ID=<workflow-run-id>" >&2; exit 1)
 	@mkdir -p "$(RELEASE_EVIDENCE_DIR)/$(GH_RUN_ID)"
-	gh run download "$(GH_RUN_ID)" \
+	@gh run download "$(GH_RUN_ID)" \
 		--pattern 'operator-payload-*' \
-		--dir "$(RELEASE_EVIDENCE_DIR)/$(GH_RUN_ID)"
+		--dir "$(RELEASE_EVIDENCE_DIR)/$(GH_RUN_ID)" || \
+		(echo "No operator-payload-* artifact found for GH_RUN_ID=$(GH_RUN_ID)." >&2; \
+		 echo "Run 'make release-evidence-runs' and choose a listed RUN_ID with OPERATOR_PAYLOAD > 0." >&2; \
+		 exit 1)
 
 .PHONY: operational-snapshot-dry-run
 operational-snapshot-dry-run: ## Dispatch non-destructive Operational Snapshot readiness checks
