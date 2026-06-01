@@ -13,6 +13,22 @@ import sys
 ROOT = Path(__file__).resolve().parents[2]
 Runner = Callable[[list[str]], subprocess.CompletedProcess[str]]
 
+LOCAL_OPERATOR_PATH = (
+    "make workload-readiness-check",
+    "make platform-toolkit-validate-local",
+    "make platform-toolkit-smoke-local",
+)
+
+CLOUD_OPERATOR_PATH = (
+    "make workload-readiness-check",
+    "make platform-toolkit-validate-cloud",
+    "make workflow-dry-run-commands",
+    "make release-evidence-runs",
+    "GH_RUN_ID=<workflow-run-id> make release-evidence-download",
+    "GH_RUN_ID=<workflow-run-id> make operator-payload-download",
+    "LOOKBACK_MINUTES=60 make incident-evidence",
+)
+
 
 @dataclass(frozen=True)
 class CheckResult:
@@ -169,12 +185,19 @@ def doctor_results(*, cloud: bool, runner: Runner = _run) -> list[CheckResult]:
     return results
 
 
-def print_results(results: list[CheckResult]) -> None:
+def operator_path_commands(*, cloud: bool) -> tuple[str, ...]:
+    return CLOUD_OPERATOR_PATH if cloud else LOCAL_OPERATOR_PATH
+
+
+def print_results(results: list[CheckResult], *, cloud: bool = False) -> None:
     for result in results:
         line = f"{result.status:<4} {result.name}"
         if result.hint:
             line = f"{line}: {result.hint}"
         print(line)
+    print("next operator path: docs/operator-day-2.md")
+    for command in operator_path_commands(cloud=cloud):
+        print(f"next {command}")
 
 
 def main() -> int:
@@ -189,7 +212,7 @@ def main() -> int:
     args = parser.parse_args()
 
     results = doctor_results(cloud=args.cloud)
-    print_results(results)
+    print_results(results, cloud=args.cloud)
     return 1 if any(result.status == "fail" for result in results) else 0
 
 

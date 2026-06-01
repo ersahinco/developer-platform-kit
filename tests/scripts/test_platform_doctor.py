@@ -1,8 +1,10 @@
 from __future__ import annotations
 
+from pathlib import Path
 import subprocess
 
 from scripts.platform.doctor import doctor_results
+from scripts.platform.doctor import operator_path_commands
 from scripts.platform.doctor import print_results
 
 
@@ -57,3 +59,13 @@ def test_platform_doctor_output_is_short_and_actionable(capsys, monkeypatch) -> 
 
     assert captured.out.startswith("ok")
     assert "\n\n" not in captured.out
+    assert "next operator path: docs/operator-day-2.md" in captured.out
+
+
+def test_platform_doctor_next_steps_match_operator_day_2() -> None:
+    operator_day_2 = Path("docs/operator-day-2.md").read_text(encoding="utf-8")
+
+    for command in operator_path_commands(cloud=True):
+        assert command in operator_day_2
+
+    assert "make platform-toolkit-validate-local" in operator_path_commands(cloud=False)

@@ -28,6 +28,9 @@ LOOKBACK_MINUTES=60 make incident-evidence
 
 ## Workstation Readiness
 
+`make platform-doctor` and `make platform-doctor-cloud` print the next
+operator path from this page after prerequisite checks finish.
+
 ```bash
 make platform-doctor
 make platform-doctor-cloud
