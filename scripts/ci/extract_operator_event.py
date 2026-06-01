@@ -100,12 +100,34 @@ def enrich_operator_event(
     event: dict[str, Any],
     *,
     evidence_path: str | None,
+    workload_id: str | None = None,
+    image_tag: str | None = None,
+    task_definition: str | None = None,
+    task_arn: str | None = None,
 ) -> dict[str, Any]:
     enriched = dict(event)
     if "timestamp" not in enriched and "captured_at" in enriched:
         enriched["timestamp"] = enriched["captured_at"]
+    resolved_workload_id = workload_id or enriched.get("workload")
+    if isinstance(resolved_workload_id, str) and resolved_workload_id:
+        enriched["workload_id"] = resolved_workload_id
+    if image_tag is not None:
+        enriched["image_tag"] = image_tag
+    if task_definition is not None:
+        enriched["task_definition"] = task_definition
+    if task_arn is not None:
+        enriched["task_arn"] = task_arn
     if evidence_path is not None:
         enriched["evidence_path"] = evidence_path
+    enriched["correlation"] = {
+        "workload_id": enriched.get("workload_id"),
+        "run_id": enriched.get("run_id"),
+        "image_tag": enriched.get("image_tag"),
+        "task_definition": enriched.get("task_definition"),
+        "task_arn": enriched.get("task_arn"),
+        "timestamp": enriched.get("timestamp"),
+        "status": enriched.get("status"),
+    }
     return enriched
 
 
@@ -129,6 +151,10 @@ def main() -> int:
         "--evidence-path",
         help="Path where the extracted operator-event.json artifact will be stored.",
     )
+    parser.add_argument("--workload-id")
+    parser.add_argument("--image-tag")
+    parser.add_argument("--task-definition")
+    parser.add_argument("--task-arn")
     args = parser.parse_args()
 
     document = json.loads(args.path.read_text(encoding="utf-8"))
@@ -137,7 +163,14 @@ def main() -> int:
         event_names=set(args.event_name),
         run_id=args.run_id,
     )
-    event = enrich_operator_event(event, evidence_path=args.evidence_path)
+    event = enrich_operator_event(
+        event,
+        evidence_path=args.evidence_path,
+        workload_id=args.workload_id,
+        image_tag=args.image_tag,
+        task_definition=args.task_definition,
+        task_arn=args.task_arn,
+    )
     if args.summary:
         print(render_summary(event, summary_type=args.summary))
     else:

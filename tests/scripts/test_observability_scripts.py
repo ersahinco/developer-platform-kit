@@ -335,6 +335,19 @@ def test_incident_evidence_bundle_collects_portable_context(
 
     markdown = markdown_path.read_text(encoding="utf-8")
     assert json_path.is_file()
+    assert bundle["timestamp"] == bundle["generated_at"]
+    assert bundle["status"] == "collected"
+    assert bundle["workload_id"] == "api"
+    assert bundle["run_id"] == TEST_RUN_ID
+    assert bundle["correlation"]["workload_id"] == "api"
+    assert bundle["correlation"]["run_id"] == TEST_RUN_ID
+    assert bundle["correlation"]["status"] == "collected"
+    assert bundle["correlation"]["timestamp"] == bundle["generated_at"]
+    assert (
+        bundle["correlation"]["task_definition"]
+        == "arn:aws:ecs:task-definition/aws-sdlc-containers:7"
+    )
+    assert bundle["correlation"]["image_tag"] == "sha-test-image"
     assert bundle["ecs"]["primary_rollout_state"] == "COMPLETED"
     assert bundle["ecs"]["containers"][0]["image_tag"].startswith("sha-")
     assert bundle["github"]["github_run_id"] == TEST_RUN_ID
@@ -524,6 +537,7 @@ def test_release_event_exposes_required_correlation_keys() -> None:
     event = _release_event(deployment_id=task_arn)
 
     assert event["timestamp"]
+    assert event["run_id"] == TEST_RUN_ID
     assert event["status"] == "success"
     assert event["workload_id"] == "api"
     assert event["revision"]["image_tag"] == TEST_IMAGE_TAG
@@ -539,6 +553,7 @@ def test_release_event_exposes_required_correlation_keys() -> None:
         "image_tag": TEST_IMAGE_TAG,
         "task_definition": TEST_TASK_DEFINITION,
         "task_arn": task_arn,
+        "run_id": TEST_RUN_ID,
         "github_run_id": TEST_RUN_ID,
     }
 

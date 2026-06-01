@@ -33,6 +33,7 @@ REQUIRED_EVENT_FIELDS = [
     ("status",),
     ("summary",),
     ("timestamp",),
+    ("run_id",),
     ("runtime_id",),
     ("workload_id",),
     ("deployment_id",),
@@ -196,6 +197,7 @@ def build_event(
         "status": status,
         "summary": summary,
         "timestamp": now.isoformat(),
+        "run_id": github.get("run_id"),
         "runtime_id": resolved_runtime_id,
         "workload_id": resolved_workload_id,
         "deployment_id": resolved_deployment_id,
@@ -244,6 +246,7 @@ def build_event(
             "image_tag": image_tag,
             "task_definition": task_definition,
             "task_arn": _task_arn_from_deployment_id(resolved_deployment_id),
+            "run_id": env.get("GITHUB_RUN_ID"),
             "github_run_id": env.get("GITHUB_RUN_ID"),
         },
     }

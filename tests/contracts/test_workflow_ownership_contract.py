@@ -91,6 +91,21 @@ NON_CLOUD_CHANGING_WORKFLOWS = {
     "semgrep.yml",
 }
 
+OPERATOR_PAYLOAD_CORRELATION_INPUTS = {
+    "data-backfill.yml": {
+        "--workload-id",
+        "--image-tag",
+        "--task-definition",
+        "--task-arn",
+    },
+    "operational-snapshot.yml": {
+        "--workload-id",
+        "--image-tag",
+        "--task-definition",
+        "--task-arn",
+    },
+}
+
 EXPECTED_JOB_PERMISSIONS = {
     "app-build.yml": {
         "validate-and-test": {"contents": "read"},
@@ -220,3 +235,11 @@ def test_non_cloud_changing_workflows_do_not_emit_release_evidence() -> None:
         text = _workflow_text(workflow_name)
         assert "scripts.observability.release_event" not in text
         assert "release-evidence-" not in text
+
+
+def test_operator_payloads_embed_runtime_correlation_inputs() -> None:
+    for workflow_name, expected_inputs in OPERATOR_PAYLOAD_CORRELATION_INPUTS.items():
+        text = _workflow_text(workflow_name)
+        assert "scripts/ci/extract_operator_event.py" in text
+        for expected_input in expected_inputs:
+            assert expected_input in text, f"{workflow_name} missing {expected_input}"

@@ -152,6 +152,10 @@ jobs:
               --event-name operational_snapshot_succeeded \
               --run-id "${{ steps.snapshot-context.outputs.snapshot_run_id }}" \
               --evidence-path /tmp/operator-evidence/operational-snapshot/operator-event.json \
+              --workload-id "${{ steps.workload.outputs.workload_name }}" \
+              --image-tag "${{ steps.ecs-context.outputs.image_tag }}" \
+              --task-definition "${{ steps.ecs-context.outputs.task_definition }}" \
+              --task-arn "${{ steps.run-task.outputs.task_arn }}" \
               > /tmp/operational-snapshot-event.json; then
               break
             fi
@@ -170,6 +174,10 @@ jobs:
             --event-name operational_snapshot_succeeded \
             --run-id "${{ steps.snapshot-context.outputs.snapshot_run_id }}" \
             --evidence-path /tmp/operator-evidence/operational-snapshot/operator-event.json \
+            --workload-id "${{ steps.workload.outputs.workload_name }}" \
+            --image-tag "${{ steps.ecs-context.outputs.image_tag }}" \
+            --task-definition "${{ steps.ecs-context.outputs.task_definition }}" \
+            --task-arn "${{ steps.run-task.outputs.task_arn }}" \
             --summary operational-snapshot \
             | tee /tmp/operator-evidence/operational-snapshot/operator-event.md >> "$GITHUB_STEP_SUMMARY"
 

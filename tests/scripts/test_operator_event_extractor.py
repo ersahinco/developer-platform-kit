@@ -141,16 +141,38 @@ def test_operator_payload_preserves_required_correlation_keys() -> None:
             "timestamp": "2026-06-01T10:00:00+00:00",
         },
         evidence_path="/tmp/operator-evidence/operational-snapshot/operator-event.json",
+        image_tag="sha-1234567890abcdef1234567890abcdef12345678",
+        task_definition="arn:aws:ecs:task-definition/aws-sdlc-containers:9",
+        task_arn="arn:aws:ecs:eu-central-1:123456789012:task/cluster/task-id",
     )
 
     assert enriched["workload"] == "operational_snapshot_job"
+    assert enriched["workload_id"] == "operational_snapshot_job"
     assert enriched["run_id"] == "github-123"
+    assert enriched["image_tag"] == "sha-1234567890abcdef1234567890abcdef12345678"
+    assert (
+        enriched["task_definition"]
+        == "arn:aws:ecs:task-definition/aws-sdlc-containers:9"
+    )
+    assert (
+        enriched["task_arn"]
+        == "arn:aws:ecs:eu-central-1:123456789012:task/cluster/task-id"
+    )
     assert enriched["status"] == "succeeded"
     assert enriched["timestamp"] == "2026-06-01T10:00:00+00:00"
     assert (
         enriched["evidence_path"]
         == "/tmp/operator-evidence/operational-snapshot/operator-event.json"
     )
+    assert enriched["correlation"] == {
+        "workload_id": "operational_snapshot_job",
+        "run_id": "github-123",
+        "image_tag": "sha-1234567890abcdef1234567890abcdef12345678",
+        "task_definition": "arn:aws:ecs:task-definition/aws-sdlc-containers:9",
+        "task_arn": "arn:aws:ecs:eu-central-1:123456789012:task/cluster/task-id",
+        "timestamp": "2026-06-01T10:00:00+00:00",
+        "status": "succeeded",
+    }
 
 
 def test_operator_event_extractor_accepts_multiple_terminal_events() -> None:

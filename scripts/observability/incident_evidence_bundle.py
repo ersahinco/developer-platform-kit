@@ -394,6 +394,7 @@ def build_bundle(
     *,
     stack_name: str,
     service_name: str,
+    workload_id: str | None = None,
     region: str,
     root_domain: str,
     lookback_minutes: int,
@@ -464,10 +465,20 @@ def build_bundle(
         [*loki_release_events, *artifact_release_events],
         limit=10,
     )
+    github = _github_context()
+    containers = _container_images(task_definition)
+    primary_container = containers[0] if containers else {}
+    generated_at = now.isoformat()
+    resolved_workload_id = workload_id or service_name
+    status = "collected"
 
     return {
         "schema_version": "1",
-        "generated_at": now.isoformat(),
+        "generated_at": generated_at,
+        "timestamp": generated_at,
+        "status": status,
+        "workload_id": resolved_workload_id,
+        "run_id": github.get("github_run_id"),
         "window": {
             "start": window_start.isoformat(),
             "end": now.isoformat(),
@@ -479,7 +490,7 @@ def build_bundle(
             "environment": "aws",
             "root_domain": root_domain,
         },
-        "github": _github_context(),
+        "github": github,
         "ecs": {
             "cluster": stack_name,
             "service": service_name,
@@ -489,7 +500,7 @@ def build_bundle(
             "pending_count": service.get("pendingCount"),
             "primary_rollout_state": primary.get("rolloutState"),
             "task_definition": task_definition_arn,
-            "containers": _container_images(task_definition),
+            "containers": containers,
             "raw_errors": [
                 item.get("error")
                 for item in [service_response, task_definition_response]
@@ -516,6 +527,16 @@ def build_bundle(
             "loaded_count": len(release_events),
         },
         "correlation_fields": CORRELATION_FIELDS,
+        "correlation": {
+            "workload_id": resolved_workload_id,
+            "run_id": github.get("github_run_id"),
+            "github_run_id": github.get("github_run_id"),
+            "image_tag": primary_container.get("image_tag"),
+            "task_definition": task_definition_arn,
+            "task_arn": None,
+            "timestamp": generated_at,
+            "status": status,
+        },
         "query_hints": _query_hints(stack_name, service_name, root_domain),
     }
 
@@ -620,6 +641,7 @@ def main() -> int:
         "--stack-name", default=os.environ.get("STACK_NAME", DEFAULT_STACK_NAME)
     )
     parser.add_argument("--service-name", default=edge_service_repository())
+    parser.add_argument("--workload-id")
     parser.add_argument(
         "--region", default=os.environ.get("AWS_REGION", "eu-central-1")
     )
@@ -644,6 +666,7 @@ def main() -> int:
     bundle = build_bundle(
         stack_name=args.stack_name,
         service_name=args.service_name,
+        workload_id=args.workload_id,
         region=args.region,
         root_domain=args.root_domain,
         lookback_minutes=args.lookback_minutes,
