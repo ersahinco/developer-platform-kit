@@ -53,15 +53,17 @@ walking the expand, dual-write, backfill, switch, and contract path.
 ## 5. Check Safe Cloud Readiness
 
 ```bash
+make platform-doctor-cloud
 make platform-toolkit-validate-cloud
 make infra-validate-local
 make workflow-dry-run-validate
 make workflow-dry-run-commands
 ```
 
-These commands do not mutate AWS. They validate workflow shape, platform
-policy, contract/script behavior, Terraform syntax without remote backends, and
-the generated GitHub workflow dry-run dispatch commands.
+These commands do not mutate AWS. They validate local/cloud operator
+prerequisites, workflow shape, platform policy, contract/script behavior,
+Terraform syntax without remote backends, and the generated GitHub workflow
+dry-run dispatch commands.
 
 Use the real cloud-changing workflows only after review, immutable image
 selection, and the confirmation inputs described in

@@ -48,7 +48,7 @@ so a portal or software catalog can ingest the monorepo without custom glue.
 | Portable workload expectations | [docs/platform-contract.md](docs/platform-contract.md) |
 | Runtime hosts and reusable packages | [apps/README.md](apps/README.md), [packages/README.md](packages/README.md) |
 | Local workflow | [docs/local-development.md](docs/local-development.md) |
-| AWS delivery and operator flow | [docs/deployment.md](docs/deployment.md) |
+| AWS delivery and operator flow | [docs/operator-day-2.md](docs/operator-day-2.md), [docs/deployment.md](docs/deployment.md) |
 | Incident response | [docs/runbooks/README.md](docs/runbooks/README.md) |
 | Current work state | [docs/roadmaps.md](docs/roadmaps.md) |
 
@@ -73,11 +73,17 @@ uv run pytest tests/ -v
 Platform toolkit validation:
 
 ```bash
+make platform-doctor
 make platform-toolkit-validate-local
 make platform-toolkit-smoke-local
+make platform-doctor-cloud
 make platform-toolkit-validate-cloud
 make workload-readiness-check
 ```
+
+The doctor targets are human diagnostics. They check expected tools, Docker,
+GitHub auth, optional cloud tools, repo files, and workload readiness with short
+command hints.
 
 The local validation target proves startup, migrations, API health/readiness,
 Prometheus metrics, Dapr event consumption, local data export, operational

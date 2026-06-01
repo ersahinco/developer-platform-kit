@@ -230,17 +230,18 @@ ad hoc console review.
 Before dispatching cloud-changing workflows, run the local dry-readiness gate:
 
 ```bash
+make platform-doctor-cloud
 make platform-toolkit-validate-cloud
 make infra-validate-local
 make workflow-dry-run-validate
 make workflow-dry-run-commands
 ```
 
-It does not call AWS mutating APIs. It lints GitHub workflow shape, checks
-platform policy, and runs the contract/script tests that prove workflows,
-Terraform helpers, task-definition rendering, post-deploy verification, release
-evidence, and incident evidence still derive from the platform contract where
-appropriate.
+It does not call AWS mutating APIs. It checks workstation/cloud operator
+readiness, lints GitHub workflow shape, checks platform policy, and runs the
+contract/script tests that prove workflows, Terraform helpers, task-definition
+rendering, post-deploy verification, release evidence, and incident evidence
+still derive from the platform contract where appropriate.
 
 `make infra-validate-local` mirrors the Terraform parse/validate portion of
 `infra-plan.yml` without remote backend initialization or cloud mutation. It can

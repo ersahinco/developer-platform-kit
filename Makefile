@@ -21,6 +21,7 @@
 #                             — fail on missing paved-road workload coverage
 #   make platform-toolkit-validate-cloud
 #                             — run safe cloud readiness checks without mutating AWS
+#   make platform-doctor      — check human workstation readiness
 #   make lint                — run all linters (app + infra)
 #   make fmt                 — auto-format everything
 #
@@ -180,6 +181,14 @@ test: ## Run test suite (requires local services and app running)
 .PHONY: runtime-conformance
 runtime-conformance: ## Build/run workload containers against the portable runtime contract
 	uv run pytest tests/runtime -v --run-runtime-conformance
+
+.PHONY: platform-doctor
+platform-doctor: ## Check local workstation readiness for the delivery toolkit
+	python3 scripts/platform/doctor.py
+
+.PHONY: platform-doctor-cloud
+platform-doctor-cloud: ## Check local plus cloud/operator readiness for the delivery toolkit
+	python3 scripts/platform/doctor.py --cloud
 
 .PHONY: platform-toolkit-validate-local
 platform-toolkit-validate-local: ## Validate local startup, API, Dapr, jobs, and runtime conformance

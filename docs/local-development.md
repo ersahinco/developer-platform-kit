@@ -38,6 +38,7 @@ Key entrypoints:
 ## Standard Local Flow
 
 ```bash
+make platform-doctor
 make dev
 make migrate
 make seed
@@ -47,6 +48,10 @@ curl --fail --show-error http://127.0.0.1:8000/health
 
 Use stepwise Docker commands only when you intentionally want the API without
 the full local profile.
+
+`make platform-doctor` checks local tools, Docker daemon access, GitHub auth,
+expected repo files, and workload readiness. It is a human diagnostic, not a CI
+gate.
 
 ## Platform Toolkit Validation
 
