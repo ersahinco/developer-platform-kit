@@ -170,29 +170,13 @@ jobs:
             --repository-name "${STACK_NAME}/backfill-worker" \
             --image-ids "imageTag=${IMAGE_TAG}"
 
-      - name: Resolve network config
-        id: net
+      - name: Resolve ECS task context
+        id: ecs-context
         run: |
-          subnet_id=$(aws ec2 describe-subnets \
-            --filters "Name=tag:Name,Values=${STACK_NAME}-private-*" \
-            --query 'Subnets[0].SubnetId' \
-            --output text)
-          sg_id=$(aws ec2 describe-security-groups \
-            --filters "Name=group-name,Values=${STACK_NAME}-primary-edge-*" \
-            --query 'SecurityGroups[0].GroupId' \
-            --output text)
-          if [[ -z "$subnet_id" || "$subnet_id" == "None" ]]; then
-            echo "Failed to resolve private subnet for stack ${STACK_NAME}." >&2
-            exit 1
-          fi
-          if [[ -z "$sg_id" || "$sg_id" == "None" ]]; then
-            echo "Failed to resolve primary edge security group for stack ${STACK_NAME}." >&2
-            exit 1
-          fi
-          {
-            echo "subnet_id=${subnet_id}"
-            echo "sg_id=${sg_id}"
-          } >> "$GITHUB_OUTPUT"
+          python3 scripts/ci/resolve_ecs_task_context.py \
+            --stack-name "${STACK_NAME}" \
+            --repository backfill-worker \
+            --verify-log-group >> "$GITHUB_OUTPUT"
 
       - name: Render backfill task definition
         run: |
@@ -233,8 +217,8 @@ jobs:
           TASK_ARN=$(scripts/ci/ci_run_ecs_task.sh \
             "${STACK_NAME}" \
             "${{ steps.register-backfill.outputs.task_def_arn }}" \
-            "${{ steps.net.outputs.subnet_id }}" \
-            "${{ steps.net.outputs.sg_id }}")
+            "${{ steps.ecs-context.outputs.subnet_id }}" \
+            "${{ steps.ecs-context.outputs.sg_id }}")
           echo "Backfill task: ${TASK_ARN}"
           echo "task_arn=${TASK_ARN}" >> "$GITHUB_OUTPUT"
           {
@@ -244,14 +228,14 @@ jobs:
             echo "- Required WRITE_MODE: dual"
             echo "- Backfill task definition: ${{ steps.register-backfill.outputs.task_def_arn }}"
             echo "- Backfill task: ${TASK_ARN}"
-            echo "- Monitor: CloudWatch Logs /ecs/${STACK_NAME}/backfill-worker"
+            echo "- Monitor: CloudWatch Logs ${{ steps.ecs-context.outputs.log_group }}"
           } >> "$GITHUB_STEP_SUMMARY"
 
       - name: Capture backfill terminal event
         if: ${{ !inputs.dry_run }}
         run: |
           aws logs filter-log-events \
-            --log-group-name "/ecs/${STACK_NAME}/backfill-worker" \
+            --log-group-name "${{ steps.ecs-context.outputs.log_group }}" \
             --start-time "${{ steps.backfill-context.outputs.started_at_ms }}" \
             --output json > /tmp/backfill-events.json
           mkdir -p /tmp/operator-evidence/data-backfill

@@ -16,6 +16,7 @@
 #                             — prove the local workload journey end to end
 #   make test                — run test suite
 #   make runtime-conformance — build/run workload images against platform contract
+#   make workload-readiness  — show paved-road coverage for each workload
 #   make platform-toolkit-validate-cloud
 #                             — run safe cloud readiness checks without mutating AWS
 #   make lint                — run all linters (app + infra)
@@ -485,6 +486,10 @@ workload-capability-matrix: ## Print the declared workload capability matrix fro
 .PHONY: workload-use-case-matrix
 workload-use-case-matrix: ## Print the declared workload use-case matrix from platform/workloads.json
 	python3 -m scripts.platform.workload_metadata use-case-matrix
+
+.PHONY: workload-readiness
+workload-readiness: ## Print workload paved-road readiness from contract, workflows, and evidence surfaces
+	python3 scripts/platform/workload_readiness.py
 
 .PHONY: capability-implementation-matrix
 capability-implementation-matrix: ## Print the current runtime capability-to-implementation matrix

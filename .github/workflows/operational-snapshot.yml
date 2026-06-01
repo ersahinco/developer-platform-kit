@@ -38,9 +38,9 @@ jobs:
       contents: read
       id-token: write
     outputs:
-      task_definition: ${{ steps.task-definition.outputs.task_definition }}
+      task_definition: ${{ steps.ecs-context.outputs.task_definition }}
       task_arn: ${{ steps.run-task.outputs.task_arn }}
-      image_tag: ${{ steps.task-definition.outputs.image_tag }}
+      image_tag: ${{ steps.ecs-context.outputs.image_tag }}
       snapshot_run_id: ${{ steps.snapshot-context.outputs.snapshot_run_id }}
 
     steps:
@@ -77,62 +77,16 @@ jobs:
           {
             echo "workload_name=${workload_name}"
             echo "repository=${repository}"
-            echo "family=${STACK_NAME}-${repository}"
-            echo "log_group=/ecs/${STACK_NAME}/${repository}"
           } >> "$GITHUB_OUTPUT"
 
-      - name: Resolve network config
-        id: net
+      - name: Resolve ECS task context
+        id: ecs-context
         run: |
-          subnet_id=$(aws ec2 describe-subnets \
-            --filters "Name=tag:Name,Values=${STACK_NAME}-private-*" \
-            --query 'Subnets[0].SubnetId' \
-            --output text)
-          sg_id=$(aws ec2 describe-security-groups \
-            --filters "Name=group-name,Values=${STACK_NAME}-primary-edge-*" \
-            --query 'SecurityGroups[0].GroupId' \
-            --output text)
-          if [[ -z "$subnet_id" || "$subnet_id" == "None" ]]; then
-            echo "Failed to resolve private subnet for stack ${STACK_NAME}." >&2
-            exit 1
-          fi
-          if [[ -z "$sg_id" || "$sg_id" == "None" ]]; then
-            echo "Failed to resolve primary edge security group for stack ${STACK_NAME}." >&2
-            exit 1
-          fi
-          {
-            echo "subnet_id=${subnet_id}"
-            echo "sg_id=${sg_id}"
-          } >> "$GITHUB_OUTPUT"
-
-      - name: Resolve task definition
-        id: task-definition
-        run: |
-          task_json=$(aws ecs describe-task-definition \
-            --task-definition "${{ steps.workload.outputs.family }}" \
-            --output json)
-          task_definition=$(echo "$task_json" | jq -r '.taskDefinition.taskDefinitionArn')
-          image=$(echo "$task_json" | jq -r --arg container "${{ steps.workload.outputs.repository }}" '.taskDefinition.containerDefinitions[] | select(.name == $container) | .image')
-          if [[ -z "$task_definition" || "$task_definition" == "None" ]]; then
-            echo "Failed to resolve task definition for ${{ steps.workload.outputs.family }}." >&2
-            exit 1
-          fi
-          if [[ -z "$image" || "$image" == "None" ]]; then
-            echo "Failed to resolve container image for ${{ steps.workload.outputs.repository }}." >&2
-            exit 1
-          fi
-          {
-            echo "task_definition=${task_definition}"
-            echo "image=${image}"
-            echo "image_tag=${image##*:}"
-          } >> "$GITHUB_OUTPUT"
-
-      - name: Verify log group
-        run: |
-          aws logs describe-log-groups \
-            --log-group-name-prefix "${{ steps.workload.outputs.log_group }}" \
-            --query "logGroups[?logGroupName=='${{ steps.workload.outputs.log_group }}'] | length(@)" \
-            --output text | grep -qx "1"
+          python3 scripts/ci/resolve_ecs_task_context.py \
+            --stack-name "${STACK_NAME}" \
+            --repository "${{ steps.workload.outputs.repository }}" \
+            --resolve-task-definition \
+            --verify-log-group >> "$GITHUB_OUTPUT"
 
       - name: Summarize dry-run readiness
         if: ${{ inputs.dry_run }}
@@ -140,9 +94,9 @@ jobs:
           {
             echo ""
             echo "- Workload: ${{ steps.workload.outputs.workload_name }}"
-            echo "- Task definition: ${{ steps.task-definition.outputs.task_definition }}"
-            echo "- Image tag: ${{ steps.task-definition.outputs.image_tag }}"
-            echo "- Log group: ${{ steps.workload.outputs.log_group }}"
+            echo "- Task definition: ${{ steps.ecs-context.outputs.task_definition }}"
+            echo "- Image tag: ${{ steps.ecs-context.outputs.image_tag }}"
+            echo "- Log group: ${{ steps.ecs-context.outputs.log_group }}"
           } >> "$GITHUB_STEP_SUMMARY"
 
       - name: Build snapshot context
@@ -171,17 +125,17 @@ jobs:
         run: |
           task_arn=$(scripts/ci/ci_run_ecs_task.sh \
             "${STACK_NAME}" \
-            "${{ steps.task-definition.outputs.task_definition }}" \
-            "${{ steps.net.outputs.subnet_id }}" \
-            "${{ steps.net.outputs.sg_id }}")
+            "${{ steps.ecs-context.outputs.task_definition }}" \
+            "${{ steps.ecs-context.outputs.subnet_id }}" \
+            "${{ steps.ecs-context.outputs.sg_id }}")
           echo "task_arn=${task_arn}" >> "$GITHUB_OUTPUT"
           {
             echo "### Operational snapshot task"
             echo ""
-            echo "- Task definition: ${{ steps.task-definition.outputs.task_definition }}"
+            echo "- Task definition: ${{ steps.ecs-context.outputs.task_definition }}"
             echo "- Task: ${task_arn}"
             echo "- Snapshot run ID: ${{ steps.snapshot-context.outputs.snapshot_run_id }}"
-            echo "- Monitor: CloudWatch Logs ${{ steps.workload.outputs.log_group }}"
+            echo "- Monitor: CloudWatch Logs ${{ steps.ecs-context.outputs.log_group }}"
           } >> "$GITHUB_STEP_SUMMARY"
 
       - name: Capture operational snapshot event
@@ -189,7 +143,7 @@ jobs:
         run: |
           for attempt in {1..12}; do
             aws logs filter-log-events \
-              --log-group-name "${{ steps.workload.outputs.log_group }}" \
+              --log-group-name "${{ steps.ecs-context.outputs.log_group }}" \
               --start-time "${{ steps.snapshot-context.outputs.started_at_ms }}" \
               --filter-pattern '"operational_snapshot_succeeded"' \
               --output json > /tmp/operational-snapshot-events.json

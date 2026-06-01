@@ -24,7 +24,7 @@ Canonical doc map. Find the owner before adding a new page.
 | Learn the vocabulary | [Ubiquitous Language](ubiquitous-language.md) |
 | Understand the monorepo model | [Architecture](architecture.md), [ADR 0001](adr/0001-aws-first-platform-monorepo-seed.md), [ADR 0002](adr/0002-stable-center-and-pluggable-runtime-targets.md) |
 | Understand the platform itself | [Platform Contract](platform-contract.md), [Platform Capabilities](platform-capabilities.md) |
-| Add a workload | [Adding Workloads](adding-workloads.md), [Platform Contract](platform-contract.md#workload-checklist) |
+| Add a workload | [Adding Workloads](adding-workloads.md), `make workload-readiness`, [Platform Contract](platform-contract.md#workload-checklist) |
 | Work locally | [Local Development](local-development.md) |
 | Deploy or operate AWS | [Deployment](deployment.md), [Infrastructure](../infra/README.md), [Runbooks](runbooks/README.md) |
 | Add or evaluate another runtime | [Runtime Toolkit](runtime-toolkit.md) |
