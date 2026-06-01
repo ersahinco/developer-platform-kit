@@ -38,6 +38,26 @@ def test_runbooks_do_not_pin_historical_workflow_run_ids() -> None:
         assert not re.search(r"`\d{8,}`", text), path
 
 
+def test_deployment_delegates_evidence_commands_to_operator_day_2() -> None:
+    text = _read("docs/deployment.md")
+
+    assert "[Operator Day 2 Commands](operator-day-2.md)" in text
+    assert "GH_RUN_ID=<workflow-run-id> make release-evidence-download" not in text
+    assert "GH_RUN_ID=<workflow-run-id> make operator-payload-download" not in text
+    assert "RELEASE_EVENTS_DIR=/tmp/aws-sdlc-containers-release-evidence" not in text
+
+
+def test_deployment_rollout_checks_use_runtime_outputs_not_fixed_service_names() -> (
+    None
+):
+    text = _read("docs/deployment.md")
+
+    assert "--services api" not in text
+    assert "--service-name api" not in text
+    assert "${STACK_NAME:-aws-sdlc-containers}" not in text
+    assert "terraform -chdir=infra/app output -raw primary_edge_service_name" in text
+
+
 def test_operator_day_2_remains_short_operator_path() -> None:
     text = _read("docs/operator-day-2.md")
 

@@ -3,6 +3,8 @@ from __future__ import annotations
 import re
 from pathlib import Path
 
+import yaml
+
 
 ROOT = Path(__file__).resolve().parents[2]
 WORKFLOW_DIR = ROOT / ".github" / "workflows"
@@ -89,9 +91,59 @@ NON_CLOUD_CHANGING_WORKFLOWS = {
     "semgrep.yml",
 }
 
+EXPECTED_JOB_PERMISSIONS = {
+    "app-build.yml": {
+        "validate-and-test": {"contents": "read"},
+        "image-matrix": {"contents": "read"},
+        "build-scan-push": {
+            "attestations": "write",
+            "contents": "read",
+            "id-token": "write",
+        },
+    },
+    "app-deploy.yml": {
+        "deploy": {"contents": "read", "id-token": "write"},
+        "evidence": {"contents": "read", "id-token": "write"},
+    },
+    "data-support-deploy.yml": {
+        "deploy_support": {"contents": "read", "id-token": "write"},
+        "evidence": {"contents": "read", "id-token": "write"},
+    },
+    "data-runtime-switch.yml": {
+        "switch_runtime": {"contents": "read", "id-token": "write"},
+        "evidence": {"contents": "read", "id-token": "write"},
+    },
+    "data-schema-apply.yml": {
+        "apply_schema": {"contents": "read", "id-token": "write"},
+        "evidence": {"contents": "read", "id-token": "write"},
+    },
+    "data-backfill.yml": {
+        "run_backfill": {"contents": "read", "id-token": "write"},
+        "evidence": {"contents": "read", "id-token": "write"},
+    },
+    "operational-snapshot.yml": {
+        "run_operational_snapshot": {"contents": "read", "id-token": "write"},
+        "evidence": {"contents": "read", "id-token": "write"},
+    },
+    "infra-plan.yml": {
+        "lint-and-validate": {"contents": "read"},
+        "plan": {"contents": "read", "id-token": "write", "pull-requests": "write"},
+    },
+    "infra-apply.yml": {
+        "apply": {"actions": "read", "contents": "read", "id-token": "write"},
+        "evidence": {"contents": "read", "id-token": "write"},
+    },
+    "security.yml": {"security-scan": {"contents": "read"}},
+    "semgrep.yml": {"scan": {"contents": "read"}},
+}
+
 
 def _workflow_text(name: str) -> str:
     return (WORKFLOW_DIR / name).read_text(encoding="utf-8")
+
+
+def _workflow_yaml(name: str) -> dict:
+    return yaml.safe_load(_workflow_text(name))
 
 
 def _release_event_types(text: str) -> list[str]:
@@ -109,6 +161,37 @@ def test_all_workflows_have_one_documented_ownership_lane() -> None:
     workflow_names = {path.name for path in WORKFLOW_DIR.glob("*.yml")}
 
     assert workflow_names == set(WORKFLOW_OWNERSHIP) | NON_CLOUD_CHANGING_WORKFLOWS
+    assert workflow_names == set(EXPECTED_JOB_PERMISSIONS)
+
+
+def test_workflow_jobs_have_explicit_least_privilege_permissions() -> None:
+    for workflow_name, expected_jobs in EXPECTED_JOB_PERMISSIONS.items():
+        workflow = _workflow_yaml(workflow_name)
+
+        assert workflow.get("permissions") == {"contents": "read"}
+        assert set(workflow["jobs"]) == set(expected_jobs)
+        for job_name, expected_permissions in expected_jobs.items():
+            actual_permissions = workflow["jobs"][job_name].get("permissions")
+            assert actual_permissions == expected_permissions, (
+                workflow_name,
+                job_name,
+            )
+
+
+def test_workflow_actions_are_pinned_by_full_commit_sha() -> None:
+    for workflow_path in sorted(WORKFLOW_DIR.glob("*.yml")):
+        workflow = yaml.safe_load(workflow_path.read_text(encoding="utf-8"))
+
+        for job_name, job in workflow["jobs"].items():
+            for step in job.get("steps", []):
+                uses = step.get("uses")
+                if uses is None:
+                    continue
+                assert re.search(r"@[0-9a-f]{40}$", uses), (
+                    workflow_path.name,
+                    job_name,
+                    uses,
+                )
 
 
 def test_cloud_changing_workflows_emit_one_release_event_with_correlation_inputs() -> (

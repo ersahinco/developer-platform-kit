@@ -57,13 +57,14 @@ Prerequisites:
 - AWS credentials with permission to create the stack
 - public Route 53 hosted zone for `root_domain`
 - GitHub environment named `aws`
+- `AWS_REGION` and `STACK_NAME` exported for the target runtime
 
 Create the primary edge token secret out of band:
 
 ```bash
 aws secretsmanager create-secret \
-  --name "${STACK_NAME:-aws-sdlc-containers}/edge-token" \
-  --region "${AWS_REGION:-eu-central-1}" \
+  --name "${STACK_NAME}/edge-token" \
+  --region "${AWS_REGION}" \
   --secret-string "$(openssl rand -hex 32)"
 ```
 
@@ -124,14 +125,8 @@ Rule: do not admit a workload to AWS just because it exists under `apps/`.
 ## Review Loop
 
 Use [Operator Day 2 Commands](operator-day-2.md) as the short command sheet.
-The same evidence loop applies to deploys and applies:
-
-```bash
-make release-evidence-runs
-GH_RUN_ID=<workflow-run-id> make release-evidence-download
-RELEASE_EVENTS_DIR=/tmp/aws-sdlc-containers-release-evidence/<workflow-run-id> \
-make incident-evidence
-```
+The same evidence-download and incident-evidence loop applies to deploys and
+applies; keep the exact commands there so the operator path has one owner.
 
 Checks:
 
@@ -143,11 +138,8 @@ Checks:
 
 Operator workflows also upload an `operator-payload-*` artifact with the
 structured terminal job event as `operator-event.json` and an operator-readable
-`operator-event.md` summary:
-
-```bash
-GH_RUN_ID=<workflow-run-id> make operator-payload-download
-```
+`operator-event.md` summary. Download it through
+[Operator Day 2 Commands](operator-day-2.md#operator-jobs).
 
 ## Slow ECS Deployments
 
@@ -167,8 +159,9 @@ If the rollout is slow or stuck, collect the same context locally:
 
 ```bash
 aws ecs describe-services \
-  --cluster "${STACK_NAME:-aws-sdlc-containers}" \
-  --services api \
+  --cluster "$(terraform -chdir=infra/app output -raw ecs_cluster_name)" \
+  --services "$(terraform -chdir=infra/app output -raw primary_edge_service_name)" \
+  --region "$AWS_REGION" \
   --query 'services[0].{desired:desiredCount,running:runningCount,pending:pendingCount,deployments:deployments[*].{status:status,rolloutState:rolloutState,reason:rolloutStateReason,taskDefinition:taskDefinition,desired:desiredCount,running:runningCount,pending:pendingCount,failed:failedTasks},events:events[:10]}'
 ```
 
@@ -177,8 +170,9 @@ running but the service is not stable:
 
 ```bash
 target_group_arn=$(aws ecs describe-services \
-  --cluster "${STACK_NAME:-aws-sdlc-containers}" \
-  --services api \
+  --cluster "$(terraform -chdir=infra/app output -raw ecs_cluster_name)" \
+  --services "$(terraform -chdir=infra/app output -raw primary_edge_service_name)" \
+  --region "$AWS_REGION" \
   --query 'services[0].loadBalancers[0].targetGroupArn' \
   --output text)
 aws elbv2 describe-target-health --target-group-arn "$target_group_arn"
@@ -188,27 +182,24 @@ For container start failures, look at the recent stopped tasks and logs:
 
 ```bash
 aws ecs list-tasks \
-  --cluster "${STACK_NAME:-aws-sdlc-containers}" \
-  --service-name api \
+  --cluster "$(terraform -chdir=infra/app output -raw ecs_cluster_name)" \
+  --service-name "$(terraform -chdir=infra/app output -raw primary_edge_service_name)" \
   --desired-status STOPPED \
-  --max-items 5
+  --max-items 5 \
+  --region "$AWS_REGION"
 
 aws logs describe-log-streams \
-  --log-group-name "/ecs/${STACK_NAME:-aws-sdlc-containers}/api" \
+  --log-group-name "/ecs/${STACK_NAME}/$(terraform -chdir=infra/app output -raw primary_edge_service_name)" \
   --order-by LastEventTime \
   --descending \
-  --max-items 5
+  --max-items 5 \
+  --region "$AWS_REGION"
 ```
 
 If the failed deploy came from GitHub Actions, download the release evidence
-and build an incident bundle before changing state:
-
-```bash
-make release-evidence-runs
-GH_RUN_ID=<workflow-run-id> make release-evidence-download
-RELEASE_EVENTS_DIR=/tmp/aws-sdlc-containers-release-evidence/<workflow-run-id> \
-make incident-evidence
-```
+and build an incident bundle through
+[Operator Day 2 Commands](operator-day-2.md#incident-evidence) before changing
+state.
 
 ## Common Commands
 
