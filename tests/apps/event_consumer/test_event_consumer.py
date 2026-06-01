@@ -197,6 +197,8 @@ def test_relay_outbox_logs_non_empty_result(committed_db_session, monkeypatch, c
     assert result == 1
     assert json.loads(capsys.readouterr().out) == {
         "event": "outbox_relay",
+        "status": "succeeded",
+        "workload": "event_consumer",
         "published": 1,
         "failed": 0,
     }
@@ -313,6 +315,7 @@ def test_consumer_callback_logs_request_id(committed_db_session, capsys):
         "event_id": "order.created.v1:callback-request-id",
         "request_id": "consumer-trace-123",
         "status": "processed",
+        "workload": "event_consumer",
     } in log_events
 
 

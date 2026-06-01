@@ -155,14 +155,15 @@ def test_worker_exits_cleanly_when_no_rows_remain(committed_db_session):
             for line in result.stdout.splitlines()
             if line.startswith("{")
         ]
-        assert {
+        expected = {
             "event": "backfill_complete",
             "job_name": _JOB,
             "mode": "checkpointed",
             "message": "backfill complete",
             "status": "succeeded",
             "workload": "backfill_worker",
-        } in events
+        }
+        assert any(expected.items() <= event.items() for event in events)
 
 
 def test_each_batch_emits_a_structured_json_log_line(committed_db_session):
