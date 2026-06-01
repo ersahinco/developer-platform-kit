@@ -4,6 +4,7 @@ from __future__ import annotations
 import argparse
 from collections.abc import Callable
 from dataclasses import dataclass
+import os
 from pathlib import Path
 import shutil
 import subprocess
@@ -164,6 +165,22 @@ def doctor_results(*, cloud: bool, runner: Runner = _run) -> list[CheckResult]:
             hint="run make workload-readiness-check",
         )
     )
+    workload_candidate = os.environ.get("WORKLOAD_CANDIDATE")
+    if workload_candidate:
+        results.append(
+            _command_check(
+                "workload candidate fit",
+                [
+                    sys.executable,
+                    "scripts/platform/workload_fit_check.py",
+                    "--candidate",
+                    workload_candidate,
+                ],
+                runner=runner,
+                required=True,
+                hint="run WORKLOAD_CANDIDATE=<path> make workload-fit-check",
+            )
+        )
 
     cloud_tools = [
         ("aws", "install AWS CLI"),
