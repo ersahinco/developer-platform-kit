@@ -19,6 +19,7 @@
 #   make workload-readiness  — show paved-road coverage for each workload
 #   make workload-readiness-check
 #                             — fail on missing paved-road workload coverage
+#   make workload-fit-init   — generate a draft externally operated workload
 #   make workload-fit-check  — evaluate a draft externally operated workload
 #   make platform-toolkit-validate-cloud
 #                             — run safe cloud readiness checks without mutating AWS
@@ -531,6 +532,14 @@ workload-readiness-check: ## Fail when declared workloads lack paved-road readin
 workload-fit-check: ## Evaluate a draft externally operated workload before admission
 	@[ -n "$(WORKLOAD_CANDIDATE)" ] || (echo "Set WORKLOAD_CANDIDATE=/path/to/workload.json" >&2; exit 1)
 	python3 scripts/platform/workload_fit_check.py --candidate "$(WORKLOAD_CANDIDATE)"
+
+.PHONY: workload-fit-init
+workload-fit-init: ## Generate a draft externally operated workload candidate
+	@[ -n "$(NAME)" ] || (echo "Set NAME=<workload_name>" >&2; exit 1)
+	@[ -n "$(KIND)" ] || (echo "Set KIND=service or KIND=job" >&2; exit 1)
+	@[ -n "$(CLASS)" ] || (echo "Set CLASS=<operational-class>" >&2; exit 1)
+	@[ -n "$(OWNER)" ] || (echo "Set OWNER=<team-name>" >&2; exit 1)
+	python3 scripts/platform/workload_fit_init.py --name "$(NAME)" --kind "$(KIND)" --class "$(CLASS)" --owner "$(OWNER)" $(if $(OUTPUT),--output "$(OUTPUT)",)
 
 .PHONY: capability-implementation-matrix
 capability-implementation-matrix: ## Print the current runtime capability-to-implementation matrix
