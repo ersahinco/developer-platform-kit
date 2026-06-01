@@ -116,7 +116,9 @@ api-smoke: ## Verify local API health, readiness, and Prometheus metrics
 	@curl --fail --silent --show-error --retry 20 --retry-delay 2 --retry-connrefused --retry-all-errors "$(LOCAL_API_BASE_URL)/ready"
 	@printf "\n"
 	@printf "Checking /metrics... "
-	@curl --fail --silent --show-error --retry 20 --retry-delay 2 --retry-connrefused --retry-all-errors "$(LOCAL_API_BASE_URL)/metrics" | grep -q 'http_requests_total'
+	@metrics=$$(curl --fail --silent --show-error --retry 20 --retry-delay 2 --retry-connrefused --retry-all-errors "$(LOCAL_API_BASE_URL)/metrics"); \
+		printf "%s" "$$metrics" | grep -q 'http_requests_total'; \
+		printf "%s" "$$metrics" | grep -q 'workload_info{workload="api"'
 	@printf "ok\n"
 
 .PHONY: open-dataset-pipeline

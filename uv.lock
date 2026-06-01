@@ -217,6 +217,7 @@ dependencies = [
     { name = "aws-sdlc-containers-application" },
     { name = "aws-sdlc-containers-domain" },
     { name = "duckdb" },
+    { name = "prometheus-client" },
     { name = "psycopg2-binary" },
     { name = "sqlalchemy" },
 ]
@@ -226,6 +227,7 @@ requires-dist = [
     { name = "aws-sdlc-containers-application", editable = "packages/application" },
     { name = "aws-sdlc-containers-domain", editable = "packages/domain" },
     { name = "duckdb", specifier = ">=1.4.2" },
+    { name = "prometheus-client", specifier = ">=0.20.0" },
     { name = "psycopg2-binary", specifier = ">=2.9.9" },
     { name = "sqlalchemy", specifier = ">=2.0.30" },
 ]

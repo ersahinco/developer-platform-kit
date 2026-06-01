@@ -8,6 +8,7 @@ Canonical design truth lives in:
 - [Platform Contract](platform-contract.md)
 - [Architecture](architecture.md)
 - [Platform Capabilities](platform-capabilities.md)
+- [Workload Observability](workload-observability.md)
 
 ## Order
 
@@ -55,6 +56,8 @@ Host rules:
 - wire adapters
 - expose routes or a process entrypoint
 - emit workload-level operational events
+- follow the service metric or job terminal event shape in
+  [Workload Observability](workload-observability.md)
 
 Put shared behavior in:
 

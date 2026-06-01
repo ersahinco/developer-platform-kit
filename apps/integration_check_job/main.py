@@ -8,6 +8,7 @@ from urllib import request
 from integration_check_job.config import settings
 
 INTEGRATION_CHECK_JOB_NAME = "integration_check"
+WORKLOAD_NAME = "integration_check_job"
 
 
 def _utc_now() -> datetime.datetime:
@@ -119,12 +120,15 @@ def run_checks(
     failed_count = sum(1 for result in results if result["status"] != "passed")
     status = "succeeded" if failed_count == 0 else "failed"
     event: dict[str, Any] = {
+        "workload": WORKLOAD_NAME,
         "event": "integration_check_succeeded"
         if status == "succeeded"
         else "integration_check_failed",
         "job_name": INTEGRATION_CHECK_JOB_NAME,
         "run_id": effective_run_id,
+        "mode": "http_check",
         "status": status,
+        "timestamp": captured_at.isoformat(),
         "checked_count": len(results),
         "failed_count": failed_count,
         "captured_at": captured_at.isoformat(),
@@ -135,6 +139,7 @@ def run_checks(
     output_root.mkdir(parents=True, exist_ok=True)
     output_path = output_root / f"{effective_run_id}.json"
     event["output_path"] = str(output_path)
+    event["evidence_path"] = str(output_path)
     output_path.write_text(
         json.dumps(event, indent=2, sort_keys=True), encoding="utf-8"
     )

@@ -27,10 +27,13 @@ def test_build_operational_snapshot_returns_portable_event() -> None:
     )
 
     assert snapshot.as_event() == {
+        "workload": "operational_snapshot_job",
         "event": "operational_snapshot_succeeded",
         "job_name": "operational_snapshot",
         "run_id": "test-run",
+        "mode": "read_only",
         "status": "succeeded",
+        "timestamp": captured_at.isoformat(),
         "captured_at": captured_at.isoformat(),
         "read_mode": "new",
         "write_mode": "dual",

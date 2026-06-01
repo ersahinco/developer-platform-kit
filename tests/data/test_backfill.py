@@ -158,7 +158,10 @@ def test_worker_exits_cleanly_when_no_rows_remain(committed_db_session):
         assert {
             "event": "backfill_complete",
             "job_name": _JOB,
+            "mode": "checkpointed",
             "message": "backfill complete",
+            "status": "succeeded",
+            "workload": "backfill_worker",
         } in events
 
 
@@ -178,12 +181,17 @@ def test_each_batch_emits_a_structured_json_log_line(committed_db_session):
     assert {
         "event",
         "job_name",
+        "mode",
+        "status",
         "last_order_id",
         "inserted",
         "elapsed_ms",
+        "timestamp",
+        "workload",
     } <= data.keys()
     assert data["event"] == "backfill_batch"
     assert data["job_name"] == _JOB
+    assert data["workload"] == "backfill_worker"
 
 
 def test_worker_can_pause_after_a_bounded_number_of_batches(committed_db_session):

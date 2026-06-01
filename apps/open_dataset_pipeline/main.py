@@ -15,6 +15,7 @@ from open_dataset_pipeline.pipeline import (
 from open_dataset_pipeline.config import settings
 
 OPEN_DATASET_PIPELINE_JOB_NAME = "open_dataset_pipeline"
+WORKLOAD_NAME = "open_dataset_pipeline"
 
 
 def _utc_now() -> datetime.datetime:
@@ -38,8 +39,10 @@ def run_pipeline() -> dict[str, Any]:
     print(
         json.dumps(
             {
+                "workload": WORKLOAD_NAME,
                 "event": "open_dataset_pipeline_succeeded",
                 "job_name": OPEN_DATASET_PIPELINE_JOB_NAME,
+                "timestamp": exported_at.isoformat(),
                 **manifest,
             },
             sort_keys=True,

@@ -243,12 +243,16 @@ jobs:
             /tmp/backfill-events.json \
             --event-name backfill_complete \
             --event-name backfill_paused \
-            > /tmp/operator-evidence/data-backfill/operator-event.json
+            --evidence-path /tmp/operator-evidence/data-backfill/operator-event.json \
+            > /tmp/operator-evidence/data-backfill/operator-event.tmp.json
+          mv /tmp/operator-evidence/data-backfill/operator-event.tmp.json \
+            /tmp/operator-evidence/data-backfill/operator-event.json
           cat /tmp/operator-evidence/data-backfill/operator-event.json
           python3 scripts/ci/extract_operator_event.py \
             /tmp/backfill-events.json \
             --event-name backfill_complete \
             --event-name backfill_paused \
+            --evidence-path /tmp/operator-evidence/data-backfill/operator-event.json \
             --summary backfill \
             | tee /tmp/operator-evidence/data-backfill/operator-event.md >> "$GITHUB_STEP_SUMMARY"
 

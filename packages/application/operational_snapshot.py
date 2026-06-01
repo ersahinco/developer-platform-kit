@@ -22,10 +22,13 @@ class OperationalSnapshot:
 
     def as_event(self) -> dict[str, str | int]:
         return {
+            "workload": "operational_snapshot_job",
             "event": "operational_snapshot_succeeded",
             "job_name": "operational_snapshot",
             "run_id": self.run_id,
+            "mode": "read_only",
             "status": "succeeded",
+            "timestamp": self.captured_at.isoformat(),
             "captured_at": self.captured_at.isoformat(),
             "read_mode": self.state.read_mode,
             "write_mode": self.state.write_mode,

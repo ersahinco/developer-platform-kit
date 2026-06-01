@@ -24,7 +24,10 @@ def test_run_snapshot_emits_structured_success_event(capsys, monkeypatch) -> Non
 
     assert event["event"] == "operational_snapshot_succeeded"
     assert event["job_name"] == "operational_snapshot"
+    assert event["workload"] == "operational_snapshot_job"
+    assert event["mode"] == "read_only"
     assert event["status"] == "succeeded"
+    assert "timestamp" in event
     assert event["read_mode"] == "new"
     assert event["orders_count"] == 2
 

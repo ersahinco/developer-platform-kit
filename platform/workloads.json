@@ -37,7 +37,11 @@
       },
       "metrics": {
         "format": "prometheus",
-        "required_names": ["http_requests_total", "http_request_duration_seconds"]
+        "required_names": [
+          "workload_info",
+          "http_requests_total",
+          "http_request_duration_seconds"
+        ]
       },
       "traces": {
         "supported": true
@@ -86,6 +90,7 @@
       "metrics": {
         "format": "prometheus",
         "required_names": [
+          "workload_info",
           "event_consumer_http_requests_total",
           "event_consumer_http_request_duration_seconds"
         ]

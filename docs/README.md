@@ -15,6 +15,7 @@ Canonical doc map. Find the owner before adding a new page.
 | AWS delivery and operator flow | [Deployment](deployment.md) | Workflow ownership, rollout sequence, review loop |
 | Operator day-2 commands | [Operator Day 2 Commands](operator-day-2.md) | Exact commands for readiness, deploy observation, evidence, and integration checks |
 | Operational telemetry | [Observability](observability.md) | Local and cloud telemetry wiring and checks |
+| Workload observability | [Workload Observability](workload-observability.md) | Required service metrics, structured logs, job events, and operator payload shape |
 | Current work state | [Roadmaps](roadmaps.md) | Continuation notes, deferred work, project status |
 
 ## Fast Paths
@@ -29,7 +30,7 @@ Canonical doc map. Find the owner before adding a new page.
 | Work locally | [Local Development](local-development.md), `make platform-doctor` |
 | Deploy or operate AWS | [Operator Day 2 Commands](operator-day-2.md), [Deployment](deployment.md), `make platform-doctor-cloud`, [Infrastructure](../infra/README.md), [Runbooks](runbooks/README.md) |
 | Add or evaluate another runtime | [Runtime Toolkit](runtime-toolkit.md) |
-| Work on telemetry or release evidence | [Observability](observability.md), [Platform Contract](platform-contract.md#observability) |
+| Work on telemetry or release evidence | [Workload Observability](workload-observability.md), [Observability](observability.md) |
 
 ## Rules
 

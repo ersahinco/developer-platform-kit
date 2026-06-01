@@ -32,10 +32,13 @@ from infrastructure.http_health import (
     health_payload,
 )
 from infrastructure.http_observability import request_observability_middleware
+from infrastructure.workload_observability import ensure_workload_info_metric
 from event_consumer.config import settings
 
 
 EVENT_CONSUMER_CALLBACK_ROUTE = settings.dapr_subscription_route
+WORKLOAD_NAME = "event_consumer"
+WORKLOAD_CLASS = "internal-service"
 
 REQUEST_COUNT = Counter(
     "event_consumer_http_requests_total",
@@ -47,6 +50,7 @@ REQUEST_LATENCY = Histogram(
     "Event consumer HTTP request latency by method and route.",
     ["method", "route"],
 )
+ensure_workload_info_metric(workload=WORKLOAD_NAME, workload_class=WORKLOAD_CLASS)
 
 
 class EventPublisher(Protocol):
@@ -74,7 +78,9 @@ def relay_outbox_once(
         print(
             json.dumps(
                 {
+                    "workload": WORKLOAD_NAME,
                     "event": "outbox_relay",
+                    "status": "failed" if result.failed else "succeeded",
                     "published": result.published,
                     "failed": result.failed,
                 },
@@ -118,7 +124,9 @@ def _log_relay_result(result: object) -> None:
     print(
         json.dumps(
             {
+                "workload": WORKLOAD_NAME,
                 "event": "outbox_relay",
+                "status": "failed" if failed else "succeeded",
                 "published": published,
                 "failed": failed,
             },
@@ -189,11 +197,13 @@ def _http_request_event(
     elapsed_seconds: float,
 ) -> dict[str, object]:
     return {
+        "workload": WORKLOAD_NAME,
         "event": "http_request",
         "event_id": None,
         "request_id": request_id,
         "method": request.method,
         "route": getattr(request.scope.get("route"), "path", request.url.path),
+        "status": "succeeded" if response.status_code < 500 else "failed",
         "status_code": response.status_code,
         "duration_ms": round(elapsed_seconds * 1000, 3),
     }
@@ -256,6 +266,7 @@ async def handle_event(request: Request) -> dict[str, str]:
         print(
             json.dumps(
                 {
+                    "workload": WORKLOAD_NAME,
                     "event": "event_consumed",
                     "event_id": result.event_id,
                     "request_id": request.state.request_id,
@@ -269,10 +280,12 @@ async def handle_event(request: Request) -> dict[str, str]:
         print(
             json.dumps(
                 {
+                    "workload": WORKLOAD_NAME,
                     "event": "event_consume_failed",
                     "error": str(exc),
                     "request_id": request.state.request_id,
                     "retry": True,
+                    "status": "failed",
                 },
                 sort_keys=True,
             ),

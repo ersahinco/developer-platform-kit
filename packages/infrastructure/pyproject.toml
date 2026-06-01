@@ -6,6 +6,7 @@ dependencies = [
     "aws-sdlc-containers-application",
     "aws-sdlc-containers-domain",
     "duckdb>=1.4.2",
+    "prometheus-client>=0.20.0",
     "sqlalchemy>=2.0.30",
     "psycopg2-binary>=2.9.9",
 ]

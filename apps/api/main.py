@@ -42,6 +42,7 @@ from infrastructure.http_health import (
 )
 from application.ports import ConfigStore, CustomerRepository, OrderRepository
 from infrastructure.http_observability import request_observability_middleware
+from infrastructure.workload_observability import ensure_workload_info_metric
 from api.config import settings
 
 
@@ -80,6 +81,9 @@ logging.getLogger("uvicorn.access").addFilter(_SuppressLowValueAccessLogs())
 app = FastAPI(title="aws-sdlc-containers")
 configure_tracing(app=app, engine=engine)
 
+WORKLOAD_NAME = "api"
+WORKLOAD_CLASS = "edge-service"
+
 DbDep = Annotated[Session, Depends(get_db)]
 
 REQUEST_COUNT = Counter(
@@ -92,6 +96,7 @@ REQUEST_LATENCY = Histogram(
     "HTTP request latency by method and route.",
     ["method", "route"],
 )
+ensure_workload_info_metric(workload=WORKLOAD_NAME, workload_class=WORKLOAD_CLASS)
 
 PRIMARY_EDGE_AUTH_EXEMPT_PATHS = frozenset({"/health", "/ready", "/metrics"})
 
@@ -103,10 +108,12 @@ def _http_request_event(
     elapsed_seconds: float,
 ) -> dict[str, object]:
     return {
+        "workload": WORKLOAD_NAME,
         "event": "http_request",
         "request_id": request_id,
         "method": request.method,
         "route": getattr(request.scope.get("route"), "path", request.url.path),
+        "status": "succeeded" if response.status_code < 500 else "failed",
         "status_code": response.status_code,
         "duration_ms": round(elapsed_seconds * 1000, 3),
     }

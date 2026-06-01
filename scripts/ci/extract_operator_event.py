@@ -96,6 +96,19 @@ def render_summary(event: dict[str, Any], *, summary_type: str) -> str:
     raise ValueError(f"unsupported summary type {summary_type!r}")
 
 
+def enrich_operator_event(
+    event: dict[str, Any],
+    *,
+    evidence_path: str | None,
+) -> dict[str, Any]:
+    enriched = dict(event)
+    if "timestamp" not in enriched and "captured_at" in enriched:
+        enriched["timestamp"] = enriched["captured_at"]
+    if evidence_path is not None:
+        enriched["evidence_path"] = evidence_path
+    return enriched
+
+
 def main() -> int:
     parser = argparse.ArgumentParser(
         description="Extract the latest structured operator event from CloudWatch Logs output."
@@ -112,6 +125,10 @@ def main() -> int:
         "--summary",
         choices=["operational-snapshot", "backfill"],
     )
+    parser.add_argument(
+        "--evidence-path",
+        help="Path where the extracted operator-event.json artifact will be stored.",
+    )
     args = parser.parse_args()
 
     document = json.loads(args.path.read_text(encoding="utf-8"))
@@ -120,6 +137,7 @@ def main() -> int:
         event_names=set(args.event_name),
         run_id=args.run_id,
     )
+    event = enrich_operator_event(event, evidence_path=args.evidence_path)
     if args.summary:
         print(render_summary(event, summary_type=args.summary))
     else:

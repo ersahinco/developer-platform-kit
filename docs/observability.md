@@ -4,11 +4,13 @@ Canonical observability behavior and operator loop.
 
 Use [Platform Contract](platform-contract.md#observability) for portable
 workload rules and [Platform Capabilities](platform-capabilities.md) for the
-current capability map.
+current capability map. Use [Workload Observability](workload-observability.md)
+for the exact service metric, structured log, job event, and operator payload
+shape.
 
 ## Contract
 
-- workloads emit Prometheus-compatible metrics
+- workloads emit Prometheus-compatible metrics with workload identity
 - workloads emit structured logs readable in CloudWatch or Loki
 - the API can emit OTLP/HTTP traces
 - Grafana dashboards stay normal JSON

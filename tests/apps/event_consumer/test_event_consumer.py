@@ -365,6 +365,10 @@ def test_metrics_endpoint_exposes_prometheus_text(monkeypatch):
     assert health_response.headers["x-request-id"] == "consumer-health-123"
     assert metrics_response.status_code == 200
     assert "text/plain" in metrics_response.headers["content-type"]
+    assert (
+        'workload_info{workload="event_consumer",workload_class="internal-service"} 1.0'
+        in metrics_response.text
+    )
     assert "event_consumer_http_requests_total" in metrics_response.text
     assert 'route="/health"' in metrics_response.text
 

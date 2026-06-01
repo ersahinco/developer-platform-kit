@@ -98,6 +98,9 @@ Service workloads must provide:
 - runtime secret injection without baking secrets into images
 - optional OTLP/HTTP traces when they materially help debugging
 
+See [Workload Observability](workload-observability.md) for the exact metric,
+structured log, job event, and operator payload fields.
+
 Job workloads must provide:
 
 - committed OCI image

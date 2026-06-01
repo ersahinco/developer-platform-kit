@@ -146,6 +146,9 @@ def test_metrics_endpoint_exposes_prometheus_text(http_client):
     resp = http_client.get("/metrics")
     assert resp.status_code == 200
     assert "text/plain" in resp.headers["content-type"]
+    assert (
+        'workload_info{workload="api",workload_class="edge-service"} 1.0' in resp.text
+    )
     assert "http_requests_total" in resp.text
 
 

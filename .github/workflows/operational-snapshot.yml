@@ -151,6 +151,7 @@ jobs:
               /tmp/operational-snapshot-events.json \
               --event-name operational_snapshot_succeeded \
               --run-id "${{ steps.snapshot-context.outputs.snapshot_run_id }}" \
+              --evidence-path /tmp/operator-evidence/operational-snapshot/operator-event.json \
               > /tmp/operational-snapshot-event.json; then
               break
             fi
@@ -168,6 +169,7 @@ jobs:
             /tmp/operational-snapshot-events.json \
             --event-name operational_snapshot_succeeded \
             --run-id "${{ steps.snapshot-context.outputs.snapshot_run_id }}" \
+            --evidence-path /tmp/operator-evidence/operational-snapshot/operator-event.json \
             --summary operational-snapshot \
             | tee /tmp/operator-evidence/operational-snapshot/operator-event.md >> "$GITHUB_STEP_SUMMARY"
 

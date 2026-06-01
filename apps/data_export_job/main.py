@@ -14,6 +14,7 @@ from infrastructure.data_export import (
 )
 
 DATA_EXPORT_JOB_NAME = "order_contact_email_export"
+WORKLOAD_NAME = "data_export_job"
 
 
 def _utc_now() -> datetime.datetime:
@@ -47,8 +48,10 @@ def run_export(s3_client: Any | None = None) -> dict[str, Any]:
     print(
         json.dumps(
             {
+                "workload": WORKLOAD_NAME,
                 "event": "data_export_succeeded",
                 "job_name": DATA_EXPORT_JOB_NAME,
+                "timestamp": exported_at.isoformat(),
                 **manifest,
             },
             sort_keys=True,
