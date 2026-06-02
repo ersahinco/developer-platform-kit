@@ -35,6 +35,7 @@ runtime realization.
 Inspect current declared classes and labels:
 
 ```bash
+make workload-addition-report
 make workload-capability-matrix
 make workload-use-case-matrix
 make workload-readiness
@@ -167,6 +168,7 @@ Managed provider-edge note:
 ## Verify
 
 ```bash
+make workload-addition-report
 make workload-readiness
 make workload-readiness-check
 uv run pytest tests/contracts -q

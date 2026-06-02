@@ -8,19 +8,12 @@ Local development is a first-class runtime target for this platform monorepo:
 it should be fast, contract-faithful, and provider-light so engineers can
 iterate before touching cloud infrastructure.
 
-Reference workloads:
+Use the live workload contract when you need the current inventory:
 
-- `apps/api`
-- `apps/backfill_worker`
-- `apps/data_export_job`
-- `apps/event_consumer`
-- `apps/integration_check_job`
-- `apps/open_dataset_pipeline`
-- `apps/lake_orders_ingest_job`
-- `apps/churn_model_train_job`
-- `apps/churn_prediction_api`
-- `apps/support_triage_llm`
-- `apps/operational_snapshot_job`
+```bash
+make workload-readiness
+make workload-addition-report
+```
 
 Local-only workloads still belong in `apps/` when they have a real contract,
 local proof, and owner. Reserve `examples/` for teaching, demo, and

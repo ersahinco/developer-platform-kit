@@ -108,6 +108,14 @@ Langfuse, OpenTelemetry Collector, Grafana, Datadog, or Splunk routing can be
 attached at the runtime edge when needed. Workload metadata still declares only
 portable intent, config names, service endpoints, and metrics names.
 
+## Runtime Conformance Probes
+
+`platform/runtime-conformance.json` may include service probes for local/CI
+runtime evidence. These probes are fixture data only: request method, path,
+payload, expected status, response field presence, and structured log field
+presence. App-specific behavior and domain semantics stay in app and contract
+tests, not in runtime fixture metadata.
+
 ## Checks
 
 Run the contract and local verification path:

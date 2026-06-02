@@ -122,8 +122,16 @@ def _json_logs(container: str) -> list[dict[str, object]]:
     return parsed
 
 
-def _http_json(url: str, timeout: float = 2.0) -> tuple[int, dict[str, object]]:
-    req = request.Request(url)
+def _http_json(
+    url: str,
+    timeout: float = 2.0,
+    *,
+    method: str = "GET",
+    payload: dict[str, object] | None = None,
+) -> tuple[int, dict[str, object]]:
+    body = None if payload is None else json.dumps(payload).encode("utf-8")
+    headers = {"Content-Type": "application/json"} if payload is not None else {}
+    req = request.Request(url, data=body, headers=headers, method=method)
     try:
         with request.urlopen(req, timeout=timeout) as response:
             return response.status, json.loads(response.read().decode("utf-8"))
@@ -308,6 +316,45 @@ def _env_args(conformance: dict[str, object]) -> list[str]:
     return args
 
 
+def _run_service_probes(
+    *,
+    base_url: str,
+    container: str,
+    conformance: dict[str, object],
+) -> None:
+    probes = conformance.get("service_probes", [])
+    if not isinstance(probes, list):
+        return
+
+    for probe in probes:
+        if not isinstance(probe, dict):
+            continue
+        method = str(probe.get("method", "GET"))
+        path = str(probe["path"])
+        payload = probe.get("json")
+        if payload is not None and not isinstance(payload, dict):
+            raise AssertionError(f"service probe for {path} has non-object json")
+        status, response_payload = _http_json(
+            f"{base_url}{path}",
+            method=method,
+            payload=cast(dict[str, object] | None, payload),
+        )
+        assert status == int(probe.get("expected_status", 200))
+        response_fields = set(probe.get("expected_response_fields", []))
+        assert response_fields.issubset(response_payload.keys())
+
+        expected_log_event = probe.get("expected_log_event")
+        if not isinstance(expected_log_event, str):
+            continue
+        expected_log_fields = set(probe.get("expected_log_fields", []))
+        logs = _json_logs(container)
+        assert any(
+            entry.get("event") == expected_log_event
+            and expected_log_fields.issubset(entry.keys())
+            for entry in logs
+        )
+
+
 def test_declared_service_images_satisfy_portable_runtime_contract(
     runtime_network: tuple[str, str],
 ) -> None:
@@ -409,6 +456,11 @@ def test_declared_service_images_satisfy_portable_runtime_contract(
                 entry.get("event") == expected_event
                 and expected_fields.issubset(entry.keys())
                 for entry in logs
+            )
+            _run_service_probes(
+                base_url=base_url,
+                container=container,
+                conformance=conformance,
             )
         finally:
             subprocess.run(["docker", "rm", "-f", container], cwd=ROOT, check=False)

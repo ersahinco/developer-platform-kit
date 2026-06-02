@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 import json
-import math
 import time
 from contextlib import asynccontextmanager
 from pathlib import Path
@@ -21,6 +20,8 @@ from starlette.responses import Response
 import uvicorn
 
 from churn_prediction_api.config import settings
+from churn_prediction_api.model import load_model
+from churn_prediction_api.model import score_churn
 from infrastructure.http_health import health_payload
 from infrastructure.http_observability import request_observability_middleware
 from infrastructure.workload_observability import ensure_workload_info_metric
@@ -127,17 +128,16 @@ def ready(request: Request) -> dict[str, object] | JSONResponse:
     }
 
 
-@app.post("/predict")
-def predict(payload: PredictionRequest, request: Request) -> dict[str, object]:
+@app.post("/predict", response_model=None)
+def predict(
+    payload: PredictionRequest, request: Request
+) -> dict[str, object] | JSONResponse:
     model = getattr(request.app.state, "churn_model", None)
     if model is None:
         PREDICTION_COUNT.labels(model_version="unloaded", status="failed").inc()
-        return cast(
-            dict[str, object],
-            JSONResponse(
-                status_code=503,
-                content={"status": "failed", "error": "model not loaded"},
-            ),
+        return JSONResponse(
+            status_code=503,
+            content={"status": "failed", "error": "model not loaded"},
         )
 
     model = cast(dict[str, Any], model)
@@ -171,32 +171,6 @@ def predict(payload: PredictionRequest, request: Request) -> dict[str, object]:
 @app.get("/metrics", include_in_schema=False)
 def metrics() -> Response:
     return Response(generate_latest(), media_type=CONTENT_TYPE_LATEST)
-
-
-def load_model(path: Path) -> dict[str, Any]:
-    if not path.is_file():
-        raise RuntimeError(f"CHURN_MODEL_PATH is not a file: {path}")
-    model = json.loads(path.read_text(encoding="utf-8"))
-    required = {
-        "model_name",
-        "model_version",
-        "run_id",
-        "features",
-        "weights",
-        "intercept",
-        "threshold",
-    }
-    missing = sorted(required - set(model))
-    if missing:
-        raise RuntimeError(f"churn model is missing fields: {', '.join(missing)}")
-    return cast(dict[str, Any], model)
-
-
-def score_churn(*, model: dict[str, Any], features: dict[str, Any]) -> float:
-    z = float(model["intercept"])
-    for feature, weight in model["weights"].items():
-        z += float(weight) * float(features[feature])
-    return 1 / (1 + math.exp(-z))
 
 
 def main() -> None:

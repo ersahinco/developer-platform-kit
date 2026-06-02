@@ -5,6 +5,7 @@ import argparse
 import json
 from pathlib import Path
 import sys
+import tomllib
 from typing import Any
 
 ROOT = Path(__file__).resolve().parents[2]
@@ -141,6 +142,93 @@ def _config_contract(workload: dict[str, Any]) -> str:
     return "missing"
 
 
+def _compose_service_names(path: Path) -> set[str]:
+    services: set[str] = set()
+    in_services = False
+    for line in path.read_text(encoding="utf-8").splitlines():
+        if not line.strip() or line.lstrip().startswith("#"):
+            continue
+        if line == "services:":
+            in_services = True
+            continue
+        if in_services and not line.startswith(" "):
+            break
+        if in_services and line.startswith("  ") and not line.startswith("    "):
+            name = line.strip().removesuffix(":")
+            if name:
+                services.add(name)
+    return services
+
+
+def _catalog_targets(path: Path) -> set[str]:
+    targets: set[str] = set()
+    in_targets = False
+    for line in path.read_text(encoding="utf-8").splitlines():
+        stripped = line.strip()
+        if stripped == "targets:":
+            in_targets = True
+            continue
+        if in_targets and stripped.startswith("- "):
+            target = stripped.removeprefix("- ").removeprefix("./")
+            targets.add(target)
+            continue
+        if in_targets and stripped and not line.startswith(" "):
+            break
+    return targets
+
+
+def addition_rows() -> list[dict[str, str]]:
+    pyproject = tomllib.loads((ROOT / "pyproject.toml").read_text(encoding="utf-8"))
+    workspace_members = set(pyproject["tool"]["uv"]["workspace"]["members"])
+    dockerfile = (ROOT / "platform" / "workload.Dockerfile").read_text(encoding="utf-8")
+    compose_services = _compose_service_names(ROOT / "compose.yaml")
+    catalog_targets = _catalog_targets(ROOT / "catalog-info.yaml")
+    conformance = _runtime_conformance().get("workloads", {})
+
+    rows = []
+    for workload in workloads():
+        name = str(workload["name"])
+        app_path = str(workload["app_path"])
+        repository = workload_repository(workload)
+        app_root = ROOT / app_path
+        required_files = ["main.py", "config.py", "pyproject.toml"]
+        missing_app_files = [
+            filename
+            for filename in required_files
+            if not (app_root / filename).exists()
+        ]
+        catalog_path = ROOT / "catalog" / f"{repository}-component.yaml"
+        rows.append(
+            {
+                "workload": name,
+                "app_files": (
+                    "ok" if not missing_app_files else ",".join(missing_app_files)
+                ),
+                "uv_workspace": _yes(app_path in workspace_members),
+                "dockerfile_copy": _yes(
+                    f"COPY {app_path}/pyproject.toml {app_path}/pyproject.toml"
+                    in dockerfile
+                ),
+                "compose_service": _yes(repository in compose_services),
+                "runtime_conformance": _yes(name in conformance),
+                "catalog_component": _yes(
+                    catalog_path.exists()
+                    and f"catalog/{repository}-component.yaml" in catalog_targets
+                ),
+                "app_tests": _yes(_has_app_tests(name)),
+            }
+        )
+    return rows
+
+
+def _has_app_tests(workload_name: str) -> bool:
+    if (ROOT / "tests" / "apps" / workload_name).exists():
+        return True
+    if workload_name == "api" and (ROOT / "tests" / "api").exists():
+        return True
+    return False
+
+
 def readiness_rows() -> list[dict[str, str]]:
     conformance = _runtime_conformance()
     workflow_texts = _workflow_texts()
@@ -255,6 +343,22 @@ def _print_table(rows: list[dict[str, str]]) -> None:
         print("\t".join(row[header] for header in headers))
 
 
+def _print_addition_table(rows: list[dict[str, str]]) -> None:
+    headers = [
+        "workload",
+        "app_files",
+        "uv_workspace",
+        "dockerfile_copy",
+        "compose_service",
+        "runtime_conformance",
+        "catalog_component",
+        "app_tests",
+    ]
+    print("\t".join(headers))
+    for row in rows:
+        print("\t".join(row[header] for header in headers))
+
+
 def main() -> int:
     parser = argparse.ArgumentParser(
         description="Report workload paved-road readiness from platform contracts and conventional delivery files."
@@ -265,7 +369,20 @@ def main() -> int:
         action="store_true",
         help="Fail when declared workloads are missing paved-road delivery surfaces.",
     )
+    parser.add_argument(
+        "--addition-report",
+        action="store_true",
+        help="Show conventional files to check when adding or reviewing workloads.",
+    )
     args = parser.parse_args()
+
+    if args.addition_report:
+        rows = addition_rows()
+        if args.format == "json":
+            print(json.dumps(rows, sort_keys=True))
+        else:
+            _print_addition_table(rows)
+        return 0
 
     rows = readiness_rows()
     if args.format == "json":

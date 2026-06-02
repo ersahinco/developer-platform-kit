@@ -20,8 +20,20 @@ import foreign_inventory_sync.main as foreign_inventory_sync_main
 import integration_check_job.main as integration_check_main
 import lake_orders_ingest_job.main as lake_orders_ingest_main
 import open_dataset_pipeline.main as open_dataset_main
+from support_triage_llm.evidence import failed_operator_payload
 import support_triage_llm.main as support_triage_main
 from scripts.ci.extract_operator_event import enrich_operator_event
+
+from ._helpers import load_json
+
+
+SERVICE_METRICS = {
+    "api": api_main.metrics,
+    "churn_prediction_api": churn_prediction_main.metrics,
+    "event_consumer": event_consumer_main.metrics,
+    "foreign_inventory_sync": foreign_inventory_sync_main.metrics,
+    "support_triage_llm": support_triage_main.metrics,
+}
 
 
 def _metrics_text(response: Response) -> str:
@@ -29,33 +41,28 @@ def _metrics_text(response: Response) -> str:
 
 
 def test_service_metrics_expose_workload_identity() -> None:
+    service_workloads = [
+        workload
+        for workload in load_json("platform/workloads.json")["workloads"]
+        if workload["kind"] == "service"
+    ]
+    missing_modules = [
+        workload["name"]
+        for workload in service_workloads
+        if workload["name"] not in SERVICE_METRICS
+    ]
+    assert missing_modules == []
     metrics = "\n".join(
-        [
-            _metrics_text(api_main.metrics()),
-            _metrics_text(churn_prediction_main.metrics()),
-            _metrics_text(event_consumer_main.metrics()),
-            _metrics_text(foreign_inventory_sync_main.metrics()),
-            _metrics_text(support_triage_main.metrics()),
-        ]
+        _metrics_text(SERVICE_METRICS[workload["name"]]())
+        for workload in service_workloads
     )
 
-    assert 'workload_info{workload="api",workload_class="edge-service"} 1.0' in metrics
-    assert (
-        'workload_info{workload="event_consumer",workload_class="internal-service"} 1.0'
-        in metrics
-    )
-    assert (
-        'workload_info{workload="foreign_inventory_sync",workload_class="internal-service"} 1.0'
-        in metrics
-    )
-    assert (
-        'workload_info{workload="churn_prediction_api",workload_class="internal-service"} 1.0'
-        in metrics
-    )
-    assert (
-        'workload_info{workload="support_triage_llm",workload_class="internal-service"} 1.0'
-        in metrics
-    )
+    for workload in service_workloads:
+        workload_class = workload["operational"]["class"]
+        assert (
+            f'workload_info{{workload="{workload["name"]}",'
+            f'workload_class="{workload_class}"}} 1.0'
+        ) in metrics
 
 
 def test_service_request_logs_include_workload_event_and_status() -> None:
@@ -389,6 +396,7 @@ def test_churn_prediction_event_includes_model_correlation(capsys) -> None:
     result = churn_prediction_main.predict(payload, request)
     event = json.loads(capsys.readouterr().out)
 
+    assert isinstance(result, dict)
     assert result["status"] == "succeeded"
     assert result["model_version"] == "model-v1"
     assert result["run_id"] == "train-run"
@@ -443,7 +451,7 @@ def test_support_triage_event_includes_prompt_token_cost_and_run_correlation(
 
 
 def test_support_triage_failed_run_operator_payload_is_self_contained(tmp_path) -> None:
-    payload = support_triage_main._failed_operator_payload(
+    payload = failed_operator_payload(
         output_dir=tmp_path,
         run_id="failed-run",
         reason="prompt missing",

@@ -109,18 +109,14 @@ Job workloads must provide:
 - structured start, progress, success, and failure events
 - the same config and secret rules as services
 
-Current long-running workloads:
+The current workload inventory lives in `platform/workloads.json`. Use these
+views instead of copying a workload list into new docs:
 
-- `apps/api`
-- `apps/event_consumer`
-
-Current jobs:
-
-- `apps/backfill_worker`
-- `apps/data_export_job`
-- `apps/integration_check_job`
-- `apps/open_dataset_pipeline`
-- `apps/operational_snapshot_job`
+```bash
+make workload-capability-matrix
+make workload-use-case-matrix
+make workload-readiness
+```
 
 ## Operational Class
 
@@ -131,14 +127,8 @@ Current jobs:
 | `operator-job` | one-off task triggered manually or by CI/operator workflow |
 | `scheduled-job` | recurring task triggered by a scheduler |
 
-Current mapping:
-
-- `api`: `edge-service`
-- `event_consumer`: `internal-service`
-- `backfill_worker`: `operator-job`
-- `data_export_job`: `scheduled-job`
-- `integration_check_job`: `operator-job`
-- `operational_snapshot_job`: `operator-job`
+The current class mapping is declared per workload in `platform/workloads.json`
+under `operational.class`.
 
 Runtime details like ALB, ECS service count, EventBridge Scheduler, managed
 Kubernetes manifests, or manual operator flow stay at the platform edge.
