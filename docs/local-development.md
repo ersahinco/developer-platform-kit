@@ -16,6 +16,10 @@ Reference workloads:
 - `apps/event_consumer`
 - `apps/integration_check_job`
 - `apps/open_dataset_pipeline`
+- `apps/lake_orders_ingest_job`
+- `apps/churn_model_train_job`
+- `apps/churn_prediction_api`
+- `apps/support_triage_llm`
 - `apps/operational_snapshot_job`
 
 Local-only workloads still belong in `apps/` when they have a real contract,
@@ -100,6 +104,28 @@ make data-artifacts-shell
 make data-artifacts-clean
 ```
 
+The local-first workload tracks also use the same artifact volume:
+
+- `lake_orders_ingest_job` writes raw/curated Parquet and a manifest.
+- `churn_model_train_job` writes a model artifact and manifest.
+- `support_triage_llm` writes triage run evidence, evaluation evidence, and
+  failed-run operator payloads.
+
+Run the LLM host locally with:
+
+```bash
+docker compose --profile llm up support-triage-llm
+curl --fail --show-error http://127.0.0.1:8083/ready
+curl --fail --show-error \
+  -H "Content-Type: application/json" \
+  --data '{"ticket_id":"T-local","subject":"Production API is down","body":"Checkout is unavailable","customer_tier":"enterprise","run_id":"local-triage"}' \
+  http://127.0.0.1:8083/triage
+curl --fail --show-error \
+  -H "Content-Type: application/json" \
+  --data '{"run_id":"local-eval"}' \
+  http://127.0.0.1:8083/evaluate
+```
+
 ## Migration Rollout Walkthrough
 
 1. Start Postgres and PgBouncer.
@@ -172,6 +198,7 @@ make operational-snapshot
 INTEGRATION_CHECK_TARGETS=api=http://api:8000/health make integration-check
 make data-artifacts-list
 make open-dataset-pipeline
+docker compose --profile llm up support-triage-llm
 make test
 make lint
 make fmt

@@ -136,6 +136,16 @@
       "expected_log_event": "http_request",
       "expected_log_fields": ["event", "request_id", "route", "status_code"]
     },
+    "support_triage_llm": {
+      "startup_timeout_seconds": 60,
+      "env": {
+        "SUPPORT_TRIAGE_PROMPT_PATH": "/app/apps/support_triage_llm/prompts/support_triage_v1.md",
+        "SUPPORT_TRIAGE_EVAL_CASES_PATH": "/app/apps/support_triage_llm/sample_data/evaluation_cases.json",
+        "SUPPORT_TRIAGE_OUTPUT_DIR": "/exports"
+      },
+      "expected_log_event": "http_request",
+      "expected_log_fields": ["event", "request_id", "route", "status_code"]
+    },
     "operational_snapshot_job": {
       "timeout_seconds": 60,
       "env": {

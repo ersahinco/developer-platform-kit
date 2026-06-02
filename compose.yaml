@@ -222,6 +222,24 @@ services:
     profiles:
       - data
 
+  support-triage-llm:
+    build:
+      <<: *workload_build
+      args:
+        APP_PATH: apps/support_triage_llm
+        UV_PACKAGE: aws-sdlc-containers-support-triage-llm
+        WORKLOAD_CMD: python -m support_triage_llm.main
+    environment:
+      SUPPORT_TRIAGE_PROMPT_PATH: ${SUPPORT_TRIAGE_PROMPT_PATH:-/app/apps/support_triage_llm/prompts/support_triage_v1.md}
+      SUPPORT_TRIAGE_EVAL_CASES_PATH: ${SUPPORT_TRIAGE_EVAL_CASES_PATH:-/app/apps/support_triage_llm/sample_data/evaluation_cases.json}
+      SUPPORT_TRIAGE_OUTPUT_DIR: ${SUPPORT_TRIAGE_OUTPUT_DIR:-/exports}
+    ports:
+      - "${SUPPORT_TRIAGE_LLM_PORT:-8083}:8083"
+    volumes:
+      - data_exports:/exports
+    profiles:
+      - llm
+
   operational-snapshot-job:
     build:
       <<: *workload_build

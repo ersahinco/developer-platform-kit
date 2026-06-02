@@ -18,6 +18,7 @@ COPY apps/integration_check_job/pyproject.toml apps/integration_check_job/pyproj
 COPY apps/lake_orders_ingest_job/pyproject.toml apps/lake_orders_ingest_job/pyproject.toml
 COPY apps/open_dataset_pipeline/pyproject.toml apps/open_dataset_pipeline/pyproject.toml
 COPY apps/operational_snapshot_job/pyproject.toml apps/operational_snapshot_job/pyproject.toml
+COPY apps/support_triage_llm/pyproject.toml apps/support_triage_llm/pyproject.toml
 COPY packages/domain/pyproject.toml packages/domain/pyproject.toml
 COPY packages/application/pyproject.toml packages/application/pyproject.toml
 COPY packages/infrastructure/pyproject.toml packages/infrastructure/pyproject.toml
