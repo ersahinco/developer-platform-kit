@@ -1,0 +1,15 @@
+apiVersion: backstage.io/v1alpha1
+kind: Component
+metadata:
+  name: foreign_inventory_sync
+  description: Internal-service workload host proving local fit for an externally operated inventory sync.
+  tags:
+    - internal-api
+    - connector
+spec:
+  type: service
+  lifecycle: experimental
+  owner: group:default/supply-chain-platform
+  system: aws-sdlc-containers
+  dependsOn:
+    - resource:default/runtime-target-local-compose

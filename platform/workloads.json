@@ -173,6 +173,48 @@
       }
     },
     {
+      "name": "foreign_inventory_sync",
+      "kind": "service",
+      "use_cases": ["internal-api", "connector"],
+      "owner": "supply-chain-platform",
+      "app_path": "apps/foreign_inventory_sync",
+      "runtime": {
+        "supported": ["local-compose"],
+        "admitted": []
+      },
+      "operational": {
+        "class": "internal-service",
+        "exposure": "internal"
+      },
+      "service": {
+        "port": 8080
+      },
+      "image": {
+        "repository": "foreign-inventory-sync",
+        "package": "foreign-inventory-sync",
+        "command": "python -m foreign_inventory_sync.main"
+      },
+      "metrics": {
+        "format": "prometheus",
+        "required_names": [
+          "workload_info",
+          "foreign_inventory_sync_http_requests_total",
+          "foreign_inventory_sync_http_request_duration_seconds"
+        ]
+      },
+      "traces": {
+        "supported": false
+      },
+      "database": {
+        "semantics": "postgresql",
+        "pooling": "direct"
+      },
+      "config": {
+        "env": ["DATABASE_URL", "DB_HOST", "DB_PORT", "DB_USER", "DB_NAME"],
+        "secrets": ["DB_PASSWORD"]
+      }
+    },
+    {
       "name": "data_export_job",
       "kind": "job",
       "use_cases": ["data-export", "scheduled-pipeline"],

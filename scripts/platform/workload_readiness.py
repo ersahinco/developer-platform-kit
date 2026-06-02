@@ -78,7 +78,15 @@ def _run_workflows(
     return "missing"
 
 
-def _evidence(workload: dict[str, Any], *, workflow_texts: dict[str, str]) -> str:
+def _evidence(
+    workload: dict[str, Any],
+    *,
+    workflow_texts: dict[str, str],
+    aws_admitted: bool,
+) -> str:
+    if not aws_admitted:
+        return "n/a"
+
     name = str(workload["name"])
     repository = workload_repository(workload)
     matches = _workflow_mentions(workflow_texts, name, repository)
@@ -167,7 +175,11 @@ def readiness_rows() -> list[dict[str, str]]:
                     workflow_texts=workflow_texts,
                     aws_admitted=aws_admitted,
                 ),
-                "evidence": _evidence(workload, workflow_texts=workflow_texts),
+                "evidence": _evidence(
+                    workload,
+                    workflow_texts=workflow_texts,
+                    aws_admitted=aws_admitted,
+                ),
                 "log_group": (
                     f"/ecs/<stack>/{repository}" if aws_admitted else "local-only"
                 ),

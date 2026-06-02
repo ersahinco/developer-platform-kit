@@ -237,6 +237,20 @@ services:
     profiles:
       - dapr
 
+  foreign-inventory-sync:
+    build:
+      <<: *workload_build
+      args:
+        APP_PATH: apps/foreign_inventory_sync
+        UV_PACKAGE: foreign-inventory-sync
+        WORKLOAD_CMD: python -m foreign_inventory_sync.main
+    environment:
+      <<: *direct_db_env
+      DATABASE_URL: *direct_database_url
+    depends_on:
+      db:
+        condition: service_healthy
+
   event-consumer-dapr:
     image: daprio/daprd:1.17.0
     command:

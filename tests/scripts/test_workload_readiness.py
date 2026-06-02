@@ -39,6 +39,8 @@ def test_workload_readiness_shows_paved_road_surfaces() -> None:
         "integration_check_succeeded"
     )
     assert rows["open_dataset_pipeline"]["run_workflow"] == "local-only"
+    assert rows["foreign_inventory_sync"]["run_workflow"] == "local-only"
+    assert rows["foreign_inventory_sync"]["evidence"] == "n/a"
 
 
 def test_workload_readiness_cli_outputs_json() -> None:

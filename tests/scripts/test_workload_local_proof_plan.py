@@ -23,8 +23,33 @@ def _current_workload(name: str) -> dict[str, object]:
     return next(workload for workload in workloads if workload["name"] == name)
 
 
-def test_local_proof_plan_lists_missing_work_for_passing_candidate() -> None:
+def test_local_proof_plan_reports_foreign_fixture_ready() -> None:
     candidate = _load_json(WORKLOAD_FIXTURES / "foreign_internal_service_good.json")
+
+    plan = build_local_proof_plan(candidate)
+
+    assert plan.fit is True
+    assert plan.local_proof == "ready"
+    assert plan.add == []
+    assert plan.prove == [
+        "/health",
+        "/ready",
+        "/metrics with workload_info",
+        "declared config env/secrets",
+        "structured workload logs",
+    ]
+
+
+def test_local_proof_plan_lists_missing_work_for_passing_candidate() -> None:
+    candidate = {
+        **_load_json(WORKLOAD_FIXTURES / "foreign_internal_service_good.json"),
+        "name": "future_inventory_sync",
+        "image": {
+            "repository": "future-inventory-sync",
+            "package": "future-inventory-sync",
+            "command": "python -m future_inventory_sync.main",
+        },
+    }
 
     plan = build_local_proof_plan(candidate)
 
@@ -32,10 +57,10 @@ def test_local_proof_plan_lists_missing_work_for_passing_candidate() -> None:
     assert plan.local_proof == "not ready"
     assert plan.add == [
         "platform/workloads.json entry",
-        "apps/foreign_inventory_sync/config.py",
-        "apps/foreign_inventory_sync/main.py",
-        "apps/foreign_inventory_sync/pyproject.toml",
-        "compose service foreign-inventory-sync",
+        "apps/future_inventory_sync/config.py",
+        "apps/future_inventory_sync/main.py",
+        "apps/future_inventory_sync/pyproject.toml",
+        "compose service future-inventory-sync",
         "platform/runtime-conformance.json fixture",
     ]
     assert plan.prove == [
@@ -113,10 +138,8 @@ def test_local_proof_plan_cli_outputs_actionable_text() -> None:
     )
 
     assert "fit: yes" in completed.stdout
-    assert "local proof: not ready" in completed.stdout
-    assert "- platform/workloads.json entry" in completed.stdout
-    assert "- apps/foreign_inventory_sync/main.py" in completed.stdout
-    assert "- compose service foreign-inventory-sync" in completed.stdout
+    assert "local proof: ready" in completed.stdout
+    assert "- none" in completed.stdout
     assert "- /metrics with workload_info" in completed.stdout
 
 
@@ -138,5 +161,5 @@ def test_local_proof_plan_cli_outputs_json() -> None:
 
     plan = json.loads(completed.stdout)
     assert plan["fit"] is True
-    assert plan["local_proof"] == "not ready"
-    assert "platform/runtime-conformance.json fixture" in plan["add"]
+    assert plan["local_proof"] == "ready"
+    assert plan["add"] == []

@@ -14,6 +14,7 @@ spec:
     - ./catalog/platform-monorepo-component.yaml
     - ./catalog/api-component.yaml
     - ./catalog/event-consumer-component.yaml
+    - ./catalog/foreign-inventory-sync-component.yaml
     - ./catalog/backfill-worker-component.yaml
     - ./catalog/data-export-job-component.yaml
     - ./catalog/open-dataset-pipeline-component.yaml

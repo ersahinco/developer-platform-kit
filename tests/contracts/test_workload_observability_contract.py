@@ -14,6 +14,7 @@ from application.backfill import run_order_contact_email_backfill
 from application.operational_snapshot import OperationalSnapshotState
 from application.operational_snapshot import build_operational_snapshot
 import data_export_job.main as data_export_main
+import foreign_inventory_sync.main as foreign_inventory_sync_main
 import integration_check_job.main as integration_check_main
 import open_dataset_pipeline.main as open_dataset_main
 from scripts.ci.extract_operator_event import enrich_operator_event
@@ -28,12 +29,17 @@ def test_service_metrics_expose_workload_identity() -> None:
         [
             _metrics_text(api_main.metrics()),
             _metrics_text(event_consumer_main.metrics()),
+            _metrics_text(foreign_inventory_sync_main.metrics()),
         ]
     )
 
     assert 'workload_info{workload="api",workload_class="edge-service"} 1.0' in metrics
     assert (
         'workload_info{workload="event_consumer",workload_class="internal-service"} 1.0'
+        in metrics
+    )
+    assert (
+        'workload_info{workload="foreign_inventory_sync",workload_class="internal-service"} 1.0'
         in metrics
     )
 
@@ -51,6 +57,9 @@ def test_service_request_logs_include_workload_event_and_status() -> None:
     consumer_event = event_consumer_main._http_request_event(
         request, Response(status_code=503), "request-2", 0.01
     )
+    foreign_event = foreign_inventory_sync_main._http_request_event(
+        request, Response(status_code=200), "request-3", 0.01
+    )
 
     assert api_event["workload"] == "api"
     assert api_event["event"] == "http_request"
@@ -58,6 +67,9 @@ def test_service_request_logs_include_workload_event_and_status() -> None:
     assert consumer_event["workload"] == "event_consumer"
     assert consumer_event["event"] == "http_request"
     assert consumer_event["status"] == "failed"
+    assert foreign_event["workload"] == "foreign_inventory_sync"
+    assert foreign_event["event"] == "http_request"
+    assert foreign_event["status"] == "succeeded"
 
 
 class _CompletedBackfillRepository:
