@@ -373,7 +373,12 @@ def test_declared_service_images_satisfy_portable_runtime_contract(
             )
             assert ready_status == 200
             assert ready_payload["status"] == "ready"
-            assert ready_payload["checks"]["database"] == "ok"  # type: ignore[index]
+            checks = ready_payload["checks"]
+            assert isinstance(checks, dict)
+            if "database" in workload:
+                assert checks["database"] == "ok"
+            else:
+                assert checks
 
             metrics_status, content_type, metrics = _http_text(
                 f"{base_url}{SERVICE_HTTP_PATHS['metrics']}"

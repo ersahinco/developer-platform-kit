@@ -259,6 +259,81 @@
       }
     },
     {
+      "name": "churn_model_train_job",
+      "kind": "job",
+      "use_cases": ["model-training", "operator-task"],
+      "owner": "platform-engineering",
+      "app_path": "apps/churn_model_train_job",
+      "runtime": {
+        "supported": ["local-compose"],
+        "admitted": []
+      },
+      "operational": {
+        "class": "operator-job",
+        "trigger": "manual"
+      },
+      "image": {
+        "repository": "churn-model-train-job",
+        "package": "aws-sdlc-containers-churn-model-train-job",
+        "command": "python -m churn_model_train_job.main"
+      },
+      "traces": {
+        "supported": false
+      },
+      "config": {
+        "env": [
+          "CHURN_TRAINING_DATA_PATH",
+          "CHURN_MODEL_OUTPUT_DIR",
+          "CHURN_MODEL_RUN_ID",
+          "CHURN_MODEL_TRAIN_DATE"
+        ],
+        "secrets": []
+      },
+      "job": {
+        "idempotency": "run_id"
+      }
+    },
+    {
+      "name": "churn_prediction_api",
+      "kind": "service",
+      "use_cases": ["model-inference", "internal-api"],
+      "owner": "platform-engineering",
+      "app_path": "apps/churn_prediction_api",
+      "runtime": {
+        "supported": ["local-compose"],
+        "admitted": []
+      },
+      "operational": {
+        "class": "internal-service",
+        "exposure": "internal"
+      },
+      "service": {
+        "port": 8082
+      },
+      "image": {
+        "repository": "churn-prediction-api",
+        "package": "aws-sdlc-containers-churn-prediction-api",
+        "command": "python -m churn_prediction_api.main"
+      },
+      "metrics": {
+        "format": "prometheus",
+        "required_names": [
+          "workload_info",
+          "churn_prediction_api_http_requests_total",
+          "churn_prediction_api_http_request_duration_seconds",
+          "churn_prediction_requests_total",
+          "churn_prediction_latency_seconds"
+        ]
+      },
+      "traces": {
+        "supported": false
+      },
+      "config": {
+        "env": ["CHURN_MODEL_PATH"],
+        "secrets": []
+      }
+    },
+    {
       "name": "open_dataset_pipeline",
       "kind": "job",
       "use_cases": ["dataset-ingest", "local-analytics"],
@@ -287,6 +362,41 @@
           "OPEN_DATASET_OUTPUT_DIR",
           "OPEN_DATASET_RUN_ID",
           "OPEN_DATASET_DATE"
+        ],
+        "secrets": []
+      },
+      "job": {
+        "idempotency": "run_id"
+      }
+    },
+    {
+      "name": "lake_orders_ingest_job",
+      "kind": "job",
+      "use_cases": ["dataset-ingest", "local-analytics", "operator-task"],
+      "owner": "platform-engineering",
+      "app_path": "apps/lake_orders_ingest_job",
+      "runtime": {
+        "supported": ["local-compose"],
+        "admitted": []
+      },
+      "operational": {
+        "class": "operator-job",
+        "trigger": "manual"
+      },
+      "image": {
+        "repository": "lake-orders-ingest-job",
+        "package": "aws-sdlc-containers-lake-orders-ingest-job",
+        "command": "python -m lake_orders_ingest_job.main"
+      },
+      "traces": {
+        "supported": false
+      },
+      "config": {
+        "env": [
+          "LAKE_ORDERS_SOURCE_DIR",
+          "LAKE_ORDERS_OUTPUT_DIR",
+          "LAKE_ORDERS_RUN_ID",
+          "LAKE_ORDERS_INGEST_DATE"
         ],
         "secrets": []
       },

@@ -1,0 +1,10 @@
+name: lake_orders_ingest_job
+version: "1.0"
+config-version: 2
+profile: lake_orders_ingest
+
+model-paths: ["models"]
+
+models:
+  lake_orders_ingest_job:
+    +materialized: table
