@@ -303,6 +303,30 @@ def test_runtime_conformance_uses_declared_workload_config_names() -> None:
         assert conformance_names.issubset(_declared_config_names(workload))
 
 
+def test_runtime_conformance_service_probes_remain_fixture_evidence() -> None:
+    conformance = _runtime_conformance()
+    allowed_keys = {
+        "method",
+        "path",
+        "json",
+        "expected_status",
+        "expected_response_fields",
+        "expected_log_event",
+        "expected_log_fields",
+    }
+
+    for name, fixture in conformance["workloads"].items():
+        probes = fixture.get("service_probes", [])
+        assert isinstance(probes, list)
+        for probe in probes:
+            assert set(probe).issubset(allowed_keys), name
+            assert isinstance(probe["path"], str)
+            assert probe.get("method", "GET") in {"GET", "POST", "PUT", "PATCH"}
+            assert isinstance(probe.get("expected_status", 200), int)
+            assert isinstance(probe.get("expected_response_fields", []), list)
+            assert isinstance(probe.get("expected_log_fields", []), list)
+
+
 def test_cloud_data_workflows_use_declared_runtime_mode_endpoints() -> None:
     workflow_paths = [
         ".github/workflows/data-backfill.yml",

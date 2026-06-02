@@ -7,6 +7,9 @@ from pathlib import Path
 
 from scripts.platform.workload_readiness import readiness_rows
 from scripts.platform.workload_readiness import readiness_failures
+from scripts.platform.workload_readiness import addition_rows
+from scripts.platform.workload_readiness import _catalog_targets
+from scripts.platform.workload_readiness import _compose_service_names
 
 
 ROOT = Path(__file__).resolve().parents[2]
@@ -20,6 +23,24 @@ def test_workload_readiness_reports_all_declared_workloads() -> None:
     assert [row["workload"] for row in rows] == [
         workload["name"] for workload in contract["workloads"]
     ]
+
+
+def test_workload_addition_report_shows_current_wiring_surfaces() -> None:
+    rows = {row["workload"]: row for row in addition_rows()}
+
+    assert rows["api"]["app_files"] == "ok"
+    assert rows["api"]["app_tests"] == "yes"
+    assert rows["support_triage_llm"]["compose_service"] == "yes"
+    assert rows["support_triage_llm"]["catalog_component"] == "yes"
+    assert rows["support_triage_llm"]["runtime_conformance"] == "yes"
+
+
+def test_workload_addition_report_reads_compose_and_catalog_shapes() -> None:
+    compose_services = _compose_service_names(ROOT / "compose.yaml")
+    catalog_targets = _catalog_targets(ROOT / "catalog-info.yaml")
+
+    assert "support-triage-llm" in compose_services
+    assert "catalog/support-triage-llm-component.yaml" in catalog_targets
 
 
 def test_workload_readiness_shows_paved_road_surfaces() -> None:

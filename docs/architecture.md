@@ -74,13 +74,9 @@ apps/*  -> packages/infrastructure
 packages/infrastructure -> packages/application + packages/domain
 ```
 
-Operational classes point outward:
-
-- `api`: public edge service
-- `event_consumer`: internal async service
-- `backfill_worker`: operator-triggered job
-- `data_export_job`: scheduler-triggered job
-- `operational_snapshot_job`: read-only operator-triggered readiness job
+Operational classes point outward from the stable center. Current mappings live
+in `platform/workloads.json`; use `make workload-capability-matrix` or
+`make workload-readiness` when you need the live inventory.
 
 Portable meaning lives in
 [Platform Contract](platform-contract.md#operational-class).

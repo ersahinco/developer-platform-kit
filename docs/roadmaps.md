@@ -33,6 +33,20 @@ lives in canonical docs:
 | Runtime target ergonomics | prefer Terraform outputs, runtime inventory, and small scripts over repeated shell literals | examples or scripts duplicate target-specific naming rules |
 | Provider horizon clarity | keep managed DB and DNS provider edges documented as future cost or hybrid options, not implied implementations | docs or metadata start blurring horizon intent with reviewed runtime capability |
 
+## Current Promotion Decision
+
+The data, churn, and support-triage LLM workloads are local-first only:
+
+- `lake_orders_ingest_job`
+- `churn_model_train_job`
+- `churn_prediction_api`
+- `support_triage_llm`
+
+Do not admit these workloads to `aws-ecs` until a concrete runtime owner accepts
+artifact storage, release workflow, operator evidence, and incident response
+responsibilities. Local proof is complete enough to exercise the delivery
+toolkit; cloud admission is a separate runtime-edge decision.
+
 ## Maturity Direction
 
 1. One workload contract.
@@ -67,6 +81,7 @@ Rule: predictable extension over maximal abstraction.
 
 | Date | Decision |
 |---|---|
+| 2026-06-02 | Keep the new data, churn, and support-triage LLM workloads local-first until runtime ownership and cloud evidence paths are reviewed. |
 | 2026-05-21 | Treat the workload contract and platform catalog as the stable center; runtime targets are pluggable realizations. |
 | 2026-05-19 | Harden one workload intent source and one AWS runtime realization layer. |
 | 2026-05-19 | Reframe runbooks and drills around outputs, placeholders, and operator-owned action. |

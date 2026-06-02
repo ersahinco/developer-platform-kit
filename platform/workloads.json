@@ -334,6 +334,52 @@
       }
     },
     {
+      "name": "support_triage_llm",
+      "kind": "service",
+      "use_cases": ["llm-triage", "internal-api", "operator-evidence"],
+      "owner": "platform-engineering",
+      "app_path": "apps/support_triage_llm",
+      "runtime": {
+        "supported": ["local-compose"],
+        "admitted": []
+      },
+      "operational": {
+        "class": "internal-service",
+        "exposure": "internal"
+      },
+      "service": {
+        "port": 8083
+      },
+      "image": {
+        "repository": "support-triage-llm",
+        "package": "aws-sdlc-containers-support-triage-llm",
+        "command": "python -m support_triage_llm.main"
+      },
+      "metrics": {
+        "format": "prometheus",
+        "required_names": [
+          "workload_info",
+          "support_triage_llm_http_requests_total",
+          "support_triage_llm_http_request_duration_seconds",
+          "support_triage_llm_requests_total",
+          "support_triage_llm_latency_seconds",
+          "support_triage_llm_tokens_total",
+          "support_triage_llm_cost_usd_total"
+        ]
+      },
+      "traces": {
+        "supported": false
+      },
+      "config": {
+        "env": [
+          "SUPPORT_TRIAGE_PROMPT_PATH",
+          "SUPPORT_TRIAGE_EVAL_CASES_PATH",
+          "SUPPORT_TRIAGE_OUTPUT_DIR"
+        ],
+        "secrets": []
+      }
+    },
+    {
       "name": "open_dataset_pipeline",
       "kind": "job",
       "use_cases": ["dataset-ingest", "local-analytics"],

@@ -49,6 +49,17 @@ Examples:
 - `open_dataset_pipeline_succeeded`
 - `operational_snapshot_succeeded`
 
+LLM app hosts must preserve the same service baseline and add prompt/run
+correlation in structured workload logs:
+
+- `prompt_version`
+- `run_id`
+- token evidence
+- estimated cost
+- latency
+- evaluation evidence when an eval run is requested
+- operator payload path for failed runs
+
 Use:
 
 ```bash
@@ -92,6 +103,18 @@ when the platform edge preserves the workload contract:
 
 Backend-specific collectors, indexes, sources, account routing, and API tokens
 stay outside `platform/workloads.json`.
+
+Langfuse, OpenTelemetry Collector, Grafana, Datadog, or Splunk routing can be
+attached at the runtime edge when needed. Workload metadata still declares only
+portable intent, config names, service endpoints, and metrics names.
+
+## Runtime Conformance Probes
+
+`platform/runtime-conformance.json` may include service probes for local/CI
+runtime evidence. These probes are fixture data only: request method, path,
+payload, expected status, response field presence, and structured log field
+presence. App-specific behavior and domain semantics stay in app and contract
+tests, not in runtime fixture metadata.
 
 ## Checks
 

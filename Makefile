@@ -19,6 +19,8 @@
 #   make workload-readiness  — show paved-road coverage for each workload
 #   make workload-readiness-check
 #                             — fail on missing paved-road workload coverage
+#   make workload-addition-report
+#                             — show conventional files for workload additions
 #   make workload-fit-init   — generate a draft externally operated workload
 #   make workload-fit-check  — evaluate a draft externally operated workload
 #   make workload-local-proof-plan
@@ -188,6 +190,10 @@ test: ## Run test suite (requires local services and app running)
 .PHONY: runtime-conformance
 runtime-conformance: ## Build/run workload containers against the portable runtime contract
 	uv run pytest tests/runtime -v --run-runtime-conformance
+
+.PHONY: workload-addition-report
+workload-addition-report: ## Show conventional files to check when adding workloads
+	python3 scripts/platform/workload_readiness.py --addition-report
 
 .PHONY: platform-doctor
 platform-doctor: ## Check local workstation readiness for the delivery toolkit

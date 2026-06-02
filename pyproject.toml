@@ -37,6 +37,7 @@ members = [
     "apps/lake_orders_ingest_job",
     "apps/open_dataset_pipeline",
     "apps/operational_snapshot_job",
+    "apps/support_triage_llm",
     "packages/domain",
     "packages/application",
     "packages/infrastructure",
