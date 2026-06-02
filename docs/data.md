@@ -29,6 +29,7 @@ Support paths:
 Liquibase task -> Postgres direct connection
 Backfill worker -> Postgres direct connection -> checkpointed copy
 Data export job -> Postgres direct connection -> raw CSV -> manifest -> optional S3 upload
+Lake orders ingest job -> checked-in order batches -> Parquet -> DuckDB/dbt transform -> manifest
 ```
 
 Liquibase and jobs connect directly because DDL and batch work need stable
@@ -79,6 +80,48 @@ Stable layout:
 | Evidence | job success and failure stay visible in logs and release or incident evidence |
 
 Do not add another object store only to prove portability.
+
+## Lake Orders Ingest Workload
+
+`apps/lake_orders_ingest_job` is a local-first operator job that proves data
+engineering behavior without adding a data platform contract. It reads checked-in
+order batches, writes raw and curated Parquet, runs the checked-in dbt model
+through DuckDB, and emits structured run evidence.
+
+Stable layout:
+
+- `raw/lake_orders/dt=<date>/<run-id>.parquet`
+- `curated/lake_orders/dt=<date>/<run-id>.parquet`
+- `manifests/lake_orders/dt=<date>/<run-id>.json`
+
+Evidence includes `run_id`, `row_count`, `late_arrival_count`,
+`parquet_object_count`, `transform_tool`, `transform_execution`, and artifact
+paths. `transform_tool` remains workload evidence; it is not a platform
+metadata field. The current Python 3.14 runtime may use
+`duckdb_sql_fallback` when the dbt CLI cannot start, while still executing the
+workload-local dbt model SQL and model checks.
+
+DuckLake is deferred. It is a reasonable future experiment for this workload,
+but it should remain a workload implementation detail unless a real runtime
+target need appears.
+
+## Churn Model Workloads
+
+`apps/churn_model_train_job` and `apps/churn_prediction_api` prove the model
+training plus inference shape as concrete workloads. The training job reads a
+checked-in fixture dataset, writes a model artifact and manifest, and emits
+evidence with `run_id`, `model_version`, training row count, metrics, and drift
+summary. The prediction API loads a model artifact and exposes `/health`,
+`/ready`, `/metrics`, and `/predict`.
+
+Stable training layout:
+
+- `models/churn_prediction/dt=<date>/<run-id>.json`
+- `manifests/churn_prediction/dt=<date>/<run-id>.json`
+
+Model metrics and drift summaries are workload evidence. They do not add MLOps
+fields to the workload contract. The runtime edge still decides where logs and
+Prometheus-compatible metrics go.
 
 ## AWS Runtime
 

@@ -1,0 +1,15 @@
+version: 2
+
+models:
+  - name: curated_lake_orders
+    columns:
+      - name: order_id
+        tests:
+          - not_null
+          - unique
+      - name: customer_id
+        tests:
+          - not_null
+      - name: customer_order_sequence
+        tests:
+          - not_null

@@ -1,0 +1,15 @@
+apiVersion: backstage.io/v1alpha1
+kind: Component
+metadata:
+  name: churn_prediction_api
+  description: Internal service workload host for serving local churn model predictions.
+  tags:
+    - model-inference
+    - internal-api
+spec:
+  type: service
+  lifecycle: experimental
+  owner: group:default/platform-engineering
+  system: aws-sdlc-containers
+  dependsOn:
+    - resource:default/runtime-target-local-compose

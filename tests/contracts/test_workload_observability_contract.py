@@ -14,8 +14,11 @@ from application.backfill import run_order_contact_email_backfill
 from application.operational_snapshot import OperationalSnapshotState
 from application.operational_snapshot import build_operational_snapshot
 import data_export_job.main as data_export_main
+import churn_model_train_job.main as churn_train_main
+import churn_prediction_api.main as churn_prediction_main
 import foreign_inventory_sync.main as foreign_inventory_sync_main
 import integration_check_job.main as integration_check_main
+import lake_orders_ingest_job.main as lake_orders_ingest_main
 import open_dataset_pipeline.main as open_dataset_main
 from scripts.ci.extract_operator_event import enrich_operator_event
 
@@ -28,6 +31,7 @@ def test_service_metrics_expose_workload_identity() -> None:
     metrics = "\n".join(
         [
             _metrics_text(api_main.metrics()),
+            _metrics_text(churn_prediction_main.metrics()),
             _metrics_text(event_consumer_main.metrics()),
             _metrics_text(foreign_inventory_sync_main.metrics()),
         ]
@@ -40,6 +44,10 @@ def test_service_metrics_expose_workload_identity() -> None:
     )
     assert (
         'workload_info{workload="foreign_inventory_sync",workload_class="internal-service"} 1.0'
+        in metrics
+    )
+    assert (
+        'workload_info{workload="churn_prediction_api",workload_class="internal-service"} 1.0'
         in metrics
     )
 
@@ -218,6 +226,165 @@ def test_open_dataset_pipeline_event_includes_workload_identity(
     assert event["run_id"] == "dataset-run"
     assert event["status"] == "succeeded"
     assert "timestamp" in event
+
+
+def test_lake_orders_ingest_event_includes_run_evidence(
+    monkeypatch,
+    tmp_path,
+    capsys,
+) -> None:
+    monkeypatch.setattr(
+        lake_orders_ingest_main.settings,
+        "lake_orders_source_dir",
+        str(tmp_path / "source"),
+    )
+    monkeypatch.setattr(
+        lake_orders_ingest_main.settings,
+        "lake_orders_output_dir",
+        str(tmp_path),
+    )
+    monkeypatch.setattr(
+        lake_orders_ingest_main.settings,
+        "lake_orders_run_id",
+        "lake-run",
+    )
+    monkeypatch.setattr(
+        lake_orders_ingest_main.settings,
+        "lake_orders_ingest_date",
+        "2026-05-13",
+    )
+    monkeypatch.setattr(
+        lake_orders_ingest_main,
+        "DbtDuckDBRunner",
+        lambda **_kwargs: object(),
+    )
+    monkeypatch.setattr(
+        lake_orders_ingest_main,
+        "run_lake_orders_ingest",
+        lambda **_kwargs: {
+            "dataset": "lake_orders",
+            "run_id": "lake-run",
+            "status": "succeeded",
+            "row_count": 4,
+            "late_arrival_count": 1,
+            "parquet_object_count": 2,
+            "transform_tool": "dbt-duckdb",
+            "transform_execution": "duckdb_sql_fallback",
+            "evidence_paths": [
+                "raw/lake_orders/dt=2026-05-13/lake-run.parquet",
+                "curated/lake_orders/dt=2026-05-13/lake-run.parquet",
+                "manifests/lake_orders/dt=2026-05-13/lake-run.json",
+            ],
+        },
+    )
+
+    lake_orders_ingest_main.run_ingest()
+    event = json.loads(capsys.readouterr().out)
+
+    assert event["workload"] == "lake_orders_ingest_job"
+    assert event["event"] == "lake_orders_ingest_succeeded"
+    assert event["run_id"] == "lake-run"
+    assert event["status"] == "succeeded"
+    assert event["row_count"] == 4
+    assert event["late_arrival_count"] == 1
+    assert event["parquet_object_count"] == 2
+    assert event["transform_tool"] == "dbt-duckdb"
+    assert event["transform_execution"] == "duckdb_sql_fallback"
+    assert event["evidence_paths"]
+    assert "timestamp" in event
+
+
+def test_churn_model_train_event_includes_model_evidence(
+    monkeypatch,
+    tmp_path,
+    capsys,
+) -> None:
+    monkeypatch.setattr(
+        churn_train_main.settings,
+        "churn_training_data_path",
+        str(tmp_path / "training.csv"),
+    )
+    monkeypatch.setattr(
+        churn_train_main.settings,
+        "churn_model_output_dir",
+        str(tmp_path),
+    )
+    monkeypatch.setattr(churn_train_main.settings, "churn_model_run_id", "train-run")
+    monkeypatch.setattr(
+        churn_train_main.settings,
+        "churn_model_train_date",
+        "2026-05-13",
+    )
+    monkeypatch.setattr(
+        churn_train_main,
+        "train_churn_model",
+        lambda _request: {
+            "dataset": "customer_churn",
+            "run_id": "train-run",
+            "model_version": "model-v1",
+            "status": "succeeded",
+            "training_row_count": 8,
+            "metrics": {"accuracy": 0.875},
+            "drift_summary": {"status": "ok"},
+            "evidence_paths": [
+                "models/churn_prediction/dt=2026-05-13/train-run.json",
+                "manifests/churn_prediction/dt=2026-05-13/train-run.json",
+            ],
+        },
+    )
+
+    churn_train_main.run_training()
+    event = json.loads(capsys.readouterr().out)
+
+    assert event["workload"] == "churn_model_train_job"
+    assert event["event"] == "churn_model_train_succeeded"
+    assert event["run_id"] == "train-run"
+    assert event["model_version"] == "model-v1"
+    assert event["status"] == "succeeded"
+    assert event["training_row_count"] == 8
+    assert event["metrics"]["accuracy"] == 0.875
+    assert event["drift_summary"]["status"] == "ok"
+    assert event["evidence_paths"]
+    assert "timestamp" in event
+
+
+def test_churn_prediction_event_includes_model_correlation(capsys) -> None:
+    class _State:
+        churn_model = {
+            "model_version": "model-v1",
+            "run_id": "train-run",
+            "weights": {
+                "tenure_months": -0.05,
+                "monthly_charges": 0.01,
+                "support_tickets_90d": 0.5,
+                "late_payments_12m": 0.6,
+                "usage_drop_pct": 0.04,
+            },
+            "intercept": 0.0,
+            "threshold": 0.5,
+        }
+
+    request: Any = SimpleNamespace(app=SimpleNamespace(state=_State()))
+    payload = churn_prediction_main.PredictionRequest(
+        customer_id="C-test",
+        tenure_months=6,
+        monthly_charges=112.0,
+        support_tickets_90d=4,
+        late_payments_12m=3,
+        usage_drop_pct=58,
+    )
+
+    result = churn_prediction_main.predict(payload, request)
+    event = json.loads(capsys.readouterr().out)
+
+    assert result["status"] == "succeeded"
+    assert result["model_version"] == "model-v1"
+    assert result["run_id"] == "train-run"
+    assert event["workload"] == "churn_prediction_api"
+    assert event["event"] == "churn_prediction"
+    assert event["model_version"] == "model-v1"
+    assert event["run_id"] == "train-run"
+    assert event["status"] == "succeeded"
 
 
 def test_operator_payload_events_include_artifact_context() -> None:

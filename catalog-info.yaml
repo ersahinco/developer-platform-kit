@@ -16,7 +16,10 @@ spec:
     - ./catalog/event-consumer-component.yaml
     - ./catalog/foreign-inventory-sync-component.yaml
     - ./catalog/backfill-worker-component.yaml
+    - ./catalog/churn-model-train-job-component.yaml
+    - ./catalog/churn-prediction-api-component.yaml
     - ./catalog/data-export-job-component.yaml
     - ./catalog/open-dataset-pipeline-component.yaml
+    - ./catalog/lake-orders-ingest-job-component.yaml
     - ./catalog/operational-snapshot-job-component.yaml
     - ./catalog/integration-check-job-component.yaml

@@ -83,6 +83,59 @@
       "expected_success_event": "open_dataset_pipeline_succeeded",
       "expected_log_fields": ["event", "job_name", "dataset", "run_id", "status", "row_count"]
     },
+    "lake_orders_ingest_job": {
+      "timeout_seconds": 120,
+      "env": {
+        "LAKE_ORDERS_SOURCE_DIR": "/app/apps/lake_orders_ingest_job/sample_data",
+        "LAKE_ORDERS_OUTPUT_DIR": "/exports",
+        "LAKE_ORDERS_RUN_ID": "conformance",
+        "LAKE_ORDERS_INGEST_DATE": "2026-05-13"
+      },
+      "expected_success_event": "lake_orders_ingest_succeeded",
+      "expected_log_fields": [
+        "event",
+        "job_name",
+        "dataset",
+        "run_id",
+        "status",
+        "row_count",
+        "late_arrival_count",
+        "parquet_object_count",
+        "transform_tool",
+        "transform_execution",
+        "evidence_paths"
+      ]
+    },
+    "churn_model_train_job": {
+      "timeout_seconds": 60,
+      "env": {
+        "CHURN_TRAINING_DATA_PATH": "/app/apps/churn_model_train_job/sample_data/churn_training.csv",
+        "CHURN_MODEL_OUTPUT_DIR": "/exports",
+        "CHURN_MODEL_RUN_ID": "conformance",
+        "CHURN_MODEL_TRAIN_DATE": "2026-05-13"
+      },
+      "expected_success_event": "churn_model_train_succeeded",
+      "expected_log_fields": [
+        "event",
+        "job_name",
+        "dataset",
+        "run_id",
+        "model_version",
+        "status",
+        "training_row_count",
+        "metrics",
+        "drift_summary",
+        "evidence_paths"
+      ]
+    },
+    "churn_prediction_api": {
+      "startup_timeout_seconds": 60,
+      "env": {
+        "CHURN_MODEL_PATH": "/app/apps/churn_prediction_api/sample_model/churn_model.json"
+      },
+      "expected_log_event": "http_request",
+      "expected_log_fields": ["event", "request_id", "route", "status_code"]
+    },
     "operational_snapshot_job": {
       "timeout_seconds": 60,
       "env": {
