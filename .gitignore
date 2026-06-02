@@ -43,6 +43,7 @@ terraform.tfvars
 .vscode/
 .idea/
 #.kiro/
+.DS_Store
 *.swp
 *~
 .logs.txt
