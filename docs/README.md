@@ -11,6 +11,7 @@ Canonical doc map. Find the owner before adding a new page.
 | Portable workload expectations | [Platform Contract](platform-contract.md) | Workload contract, metadata ownership, external contract rules |
 | Current platform capability surface | [Platform Capabilities](platform-capabilities.md) | What exists today and where to extend it |
 | Runtime-target evaluation | [Runtime Toolkit](runtime-toolkit.md) | When and how to add another runtime target |
+| Runtime defaults | [Runtime Defaults](runtime-defaults.md) | Blessed auth, identity, secrets, observability, policy, CI/CD, and network defaults |
 | Local workflow | [Local Development](local-development.md) | Setup, migrations, local services |
 | AWS delivery and operator flow | [Deployment](deployment.md) | Workflow ownership, rollout sequence, review loop |
 | Operator day-2 commands | [Operator Day 2 Commands](operator-day-2.md) | Exact commands for readiness, deploy observation, evidence, and integration checks |
@@ -30,7 +31,7 @@ Canonical doc map. Find the owner before adding a new page.
 | Add a workload | [Adding Workloads](adding-workloads.md), `make workload-readiness`, `make workload-readiness-check`, [Platform Contract](platform-contract.md#workload-checklist) |
 | Work locally | [Local Development](local-development.md), `make platform-doctor` |
 | Deploy or operate AWS | [Operator Day 2 Commands](operator-day-2.md), [Deployment](deployment.md), [Infrastructure](../infra/README.md), [Runbooks](runbooks/README.md) |
-| Add or evaluate another runtime | [Runtime Toolkit](runtime-toolkit.md) |
+| Add or evaluate another runtime | [Runtime Toolkit](runtime-toolkit.md), [Runtime Defaults](runtime-defaults.md), `make runtime-defaults` |
 | Work on telemetry or release evidence | [Workload Observability](workload-observability.md), [Observability](observability.md) |
 
 ## Critical Review

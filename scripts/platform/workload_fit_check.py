@@ -14,6 +14,8 @@ from typing import Any
 
 
 KNOWN_RUNTIME_TARGETS = {"local-compose", "aws-ecs"}
+ROOT = Path(__file__).resolve().parents[2]
+RUNTIME_DEFAULTS_PATH = ROOT / "platform" / "runtime-defaults.json"
 VALID_KINDS = {"service", "job"}
 SERVICE_CLASSES = {"edge-service", "internal-service"}
 JOB_CLASSES = {"operator-job", "scheduled-job"}
@@ -45,11 +47,19 @@ FORBIDDEN_KEY_PARTS = {
     "desired_count",
     "dns",
     "ecs",
+    "elastic",
+    "entra",
     "fqdn",
     "hosted_zone",
     "iam",
     "jenkins",
+    "jwt_provider",
+    "kong",
     "log_group",
+    "newrelic",
+    "oidc_provider",
+    "okta",
+    "opa",
     "observability",
     "pipeline",
     "policy_arn",
@@ -73,6 +83,19 @@ FORBIDDEN_VALUE_PATTERNS = (
 )
 
 OBSERVABILITY_BACKEND_NAMES = ("datadog", "splunk")
+RUNTIME_TOOL_NAMES = (
+    "auth0",
+    "cedar",
+    "datadog",
+    "elastic",
+    "entra",
+    "kong",
+    "new relic",
+    "newrelic",
+    "okta",
+    "opa",
+    "splunk",
+)
 OBSERVABILITY_CONFIG_PREFIXES = ("DD_", "DATADOG_", "SPLUNK_")
 
 
@@ -356,11 +379,11 @@ def _value_leaks(candidate: dict[str, Any]) -> list[EdgeLeak]:
             if pattern.search(value):
                 leaks.append(EdgeLeak(path=path, reason=f"contains {label}"))
                 break
-        if any(name in lower_value for name in OBSERVABILITY_BACKEND_NAMES):
+        if any(name in lower_value for name in RUNTIME_TOOL_NAMES):
             leaks.append(
                 EdgeLeak(
                     path=path,
-                    reason="mentions Datadog/Splunk backend wiring",
+                    reason="mentions runtime tool wiring",
                 )
             )
         if "jenkins" in lower_value or "azure devops" in lower_value:
@@ -484,6 +507,46 @@ def evaluate_candidate(candidate: dict[str, Any]) -> list[FitResult]:
     ]
 
 
+def _load_runtime_defaults() -> dict[str, Any]:
+    data = json.loads(RUNTIME_DEFAULTS_PATH.read_text(encoding="utf-8"))
+    if not isinstance(data, dict):
+        raise RuntimeError("platform/runtime-defaults.json must be a JSON object")
+    return data
+
+
+def _runtime_default_lines(candidate: dict[str, Any]) -> list[str]:
+    runtime_defaults = _load_runtime_defaults()
+    targets = runtime_defaults.get("runtime_targets", {})
+    if not isinstance(targets, dict):
+        return []
+    supported = _get_path(candidate, "runtime.supported")
+    if not isinstance(supported, list):
+        return []
+
+    lines: list[str] = []
+    for runtime_target in supported:
+        if not isinstance(runtime_target, str):
+            continue
+        profile = targets.get(runtime_target)
+        if not isinstance(profile, dict):
+            continue
+        defaults = profile.get("defaults", {})
+        if not isinstance(defaults, dict):
+            continue
+        authn = _get_path(defaults, "authn.default")
+        secrets = _get_path(defaults, "secrets.default")
+        observability = _get_path(defaults, "observability.default")
+        network = _get_path(defaults, "network.default")
+        values = [
+            f"authn={authn}",
+            f"secrets={secrets}",
+            f"observability={observability}",
+            f"network={network}",
+        ]
+        lines.append(f"{runtime_target}: " + "; ".join(values))
+    return lines
+
+
 def _load_candidate(path: Path) -> dict[str, Any]:
     try:
         document = json.loads(path.read_text(encoding="utf-8"))
@@ -496,13 +559,18 @@ def _load_candidate(path: Path) -> dict[str, Any]:
     return document
 
 
-def _print_table(results: list[FitResult]) -> None:
+def _print_table(results: list[FitResult], candidate: dict[str, Any]) -> None:
     fits = not any(result.status == "fail" for result in results)
     print(f"fit: {'yes' if fits else 'no'}")
     print("\t".join(["area", "status", "message"]))
     for result in results:
         print("\t".join([result.area, result.status, result.message]))
     if fits:
+        runtime_lines = _runtime_default_lines(candidate)
+        if runtime_lines:
+            print("runtime defaults:")
+            for line in runtime_lines:
+                print(f"- {line}")
         print("next make workload-readiness")
         print("next make platform-doctor")
         print("next add to platform/workloads.json only after local proof exists")
@@ -551,7 +619,7 @@ def main(argv: list[str] | None = None) -> int:
     if args.format == "json":
         print(json.dumps([asdict(result) for result in results], sort_keys=True))
     else:
-        _print_table(results)
+        _print_table(results, candidate)
     return 1 if any(result.status == "fail" for result in results) else 0
 
 

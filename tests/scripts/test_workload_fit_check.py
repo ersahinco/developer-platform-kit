@@ -75,7 +75,7 @@ def test_workload_fit_check_rejects_platform_edge_wiring() -> None:
     assert "database_intent" in failures
     assert "observability_contract" in failures
     assert "account_id" in failures["platform_edge_boundary"]
-    assert "Datadog/Splunk" in failures["platform_edge_boundary"]
+    assert "runtime tool wiring" in failures["platform_edge_boundary"]
 
 
 def test_workload_fit_check_cli_outputs_json(tmp_path: Path) -> None:
@@ -120,6 +120,9 @@ def test_workload_fit_check_cli_prints_next_actions_on_success(tmp_path: Path) -
     )
 
     assert "fit: yes" in completed.stdout
+    assert "runtime defaults:" in completed.stdout
+    assert "local-compose: authn=none-local" in completed.stdout
+    assert "observability=prometheus-loki-tempo-grafana" in completed.stdout
     assert "next make workload-readiness" in completed.stdout
     assert "next make platform-doctor" in completed.stdout
     assert (
@@ -183,6 +186,25 @@ def test_workload_fit_check_rejects_messy_foreign_fixture() -> None:
     assert "- iam.role_arn" in completed.stdout
     assert "- observability.datadog_index" in completed.stdout
     assert "- terraform.workspace" in completed.stdout
+
+
+def test_workload_fit_check_rejects_runtime_tool_choices_in_workload_metadata() -> None:
+    candidate = {
+        **_valid_candidate(),
+        "auth": {"okta_domain": "example.okta.com"},
+        "gateway": {"kong_plugin": "jwt"},
+        "policy": {"opa_bundle_url": "https://policy.example.com/bundle.tar.gz"},
+    }
+
+    results = evaluate_candidate(candidate)
+    failures = {
+        result.area: result.message for result in results if result.status == "fail"
+    }
+
+    assert "platform_edge_boundary" in failures
+    assert "auth.okta_domain" in failures["platform_edge_boundary"]
+    assert "gateway.kong_plugin" in failures["platform_edge_boundary"]
+    assert "policy.opa_bundle_url" in failures["platform_edge_boundary"]
 
 
 def test_workload_fit_check_accepts_corrected_foreign_fixture() -> None:

@@ -25,6 +25,7 @@
 #   make workload-fit-check  — evaluate a draft externally operated workload
 #   make workload-local-proof-plan
 #                             — plan local proof work for a passing candidate
+#   make runtime-defaults     — show blessed defaults for active runtimes
 #   make platform-toolkit-validate-cloud
 #                             — run safe cloud readiness checks without mutating AWS
 #   make platform-doctor      — check human workstation readiness
@@ -561,6 +562,10 @@ capability-implementation-matrix: ## Print the current runtime capability-to-imp
 .PHONY: adapter-seam-matrix
 adapter-seam-matrix: ## Print contract-to-adapter-to-runtime seams for portable capabilities
 	python3 -m scripts.platform.workload_metadata adapter-seam-matrix
+
+.PHONY: runtime-defaults
+runtime-defaults: ## Print blessed defaults for active runtime targets
+	python3 -m scripts.platform.workload_metadata runtime-defaults
 
 .PHONY: platform-inventory-json
 platform-inventory-json: ## Print machine-readable platform inventory for workloads, runtime seams, and adapter seams

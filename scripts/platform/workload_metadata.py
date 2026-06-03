@@ -20,6 +20,11 @@ def platform_inventory_document() -> dict[str, Any]:
 
 
 @lru_cache(maxsize=1)
+def runtime_defaults_document() -> dict[str, Any]:
+    return json.loads((ROOT / "platform" / "runtime-defaults.json").read_text())
+
+
+@lru_cache(maxsize=1)
 def workload_pattern_contract() -> dict[str, Any]:
     return json.loads((ROOT / "platform" / "workload-patterns.json").read_text())
 
@@ -264,6 +269,43 @@ def adapter_seam_rows() -> list[dict[str, str]]:
     return [row for row in rows if isinstance(row, dict)]
 
 
+def runtime_default_rows() -> list[dict[str, str]]:
+    targets = runtime_defaults_document().get("runtime_targets", {})
+    if not isinstance(targets, dict):
+        return []
+    rows: list[dict[str, str]] = []
+    for runtime_target, profile in sorted(targets.items()):
+        if not isinstance(profile, dict):
+            continue
+        defaults = profile.get("defaults", {})
+        if not isinstance(defaults, dict):
+            continue
+        rows.append(
+            {
+                "runtime_target": str(runtime_target),
+                "status": str(profile.get("status", "")),
+                "owner": str(profile.get("owner", "")),
+                "authn": str(_nested_default(defaults, "authn")),
+                "authz": str(_nested_default(defaults, "authz")),
+                "service_identity": str(_nested_default(defaults, "service_identity")),
+                "secrets": str(_nested_default(defaults, "secrets")),
+                "observability": str(_nested_default(defaults, "observability")),
+                "network": str(_nested_default(defaults, "network")),
+                "ci_cd": str(_nested_default(defaults, "ci_cd")),
+                "policy": str(_nested_default(defaults, "policy")),
+            }
+        )
+    return rows
+
+
+def _nested_default(defaults: dict[str, Any], area: str) -> str:
+    value = defaults.get(area, {})
+    if not isinstance(value, dict):
+        return ""
+    default = value.get("default")
+    return default if isinstance(default, str) else ""
+
+
 def platform_inventory() -> dict[str, Any]:
     document = platform_inventory_document()
     return {
@@ -274,6 +316,7 @@ def platform_inventory() -> dict[str, Any]:
         "workload_patterns": workload_pattern_contract().get("patterns", []),
         "workloads": workload_capability_rows(),
         "runtime_capabilities": current_runtime_capability_rows(),
+        "runtime_defaults": runtime_default_rows(),
         "adapter_seams": adapter_seam_rows(),
     }
 
@@ -459,6 +502,26 @@ def _print_adapter_seam_matrix() -> int:
     return 0
 
 
+def _print_runtime_defaults() -> int:
+    headers = [
+        "runtime_target",
+        "status",
+        "owner",
+        "authn",
+        "authz",
+        "service_identity",
+        "secrets",
+        "observability",
+        "network",
+        "ci_cd",
+        "policy",
+    ]
+    print("\t".join(headers))
+    for row in runtime_default_rows():
+        print("\t".join(row[header] for header in headers))
+    return 0
+
+
 def _print_inventory_json() -> int:
     print(json.dumps(platform_inventory(), separators=(",", ":")))
     return 0
@@ -469,7 +532,7 @@ def main(argv: list[str] | None = None) -> int:
     if not argv:
         print(
             "usage: python -m scripts.platform.workload_metadata "
-            "<primary-edge-contract|internal-services|support-task-workloads|operator-job-workloads|image-matrix|capability-matrix|use-case-matrix|implementation-matrix|adapter-seam-matrix|inventory-json>",
+            "<primary-edge-contract|internal-services|support-task-workloads|operator-job-workloads|image-matrix|capability-matrix|use-case-matrix|implementation-matrix|adapter-seam-matrix|runtime-defaults|inventory-json>",
             file=sys.stderr,
         )
         return 1
@@ -485,6 +548,7 @@ def main(argv: list[str] | None = None) -> int:
         "use-case-matrix": lambda _args: _print_use_case_matrix(),
         "implementation-matrix": lambda _args: _print_implementation_matrix(),
         "adapter-seam-matrix": lambda _args: _print_adapter_seam_matrix(),
+        "runtime-defaults": lambda _args: _print_runtime_defaults(),
         "inventory-json": lambda _args: _print_inventory_json(),
     }
     handler = handlers.get(command)

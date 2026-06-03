@@ -92,6 +92,34 @@ def test_workload_metadata_primary_edge_and_workload_groups_are_contract_derived
     assert operator_job_workloads == expected_operator_job_workloads
 
 
+def test_workload_metadata_runtime_defaults_matches_runtime_defaults_contract() -> None:
+    runtime_defaults = json.loads(
+        (ROOT / "platform" / "runtime-defaults.json").read_text()
+    )
+
+    completed = _run_workload_metadata("runtime-defaults")
+    rows = list(csv.DictReader(io.StringIO(completed.stdout), delimiter="\t"))
+
+    assert [row["runtime_target"] for row in rows] == sorted(
+        runtime_defaults["runtime_targets"]
+    )
+    for row in rows:
+        profile = runtime_defaults["runtime_targets"][row["runtime_target"]]
+        assert row["status"] == profile["status"]
+        assert row["owner"] == profile["owner"]
+        for area in [
+            "authn",
+            "authz",
+            "service_identity",
+            "secrets",
+            "observability",
+            "network",
+            "ci_cd",
+            "policy",
+        ]:
+            assert row[area] == profile["defaults"][area]["default"]
+
+
 def test_workload_metadata_image_matrix_matches_declared_apps() -> None:
     contract = json.loads((ROOT / "platform" / "workloads.json").read_text())
     completed = _run_workload_metadata("image-matrix", "sha-test", "1.24.0")

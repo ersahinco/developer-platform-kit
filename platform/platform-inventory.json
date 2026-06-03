@@ -38,6 +38,20 @@
       "replacement_seam": "infra/app/edge.tf + .github/workflows/app-deploy.yml"
     },
     {
+      "capability": "edge_auth",
+      "contract_surface": "edge.auth_mode and edge-service exposure",
+      "runtime_target": "aws-ecs",
+      "implementation": "ALB forwards HTTPS traffic to workload-enforced static bearer token for the current primary edge",
+      "replacement_seam": "platform/workloads.json + infra/app/edge.tf + apps/api auth middleware"
+    },
+    {
+      "capability": "service_identity",
+      "contract_surface": "runtime identity and delivery identity evidence",
+      "runtime_target": "aws-ecs",
+      "implementation": "ECS task role for runtime identity and GitHub OIDC for delivery identity",
+      "replacement_seam": "infra/app/runtime_identity.tf + infra/platform/github_actions.tf"
+    },
+    {
       "capability": "relational_database",
       "contract_surface": "PostgreSQL semantics, DATABASE_URL, DB_* config names",
       "runtime_target": "aws-ecs",
@@ -78,6 +92,13 @@
       "runtime_target": "aws-ecs",
       "implementation": "Secrets Manager + ECS secret injection",
       "replacement_seam": "infra/app/workload_inventory.tf + ECS task definitions"
+    },
+    {
+      "capability": "runtime_policy",
+      "contract_surface": "repository policy checks and app-local business authorization by default",
+      "runtime_target": "aws-ecs",
+      "implementation": "OPA/Conftest validates platform metadata; runtime policy engines stay future runtime choices until owned and conformance-tested",
+      "replacement_seam": "platform/concerns/policy + platform/runtime-defaults.json"
     },
     {
       "capability": "tracing",

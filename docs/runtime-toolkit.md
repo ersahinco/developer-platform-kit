@@ -8,10 +8,12 @@ provider assumptions into app code.
 Use with:
 
 - [Platform Contract](platform-contract.md): portable workload rules
+- [Runtime Defaults](runtime-defaults.md): blessed runtime and capability defaults
 - [Architecture](architecture.md): repo and ownership boundaries
 - [Platform Capabilities](platform-capabilities.md): current capability map
 
 `platform/workloads.json` is the machine-readable workload contract.
+`platform/runtime-defaults.json` is the machine-readable runtime-default map.
 `platform/runtime-conformance.json` is the local/CI runtime proof fixture.
 `make runtime-conformance` is the main executable proof.
 
@@ -61,6 +63,13 @@ observability stack to prove the workload contract before cloud deployment.
 `aws-ecs` is the current reviewed production runtime. It realizes the same
 contract with ECS/Fargate, ALB/WAF, RDS, SNS/SQS behind Dapr, S3, EventBridge
 Scheduler, IAM, and CloudWatch.
+
+Runtime defaults are intentionally opinionated. Local Compose uses local
+identity, local secret injection, and the OSS observability stack. AWS/ECS uses
+ECS task roles, GitHub OIDC for delivery, Secrets Manager or SSM injection, and
+runtime-edge observability routing. Future enterprise choices such as Okta,
+Kong, OPA, Splunk, or Datadog belong in a runtime profile or runtime catalog,
+not in per-workload metadata.
 
 A provider-edge integration can still be documented as a future option, but it
 should not appear as an active runtime target until there is a real workload,

@@ -10,6 +10,9 @@ the platform edge.
 `platform/workloads.json` is the machine-readable workload contract.
 `platform/workload-patterns.json` is the machine-readable list of supported
 workload classification shapes.
+`platform/runtime-defaults.json` is the machine-readable list of blessed
+runtime defaults for auth, identity, secrets, observability, policy, CI/CD, and
+network behavior.
 Focused pytest checks plus `make runtime-conformance` are the main proof that
 declared workloads still satisfy the contract.
 
@@ -48,6 +51,8 @@ It does not own:
 - required workload fields; those belong in the workload contract and its policy checks
 - real workload classification; use `operational.class` and `use_cases` in `platform/workloads.json`
 - provider and runtime resource names
+- runtime product choices such as Okta, Kong, OPA, Datadog, Splunk, or an
+  enterprise gateway
 - AWS queue, topic, bucket, ALB, ECS, IAM, or RDS details for the current target
 - Dapr component backing implementations for an environment profile
 - Terraform composition or GitHub Actions deployment choreography
