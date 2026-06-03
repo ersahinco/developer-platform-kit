@@ -19,6 +19,8 @@ DEFAULT_DATABASE_URL = (
 DEFAULT_PUBSUB_NAME = "async-events-pubsub"
 DEFAULT_TOPIC = "async-events-v1.fifo"
 DEFAULT_ROUTE = "/internal/events/consume"
+DEFAULT_METADATA_TIMEOUT_SECONDS = 20.0
+DEFAULT_METADATA_POLL_INTERVAL_SECONDS = 0.5
 
 
 def build_cloud_event(*, event_id: str, occurred_at: str) -> dict[str, object]:
@@ -107,6 +109,37 @@ def dapr_metadata_errors(
     return errors
 
 
+def wait_for_dapr_metadata(
+    endpoint: str,
+    *,
+    pubsub_name: str,
+    topic: str,
+    route: str,
+    timeout_seconds: float = DEFAULT_METADATA_TIMEOUT_SECONDS,
+    poll_interval_seconds: float = DEFAULT_METADATA_POLL_INTERVAL_SECONDS,
+) -> dict[str, Any]:
+    deadline = time.monotonic() + timeout_seconds
+    last_errors: list[str] = []
+    while True:
+        metadata = load_dapr_metadata(endpoint)
+        last_errors = dapr_metadata_errors(
+            metadata,
+            pubsub_name=pubsub_name,
+            topic=topic,
+            route=route,
+        )
+        if not last_errors:
+            return metadata
+        if time.monotonic() >= deadline:
+            for message in last_errors:
+                print(message, file=sys.stderr)
+            raise RuntimeError(
+                "Dapr sidecar metadata did not expose the expected local "
+                "subscription before the readiness timeout."
+            )
+        time.sleep(poll_interval_seconds)
+
+
 def publish_cloud_event(
     endpoint: str,
     *,
@@ -182,17 +215,29 @@ def run() -> int:
     pubsub_name = os.environ.get("DAPR_PUBSUB_NAME", DEFAULT_PUBSUB_NAME)
     topic = os.environ.get("DAPR_TOPIC", DEFAULT_TOPIC)
     route = os.environ.get("DAPR_SUBSCRIPTION_ROUTE", DEFAULT_ROUTE)
-
-    metadata = load_dapr_metadata(endpoint)
-    errors = dapr_metadata_errors(
-        metadata,
-        pubsub_name=pubsub_name,
-        topic=topic,
-        route=route,
+    metadata_timeout_seconds = float(
+        os.environ.get(
+            "DAPR_METADATA_TIMEOUT_SECONDS",
+            str(DEFAULT_METADATA_TIMEOUT_SECONDS),
+        )
     )
-    if errors:
-        for message in errors:
-            print(message, file=sys.stderr)
+    metadata_poll_interval_seconds = float(
+        os.environ.get(
+            "DAPR_METADATA_POLL_INTERVAL_SECONDS",
+            str(DEFAULT_METADATA_POLL_INTERVAL_SECONDS),
+        )
+    )
+
+    try:
+        wait_for_dapr_metadata(
+            endpoint,
+            pubsub_name=pubsub_name,
+            topic=topic,
+            route=route,
+            timeout_seconds=metadata_timeout_seconds,
+            poll_interval_seconds=metadata_poll_interval_seconds,
+        )
+    except RuntimeError:
         return 1
 
     occurred_at = datetime.datetime.now(tz=datetime.UTC).isoformat()
