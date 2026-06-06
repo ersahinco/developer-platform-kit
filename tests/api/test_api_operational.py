@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import json
 import os
 import datetime
 from collections.abc import Iterator
@@ -24,6 +25,7 @@ from api.main import (  # noqa: E402
     get_order_repo,
 )
 from api.main import get_config_store  # noqa: E402
+from api.config import optional_non_empty  # noqa: E402
 from api.config import settings  # noqa: E402
 from domain.customer import Customer  # noqa: E402
 from domain.order import Order  # noqa: E402
@@ -197,7 +199,10 @@ def test_request_id_header_is_propagated_when_supplied() -> None:
     assert response.headers["x-request-id"] == "trace-123"
 
 
-def test_primary_edge_auth_enforces_bearer_token_when_configured(monkeypatch) -> None:
+def test_primary_edge_auth_enforces_bearer_token_when_configured(
+    monkeypatch,
+    capsys,
+) -> None:
     monkeypatch.setattr(settings, "primary_edge_auth_token", "platform-token")
     _override_config_store(_ConfigStore({"READ_MODE": "new", "WRITE_MODE": "dual"}))
 
@@ -222,6 +227,25 @@ def test_primary_edge_auth_enforces_bearer_token_when_configured(monkeypatch) ->
     assert authorized.status_code == 200
     assert authorized.json() == {"mode": "new"}
 
+    events = [
+        json.loads(line)
+        for line in capsys.readouterr().out.splitlines()
+        if line.startswith("{")
+    ]
+    auth_events = [
+        event
+        for event in events
+        if event["route"] == "/admin/read-mode"
+        and event["auth_mode"] == "static-bearer-token"
+    ]
+    assert [event["status_code"] for event in auth_events] == [401, 401, 200]
+    assert [event["auth_required"] for event in auth_events] == [True, True, True]
+    assert [event["auth_status"] for event in auth_events] == [
+        "denied",
+        "denied",
+        "succeeded",
+    ]
+
 
 def test_primary_edge_auth_is_skipped_when_token_is_not_configured(monkeypatch) -> None:
     monkeypatch.setattr(settings, "primary_edge_auth_token", None)
@@ -235,6 +259,13 @@ def test_primary_edge_auth_is_skipped_when_token_is_not_configured(monkeypatch) 
 
     assert response.status_code == 200
     assert response.json() == {"mode": "new"}
+
+
+def test_primary_edge_auth_empty_value_is_treated_as_not_configured() -> None:
+    assert optional_non_empty(None) is None
+    assert optional_non_empty("") is None
+    assert optional_non_empty("   ") is None
+    assert optional_non_empty("platform-token") == "platform-token"
 
 
 def test_runtime_mode_getters_report_current_config() -> None:

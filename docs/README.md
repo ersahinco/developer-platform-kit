@@ -31,7 +31,7 @@ Canonical doc map. Find the owner before adding a new page.
 | Add a workload | [Adding Workloads](adding-workloads.md), `make workload-readiness`, `make workload-readiness-check`, [Platform Contract](platform-contract.md#workload-checklist) |
 | Work locally | [Local Development](local-development.md), `make platform-doctor` |
 | Deploy or operate AWS | [Operator Day 2 Commands](operator-day-2.md), [Deployment](deployment.md), [Infrastructure](../infra/README.md), [Runbooks](runbooks/README.md) |
-| Add or evaluate another runtime | [Runtime Toolkit](runtime-toolkit.md), [Runtime Defaults](runtime-defaults.md), `make runtime-defaults` |
+| Add or evaluate another runtime | [Runtime Toolkit](runtime-toolkit.md), [Runtime Defaults](runtime-defaults.md), `make runtime-defaults`, `make capability-proof-local`, `make capability-proof-local-live`, `make capability-proof-cloud`, `make enterprise-runtime-fit-check` |
 | Work on telemetry or release evidence | [Workload Observability](workload-observability.md), [Observability](observability.md) |
 
 ## Critical Review

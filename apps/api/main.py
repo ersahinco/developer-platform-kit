@@ -101,6 +101,26 @@ ensure_workload_info_metric(workload=WORKLOAD_NAME, workload_class=WORKLOAD_CLAS
 PRIMARY_EDGE_AUTH_EXEMPT_PATHS = frozenset({"/health", "/ready", "/metrics"})
 
 
+def _auth_evidence(request: Request, response: Response) -> dict[str, object]:
+    auth_configured = settings.primary_edge_auth_token is not None
+    auth_required = (
+        auth_configured and request.url.path not in PRIMARY_EDGE_AUTH_EXEMPT_PATHS
+    )
+    if not auth_configured:
+        auth_status = "not_configured"
+    elif not auth_required:
+        auth_status = "skipped"
+    elif response.status_code == status.HTTP_401_UNAUTHORIZED:
+        auth_status = "denied"
+    else:
+        auth_status = "succeeded"
+    return {
+        "auth_mode": "static-bearer-token" if auth_configured else "none",
+        "auth_required": auth_required,
+        "auth_status": auth_status,
+    }
+
+
 def _http_request_event(
     request: Request,
     response: Response,
@@ -116,6 +136,7 @@ def _http_request_event(
         "status": "succeeded" if response.status_code < 500 else "failed",
         "status_code": response.status_code,
         "duration_ms": round(elapsed_seconds * 1000, 3),
+        **_auth_evidence(request, response),
     }
 
 

@@ -100,6 +100,20 @@ deny contains msg if {
 
 deny contains msg if {
   data.conftest.file.name == "platform-inventory.json"
+  object.get(input, "candidate_runtime_capabilities", []) != []
+  not is_array(input.candidate_runtime_capabilities)
+  msg := "platform/platform-inventory.json candidate_runtime_capabilities must be an array when present"
+}
+
+deny contains msg if {
+  data.conftest.file.name == "platform-inventory.json"
+  some row in object.get(input, "candidate_runtime_capabilities", [])
+  object.keys(row) != required_runtime_capability_keys
+  msg := "every candidate runtime capability row must contain only capability, contract_surface, runtime_target, implementation, and replacement_seam"
+}
+
+deny contains msg if {
+  data.conftest.file.name == "platform-inventory.json"
   not is_array(input.adapter_seams)
   msg := "platform/platform-inventory.json adapter_seams must be an array"
 }

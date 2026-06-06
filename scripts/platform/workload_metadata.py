@@ -264,6 +264,11 @@ def current_runtime_capability_rows() -> list[dict[str, str]]:
     return [row for row in rows if isinstance(row, dict)]
 
 
+def candidate_runtime_capability_rows() -> list[dict[str, str]]:
+    rows = platform_inventory_document().get("candidate_runtime_capabilities", [])
+    return [row for row in rows if isinstance(row, dict)]
+
+
 def adapter_seam_rows() -> list[dict[str, str]]:
     rows = platform_inventory_document().get("adapter_seams", [])
     return [row for row in rows if isinstance(row, dict)]
@@ -316,6 +321,7 @@ def platform_inventory() -> dict[str, Any]:
         "workload_patterns": workload_pattern_contract().get("patterns", []),
         "workloads": workload_capability_rows(),
         "runtime_capabilities": current_runtime_capability_rows(),
+        "candidate_runtime_capabilities": candidate_runtime_capability_rows(),
         "runtime_defaults": runtime_default_rows(),
         "adapter_seams": adapter_seam_rows(),
     }
@@ -487,6 +493,20 @@ def _print_implementation_matrix() -> int:
     return 0
 
 
+def _print_candidate_implementation_matrix() -> int:
+    headers = [
+        "capability",
+        "contract_surface",
+        "runtime_target",
+        "implementation",
+        "replacement_seam",
+    ]
+    print("\t".join(headers))
+    for row in candidate_runtime_capability_rows():
+        print("\t".join(row[header] for header in headers))
+    return 0
+
+
 def _print_adapter_seam_matrix() -> int:
     headers = [
         "capability",
@@ -532,7 +552,7 @@ def main(argv: list[str] | None = None) -> int:
     if not argv:
         print(
             "usage: python -m scripts.platform.workload_metadata "
-            "<primary-edge-contract|internal-services|support-task-workloads|operator-job-workloads|image-matrix|capability-matrix|use-case-matrix|implementation-matrix|adapter-seam-matrix|runtime-defaults|inventory-json>",
+            "<primary-edge-contract|internal-services|support-task-workloads|operator-job-workloads|image-matrix|capability-matrix|use-case-matrix|implementation-matrix|candidate-implementation-matrix|adapter-seam-matrix|runtime-defaults|inventory-json>",
             file=sys.stderr,
         )
         return 1
@@ -547,6 +567,9 @@ def main(argv: list[str] | None = None) -> int:
         "capability-matrix": lambda _args: _print_capability_matrix(),
         "use-case-matrix": lambda _args: _print_use_case_matrix(),
         "implementation-matrix": lambda _args: _print_implementation_matrix(),
+        "candidate-implementation-matrix": (
+            lambda _args: _print_candidate_implementation_matrix()
+        ),
         "adapter-seam-matrix": lambda _args: _print_adapter_seam_matrix(),
         "runtime-defaults": lambda _args: _print_runtime_defaults(),
         "inventory-json": lambda _args: _print_inventory_json(),

@@ -1,18 +1,38 @@
 # aws-sdlc-containers
 
-Opinionated platform monorepo and delivery toolkit.
+Opinionated delivery toolkit for portable workload boundaries, local proof,
+AWS ECS realization, and evidence-driven operations.
 
 Short form: standardize the delivery workflow, do not replace the tools.
 
 The stable center of the repo is the workload contract and the platform
-catalog. Together they make the monorepo a practical toolkit for engineers to
-build standardized applications without replacing the tools they already use.
+catalog. Together they make the monorepo a practical toolkit for teams to
+standardize delivery without hiding standard tools behind a private framework.
 Runtime targets are pluggable implementations at the platform edge. Local
-Compose is the fast feedback runtime; AWS/ECS is the current reviewed
-production runtime. Future provider-edge integrations stay a horizon topic
-until a real workload needs them and the runtime ownership is clear.
+Compose is the fast feedback and proof runtime; AWS/ECS is the current reviewed
+production realization. Enterprise runtime choices stay candidate-only until a
+real organizational requirement has an owner, conformance path, evidence
+artifact, failure mode, and runbook.
 The repo also ships a conventional Backstage descriptor in `catalog-info.yaml`
 so a portal or software catalog can ingest the monorepo without custom glue.
+
+## Who This Is For
+
+Use this repo when you want:
+
+- a repeatable path for app hosts, jobs, data workloads, ML workloads, and LLM
+  workloads
+- local proof before cloud changes
+- AWS ECS delivery with explicit review, evidence, and operator handoff
+- runtime standardization without putting Okta, Kong, OPA, Datadog, or Splunk
+  into workload metadata
+
+Do not use it as:
+
+- a generic provider-neutral infrastructure framework
+- a self-service portal
+- a YAML DSL for every deployment concern
+- a place to install enterprise tools before a real workload and runtime owner need them
 
 ## What This Repo Standardizes
 
@@ -113,6 +133,20 @@ make data-artifacts-list
 ```
 
 For full local setup, use [docs/local-development.md](docs/local-development.md).
+
+## Use It In Anger
+
+1. Prove the local path:
+   `make platform-toolkit-validate-local`
+2. Prove the live local runtime blades:
+   `make capability-proof-local-live`
+3. Add one real workload:
+   [docs/adding-workloads.md](docs/adding-workloads.md)
+4. Inspect evidence and readiness:
+   `make workload-readiness`, `make capability-proof-local`, `make data-artifacts-list`
+5. Decide runtime admission:
+   use [docs/runtime-toolkit.md](docs/runtime-toolkit.md),
+   `make capability-proof-cloud`, and `make enterprise-runtime-fit-check`
 
 ## Delivery Shape
 

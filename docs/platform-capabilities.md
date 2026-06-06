@@ -13,7 +13,12 @@ Inspect the current implementation directly:
 ```bash
 make workload-capability-matrix
 make capability-implementation-matrix
+make candidate-capability-matrix
 make adapter-seam-matrix
+make capability-proof-local
+make capability-proof-local-live
+make capability-proof-cloud
+make enterprise-runtime-fit-check
 ```
 
 ## Capability Map
@@ -33,6 +38,10 @@ make adapter-seam-matrix
 | Operational snapshot | read-only job that emits runtime mode and data posture for release or incident context | `apps/operational_snapshot_job`, `operational-snapshot.yml`, `make operational-snapshot`, `make operational-snapshot-cloud` |
 | Integration checks | configured HTTP checks that emit a local operator evidence payload | `apps/integration_check_job`, `make integration-check` |
 | Runtime conformance | external proof that workloads satisfy the declared contract | `platform/runtime-conformance.json`, `tests/runtime/`, `make runtime-conformance` |
+| Network connectivity | declared ports, local service names, public edge ingress, private placement, private dependency connectivity | `compose.yaml`, `platform/runtime-conformance.json`, `infra/platform/network.tf`, `infra/app/edge.tf`, `infra/app/compute_ecs.tf` |
+| CI/CD delivery | local validation, immutable image tags, separated build/deploy, reviewed plan/apply, workflow run IDs, release evidence | `Makefile`, `.github/workflows/`, `infra/platform/github_actions.tf`, `scripts/observability/release_event.py` |
+| Observability routing | standard metrics/logs/traces emitted by workloads and routed by the runtime edge | `platform/concerns/observability/`, `compose.yaml`, `infra/app/app_log_groups.tf`, `infra/app/observability.tf`, `scripts/observability/` |
+| Authz policy | app-local business authorization by default plus repo/runtime metadata policy checks | `platform/concerns/policy/`, `platform/runtime-defaults.json`, `tests/contracts/test_policy_contract.py` |
 
 ## Runtime Targets
 
@@ -50,7 +59,16 @@ Rule:
 - keep local fast enough to stay the default development loop
 
 Future runtime replacements should plug in at the seams shown by
-`make capability-implementation-matrix` and `make adapter-seam-matrix`.
+`make capability-implementation-matrix`, `make candidate-capability-matrix`, and
+`make adapter-seam-matrix`.
+
+Use `make capability-proof-local` to see current local evidence behind each
+active runtime capability. Use `make capability-proof-cloud` to inspect AWS
+wiring evidence; it is not a live deployed-cloud probe. Use
+`make capability-proof-local-live` for an isolated live local drill that starts
+Compose, enables token auth, probes runtime behavior, and cleans up. Use
+`make enterprise-runtime-fit-check` to see why candidate enterprise capabilities
+remain candidate-only.
 
 ## Adapter Seams
 

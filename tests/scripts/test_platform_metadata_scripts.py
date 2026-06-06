@@ -120,6 +120,26 @@ def test_workload_metadata_runtime_defaults_matches_runtime_defaults_contract() 
             assert row[area] == profile["defaults"][area]["default"]
 
 
+def test_workload_metadata_candidate_implementation_matrix_matches_inventory() -> None:
+    inventory = json.loads((ROOT / "platform" / "platform-inventory.json").read_text())
+
+    completed = _run_workload_metadata("candidate-implementation-matrix")
+    rows = list(csv.DictReader(io.StringIO(completed.stdout), delimiter="\t"))
+
+    assert rows == inventory["candidate_runtime_capabilities"]
+    assert {
+        row["capability"]
+        for row in rows
+        if row["runtime_target"] == "enterprise-runtime-candidate"
+    } >= {
+        "authz_policy",
+        "ci_cd_delivery",
+        "edge_auth",
+        "network_connectivity",
+        "observability_routing",
+    }
+
+
 def test_workload_metadata_image_matrix_matches_declared_apps() -> None:
     contract = json.loads((ROOT / "platform" / "workloads.json").read_text())
     completed = _run_workload_metadata("image-matrix", "sha-test", "1.24.0")

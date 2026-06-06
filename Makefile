@@ -26,6 +26,16 @@
 #   make workload-local-proof-plan
 #                             — plan local proof work for a passing candidate
 #   make runtime-defaults     — show blessed defaults for active runtimes
+#   make candidate-capability-matrix
+#                             — show candidate-only enterprise runtime choices
+#   make capability-proof-local
+#                             — summarize local runtime capability evidence
+#   make capability-proof-local-live
+#                             — run isolated live local runtime capability drill
+#   make capability-proof-cloud
+#                             — summarize AWS runtime wiring evidence
+#   make enterprise-runtime-fit-check
+#                             — show candidate enterprise promotion gaps
 #   make platform-toolkit-validate-cloud
 #                             — run safe cloud readiness checks without mutating AWS
 #   make platform-doctor      — check human workstation readiness
@@ -558,6 +568,26 @@ workload-local-proof-plan: ## Plan local proof work for a passing workload candi
 .PHONY: capability-implementation-matrix
 capability-implementation-matrix: ## Print the current runtime capability-to-implementation matrix
 	python3 -m scripts.platform.workload_metadata implementation-matrix
+
+.PHONY: candidate-capability-matrix
+candidate-capability-matrix: ## Print candidate-only enterprise runtime capability choices
+	python3 -m scripts.platform.workload_metadata candidate-implementation-matrix
+
+.PHONY: capability-proof-local
+capability-proof-local: ## Summarize local runtime capability proof evidence
+	python3 scripts/platform/capability_proof.py --runtime-target local-compose
+
+.PHONY: capability-proof-local-live
+capability-proof-local-live: ## Run isolated live local runtime capability proof
+	python3 scripts/platform/capability_live_proof.py
+
+.PHONY: capability-proof-cloud
+capability-proof-cloud: ## Summarize AWS runtime wiring proof evidence
+	python3 scripts/platform/capability_proof.py --runtime-target aws-ecs
+
+.PHONY: enterprise-runtime-fit-check
+enterprise-runtime-fit-check: ## Show candidate enterprise runtime promotion gaps
+	python3 scripts/platform/enterprise_runtime_fit_check.py
 
 .PHONY: adapter-seam-matrix
 adapter-seam-matrix: ## Print contract-to-adapter-to-runtime seams for portable capabilities

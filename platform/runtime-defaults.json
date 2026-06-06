@@ -6,41 +6,49 @@
       "owner": "platform-toolkit",
       "defaults": {
         "authn": {
+          "capability": "edge_auth",
           "default": "none-local",
           "realization": "No authentication by default for local inner-loop workloads; workloads may use an explicit static dev token when the workload contract declares one.",
           "evidence": ["readiness", "structured_http_request_logs"]
         },
         "authz": {
+          "capability": "authz_policy",
           "default": "app-local-when-needed",
           "realization": "Business authorization stays in the workload or application layer when a local workload needs it.",
           "evidence": ["structured_http_request_logs"]
         },
         "service_identity": {
+          "capability": "service_identity",
           "default": "compose-service-identity",
           "realization": "Docker Compose service name and network membership identify local workload hosts.",
           "evidence": ["compose_service_name", "container_name"]
         },
         "secrets": {
+          "capability": "secrets_injection",
           "default": "env-and-local-files",
           "realization": "Environment variables and local mounted files only; no committed secret values.",
           "evidence": ["declared_secret_names"]
         },
         "observability": {
+          "capability": "observability_routing",
           "default": "prometheus-loki-tempo-grafana",
           "realization": "Workloads emit Prometheus metrics, structured logs, and optional OTLP traces; the local runtime routes them to the OSS stack.",
           "evidence": ["workload_info", "structured_logs", "optional_otlp_traces"]
         },
         "network": {
+          "capability": "network_connectivity",
           "default": "compose-network",
           "realization": "Internal connectivity is Docker Compose networking; public host ports are explicit in compose.yaml.",
           "evidence": ["compose_service", "declared_ports"]
         },
         "ci_cd": {
+          "capability": "ci_cd_delivery",
           "default": "local-make-targets",
           "realization": "Local validation runs through Makefile targets and pytest; cloud-changing delivery is not part of local-compose.",
           "evidence": ["make_platform_toolkit_validate_local", "runtime_conformance"]
         },
         "policy": {
+          "capability": "runtime_policy",
           "default": "conftest-local",
           "realization": "OPA/Conftest validates repository contracts and platform metadata; it is not app business authorization.",
           "evidence": ["lint_policy"]
@@ -52,41 +60,49 @@
       "owner": "platform-runtime",
       "defaults": {
         "authn": {
+          "capability": "edge_auth",
           "default": "static-bearer-token-primary-edge",
           "realization": "The current primary edge declares static-bearer-token and the workload host enforces it; ALB forwards HTTPS traffic to the workload.",
           "evidence": ["edge_auth_mode", "unauthorized_response", "structured_http_request_logs"]
         },
         "authz": {
+          "capability": "authz_policy",
           "default": "app-local-business-authz",
           "realization": "Business authorization stays in application/workload behavior unless a shared runtime policy owner and conformance path exist.",
           "evidence": ["structured_decision_logs_when_present"]
         },
         "service_identity": {
+          "capability": "service_identity",
           "default": "ecs-task-role",
           "realization": "ECS task roles provide runtime identity; GitHub OIDC provides short-lived delivery identity.",
           "evidence": ["task_role_arn", "release_evidence"]
         },
         "secrets": {
+          "capability": "secrets_injection",
           "default": "secrets-manager-ssm",
           "realization": "Declared workload secret names are injected by ECS from Secrets Manager or SSM; values are not committed or baked into images.",
           "evidence": ["declared_secret_names", "task_secret_injection"]
         },
         "observability": {
+          "capability": "observability_routing",
           "default": "prometheus-compatible-plus-cloudwatch-adot",
           "realization": "Apps emit standard metrics/logs/traces; AWS runtime edge routes to CloudWatch and ADOT-compatible collectors where enabled.",
           "evidence": ["workload_info", "cloudwatch_log_group", "optional_otlp_traces"]
         },
         "network": {
+          "capability": "network_connectivity",
           "default": "vpc-security-groups-private-dependencies",
           "realization": "ALB owns public ingress for edge workloads; internal services and data dependencies stay behind VPC networking and security groups.",
           "evidence": ["runtime_identifiers", "private_database_connectivity"]
         },
         "ci_cd": {
+          "capability": "ci_cd_delivery",
           "default": "github-actions-oidc-reviewed-delivery",
           "realization": "GitHub Actions uses OIDC, immutable image tags, separated build/deploy, reviewed plan/apply, and release evidence.",
           "evidence": ["workflow_run_id", "image_tag", "release_event"]
         },
         "policy": {
+          "capability": "runtime_policy",
           "default": "repo-policy-plus-app-local-authz",
           "realization": "OPA/Conftest validates platform metadata and workflows; app-local authorization remains the default until runtime policy ownership exists.",
           "evidence": ["policy_check_results", "release_evidence"]
@@ -100,24 +116,34 @@
       "owner": "future-runtime-owner-required",
       "defaults": {
         "authn": {
+          "capability": "edge_auth",
           "default": "enterprise-idp-at-edge",
           "realization": "Enterprise IdP through a runtime-owned gateway or managed edge, such as Okta, Entra ID, Auth0, Kong, Envoy, or a managed API gateway.",
           "evidence": ["subject", "issuer_class", "request_id", "decision"]
         },
         "authz": {
+          "capability": "authz_policy",
           "default": "app-local-unless-platform-policy-owned",
           "realization": "OPA, Cedar, or another policy engine is a runtime default only when policy distribution and operations ownership are explicit.",
           "evidence": ["decision", "reason", "policy_version"]
         },
         "observability": {
+          "capability": "observability_routing",
           "default": "standard-signals-runtime-routed",
           "realization": "Workloads emit standard metrics/logs/traces; the runtime may route to Datadog, Splunk, New Relic, Elastic, Grafana, or another owned backend.",
           "evidence": ["workload_id", "run_id", "image_tag", "timestamp", "status"]
         },
         "network": {
+          "capability": "network_connectivity",
           "default": "private-connectivity-and-controlled-egress",
           "realization": "Private ingress, private egress, proxy, firewall, egress identity, VPN, Direct Connect, or PrivateLink are runtime-edge realizations.",
           "evidence": ["runtime_identifiers", "connectivity_check", "egress_identity_when_required"]
+        },
+        "ci_cd": {
+          "capability": "ci_cd_delivery",
+          "default": "enterprise-reviewed-delivery",
+          "realization": "Enterprise CI/CD may use GitHub Actions, GitLab, Jenkins, Azure DevOps, or another owned system only when it preserves delivery identity, separation, image tag, and release evidence.",
+          "evidence": ["workflow_run_id", "delivery_identity", "image_tag", "release_event"]
         }
       }
     }

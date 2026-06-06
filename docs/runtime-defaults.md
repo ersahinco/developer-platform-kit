@@ -11,17 +11,40 @@ Inspect active defaults with:
 
 ```bash
 make runtime-defaults
+make capability-implementation-matrix
+make candidate-capability-matrix
+make capability-proof-local
+make capability-proof-local-live
+make capability-proof-cloud
+make enterprise-runtime-fit-check
 ```
 
 ## Active Runtime Targets
 
-| Runtime target | Authn default | Identity default | Secrets default | Observability default |
-|---|---|---|---|---|
-| `local-compose` | `none-local`, with explicit static dev token only when declared | Compose service identity | environment variables and local files | Prometheus, Loki, Tempo, Grafana |
-| `aws-ecs` | current primary edge uses workload-declared static bearer token | ECS task role plus GitHub OIDC for delivery | Secrets Manager or SSM injection | Prometheus-compatible signals routed by the runtime edge |
+| Runtime target | Authn default | Authz/policy default | Network default | CI/CD default | Observability default |
+|---|---|---|---|---|---|
+| `local-compose` | `none-local`, with explicit static dev token only when declared | app-local checks when needed plus local Conftest policy checks | Compose network and explicit host ports | local Make targets plus pytest/runtime conformance | Prometheus, Loki, Tempo, Grafana |
+| `aws-ecs` | current primary edge uses workload-declared static bearer token | app-local business authz plus repo policy checks | ALB ingress, private ECS placement, VPC security groups | GitHub Actions OIDC, immutable tags, reviewed delivery, release evidence | Prometheus-compatible signals routed to CloudWatch and optional ADOT |
 
 The current AWS edge does not standardize on Okta, Kong, OPA, or a JWT provider.
 Those are valid future runtime choices, not workload metadata.
+
+## Capability Proofs
+
+`make capability-proof-local` summarizes the local evidence that exists today
+for authn/authz, network connectivity, CI/CD delivery, observability routing,
+secrets, and service identity. `make capability-proof-cloud` summarizes AWS
+runtime wiring evidence; it is not a live deployed-cloud probe.
+
+The proof commands do not promote candidate enterprise tools. They point at
+existing files, tests, workflows, and evidence seams so operators can see which
+runtime blades are actually implemented.
+
+`make capability-proof-local-live` runs a dedicated temporary Compose project
+with token auth enabled, proves live health, readiness, metrics, auth 401/200,
+structured logs, Prometheus, Loki, Tempo, and Grafana, then tears the stack down
+by default. Use `--keep-stack` on `scripts/platform/capability_live_proof.py`
+only when you want to inspect the drill stack manually.
 
 ## Enterprise Candidate
 
@@ -42,6 +65,11 @@ Allowed runtime-edge choices include:
 
 These tools must stay out of workload metadata unless the workload business
 behavior genuinely depends on them.
+
+Use `make enterprise-runtime-fit-check` before promoting any candidate
+enterprise capability. A candidate runtime capability becomes active only when
+it has owner, config surface, conformance test, evidence artifact, failure mode,
+and runbook.
 
 ## Decision Rules
 

@@ -167,7 +167,11 @@ Inspection commands:
 ```bash
 make workload-capability-matrix
 make capability-implementation-matrix
+make candidate-capability-matrix
 make adapter-seam-matrix
+make capability-proof-local
+make capability-proof-local-live
+make capability-proof-cloud
 ```
 
 For current AWS rollout and operator flow, use [Deployment](deployment.md).
@@ -191,7 +195,7 @@ Prefer portability through explicit adapters and replacement seams:
 - keep business behavior in `packages/domain` and `packages/application`
 - keep database, pub/sub, storage, and HTTP client adapters in `packages/infrastructure`
 - keep runtime-target realization in `infra/`, workflows, and scripts
-- use `make capability-implementation-matrix` and `make adapter-seam-matrix` to identify the current runtime and adapter seams before adding a new target
+- use `make capability-implementation-matrix`, `make candidate-capability-matrix`, `make adapter-seam-matrix`, `make capability-proof-local`, `make capability-proof-local-live`, and `make capability-proof-cloud` to identify active runtime seams, candidate-only enterprise choices, adapter seams, current proof evidence, and live local behavior before adding a new target
 
 For this repo today:
 

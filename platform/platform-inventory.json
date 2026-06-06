@@ -31,6 +31,62 @@
       "replacement_seam": "compose.yaml + platform/concerns/ + platform/runtime-conformance.json"
     },
     {
+      "capability": "edge_auth",
+      "contract_surface": "local edge authentication default and explicit dev-token opt-in",
+      "runtime_target": "local-compose",
+      "implementation": "Local workloads run without authentication by default; workloads that declare static bearer auth can enforce a configured dev token",
+      "replacement_seam": "platform/runtime-defaults.json + platform/workloads.json + apps/api/main.py + tests/api/test_api_operational.py"
+    },
+    {
+      "capability": "service_identity",
+      "contract_surface": "local workload host identity evidence",
+      "runtime_target": "local-compose",
+      "implementation": "Docker Compose service names, container names, and network aliases identify local workload hosts",
+      "replacement_seam": "compose.yaml + platform/runtime-conformance.json + tests/runtime"
+    },
+    {
+      "capability": "secrets_injection",
+      "contract_surface": "declared config secret names and local env or mounted file injection",
+      "runtime_target": "local-compose",
+      "implementation": "Local runs use environment variables and local files only; committed secret values are rejected by repository gates",
+      "replacement_seam": "platform/workloads.json + compose.yaml + Makefile"
+    },
+    {
+      "capability": "runtime_policy",
+      "contract_surface": "repository policy checks for workload metadata, runtime conformance, and workflows",
+      "runtime_target": "local-compose",
+      "implementation": "OPA/Conftest validates platform metadata locally through lint-policy",
+      "replacement_seam": "platform/concerns/policy + Makefile + tests/contracts/test_policy_contract.py"
+    },
+    {
+      "capability": "network_connectivity",
+      "contract_surface": "declared ports, Compose service names, and local runtime conformance endpoints",
+      "runtime_target": "local-compose",
+      "implementation": "Docker Compose networks provide local internal connectivity; host ports are explicit in compose.yaml",
+      "replacement_seam": "compose.yaml + platform/runtime-conformance.json + tests/runtime"
+    },
+    {
+      "capability": "ci_cd_delivery",
+      "contract_surface": "local validation commands and runtime conformance evidence",
+      "runtime_target": "local-compose",
+      "implementation": "Make targets and pytest prove local workload behavior before cloud-changing delivery",
+      "replacement_seam": "Makefile + tests/runtime + tests/contracts"
+    },
+    {
+      "capability": "observability_routing",
+      "contract_surface": "Prometheus metrics, structured logs, optional OTLP traces, and workload identity labels",
+      "runtime_target": "local-compose",
+      "implementation": "Local Prometheus, Loki, Tempo, Promtail, and Grafana consume standard workload signals",
+      "replacement_seam": "platform/concerns/observability + compose.yaml + tests/contracts/test_observability_contract.py"
+    },
+    {
+      "capability": "authz_policy",
+      "contract_surface": "app-local business authorization by default plus repository policy checks",
+      "runtime_target": "local-compose",
+      "implementation": "Workloads keep business checks local when needed; OPA/Conftest validates repository contracts",
+      "replacement_seam": "platform/concerns/policy + tests/contracts/test_policy_contract.py"
+    },
+    {
       "capability": "edge_http",
       "contract_surface": "edge-service, /health, /ready, /metrics",
       "runtime_target": "aws-ecs",
@@ -50,6 +106,34 @@
       "runtime_target": "aws-ecs",
       "implementation": "ECS task role for runtime identity and GitHub OIDC for delivery identity",
       "replacement_seam": "infra/app/runtime_identity.tf + infra/platform/github_actions.tf"
+    },
+    {
+      "capability": "network_connectivity",
+      "contract_surface": "public edge ingress, private service placement, and private dependency connectivity",
+      "runtime_target": "aws-ecs",
+      "implementation": "ALB owns public ingress; ECS tasks use awsvpc networking in private subnets; RDS and support jobs use VPC security groups",
+      "replacement_seam": "infra/platform/network.tf + infra/app/edge.tf + infra/app/compute_ecs.tf + infra/app/workload_jobs.tf"
+    },
+    {
+      "capability": "ci_cd_delivery",
+      "contract_surface": "immutable image tags, reviewed plan/apply, separated build/deploy, workflow run IDs, and release evidence",
+      "runtime_target": "aws-ecs",
+      "implementation": "GitHub Actions uses OIDC to build, validate, deploy, run operator jobs, and emit release evidence",
+      "replacement_seam": ".github/workflows + infra/platform/github_actions.tf + scripts/observability/release_event.py"
+    },
+    {
+      "capability": "observability_routing",
+      "contract_surface": "Prometheus-compatible metrics, structured logs, optional OTLP traces, CloudWatch log groups, and release/incident evidence",
+      "runtime_target": "aws-ecs",
+      "implementation": "Workloads emit standard signals; ECS routes logs to CloudWatch and optional ADOT collects Prometheus/OTLP signals",
+      "replacement_seam": "infra/app/app_log_groups.tf + infra/app/observability.tf + scripts/observability"
+    },
+    {
+      "capability": "authz_policy",
+      "contract_surface": "app-local business authorization by default plus repository policy checks",
+      "runtime_target": "aws-ecs",
+      "implementation": "Application code owns business authorization unless a runtime policy owner exists; OPA/Conftest validates platform metadata and workflows",
+      "replacement_seam": "platform/concerns/policy + platform/runtime-defaults.json + tests/contracts/test_policy_contract.py"
     },
     {
       "capability": "relational_database",
@@ -113,6 +197,43 @@
       "runtime_target": "aws-ecs",
       "implementation": "GitHub artifact upload + optional Loki push",
       "replacement_seam": "scripts/observability/release_event.py + workflows"
+    }
+  ],
+  "candidate_runtime_capabilities": [
+    {
+      "capability": "edge_auth",
+      "contract_surface": "enterprise edge authentication, subject evidence, issuer class, request ID, and decision outcome",
+      "runtime_target": "enterprise-runtime-candidate",
+      "implementation": "Candidate runtime choice only; an enterprise runtime owner may select Okta, Entra ID, Auth0, Kong, Envoy, API Gateway, or equivalent edge machinery",
+      "replacement_seam": "platform/runtime-defaults.json + docs/runtime-defaults.md + future enterprise runtime catalog"
+    },
+    {
+      "capability": "network_connectivity",
+      "contract_surface": "private ingress, private egress, controlled partner connectivity, runtime identifiers, and connectivity evidence",
+      "runtime_target": "enterprise-runtime-candidate",
+      "implementation": "Candidate runtime choice only; VPN, Direct Connect, PrivateLink, proxy, firewall, egress identity, or service mesh must be runtime-owned and conformance-testable",
+      "replacement_seam": "platform/runtime-defaults.json + docs/runtime-defaults.md + future enterprise runtime catalog"
+    },
+    {
+      "capability": "ci_cd_delivery",
+      "contract_surface": "delivery identity, immutable image tags, separated build/deploy, reviewed promotion, workflow run IDs, and release evidence",
+      "runtime_target": "enterprise-runtime-candidate",
+      "implementation": "Candidate runtime choice only; GitHub Actions, GitLab, Jenkins, Azure DevOps, or another enterprise system must preserve the delivery evidence contract",
+      "replacement_seam": "platform/runtime-defaults.json + docs/runtime-defaults.md + future enterprise runtime catalog"
+    },
+    {
+      "capability": "observability_routing",
+      "contract_surface": "standard workload metrics, logs, traces, run IDs, image tags, timestamps, status, and artifact paths",
+      "runtime_target": "enterprise-runtime-candidate",
+      "implementation": "Candidate runtime choice only; Datadog, Splunk, New Relic, Elastic, Grafana, or another backend may route standard signals without changing workload metadata",
+      "replacement_seam": "platform/runtime-defaults.json + docs/runtime-defaults.md + future enterprise runtime catalog"
+    },
+    {
+      "capability": "authz_policy",
+      "contract_surface": "authorization decision, reason, policy version, subject evidence, and operator-visible failure mode",
+      "runtime_target": "enterprise-runtime-candidate",
+      "implementation": "Candidate runtime choice only; OPA, Cedar, or another policy engine is allowed only with explicit policy distribution ownership and conformance checks",
+      "replacement_seam": "platform/runtime-defaults.json + docs/runtime-defaults.md + future enterprise runtime catalog"
     }
   ],
   "adapter_seams": [

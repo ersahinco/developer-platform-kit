@@ -11,12 +11,18 @@ from infrastructure.config import require_value
 load_env_file()
 
 
+def optional_non_empty(value: str | None) -> str | None:
+    if value is None or not value.strip():
+        return None
+    return value
+
+
 @dataclass
 class Settings(PostgresRuntimeSettings):
     database_url: str | None = field(default_factory=lambda: env_str("DATABASE_URL"))
     db_host: str | None = field(default_factory=lambda: env_str("DB_HOST", "localhost"))
     primary_edge_auth_token: str | None = field(
-        default_factory=lambda: env_str("PRIMARY_EDGE_AUTH_TOKEN")
+        default_factory=lambda: optional_non_empty(env_str("PRIMARY_EDGE_AUTH_TOKEN"))
     )
     otel_traces_enabled: bool = field(
         default_factory=lambda: env_bool("OTEL_TRACES_ENABLED")

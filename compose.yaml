@@ -111,6 +111,7 @@ services:
       OTEL_EXPORTER_OTLP_TRACES_ENDPOINT: ${OTEL_EXPORTER_OTLP_TRACES_ENDPOINT:-http://tempo:4318/v1/traces}
       OTEL_SERVICE_NAME: aws-sdlc-containers-api
       OTEL_DEPLOYMENT_ENVIRONMENT: local
+      PRIMARY_EDGE_AUTH_TOKEN: ${PRIMARY_EDGE_AUTH_TOKEN:-}
     ports:
       - "${APP_PORT:-8000}:8000"
     depends_on:
