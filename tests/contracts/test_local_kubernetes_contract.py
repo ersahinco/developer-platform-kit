@@ -105,15 +105,25 @@ def test_local_kubernetes_manifests_match_workload_contract() -> None:
         assert job["spec"]["template"]["metadata"]["labels"]["workload"] == workload_name
         assert _config_names(workload).issubset(config_names | secret_names)
 
+    data_export_job = documents[("Job", "data-export-job")]
+    init_names = {
+        container["name"]
+        for container in data_export_job["spec"]["template"]["spec"]["initContainers"]
+    }
+    assert {"wait-for-pgbouncer", "wait-for-schema"}.issubset(init_names)
+
 
 def test_local_kubernetes_runtime_proves_identity_network_and_storage() -> None:
     documents = _by_kind_name()
+    config_map = documents[("ConfigMap", "workload-config")]
 
     assert ("ServiceAccount", "workload-runtime") in documents
     assert ("PersistentVolumeClaim", "data-exports") in documents
     assert ("Service", "db") in documents
     assert ("Service", "pgbouncer") in documents
     assert ("Job", "liquibase") in documents
+    assert config_map["data"]["DATA_EXPORT_OUTPUT_DIR"] == "/exports"
+    assert config_map["data"]["DATA_EXPORT_S3_BUCKET"] == ""
 
     for document in _documents():
         metadata = document.get("metadata", {})

@@ -147,6 +147,18 @@ spec:
         - name: wait-for-pgbouncer
           image: postgres:18.3
           command: ["sh", "-c", "until pg_isready -h pgbouncer -U postgres -d aws_sdlc_containers; do sleep 2; done"]
+        - name: wait-for-schema
+          image: postgres:18.3
+          command:
+            - sh
+            - -c
+            - until psql -h pgbouncer -U postgres -d aws_sdlc_containers -tAc "SELECT to_regclass('public.order_contact_email')" | grep -q order_contact_email; do sleep 2; done
+          env:
+            - name: PGPASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: workload-secrets
+                  key: DB_PASSWORD
       containers:
         - name: data-export-job
           image: aws-sdlc-containers-data-export-job:local-kubernetes
