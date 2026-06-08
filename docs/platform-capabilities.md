@@ -20,6 +20,22 @@ make enterprise-runtime-fit-check
 Use `make help` or the runtime docs when you need the narrower inventory,
 candidate, adapter-seam, or cloud-wiring views.
 
+## Capability Maturity
+
+Capability and runtime-target maturity is explicit in
+`platform/platform-inventory.json`:
+
+| Maturity | Meaning |
+|---|---|
+| `candidate` | Known possible capability or runtime; not active until owner, config surface, conformance, evidence, failure mode, and runbook exist |
+| `active-local-proof` | Active local proof capability or runtime; useful for developer validation without production admission |
+| `active-production-runtime` | Reviewed production runtime capability with owner, delivery path, evidence, failure mode, and runbook |
+| `deprecated` | Retired or being removed; kept only while workloads migrate away |
+
+Current local runtime targets are `active-local-proof`. `aws-ecs` is the
+current `active-production-runtime`. Enterprise tools and future runtime
+targets stay `candidate` until they pass the admission rule below.
+
 ## Capability Map
 
 | Capability | Workload-facing contract | Current owner |
@@ -41,6 +57,32 @@ candidate, adapter-seam, or cloud-wiring views.
 | CI/CD delivery | local validation, immutable image tags, separated build/deploy, reviewed plan/apply, workflow run IDs, release evidence | `Makefile`, `.github/workflows/`, `infra/platform/github_actions.tf`, `scripts/observability/release_event.py` |
 | Observability routing | standard metrics/logs/traces emitted by workloads and routed by the runtime edge | `platform/concerns/observability/`, `compose.yaml`, `infra/app/app_log_groups.tf`, `infra/app/observability.tf`, `scripts/observability/` |
 | Authz policy | app-local business authorization by default plus repo/runtime metadata policy checks | `platform/concerns/policy/`, `platform/runtime-defaults.json`, `tests/contracts/test_policy_contract.py` |
+
+## Dapr Boundary
+
+Dapr is useful when an app interacts with multiple systems that run at
+different cadences. Treat Dapr building blocks as app-facing boundary
+vocabulary, not as a platform shopping list.
+
+Current adopted block:
+
+- pub/sub: app-facing eventing boundary with CloudEvents and durable database
+  outbox; current production backing is SNS/SQS.
+
+Good future candidates when real workloads need them:
+
+- service invocation for service-to-service calls with consistent identity,
+  resiliency, and telemetry expectations
+- secrets and configuration as portable boundary vocabulary, even when the
+  runtime realization is ECS, Kubernetes, or another secret/config provider
+- resiliency policies for retries, timeouts, and circuit breaking across
+  cross-system calls
+- jobs, workflows, state, bindings, actors, locks, cryptography, or
+  conversation only when a workload has a concrete need and owner
+
+Adopt a new Dapr block only with owner, config surface, conformance, evidence,
+failure mode, and runbook. Keep business behavior in the app and runtime
+realization at the platform edge.
 
 ## Runtime Targets
 

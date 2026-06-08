@@ -87,6 +87,7 @@ WORKFLOW_OWNERSHIP = {
 
 NON_CLOUD_CHANGING_WORKFLOWS = {
     "infra-plan.yml",
+    "local-kubernetes-contracts.yml",
     "security.yml",
     "semgrep.yml",
 }
@@ -148,6 +149,7 @@ EXPECTED_JOB_PERMISSIONS = {
         "apply": {"actions": "read", "contents": "read", "id-token": "write"},
         "evidence": {"contents": "read", "id-token": "write"},
     },
+    "local-kubernetes-contracts.yml": {"static-contracts": {"contents": "read"}},
     "security.yml": {"security-scan": {"contents": "read"}},
     "semgrep.yml": {"scan": {"contents": "read"}},
 }

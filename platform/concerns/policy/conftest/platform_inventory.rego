@@ -12,8 +12,16 @@ required_runtime_capability_keys := {
   "capability",
   "contract_surface",
   "implementation",
+  "maturity",
   "replacement_seam",
   "runtime_target",
+}
+
+allowed_maturity_levels := {
+  "candidate",
+  "active-local-proof",
+  "active-production-runtime",
+  "deprecated",
 }
 
 required_adapter_seam_keys := {
@@ -95,7 +103,7 @@ deny contains msg if {
   data.conftest.file.name == "platform-inventory.json"
   some row in input.runtime_capabilities
   object.keys(row) != required_runtime_capability_keys
-  msg := "every runtime capability row must contain only capability, contract_surface, runtime_target, implementation, and replacement_seam"
+  msg := "every runtime capability row must contain only capability, contract_surface, runtime_target, maturity, implementation, and replacement_seam"
 }
 
 deny contains msg if {
@@ -109,7 +117,28 @@ deny contains msg if {
   data.conftest.file.name == "platform-inventory.json"
   some row in object.get(input, "candidate_runtime_capabilities", [])
   object.keys(row) != required_runtime_capability_keys
-  msg := "every candidate runtime capability row must contain only capability, contract_surface, runtime_target, implementation, and replacement_seam"
+  msg := "every candidate runtime capability row must contain only capability, contract_surface, runtime_target, maturity, implementation, and replacement_seam"
+}
+
+deny contains msg if {
+  data.conftest.file.name == "platform-inventory.json"
+  some row in input.runtime_targets
+  not row.maturity in allowed_maturity_levels
+  msg := sprintf("runtime target %s has unsupported maturity %s", [row.id, row.maturity])
+}
+
+deny contains msg if {
+  data.conftest.file.name == "platform-inventory.json"
+  some row in input.runtime_capabilities
+  not row.maturity in allowed_maturity_levels
+  msg := sprintf("runtime capability %s/%s has unsupported maturity %s", [row.runtime_target, row.capability, row.maturity])
+}
+
+deny contains msg if {
+  data.conftest.file.name == "platform-inventory.json"
+  some row in object.get(input, "candidate_runtime_capabilities", [])
+  row.maturity != "candidate"
+  msg := sprintf("candidate runtime capability %s/%s must have candidate maturity", [row.runtime_target, row.capability])
 }
 
 deny contains msg if {

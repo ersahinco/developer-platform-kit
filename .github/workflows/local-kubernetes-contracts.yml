@@ -1,0 +1,57 @@
+name: Local Kubernetes Contracts
+
+on:
+  pull_request:
+    paths:
+      - ".github/workflows/local-kubernetes-contracts.yml"
+      - "infra/local-kubernetes/**"
+      - "platform/platform-inventory.json"
+      - "platform/runtime-defaults.json"
+      - "platform/workloads.json"
+      - "scripts/platform/capability_proof.py"
+      - "tests/contracts/test_local_kubernetes_contract.py"
+      - "tests/contracts/test_runtime_defaults_contract.py"
+      - "tests/scripts/test_capability_proof.py"
+  push:
+    branches: [main]
+    paths:
+      - ".github/workflows/local-kubernetes-contracts.yml"
+      - "infra/local-kubernetes/**"
+      - "platform/platform-inventory.json"
+      - "platform/runtime-defaults.json"
+      - "platform/workloads.json"
+      - "scripts/platform/capability_proof.py"
+      - "tests/contracts/test_local_kubernetes_contract.py"
+      - "tests/contracts/test_runtime_defaults_contract.py"
+      - "tests/scripts/test_capability_proof.py"
+
+permissions:
+  contents: read
+
+jobs:
+  static-contracts:
+    name: Static Contracts
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      contents: read
+
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
+        with:
+          persist-credentials: false
+
+      - uses: astral-sh/setup-uv@08807647e7069bb48b6ef5acd8ec9567f424441b # v8.1.0
+        with:
+          version: "0.11.8"
+          enable-cache: true
+
+      - uses: actions/setup-python@a309ff8b426b58ec0e2a45f0f869d46889d02405 # v6
+        with:
+          python-version: "3.14"
+
+      - name: Install dependencies
+        run: uv sync --frozen --all-packages --group dev --group scripts --group test
+
+      - name: Run static local Kubernetes contracts
+        run: make local-kubernetes-contracts

@@ -14,6 +14,7 @@ Canonical doc map. Find the owner before adding a new page.
 | Runtime defaults | [Runtime Defaults](runtime-defaults.md) | Blessed auth, identity, secrets, observability, policy, CI/CD, and network defaults |
 | Local workflow | [Local Development](local-development.md) | Setup, migrations, local services |
 | AWS delivery and operator flow | [Deployment](deployment.md) | Workflow ownership, rollout sequence, review loop |
+| DevOps toolkit gates | [DevOps Toolchain](devops-toolchain.md) | CI/CD gates, reusable workflow shape, security scans, policy, docs, and local Kubernetes contract CI |
 | Operator day-2 commands | [Operator Day 2 Commands](operator-day-2.md) | Exact commands for readiness, deploy observation, evidence, and integration checks |
 | Operational telemetry | [Observability](observability.md) | Local and cloud telemetry wiring and checks |
 | Workload observability | [Workload Observability](workload-observability.md) | Required service metrics, structured logs, job events, and operator payload shape |
@@ -31,6 +32,7 @@ Canonical doc map. Find the owner before adding a new page.
 | Add a workload | [Adding Workloads](adding-workloads.md), `make workload-readiness`, `make workload-readiness-check`, [Platform Contract](platform-contract.md#workload-checklist) |
 | Work locally | [Local Development](local-development.md), `make platform-doctor` |
 | Deploy or operate AWS | [Operator Day 2 Commands](operator-day-2.md), [Deployment](deployment.md), [Infrastructure](../infra/README.md), [Runbooks](runbooks/README.md) |
+| Review pipeline gates | [DevOps Toolchain](devops-toolchain.md), [Deployment](deployment.md) |
 | Add or evaluate another runtime | [Runtime Toolkit](runtime-toolkit.md), [Runtime Defaults](runtime-defaults.md), `make enterprise-runtime-fit-check` |
 | Work on telemetry or release evidence | [Workload Observability](workload-observability.md), [Observability](observability.md) |
 

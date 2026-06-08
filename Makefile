@@ -320,6 +320,11 @@ local-kubernetes-validate: ## Validate selected workloads on local Kubernetes
 		$(MAKE) local-kubernetes-apply; \
 		$(MAKE) local-kubernetes-smoke
 
+.PHONY: local-kubernetes-contracts
+local-kubernetes-contracts: ## Run static local Kubernetes contract checks
+	uv run pytest tests/contracts/test_local_kubernetes_contract.py tests/contracts/test_runtime_defaults_contract.py tests/scripts/test_capability_proof.py -q
+	uv run python scripts/platform/capability_proof.py --runtime-target local-kubernetes
+
 # ── Lint & format ─────────────────────────────────────────────────────────────
 
 .PHONY: lint

@@ -35,6 +35,13 @@ ENTERPRISE_RELEVANT_CAPABILITIES = {
     "observability_routing",
 }
 
+CAPABILITY_MATURITY_LEVELS = {
+    "candidate",
+    "active-local-proof",
+    "active-production-runtime",
+    "deprecated",
+}
+
 ACTIVE_EVIDENCE_SEAMS = {
     ("local-compose", "authz_policy"): ["platform/concerns/policy"],
     ("local-compose", "ci_cd_delivery"): ["Makefile", "tests/runtime"],
@@ -95,6 +102,27 @@ def test_active_runtime_targets_have_blessed_defaults() -> None:
             assert default["default"], f"{runtime_target}.{area} lacks a default"
             assert default["realization"], f"{runtime_target}.{area} lacks realization"
             assert default["evidence"], f"{runtime_target}.{area} lacks evidence"
+
+
+def test_runtime_capability_maturity_is_explicit_and_consistent() -> None:
+    inventory = load_json("platform/platform-inventory.json")
+
+    assert set(inventory["capability_maturity_levels"]) == CAPABILITY_MATURITY_LEVELS
+
+    target_maturity = {
+        target["id"]: target["maturity"] for target in inventory["runtime_targets"]
+    }
+    assert target_maturity == {
+        "local-compose": "active-local-proof",
+        "local-kubernetes": "active-local-proof",
+        "aws-ecs": "active-production-runtime",
+    }
+
+    for row in inventory["runtime_capabilities"]:
+        assert row["maturity"] == target_maturity[row["runtime_target"]]
+
+    for row in inventory["candidate_runtime_capabilities"]:
+        assert row["maturity"] == "candidate"
 
 
 def test_enterprise_runtime_profile_is_candidate_not_active_target() -> None:

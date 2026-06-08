@@ -42,6 +42,35 @@ A tiny container app can start as a real `apps/` workload with
 admission, and no extra platform machinery. Add runtime admission only after
 local proof, owner, evidence, and runtime realization exist.
 
+## Tiny App Onboarding
+
+Use this path for the smallest useful app host:
+
+1. Add `apps/<name>/main.py`, `config.py`, and `pyproject.toml`.
+2. Add one workload row in `platform/workloads.json` with owner, image package,
+   command, config names, secret names, and `runtime.supported:
+   ["local-compose"]`.
+3. For an HTTP workload, expose `/health`, `/ready`, and `/metrics`; for a job,
+   emit one structured terminal success or failure event.
+4. Run local proof:
+
+```bash
+make workload-readiness-check
+make platform-toolkit-smoke-local
+make capability-proof-local
+```
+
+5. Inspect evidence: service metrics, structured logs, job event payloads, data
+   artifacts, and readiness output.
+6. Add `local-kubernetes` support only when the workload needs richer local
+   proof for Services, probes, jobs, storage, service identity, or config/secret
+   injection.
+7. Ask for `aws-ecs` admission only after the runtime owner adds the reviewed
+   infra and delivery path.
+
+Rule: copy a small existing workload shape, not a framework. The contract is
+the onboarding surface; Compose and local Kubernetes are proof runtimes.
+
 ## Pick The Operational Class First
 
 | Class | Use |

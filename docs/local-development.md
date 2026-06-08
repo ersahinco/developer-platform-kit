@@ -33,6 +33,33 @@ Key entrypoints:
 - `uv.lock`
 - `.devcontainer/`
 
+## Workstation Bootstrap
+
+Keep the host setup boring. A native macOS shell needs Docker Desktop running,
+`kind`, `kubectl`, Python 3.14, and `uv`. If tools are installed with
+Homebrew but not visible to Make, start the shell with:
+
+```bash
+export PATH="/opt/homebrew/bin:/usr/local/bin:$PATH"
+```
+
+Then prove the workstation before chasing runtime behavior:
+
+```bash
+make local-kubernetes-doctor
+make local-kubernetes-contracts
+make local-kubernetes-validate
+make lint-policy
+make lint-docs
+```
+
+`local-kubernetes-contracts` is the fast static check used by CI.
+`local-kubernetes-validate` is the live proof. Success means Docker daemon
+access works, kind can create a local cluster, static Kubernetes manifests
+satisfy the workload contract, policy checks run, and docs links resolve. If a
+command fails before reaching Kubernetes, fix the toolchain first; if it fails
+inside the cluster, inspect the workload evidence.
+
 ## Standard Local Flow
 
 ```bash

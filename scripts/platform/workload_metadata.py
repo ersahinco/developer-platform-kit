@@ -484,6 +484,7 @@ def _print_implementation_matrix() -> int:
         "capability",
         "contract_surface",
         "runtime_target",
+        "maturity",
         "implementation",
         "replacement_seam",
     ]
@@ -498,6 +499,7 @@ def _print_candidate_implementation_matrix() -> int:
         "capability",
         "contract_surface",
         "runtime_target",
+        "maturity",
         "implementation",
         "replacement_seam",
     ]

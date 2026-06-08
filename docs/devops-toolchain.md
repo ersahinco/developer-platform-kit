@@ -54,6 +54,7 @@ Rules:
 | Workflow | Pull request role | Owned gates |
 |---|---|---|
 | `app-build.yml` | app and workload validation | Ruff format check, Ruff lint, Pyright, shell script syntax, pytest, runtime conformance |
+| `local-kubernetes-contracts.yml` | static local Kubernetes validation | manifest-to-workload contract, runtime defaults, local-kubernetes capability proof |
 | `security.yml` | repo hygiene and dependency safety | `make secret-scan`, `make lint-docs`, `make lint-policy`, `make lint-workflows`, `make lint-dockerfiles`, `make dependency-audit` |
 | `semgrep.yml` | static application security testing | Semgrep CE scan for `apps/`, `packages/`, and `scripts/` |
 | `infra-plan.yml` | infrastructure validation and review evidence | `terraform fmt`, `terraform validate`, TFLint, Checkov, reviewed Terraform plan artifact/comment |
@@ -61,3 +62,8 @@ Rules:
 `app-deploy.yml`, `data-support-deploy.yml`, `data-schema-apply.yml`,
 `data-runtime-switch.yml`, `data-backfill.yml`, and `infra-apply.yml` remain
 separate reviewed cloud-changing workflows, not pull-request gates.
+
+Pipeline template rule: keep these workflows copyable. Prefer ordinary GitHub
+Actions, explicit `workflow_call` inputs where reuse is needed, immutable image
+tags, pinned third-party actions, and portable evidence artifacts over custom
+orchestrators.

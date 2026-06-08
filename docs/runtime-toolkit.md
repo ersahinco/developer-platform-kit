@@ -249,6 +249,8 @@ For this repo today:
 - AWS-managed resource metrics still rely on CloudWatch at the platform edge
 - no additional production runtime target is implemented yet
 - local Kubernetes covers selected proof workloads only
+- live kind validation is local/manual; CI currently protects static
+  local-kubernetes contracts and capability evidence
 - infra rollback remains reviewed plan/apply, not a permanent drill workflow
 
 ## Implementation Steps

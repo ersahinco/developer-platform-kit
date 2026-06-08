@@ -84,6 +84,7 @@ Do not use it as:
 | Portable workload expectations | [docs/platform-contract.md](docs/platform-contract.md) |
 | Runtime hosts and reusable packages | [apps/README.md](apps/README.md), [packages/README.md](packages/README.md) |
 | Local workflow | [docs/local-development.md](docs/local-development.md) |
+| DevOps gates and reusable pipeline shape | [docs/devops-toolchain.md](docs/devops-toolchain.md), [docs/deployment.md](docs/deployment.md) |
 | AWS delivery and operator flow | [docs/operator-day-2.md](docs/operator-day-2.md), [docs/deployment.md](docs/deployment.md) |
 | Incident response | [docs/runbooks/README.md](docs/runbooks/README.md) |
 | Current work state | [docs/roadmaps.md](docs/roadmaps.md) |

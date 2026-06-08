@@ -33,6 +33,30 @@ tasks, not duplicated infrastructure.
 Rule: PRs prove correctness. Manual workflows promote a reviewed artifact or
 reviewed plan. Every cloud-changing step leaves portable evidence.
 
+## Reusable Pipeline Shape
+
+The delivery toolkit should be easy to copy into another app repo or turn into
+a GitHub template without hiding GitHub Actions. Keep the pipeline shape
+generic and evidence-first:
+
+1. App lane: build once, test, lint, scan, publish immutable image, record image
+   digest and build evidence.
+2. Infra lane: plan, policy-check, review, apply only the reviewed plan, record
+   plan/apply evidence.
+3. Data lane: expand schema, dual-write, backfill, switch reads, switch writes,
+   contract cleanup, record runtime modes and job evidence.
+4. Runtime lane: deploy immutable image, observe rollout, verify health,
+   metrics, alarms, and integration checks.
+5. Rollback lane: redeploy a known-good image, restore reviewed runtime modes,
+   or rerun/stop bounded jobs; do not mutate unrelated infra during app
+   rollback.
+
+Each lane may be copied as a workflow or promoted later to a reusable workflow,
+but the contract stays the same: explicit inputs, least privilege, pinned
+actions, no cloud-changing side effects in validation jobs, and release
+evidence that names workload, run ID, revision, artifact, verification result,
+and rollback category.
+
 ## GitHub Setup
 
 GitHub environment: `aws`
