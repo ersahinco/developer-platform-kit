@@ -25,7 +25,8 @@ declared workloads still satisfy the contract.
 
 ## Canonical Contract
 
-`platform/workloads.json` owns:
+`platform/workloads.json` owns portable workload identity and boundary
+requirements:
 
 - workload identity and kind
 - target-neutral workload use cases for discovery and templates
@@ -39,6 +40,11 @@ declared workloads still satisfy the contract.
 - shared image package and command metadata
 - portable health, metrics, traces, and idempotency expectations
 - workload-facing config and secret names
+
+It is intentionally not a deployment DSL. Add fields only when they describe a
+workload boundary every relevant runtime target must understand; keep resource
+counts, product wiring, rollout choreography, and provider names at the
+platform edge.
 
 `platform/workload-patterns.json` owns:
 
@@ -138,6 +144,12 @@ under `operational.class`.
 Runtime details like ALB, ECS service count, EventBridge Scheduler, managed
 Kubernetes manifests, or manual operator flow stay at the platform edge.
 
+Kubernetes can be a valid future runtime realization for app hosts, batch
+workloads, GPU workloads, Spark, ML/AI, or data-science workloads when a real
+workload requirement and runtime owner exist. It would be another platform-edge
+realization of the same contract, not a replacement for the workload contract
+with Helm, CRDs, or control-plane machinery.
+
 ## Workload Checklist
 
 - Add `apps/<name>/main.py`, `config.py`, and `pyproject.toml`
@@ -173,6 +185,10 @@ behavior, Liquibase migrations, PgBouncer expectations where needed, and
 runtime secret injection. RDS is the current AWS implementation, not the
 portable contract.
 
+Object storage and file-output expectations follow the same rule: declare
+portable config and secret names plus operator-visible evidence, then let the
+runtime target choose S3, local volumes, or another owned implementation.
+
 ## Eventing
 
 Dapr is the app-facing eventing boundary.
@@ -185,6 +201,20 @@ Dapr is the app-facing eventing boundary.
 
 Do not broaden Dapr into unrelated capabilities until a real workload needs
 them.
+
+## Auth And Policy
+
+Authn/authz is a boundary requirement, not a per-workload product choice.
+
+- Workloads declare edge auth intent such as `edge.auth_mode` only when it is
+  part of their external contract.
+- Application code owns business authorization unless a runtime-owned policy
+  capability exists.
+- Runtime defaults document current auth, identity, secrets, CI/CD, network,
+  observability, and policy choices.
+- Repository policy checks protect contract shape; products such as Okta, Kong,
+  OPA, Datadog, or Splunk stay out of workload metadata unless business
+  behavior truly depends on them.
 
 ## Observability
 
@@ -202,6 +232,11 @@ Alarm ownership:
 
 - workloads declare observable behavior and runtime class
 - platform concerns choose the current runtime alarms, release snapshots, and incident snapshots
+
+Scheduling is represented by workload class and trigger intent. A
+`scheduled-job` declares the portable workload shape and evidence; EventBridge,
+cron, Kubernetes CronJob, or another scheduler remains runtime-target
+realization.
 
 ## Delivery And Evidence
 

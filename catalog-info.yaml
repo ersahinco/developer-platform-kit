@@ -10,6 +10,7 @@ spec:
     - ./catalog/platform-engineering-domain.yaml
     - ./catalog/aws-sdlc-containers-system.yaml
     - ./catalog/runtime-target-local-compose.yaml
+    - ./catalog/runtime-target-local-kubernetes.yaml
     - ./catalog/runtime-target-aws-ecs.yaml
     - ./catalog/platform-monorepo-component.yaml
     - ./catalog/api-component.yaml

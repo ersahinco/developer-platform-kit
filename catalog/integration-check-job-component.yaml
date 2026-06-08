@@ -14,3 +14,4 @@ spec:
   system: aws-sdlc-containers
   dependsOn:
     - resource:default/runtime-target-local-compose
+    - resource:default/runtime-target-local-kubernetes

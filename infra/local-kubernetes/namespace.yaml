@@ -1,0 +1,7 @@
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: aws-sdlc-local
+  labels:
+    app.kubernetes.io/part-of: aws-sdlc-containers
+    runtime.target: local-kubernetes

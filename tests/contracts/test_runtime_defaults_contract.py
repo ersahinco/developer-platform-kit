@@ -46,6 +46,19 @@ ACTIVE_EVIDENCE_SEAMS = {
         "platform/concerns/observability",
         "compose.yaml",
     ],
+    ("local-kubernetes", "authz_policy"): ["platform/concerns/policy"],
+    ("local-kubernetes", "ci_cd_delivery"): [
+        "Makefile",
+        "infra/local-kubernetes",
+    ],
+    ("local-kubernetes", "network_connectivity"): [
+        "infra/local-kubernetes",
+        "tests/contracts/test_local_kubernetes_contract.py",
+    ],
+    ("local-kubernetes", "observability_routing"): [
+        "infra/local-kubernetes",
+        "tests/contracts/test_local_kubernetes_contract.py",
+    ],
     ("aws-ecs", "authz_policy"): ["platform/concerns/policy"],
     ("aws-ecs", "ci_cd_delivery"): [
         ".github/workflows",

@@ -19,6 +19,29 @@ Canonical design truth lives in:
 5. Wire the current runtime-target realization.
 6. Add tests and docs.
 
+## Minimum Boundary Inputs
+
+The first question is not whether the app is small or large. The useful
+question is whether the workload boundary is explicit enough for a developer to
+prove locally and for a runtime target to admit later.
+
+Declare the smallest truthful set:
+
+- image package and start command
+- service port plus `/health`, `/ready`, and `/metrics` for HTTP workloads
+- job trigger and idempotency expectation for job workloads
+- config and secret names, never values
+- network exposure and required private connectivity
+- storage, database, and messaging needs only when the workload actually uses them
+- authn/authz expectation, either app-local or runtime-owned
+- logs, metrics, traces, and evidence the operator must inspect
+- workload owner, supported runtime targets, and admitted runtime targets
+
+A tiny container app can start as a real `apps/` workload with
+`runtime.supported: ["local-compose"]`, no database, no Dapr, no cloud
+admission, and no extra platform machinery. Add runtime admission only after
+local proof, owner, evidence, and runtime realization exist.
+
 ## Pick The Operational Class First
 
 | Class | Use |

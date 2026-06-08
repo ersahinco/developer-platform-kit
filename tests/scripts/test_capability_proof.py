@@ -28,6 +28,14 @@ def test_cloud_capability_proof_covers_required_runtime_areas() -> None:
     assert {row.capability for row in rows} == set(ACTIVE_CAPABILITY_AREAS.values())
 
 
+def test_local_kubernetes_capability_proof_covers_required_runtime_areas() -> None:
+    rows = capability_proofs("local-kubernetes")
+
+    assert [row.area for row in rows] == list(ACTIVE_CAPABILITY_AREAS)
+    assert {row.status for row in rows} == {"ok"}
+    assert {row.capability for row in rows} == set(ACTIVE_CAPABILITY_AREAS.values())
+
+
 def test_capability_proof_cli_outputs_json() -> None:
     completed = subprocess.run(
         [

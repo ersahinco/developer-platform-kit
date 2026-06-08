@@ -134,6 +134,7 @@ def test_catalog_entity_files_declare_backstage_entities_for_platform_and_worklo
     assert ("Domain", "platform-engineering") in entities
     assert ("System", "aws-sdlc-containers") in entities
     assert ("Resource", "runtime-target-local-compose") in entities
+    assert ("Resource", "runtime-target-local-kubernetes") in entities
     assert ("Resource", "runtime-target-aws-ecs") in entities
     assert ("Component", "platform-monorepo") in entities
 

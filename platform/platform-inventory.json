@@ -15,6 +15,13 @@
       "purpose": "Fast local iteration and workload contract proof without cloud provider dependencies."
     },
     {
+      "id": "local-kubernetes",
+      "role": "local-runtime-proof",
+      "owner": "platform-toolkit",
+      "implementation": "kind + kubectl + static Kubernetes manifests",
+      "purpose": "Richer local workload contract proof for network, storage, compute, probes, jobs, service identity, and runtime policy without cloud Kubernetes machinery."
+    },
+    {
       "id": "aws-ecs",
       "role": "production-runtime",
       "owner": "platform-runtime",
@@ -85,6 +92,69 @@
       "runtime_target": "local-compose",
       "implementation": "Workloads keep business checks local when needed; OPA/Conftest validates repository contracts",
       "replacement_seam": "platform/concerns/policy + tests/contracts/test_policy_contract.py"
+    },
+    {
+      "capability": "local_runtime",
+      "contract_surface": "workload contract, runtime conformance, local config names, Kubernetes probes, jobs, services, and storage claims",
+      "runtime_target": "local-kubernetes",
+      "implementation": "kind cluster with kubectl-applied static manifests for selected workload boundary proof",
+      "replacement_seam": "infra/local-kubernetes + platform/workloads.json + platform/runtime-conformance.json"
+    },
+    {
+      "capability": "edge_auth",
+      "contract_surface": "local Kubernetes edge authentication default and explicit dev-token opt-in",
+      "runtime_target": "local-kubernetes",
+      "implementation": "The API workload can enforce the same declared static bearer token when configured through a Kubernetes Secret",
+      "replacement_seam": "infra/local-kubernetes + platform/workloads.json + apps/api/main.py + tests/api/test_api_operational.py"
+    },
+    {
+      "capability": "service_identity",
+      "contract_surface": "Kubernetes namespace, service account, service, pod labels, and workload identity evidence",
+      "runtime_target": "local-kubernetes",
+      "implementation": "Static manifests assign namespace, labels, services, and service accounts to local workload hosts",
+      "replacement_seam": "infra/local-kubernetes + tests/contracts/test_local_kubernetes_contract.py"
+    },
+    {
+      "capability": "secrets_injection",
+      "contract_surface": "declared config secret names and Kubernetes Secret injection",
+      "runtime_target": "local-kubernetes",
+      "implementation": "Local Kubernetes uses a checked-in placeholder Secret manifest for local-only values while preserving declared secret names",
+      "replacement_seam": "platform/workloads.json + infra/local-kubernetes"
+    },
+    {
+      "capability": "runtime_policy",
+      "contract_surface": "repository policy checks for workload metadata, runtime defaults, catalog, and Kubernetes manifests",
+      "runtime_target": "local-kubernetes",
+      "implementation": "OPA/Conftest and pytest contract checks validate the local Kubernetes runtime contract surface",
+      "replacement_seam": "platform/concerns/policy + tests/contracts/test_local_kubernetes_contract.py"
+    },
+    {
+      "capability": "network_connectivity",
+      "contract_surface": "declared ports, Kubernetes Services, probes, and private in-cluster dependency connectivity",
+      "runtime_target": "local-kubernetes",
+      "implementation": "Kubernetes Services route API, database, PgBouncer, and job connectivity inside a kind cluster",
+      "replacement_seam": "infra/local-kubernetes + tests/contracts/test_local_kubernetes_contract.py"
+    },
+    {
+      "capability": "ci_cd_delivery",
+      "contract_surface": "local validation commands, immutable local image tags, Kubernetes apply, smoke checks, and runtime evidence",
+      "runtime_target": "local-kubernetes",
+      "implementation": "Make targets build images, create or reuse kind, load images, apply manifests, run smoke checks, and clean up",
+      "replacement_seam": "Makefile + infra/local-kubernetes + tests/contracts/test_documented_make_targets.py"
+    },
+    {
+      "capability": "observability_routing",
+      "contract_surface": "Prometheus metrics, structured logs, and workload identity labels from Kubernetes pods",
+      "runtime_target": "local-kubernetes",
+      "implementation": "Workloads expose metrics and structured logs through standard endpoints and Kubernetes pod logs; full local observability backend remains optional",
+      "replacement_seam": "infra/local-kubernetes + tests/contracts/test_local_kubernetes_contract.py"
+    },
+    {
+      "capability": "authz_policy",
+      "contract_surface": "app-local business authorization by default plus repository and manifest policy checks",
+      "runtime_target": "local-kubernetes",
+      "implementation": "Workloads keep business checks local when needed; repository policy checks validate platform and manifest contract surfaces",
+      "replacement_seam": "platform/concerns/policy + tests/contracts/test_policy_contract.py + tests/contracts/test_local_kubernetes_contract.py"
     },
     {
       "capability": "edge_http",

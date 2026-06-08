@@ -1,7 +1,8 @@
 # Runtime Toolkit
 
 Use this doc when evaluating or adding a runtime target such as local Compose,
-AWS/ECS, or a future provider-edge integration backed by a real workload need.
+AWS/ECS, Kubernetes, or a future provider-edge integration backed by a real
+workload need.
 Goal: prove the runtime can satisfy the workload contract without moving
 provider assumptions into app code.
 
@@ -23,6 +24,11 @@ The stable center stays the same:
 - the platform catalog provides reusable capabilities
 - runtime targets realize the contract at the platform edge
 
+The delivery toolkit standardizes developer-facing app host conventions, local
+proof, build/test checks, delivery evidence, and infra ownership boundaries. It
+does not replace managed app runtimes, servers, or Kubernetes; it gives them a
+clear workload contract to realize.
+
 ## Entry Criteria
 
 - There is a concrete reason: cost, reliability, capability, or region/account need.
@@ -35,6 +41,30 @@ Do not add a runtime target just to prove portability.
 For now, AWS is the only reviewed cloud runtime in this repo. Managed database,
 DNS, edge, identity, or storage providers stay on the horizon until a workload
 has a concrete need and clear runtime ownership.
+
+Local Kubernetes is now the first richer local proof runtime target. Future
+production Kubernetes remains out of scope until app teams, data science, batch,
+GPU, Spark, or ML/AI workloads need capabilities the current targets do not
+provide and a runtime owner accepts the platform surface. That decision still
+starts with the workload contract and runtime owner; it does not replace the
+stable center with Helm, CRDs, or a platform control plane.
+
+## Runtime Families
+
+Use these families to talk about runtime options without making them active
+targets prematurely:
+
+| Family | Status in this repo | Examples | Useful for |
+|---|---|---|---|
+| Local proof runtimes | `local-compose` and `local-kubernetes` active | Docker Compose, kind | fast developer proof; richer local network, storage, compute, probes, jobs, sidecars, and policy checks when Compose is too small |
+| Managed app runtimes | `aws-ecs` active production target; others are future options | ECS/Fargate, Lambda, Azure Functions, Cloud Run, Azure Container Apps, App Runner | teams that want to deploy workloads into owned managed runtimes without building a substrate platform |
+| Owned substrate runtimes | not active | EC2 or VM fleets, on-prem servers, self-managed Kubernetes, managed Kubernetes | cases where the platform team owns ingress, node/runtime posture, storage classes, identity mapping, policy, observability, upgrades, and runbooks |
+
+Managed Kubernetes sits in the owned-substrate family for this toolkit. EKS,
+AKS, or GKE may manage the control plane, but the platform still owns much of
+the runtime surface: ingress, storage classes, IAM or workload identity mapping,
+network policy, observability routing, node/runtime posture, admission policy,
+upgrade rhythm, failure modes, and runbooks.
 
 ## Runtime Must Provide
 
@@ -60,6 +90,11 @@ It must also preserve workload classes:
 Compose, local Postgres/PgBouncer, Redis-backed Dapr pub/sub, and the OSS
 observability stack to prove the workload contract before cloud deployment.
 
+`local-kubernetes` is the richer local proof runtime. It uses kind, kubectl,
+static Kubernetes manifests, Services, probes, ConfigMaps, Secrets, Jobs, and
+PersistentVolumeClaims to prove selected workload boundaries without cloud
+Kubernetes machinery.
+
 `aws-ecs` is the current reviewed production runtime. It realizes the same
 contract with ECS/Fargate, ALB/WAF, RDS, SNS/SQS behind Dapr, S3, EventBridge
 Scheduler, IAM, and CloudWatch.
@@ -78,6 +113,11 @@ reviewed ownership, and delivery path.
 A workload can still be real and live under `apps/` before it is admitted to a
 cloud runtime. Local support through `local-compose` is a valid first runtime
 target, not a reason to demote the host into `examples/`.
+
+Future production runtimes become active only when they have a real workload
+need, an owner, a config surface, conformance, evidence, failure modes, and a
+runbook. Until then, keep them as taxonomy or candidate guidance rather than
+adding runtime inventory, workload admission, or catalog branches.
 
 ## Foreign Workload Evaluation
 
@@ -195,7 +235,7 @@ Prefer portability through explicit adapters and replacement seams:
 - keep business behavior in `packages/domain` and `packages/application`
 - keep database, pub/sub, storage, and HTTP client adapters in `packages/infrastructure`
 - keep runtime-target realization in `infra/`, workflows, and scripts
-- use `make capability-implementation-matrix`, `make candidate-capability-matrix`, `make adapter-seam-matrix`, `make capability-proof-local`, `make capability-proof-local-live`, and `make capability-proof-cloud` to identify active runtime seams, candidate-only enterprise choices, adapter seams, current proof evidence, and live local behavior before adding a new target
+- use the capability matrices and proof commands before adding a new target, so active seams, candidate-only choices, evidence, and live local behavior stay visible
 
 For this repo today:
 
@@ -208,6 +248,7 @@ For this repo today:
 - CI-to-Loki publishing is ready but inactive
 - AWS-managed resource metrics still rely on CloudWatch at the platform edge
 - no additional production runtime target is implemented yet
+- local Kubernetes covers selected proof workloads only
 - infra rollback remains reviewed plan/apply, not a permanent drill workflow
 
 ## Implementation Steps

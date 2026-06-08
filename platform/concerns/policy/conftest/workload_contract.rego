@@ -124,7 +124,7 @@ deny contains msg if {
   data.conftest.file.name == "workloads.json"
   some workload in input.workloads
   some runtime_target in workload.runtime.supported
-  not runtime_target in {"local-compose", "aws-ecs"}
+  not runtime_target in {"local-compose", "local-kubernetes", "aws-ecs"}
   msg := sprintf("workload %q declares unknown supported runtime %q", [workload.name, runtime_target])
 }
 
@@ -132,7 +132,7 @@ deny contains msg if {
   data.conftest.file.name == "workloads.json"
   some workload in input.workloads
   some runtime_target in workload.runtime.admitted
-  not runtime_target in {"local-compose", "aws-ecs"}
+  not runtime_target in {"local-compose", "local-kubernetes", "aws-ecs"}
   msg := sprintf("workload %q declares unknown admitted runtime %q", [workload.name, runtime_target])
 }
 

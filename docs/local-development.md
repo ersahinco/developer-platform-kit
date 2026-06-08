@@ -27,6 +27,7 @@ Python 3.14+, and `uv`.
 Key entrypoints:
 
 - `compose.yaml`
+- `infra/local-kubernetes/`
 - `Makefile`
 - `pyproject.toml`
 - `uv.lock`
@@ -49,6 +50,23 @@ the full local profile.
 `make platform-doctor` checks local tools, Docker daemon access, GitHub auth,
 expected repo files, and workload readiness. It is a human diagnostic, not a CI
 gate.
+
+## Local Kubernetes Proof
+
+Use local Kubernetes when Compose is too small to prove network, storage,
+compute, probes, jobs, service identity, or config/secret injection. The active
+local Kubernetes target uses `kind` and static manifests only.
+
+```bash
+make local-kubernetes-doctor
+make local-kubernetes-validate
+make local-kubernetes-down
+```
+
+This proves the API, data export job, and integration check job against
+Postgres, PgBouncer, Liquibase, Services, probes, Secrets, ConfigMaps, and a
+PersistentVolumeClaim. It is not cloud Kubernetes, Helm, CRDs, or a platform
+control plane.
 
 ## Platform Toolkit Validation
 

@@ -55,6 +55,60 @@
         }
       }
     },
+    "local-kubernetes": {
+      "status": "active",
+      "owner": "platform-toolkit",
+      "defaults": {
+        "authn": {
+          "capability": "edge_auth",
+          "default": "none-local-with-explicit-dev-token",
+          "realization": "No authentication by default for inner-loop proof; workloads that declare static bearer auth can enforce a configured Kubernetes Secret value.",
+          "evidence": ["readiness", "structured_http_request_logs", "kubernetes_secret_name"]
+        },
+        "authz": {
+          "capability": "authz_policy",
+          "default": "app-local-when-needed",
+          "realization": "Business authorization stays in the workload or application layer when a local Kubernetes workload needs it.",
+          "evidence": ["structured_http_request_logs"]
+        },
+        "service_identity": {
+          "capability": "service_identity",
+          "default": "namespace-service-account-service-labels",
+          "realization": "Kubernetes namespace, service account, service name, and pod labels identify local workload hosts.",
+          "evidence": ["namespace", "service_account", "service_name", "pod_labels"]
+        },
+        "secrets": {
+          "capability": "secrets_injection",
+          "default": "kubernetes-secrets-local-only",
+          "realization": "Local Kubernetes injects declared secret names from Kubernetes Secrets; checked-in values are local placeholders only.",
+          "evidence": ["declared_secret_names", "secret_refs"]
+        },
+        "observability": {
+          "capability": "observability_routing",
+          "default": "pod-logs-prometheus-endpoints",
+          "realization": "Workloads expose Prometheus metrics and structured logs through standard endpoints and pod logs; full observability backend remains optional.",
+          "evidence": ["workload_info", "structured_logs", "metrics_endpoint"]
+        },
+        "network": {
+          "capability": "network_connectivity",
+          "default": "clusterip-services-and-probes",
+          "realization": "Kubernetes Services, readiness probes, liveness probes, and in-cluster DNS prove local network boundaries.",
+          "evidence": ["service_name", "declared_ports", "readiness_probe", "liveness_probe"]
+        },
+        "ci_cd": {
+          "capability": "ci_cd_delivery",
+          "default": "local-kind-kubectl-validation",
+          "realization": "Local validation runs through Make targets that build images, create or reuse kind, load images, apply manifests, smoke test, and clean up.",
+          "evidence": ["make_local_kubernetes_validate", "kubectl_apply_k"]
+        },
+        "policy": {
+          "capability": "runtime_policy",
+          "default": "repo-policy-plus-kubernetes-contract-tests",
+          "realization": "OPA/Conftest validates repository contracts and pytest validates local Kubernetes manifests against the workload contract.",
+          "evidence": ["lint_policy", "local_kubernetes_contract"]
+        }
+      }
+    },
     "aws-ecs": {
       "status": "active",
       "owner": "platform-runtime",

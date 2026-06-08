@@ -8,18 +8,17 @@ Use:
 - [Platform Contract](platform-contract.md) for workload-facing rules
 - [Architecture](architecture.md) for placement and ownership
 
-Inspect the current implementation directly:
+Start with these operator views:
 
 ```bash
-make workload-capability-matrix
 make capability-implementation-matrix
-make candidate-capability-matrix
-make adapter-seam-matrix
 make capability-proof-local
 make capability-proof-local-live
-make capability-proof-cloud
 make enterprise-runtime-fit-check
 ```
+
+Use `make help` or the runtime docs when you need the narrower inventory,
+candidate, adapter-seam, or cloud-wiring views.
 
 ## Capability Map
 
@@ -45,10 +44,29 @@ make enterprise-runtime-fit-check
 
 ## Runtime Targets
 
-Current local runtime target: `local-compose`.
+Current local runtime targets: `local-compose`, `local-kubernetes`.
 Current reviewed production runtime target: `aws-ecs`.
 Future provider-edge options stay horizon guidance only until a real workload
 needs them and runtime ownership is clear.
+
+Runtime families:
+
+- local proof runtimes: `local-compose` for fastest feedback; `local-kubernetes`
+  for richer local network, storage, compute, probes, jobs, sidecars, service
+  identity, or policy proof
+- managed app runtimes: `aws-ecs` today; future ECS/Fargate variants, Lambda,
+  Azure Functions, Cloud Run, Azure Container Apps, or similar managed hosts
+  when they preserve the workload contract and evidence
+- owned substrate runtimes: EC2 or VM fleets, on-prem servers, self-managed
+  Kubernetes, and managed Kubernetes when the platform owns ingress,
+  node/runtime posture, storage classes, identity mapping, policy,
+  observability, upgrades, and runbooks
+
+Local Kubernetes is an active proof runtime. Managed or self-managed production
+Kubernetes remains a future runtime realization for app-host, batch, GPU, Spark,
+ML/AI, or data-science workloads only when those needs are real and owned. It
+must realize the same workload contract at the platform edge; do not add Helm,
+CRD, or control-plane machinery just to prove portability.
 
 Rule:
 
@@ -80,6 +98,7 @@ current realization behind explicit adapter seams:
 - object-output behavior: infrastructure adapters in `packages/infrastructure/` and current storage realization in `infra/app/object_storage.tf`
 - secrets and runtime wiring: declared workload config in `platform/workloads.json` and current injection in `infra/app/workload_inventory.tf`
 - local runtime behavior: Compose plus `platform/runtime-conformance.json` proves the contract without depending on cloud resources
+- local Kubernetes behavior: kind plus static manifests prove selected network, storage, probe, job, service identity, config, and secret boundaries
 
 Rule: add or swap adapters and runtime-target realization code before changing
 the workload contract or application core.

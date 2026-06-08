@@ -187,6 +187,60 @@ def _local_checks(area: str) -> list[EvidenceCheck]:
     raise ValueError(f"unsupported capability proof area: {area}")
 
 
+def _local_kubernetes_checks(area: str) -> list[EvidenceCheck]:
+    if area == "authn":
+        return [
+            _primary_edge_auth_mode(),
+            _contains("infra/local-kubernetes/workloads.yaml", "PRIMARY_EDGE_AUTH_TOKEN"),
+            _contains("apps/api/main.py", "auth_status"),
+            _contains(
+                "tests/api/test_api_operational.py",
+                "test_primary_edge_auth_enforces_bearer_token_when_configured",
+            ),
+        ]
+    if area == "authz":
+        return [
+            _exists("platform/concerns/policy"),
+            _contains("Makefile", "lint-policy"),
+            _exists("tests/contracts/test_policy_contract.py"),
+        ]
+    if area == "network":
+        return [
+            _exists("infra/local-kubernetes/kustomization.yaml"),
+            _contains("infra/local-kubernetes/workloads.yaml", "kind: Service"),
+            _contains("infra/local-kubernetes/workloads.yaml", "readinessProbe"),
+            _contains("infra/local-kubernetes/workloads.yaml", "livenessProbe"),
+            _contains("infra/local-kubernetes/runtime.yaml", "name: pgbouncer"),
+        ]
+    if area == "ci_cd":
+        return [
+            _contains("Makefile", "local-kubernetes-validate"),
+            _contains("Makefile", "local-kubernetes-build"),
+            _contains("Makefile", "local-kubernetes-smoke"),
+            _exists("tests/contracts/test_local_kubernetes_contract.py"),
+        ]
+    if area == "observability":
+        return [
+            _contains("infra/local-kubernetes/workloads.yaml", "/metrics"),
+            _contains("tests/contracts/test_workload_observability_contract.py", "workload_info"),
+            _contains("Makefile", "kubectl logs"),
+        ]
+    if area == "secrets":
+        return [
+            _contains("platform/workloads.json", '"secrets"'),
+            _contains("infra/local-kubernetes/runtime.yaml", "kind: Secret"),
+            _contains("infra/local-kubernetes/workloads.yaml", "secretKeyRef"),
+        ]
+    if area == "service_identity":
+        return [
+            _contains("infra/local-kubernetes/runtime.yaml", "kind: ServiceAccount"),
+            _contains("infra/local-kubernetes/workloads.yaml", "serviceAccountName"),
+            _contains("infra/local-kubernetes/workloads.yaml", "runtime.target: local-kubernetes"),
+            _contains("infra/local-kubernetes/workloads.yaml", "workload: api"),
+        ]
+    raise ValueError(f"unsupported capability proof area: {area}")
+
+
 def _cloud_checks(area: str) -> list[EvidenceCheck]:
     if area == "authn":
         return [
@@ -248,8 +302,10 @@ def _cloud_checks(area: str) -> list[EvidenceCheck]:
 
 
 def capability_proofs(runtime_target: str) -> list[CapabilityProof]:
-    if runtime_target not in {"local-compose", "aws-ecs"}:
-        raise ValueError("runtime target must be local-compose or aws-ecs")
+    if runtime_target not in {"local-compose", "local-kubernetes", "aws-ecs"}:
+        raise ValueError(
+            "runtime target must be local-compose, local-kubernetes, or aws-ecs"
+        )
 
     rows: list[CapabilityProof] = []
     for area, capability in ACTIVE_CAPABILITY_AREAS.items():
@@ -258,7 +314,11 @@ def capability_proofs(runtime_target: str) -> list[CapabilityProof]:
             *(
                 _local_checks(area)
                 if runtime_target == "local-compose"
-                else _cloud_checks(area)
+                else (
+                    _local_kubernetes_checks(area)
+                    if runtime_target == "local-kubernetes"
+                    else _cloud_checks(area)
+                )
             ),
         ]
         statuses = {check.status for check in checks}
@@ -288,7 +348,7 @@ def main() -> int:
     )
     parser.add_argument(
         "--runtime-target",
-        choices=["local-compose", "aws-ecs"],
+        choices=["local-compose", "local-kubernetes", "aws-ecs"],
         required=True,
     )
     parser.add_argument("--format", choices=["text", "json"], default="text")

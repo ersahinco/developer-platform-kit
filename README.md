@@ -1,20 +1,26 @@
 # aws-sdlc-containers
 
-Opinionated delivery toolkit for portable workload boundaries, local proof,
+Developer-first delivery toolkit for portable workload boundaries, local proof,
 AWS ECS realization, and evidence-driven operations.
 
 Short form: standardize the delivery workflow, do not replace the tools.
 
 The stable center of the repo is the workload contract and the platform
 catalog. Together they make the monorepo a practical toolkit for teams to
-standardize delivery without hiding standard tools behind a private framework.
-Runtime targets are pluggable implementations at the platform edge. Local
-Compose is the fast feedback and proof runtime; AWS/ECS is the current reviewed
-production realization. Enterprise runtime choices stay candidate-only until a
-real organizational requirement has an owner, conformance path, evidence
-artifact, failure mode, and runbook.
+standardize app development, infrastructure ownership, build, test, delivery,
+and evidence without hiding standard tools behind private machinery. Runtime
+targets are pluggable implementations at the platform edge. Local Compose is
+the fastest feedback runtime; local Kubernetes is the richer local proof
+runtime; AWS/ECS is the current reviewed production realization. Enterprise
+runtime choices stay candidate-only until a real organizational requirement has
+an owner, conformance path, evidence artifact, failure mode, and runbook.
 The repo also ships a conventional Backstage descriptor in `catalog-info.yaml`
 so a portal or software catalog can ingest the monorepo without custom glue.
+
+App size is not the fit test. A tiny container, a long-running app host, a
+scheduled job, or a larger data/ML workload fits when its ports,
+health/readiness, config, secrets, network, storage, auth, logs/metrics,
+ownership, and evidence needs are explicit.
 
 ## Who This Is For
 
@@ -23,15 +29,24 @@ Use this repo when you want:
 - a repeatable path for app hosts, jobs, data workloads, ML workloads, and LLM
   workloads
 - local proof before cloud changes
+- local Kubernetes proof when Compose is too small for network, storage, probes,
+  jobs, or service identity
+- explicit workload boundaries before platform ceremony
+- opinionated build, test, delivery, infra, evidence, and app-host conventions
 - AWS ECS delivery with explicit review, evidence, and operator handoff
 - runtime standardization without putting Okta, Kong, OPA, Datadog, or Splunk
   into workload metadata
 
 Do not use it as:
 
-- a generic provider-neutral infrastructure framework
-- a self-service portal
+- a generic provider-neutral infrastructure toolkit
+- a self-service portal or control plane before the workload boundary is clear
+- a runtime platform replacement for ECS, Lambda, Kubernetes, Cloud Run, VMs, or
+  on-prem hosts
 - a YAML DSL for every deployment concern
+- a place to hide platform magic behind generated per-app behavior
+- a place for each app team to pick random delivery, auth, observability, or
+  policy tools when shared runtime capabilities should own those choices
 - a place to install enterprise tools before a real workload and runtime owner need them
 
 ## What This Repo Standardizes
@@ -40,6 +55,7 @@ Do not use it as:
 - Workload contract: `platform/workloads.json`; local/CI proof in `platform/runtime-conformance.json`
 - Boundaries: thin `apps/*` hosts, reusable `packages/*`, pluggable runtime targets realized at the edge in `infra/*`, workflows, and Compose
 - Ownership: each workload declares a portable owner before cloud runtime admission
+- DevEx: repeatable app-host conventions, local proof, checks, and evidence before runtime-specific work
 - Delivery: build before deploy, plan before apply, immutable image tags, release evidence
 - Operations: observability baseline, runbooks, contract and architecture tests
 
@@ -74,65 +90,38 @@ Do not use it as:
 
 ## Quick Local Path
 
-```bash
-make dev
-make migrate
-make seed
-make local-up
-curl --fail --show-error http://127.0.0.1:8000/health
-```
-
-Common checks:
-
-```bash
-uv sync --all-packages --group dev --group scripts --group test
-make lint
-uv run pytest tests/ -v
-```
-
-Platform toolkit validation:
+For a first pass, use the opinionated validation path instead of sampling every
+target in the Makefile:
 
 ```bash
 make platform-doctor
 make platform-toolkit-validate-local
+make capability-proof-local-live
+```
+
+Use this shorter path for daily work after the stack is already familiar:
+
+```bash
+make lint
 make platform-toolkit-smoke-local
+make runtime-conformance
+```
+
+Use this non-mutating cloud readiness path before opening cloud-changing work:
+
+```bash
 make platform-doctor-cloud
 make platform-toolkit-validate-cloud
-make workload-readiness-check
 ```
 
 The doctor targets are human diagnostics. They check expected tools, Docker,
 GitHub auth, optional cloud tools, repo files, and workload readiness with short
-command hints.
+command hints. `capability-proof-local-live` is an isolated live local drill for
+runtime capability behavior; it is not the full local validation journey.
 
-The local validation target proves startup, migrations, API health/readiness,
-Prometheus metrics, Dapr event consumption, local data export, operational
-snapshot, configured integration checks, the local-only open dataset pipeline,
-and runtime conformance. The cloud validation target is safe to run before AWS
-credentials are ready; it checks paved-road workload readiness, workflow shape,
-platform policy, contract alignment, and release/operator scripts without
-changing cloud resources.
-
-Useful inventory views:
-
-```bash
-make workload-capability-matrix
-make workload-use-case-matrix
-make workload-readiness
-make platform-inventory-json
-make workflow-dry-run-commands
-make workflow-dry-run-validate
-```
-
-Optional local extras:
-
-```bash
-make observability
-make dapr-up
-make data-artifacts-list
-```
-
-For full local setup, use [docs/local-development.md](docs/local-development.md).
+For full local setup, exact inventory views, and optional observability helpers,
+use [docs/local-development.md](docs/local-development.md) and
+[docs/first-30-minutes.md](docs/first-30-minutes.md).
 
 ## Use It In Anger
 
@@ -140,13 +129,33 @@ For full local setup, use [docs/local-development.md](docs/local-development.md)
    `make platform-toolkit-validate-local`
 2. Prove the live local runtime blades:
    `make capability-proof-local-live`
-3. Add one real workload:
+3. Add or onboard one real workload:
    [docs/adding-workloads.md](docs/adding-workloads.md)
 4. Inspect evidence and readiness:
    `make workload-readiness`, `make capability-proof-local`, `make data-artifacts-list`
 5. Decide runtime admission:
    use [docs/runtime-toolkit.md](docs/runtime-toolkit.md),
    `make capability-proof-cloud`, and `make enterprise-runtime-fit-check`
+
+## Keep It Useful
+
+The repo already has enough capability to absorb real workloads. Prefer use and
+small corrections over new machinery:
+
+- add scripts only when they answer an operator question directly
+- keep `platform/workloads.json` as workload identity, not deployment choreography
+- keep live capability proof narrow; full local validation belongs to
+  `make platform-toolkit-validate-local`
+- keep enterprise integrations candidate-only until a runtime owner, evidence,
+  conformance, failure mode, and runbook exist
+
+Useful inventory commands when you need them:
+
+```bash
+make workload-capability-matrix
+make workload-use-case-matrix
+make workload-readiness
+```
 
 ## Delivery Shape
 

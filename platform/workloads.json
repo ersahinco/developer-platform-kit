@@ -8,7 +8,7 @@
       "owner": "platform-engineering",
       "app_path": "apps/api",
       "runtime": {
-        "supported": ["local-compose", "aws-ecs"],
+        "supported": ["local-compose", "local-kubernetes", "aws-ecs"],
         "admitted": ["aws-ecs"]
       },
       "operational": {
@@ -221,7 +221,7 @@
       "owner": "platform-engineering",
       "app_path": "apps/data_export_job",
       "runtime": {
-        "supported": ["local-compose", "aws-ecs"],
+        "supported": ["local-compose", "local-kubernetes", "aws-ecs"],
         "admitted": ["aws-ecs"]
       },
       "operational": {
@@ -498,7 +498,7 @@
       "owner": "platform-engineering",
       "app_path": "apps/integration_check_job",
       "runtime": {
-        "supported": ["local-compose"],
+        "supported": ["local-compose", "local-kubernetes"],
         "admitted": []
       },
       "operational": {

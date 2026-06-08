@@ -20,6 +20,6 @@ explicit in the contract.
 
 Examples should consume the platform contract and catalog instead of bypassing
 them, but real workloads still belong in `apps/` even when they support only
-`local-compose`. AWS admission is a separate runtime decision. Full runtime
-admission still requires contract shape, local proof, runtime realization,
-delivery path, and owner.
+local runtime targets such as `local-compose` or `local-kubernetes`. AWS
+admission is a separate runtime decision. Full runtime admission still requires
+contract shape, local proof, runtime realization, delivery path, and owner.

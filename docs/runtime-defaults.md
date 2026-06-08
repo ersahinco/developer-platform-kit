@@ -24,6 +24,7 @@ make enterprise-runtime-fit-check
 | Runtime target | Authn default | Authz/policy default | Network default | CI/CD default | Observability default |
 |---|---|---|---|---|---|
 | `local-compose` | `none-local`, with explicit static dev token only when declared | app-local checks when needed plus local Conftest policy checks | Compose network and explicit host ports | local Make targets plus pytest/runtime conformance | Prometheus, Loki, Tempo, Grafana |
+| `local-kubernetes` | `none-local`, with explicit static dev token only when declared | app-local checks when needed plus manifest/contract policy checks | kind cluster, ClusterIP Services, probes, and in-cluster DNS | local Make targets, kind image loading, `kubectl apply -k`, smoke checks | pod logs and Prometheus endpoints |
 | `aws-ecs` | current primary edge uses workload-declared static bearer token | app-local business authz plus repo policy checks | ALB ingress, private ECS placement, VPC security groups | GitHub Actions OIDC, immutable tags, reviewed delivery, release evidence | Prometheus-compatible signals routed to CloudWatch and optional ADOT |
 
 The current AWS edge does not standardize on Okta, Kong, OPA, or a JWT provider.

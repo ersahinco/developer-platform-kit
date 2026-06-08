@@ -43,7 +43,7 @@ def test_catalog_manifests_describe_reusable_runtime_building_blocks() -> None:
     runtime_targets = {target["id"] for target in inventory["runtime_targets"]}
 
     assert inventory["current_runtime_target"] == "aws-ecs"
-    assert runtime_targets == {"local-compose", "aws-ecs"}
+    assert runtime_targets == {"local-compose", "local-kubernetes", "aws-ecs"}
 
     for path, manifest in _catalog_manifests():
         assert manifest["schema_version"] == "1"

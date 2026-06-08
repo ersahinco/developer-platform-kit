@@ -5,9 +5,15 @@ Repo shape and placement rules.
 `aws-sdlc-containers` is a platform monorepo whose stable center is the
 workload contract and the platform catalog. Runtime targets are pluggable
 realizations at the platform edge. Local Compose is the fast development
-runtime. AWS/ECS is the current reviewed production runtime. Managed global
-services can be added as runtime-edge realizations when a workload contract
-needs them.
+runtime. Local Kubernetes is the richer local proof runtime. AWS/ECS is the
+current reviewed production runtime. Managed global services can be added as
+runtime-edge realizations when a workload contract needs them.
+
+The repo is a developer-first delivery toolkit, not a runtime platform
+replacement. Its job is to standardize app host conventions, workload
+boundaries, build/test/release checks, infrastructure ownership, and evidence so
+local proof runtimes, managed app runtimes, or owned substrate runtimes can
+realize the same contract without changing application meaning.
 
 Use companion docs for detail:
 
@@ -29,6 +35,7 @@ The stable center:
 Current runtime realization roots:
 
 - `compose.yaml` and `platform/runtime-conformance.json`
+- `infra/local-kubernetes`
 - `infra/platform`
 - `infra/app`
 
@@ -39,6 +46,16 @@ Current runtime realization roots:
 - `platform/`: stable-center contract and concern definitions
 - `infra/`: runtime-specific implementation and runtime-target catalog
 - `scripts/`: explicit edge automation, never hidden orchestration
+
+Runtime families stay outside the stable center:
+
+- local proof runtimes provide fast developer feedback and contract proof
+- local Kubernetes proves richer network, storage, probe, job, and service
+  identity boundaries without cloud Kubernetes
+- managed app runtimes provide production hosting without the toolkit becoming
+  the runtime product
+- owned substrate runtimes are valid when a platform team explicitly owns the
+  substrate surface and its evidence
 
 ## Current Defaults
 
@@ -103,7 +120,7 @@ Portable meaning lives in
 Rules:
 
 - Keep `apps/*` thin.
-- Keep domain and application free of provider SDKs and runtime framework code.
+- Keep domain and application free of provider SDKs and runtime product code.
 - Add new folders only when there is real behavior and a clear owner.
 
 ## Platform Principles
