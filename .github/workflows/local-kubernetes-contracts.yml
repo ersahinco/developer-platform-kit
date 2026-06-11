@@ -4,6 +4,7 @@ on:
   pull_request:
     paths:
       - ".github/workflows/local-kubernetes-contracts.yml"
+      - "Makefile"
       - "infra/local-kubernetes/**"
       - "platform/platform-inventory.json"
       - "platform/runtime-defaults.json"
@@ -16,6 +17,7 @@ on:
     branches: [main]
     paths:
       - ".github/workflows/local-kubernetes-contracts.yml"
+      - "Makefile"
       - "infra/local-kubernetes/**"
       - "platform/platform-inventory.json"
       - "platform/runtime-defaults.json"

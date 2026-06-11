@@ -33,11 +33,12 @@ tasks, not duplicated infrastructure.
 Rule: PRs prove correctness. Manual workflows promote a reviewed artifact or
 reviewed plan. Every cloud-changing step leaves portable evidence.
 
-## Reusable Pipeline Shape
+## Pipeline Shape
 
-The delivery toolkit should be easy to copy into another app repo or turn into
-a GitHub template without hiding GitHub Actions. Keep the pipeline shape
-generic and evidence-first:
+The delivery toolkit provides a complete, opinionated GitHub Actions delivery
+shape without hiding GitHub Actions. Keep the lanes generic and evidence-first
+so another app repo can copy them directly today, and so repeated adoption can
+promote them later into reusable workflows or a GitHub template:
 
 1. App lane: build once, test, lint, scan, publish immutable image, record image
    digest and build evidence.
@@ -51,11 +52,12 @@ generic and evidence-first:
    or rerun/stop bounded jobs; do not mutate unrelated infra during app
    rollback.
 
-Each lane may be copied as a workflow or promoted later to a reusable workflow,
-but the contract stays the same: explicit inputs, least privilege, pinned
-actions, no cloud-changing side effects in validation jobs, and release
-evidence that names workload, run ID, revision, artifact, verification result,
-and rollback category.
+The current asset is the lane shape plus working workflows in this repo, not a
+separate reusable-workflow package. The contract stays the same when extraction
+is justified: explicit inputs, least privilege, pinned actions, no
+cloud-changing side effects in validation jobs, and release evidence that names
+workload, run ID, revision, artifact, verification result, and rollback
+category.
 
 ## GitHub Setup
 

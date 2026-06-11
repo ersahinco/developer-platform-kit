@@ -191,7 +191,9 @@ def _local_kubernetes_checks(area: str) -> list[EvidenceCheck]:
     if area == "authn":
         return [
             _primary_edge_auth_mode(),
-            _contains("infra/local-kubernetes/workloads.yaml", "PRIMARY_EDGE_AUTH_TOKEN"),
+            _contains(
+                "infra/local-kubernetes/workloads.yaml", "PRIMARY_EDGE_AUTH_TOKEN"
+            ),
             _contains("apps/api/main.py", "auth_status"),
             _contains(
                 "tests/api/test_api_operational.py",
@@ -222,7 +224,10 @@ def _local_kubernetes_checks(area: str) -> list[EvidenceCheck]:
     if area == "observability":
         return [
             _contains("infra/local-kubernetes/workloads.yaml", "/metrics"),
-            _contains("tests/contracts/test_workload_observability_contract.py", "workload_info"),
+            _contains(
+                "tests/contracts/test_workload_observability_contract.py",
+                "workload_info",
+            ),
             _contains("Makefile", "kubectl logs"),
         ]
     if area == "secrets":
@@ -235,7 +240,10 @@ def _local_kubernetes_checks(area: str) -> list[EvidenceCheck]:
         return [
             _contains("infra/local-kubernetes/runtime.yaml", "kind: ServiceAccount"),
             _contains("infra/local-kubernetes/workloads.yaml", "serviceAccountName"),
-            _contains("infra/local-kubernetes/workloads.yaml", "runtime.target: local-kubernetes"),
+            _contains(
+                "infra/local-kubernetes/workloads.yaml",
+                "runtime.target: local-kubernetes",
+            ),
             _contains("infra/local-kubernetes/workloads.yaml", "workload: api"),
         ]
     raise ValueError(f"unsupported capability proof area: {area}")

@@ -422,8 +422,8 @@ fmt: ## Auto-format Python and Terraform
 
 .PHONY: pre-commit
 pre-commit: ## Install and run pre-commit hooks
-	pre-commit install
-	pre-commit run --all-files
+	uv run pre-commit install
+	uv run pre-commit run --all-files
 
 .PHONY: platform-toolkit-validate-cloud
 platform-toolkit-validate-cloud: ## Run safe cloud readiness checks without mutating AWS

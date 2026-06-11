@@ -60,6 +60,16 @@ satisfy the workload contract, policy checks run, and docs links resolve. If a
 command fails before reaching Kubernetes, fix the toolchain first; if it fails
 inside the cluster, inspect the workload evidence.
 
+Git hooks are active for commit and push. Install them from the repo-managed
+toolchain, not from a global Python:
+
+```bash
+uv run pre-commit install
+```
+
+Use `make pre-commit` when you want to install hooks and run the full hook set
+against the current tree.
+
 ## Standard Local Flow
 
 ```bash

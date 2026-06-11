@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-from pathlib import Path
 from typing import Any
 
 import yaml
@@ -102,7 +101,9 @@ def test_local_kubernetes_manifests_match_workload_contract() -> None:
         job = documents[("Job", manifest_name)]
         container = job["spec"]["template"]["spec"]["containers"][0]
         assert container["image"].endswith(":local-kubernetes")
-        assert job["spec"]["template"]["metadata"]["labels"]["workload"] == workload_name
+        assert (
+            job["spec"]["template"]["metadata"]["labels"]["workload"] == workload_name
+        )
         assert _config_names(workload).issubset(config_names | secret_names)
 
     data_export_job = documents[("Job", "data-export-job")]

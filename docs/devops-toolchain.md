@@ -63,7 +63,7 @@ Rules:
 `data-runtime-switch.yml`, `data-backfill.yml`, and `infra-apply.yml` remain
 separate reviewed cloud-changing workflows, not pull-request gates.
 
-Pipeline template rule: keep these workflows copyable. Prefer ordinary GitHub
-Actions, explicit `workflow_call` inputs where reuse is needed, immutable image
-tags, pinned third-party actions, and portable evidence artifacts over custom
-orchestrators.
+Pipeline template rule: keep these workflows copyable before extracting shared
+workflow packages. Prefer ordinary GitHub Actions, explicit `workflow_call`
+inputs only after repeated reuse, immutable image tags, pinned third-party
+actions, and portable evidence artifacts over custom orchestrators.
