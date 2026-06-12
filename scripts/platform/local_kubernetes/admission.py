@@ -1,14 +1,11 @@
 from __future__ import annotations
 
+from collections.abc import Iterable
 from dataclasses import dataclass
+from dataclasses import field
 import json
 import re
 from typing import Any
-
-try:
-    import yaml
-except ModuleNotFoundError:  # pragma: no cover - exercised by host-python Make usage
-    yaml = None  # type: ignore[assignment]
 
 from scripts.platform.local_kubernetes.constants import LOCAL_KUBERNETES_ROOT
 from scripts.platform.local_kubernetes.constants import ROOT
@@ -25,6 +22,20 @@ class AdmissionRow:
     blockers: list[str]
 
 
+@dataclass(frozen=True)
+class ManifestFacts:
+    kind: str
+    name: str
+    workload: str | None = None
+    config_keys: frozenset[str] = field(default_factory=frozenset)
+    secret_keys: frozenset[str] = field(default_factory=frozenset)
+    container_names: tuple[str, ...] = ()
+    readiness_paths: frozenset[str] = field(default_factory=frozenset)
+    liveness_paths: frozenset[str] = field(default_factory=frozenset)
+    restart_policy: str | None = None
+    has_backoff_limit: bool = False
+
+
 def _load_json(path: str) -> dict[str, Any]:
     data = json.loads((ROOT / path).read_text(encoding="utf-8"))
     if not isinstance(data, dict):
@@ -32,134 +43,135 @@ def _load_json(path: str) -> dict[str, Any]:
     return data
 
 
-def _documents() -> list[dict[str, Any]]:
-    if yaml is None:
-        return _documents_without_yaml()
-
-    documents: list[dict[str, Any]] = []
+def _manifests() -> list[ManifestFacts]:
+    manifests: list[ManifestFacts] = []
     for path in sorted(LOCAL_KUBERNETES_ROOT.glob("*.yaml")):
-        for document in yaml.safe_load_all(path.read_text(encoding="utf-8")):
-            if isinstance(document, dict):
-                documents.append(document)
-    return documents
+        for text in _manifest_texts(path.read_text(encoding="utf-8")):
+            manifest = _manifest_from_text(text)
+            if manifest is not None:
+                manifests.append(manifest)
+    return manifests
 
 
-def _documents_without_yaml() -> list[dict[str, Any]]:
-    documents: list[dict[str, Any]] = []
-    for path in sorted(LOCAL_KUBERNETES_ROOT.glob("*.yaml")):
-        for text in re.split(
-            r"^---\s*$", path.read_text(encoding="utf-8"), flags=re.MULTILINE
-        ):
-            document = _document_from_text(text)
-            if document:
-                documents.append(document)
-    return documents
+def _manifest_texts(text: str) -> Iterable[str]:
+    for section in re.split(r"^---\s*$", text, flags=re.MULTILINE):
+        if section.strip():
+            yield section
 
 
-def _document_from_text(text: str) -> dict[str, Any] | None:
-    kind = _match(text, r"^kind:\s*(\S+)\s*$")
-    name = _match(
-        text,
-        r"^metadata:\s*\n(?:^[ \t].*\n)*?^[ \t]{2}name:\s*([^\s#]+)\s*$",
-    )
+def _manifest_from_text(text: str) -> ManifestFacts | None:
+    kind = _top_level_value(text, "kind")
+    name = _metadata_name(text)
     if kind is None or name is None:
         return None
 
-    document: dict[str, Any] = {"kind": kind, "metadata": {"name": name}}
-    if kind == "ConfigMap":
-        document["data"] = _mapping_keys(text, "data")
-    if kind == "Secret":
-        document["stringData"] = _mapping_keys(text, "stringData")
-
-    workload = _match(text, r"^[ \t]+workload:\s*([^\s#]+)\s*$")
-    restart_policy = _match(text, r"^[ \t]+restartPolicy:\s*([^\s#]+)\s*$")
-    containers = [
-        {"name": value}
-        for value in re.findall(
-            r"^[ \t]+- name:\s*([^\s#]+)\s*$", text, flags=re.MULTILINE
-        )
-    ]
-    if "/ready" in text or "/health" in text:
-        first_container = containers[0] if containers else {}
-        if "/ready" in text:
-            first_container["readinessProbe"] = {"httpGet": {"path": "/ready"}}
-        if "/health" in text:
-            first_container["livenessProbe"] = {"httpGet": {"path": "/health"}}
-        if containers:
-            containers[0] = first_container
-        else:
-            containers = [first_container]
-
-    if workload or restart_policy or containers:
-        template: dict[str, Any] = {"metadata": {"labels": {}}, "spec": {}}
-        if workload:
-            template["metadata"]["labels"]["workload"] = workload
-        if restart_policy:
-            template["spec"]["restartPolicy"] = restart_policy
-        if containers:
-            template["spec"]["containers"] = containers
-        document["spec"] = {"template": template}
-
-    backoff_limit = _match(text, r"^  backoffLimit:\s*(\d+)\s*$")
-    if backoff_limit is not None:
-        document.setdefault("spec", {})["backoffLimit"] = int(backoff_limit)
-    return document
-
-
-def _match(text: str, pattern: str) -> str | None:
-    match = re.search(pattern, text, flags=re.MULTILINE)
-    return match.group(1) if match else None
-
-
-def _mapping_keys(text: str, section: str) -> dict[str, str]:
-    match = re.search(
-        rf"^{section}:\s*\n(?P<body>(?:^[ \t]{{2}}[^\n]+\n?)*)",
-        text,
-        flags=re.MULTILINE,
+    return ManifestFacts(
+        kind=kind,
+        name=name,
+        workload=_indented_value(text, "workload"),
+        config_keys=_mapping_keys(text, "data") if kind == "ConfigMap" else frozenset(),
+        secret_keys=(
+            _mapping_keys(text, "stringData") if kind == "Secret" else frozenset()
+        ),
+        container_names=tuple(_list_item_names(text)),
+        readiness_paths=_probe_paths(text, "readinessProbe"),
+        liveness_paths=_probe_paths(text, "livenessProbe"),
+        restart_policy=_indented_value(text, "restartPolicy"),
+        has_backoff_limit=_indented_value(text, "backoffLimit") is not None,
     )
-    if not match:
-        return {}
-    keys = {}
-    for line in match.group("body").splitlines():
-        key = line.strip().split(":", 1)[0]
-        if key:
-            keys[key] = ""
-    return keys
 
 
-def _metadata(document: dict[str, Any]) -> dict[str, Any]:
-    metadata = document.get("metadata", {})
-    return metadata if isinstance(metadata, dict) else {}
+def _top_level_value(text: str, key: str) -> str | None:
+    return _value_at_indent(text, key, indent=0)
 
 
-def _workload_label(document: dict[str, Any]) -> str | None:
-    template = document.get("spec", {}).get("template", {})
-    metadata = template.get("metadata", {}) if isinstance(template, dict) else {}
-    labels = metadata.get("labels", {}) if isinstance(metadata, dict) else {}
-    workload = labels.get("workload") if isinstance(labels, dict) else None
-    return workload if isinstance(workload, str) else None
+def _indented_value(text: str, key: str) -> str | None:
+    for line in text.splitlines():
+        stripped = line.strip()
+        if line.startswith(" ") and stripped.startswith(f"{key}:"):
+            return stripped.split(":", 1)[1].strip()
+    return None
 
 
-def _document_name(document: dict[str, Any]) -> str:
-    name = _metadata(document).get("name", "")
-    return str(name)
+def _value_at_indent(text: str, key: str, *, indent: int) -> str | None:
+    prefix = " " * indent + f"{key}:"
+    for line in text.splitlines():
+        if line.startswith(prefix):
+            return line.split(":", 1)[1].strip()
+    return None
 
 
-def _document_by_kind_name() -> dict[tuple[str, str], dict[str, Any]]:
-    return {
-        (str(document.get("kind")), _document_name(document)): document
-        for document in _documents()
-    }
+def _metadata_name(text: str) -> str | None:
+    lines = text.splitlines()
+    for index, line in enumerate(lines):
+        if line == "metadata:":
+            for metadata_line in lines[index + 1 :]:
+                if metadata_line and not metadata_line.startswith(" "):
+                    return None
+                if metadata_line.startswith("  name:"):
+                    return metadata_line.split(":", 1)[1].strip()
+    return None
 
 
-def _workload_manifest(workload: dict[str, Any]) -> dict[str, Any] | None:
+def _mapping_keys(text: str, section: str) -> frozenset[str]:
+    keys: set[str] = set()
+    lines = text.splitlines()
+    for index, line in enumerate(lines):
+        if line == f"{section}:":
+            for mapping_line in lines[index + 1 :]:
+                if mapping_line and not mapping_line.startswith(" "):
+                    break
+                if mapping_line.startswith("  ") and not mapping_line.startswith(
+                    "    "
+                ):
+                    key = mapping_line.strip().split(":", 1)[0]
+                    if key:
+                        keys.add(key)
+            break
+    return frozenset(keys)
+
+
+def _list_item_names(text: str) -> list[str]:
+    names: list[str] = []
+    for line in text.splitlines():
+        stripped = line.strip()
+        if stripped.startswith("- name:"):
+            names.append(stripped.split(":", 1)[1].strip())
+    return names
+
+
+def _probe_paths(text: str, probe: str) -> frozenset[str]:
+    paths: set[str] = set()
+    lines = text.splitlines()
+    for index, line in enumerate(lines):
+        if line.strip() != f"{probe}:":
+            continue
+        probe_indent = len(line) - len(line.lstrip())
+        for probe_line in lines[index + 1 :]:
+            if probe_line.strip() and not probe_line.startswith(
+                " " * (probe_indent + 1)
+            ):
+                break
+            stripped = probe_line.strip()
+            if stripped.startswith("path:"):
+                paths.add(stripped.split(":", 1)[1].strip())
+    return frozenset(paths)
+
+
+def _manifest_by_kind_name(
+    manifests: list[ManifestFacts],
+) -> dict[tuple[str, str], ManifestFacts]:
+    return {(manifest.kind, manifest.name): manifest for manifest in manifests}
+
+
+def _workload_manifest(
+    workload: dict[str, Any],
+    manifests: list[ManifestFacts],
+) -> ManifestFacts | None:
     expected_kind = "Deployment" if workload["kind"] == "service" else "Job"
-    for document in _documents():
-        if (
-            document.get("kind") == expected_kind
-            and _workload_label(document) == workload["name"]
-        ):
-            return document
+    for manifest in manifests:
+        if manifest.kind == expected_kind and manifest.workload == workload["name"]:
+            return manifest
     return None
 
 
@@ -170,17 +182,18 @@ def _config_names(workload: dict[str, Any]) -> set[str]:
 
 def admission_rows() -> list[AdmissionRow]:
     workloads = _load_json("platform/workloads.json")["workloads"]
-    documents = _document_by_kind_name()
-    config_map = documents.get(("ConfigMap", "workload-config"), {})
-    secret = documents.get(("Secret", "workload-secrets"), {})
-    config_names = set(config_map.get("data", {}))
-    secret_names = set(secret.get("stringData", {}))
-    available_config = config_names | secret_names
+    manifests = _manifests()
+    manifests_by_kind_name = _manifest_by_kind_name(manifests)
+    config_map = manifests_by_kind_name.get(("ConfigMap", "workload-config"))
+    secret = manifests_by_kind_name.get(("Secret", "workload-secrets"))
+    available_config = (config_map.config_keys if config_map else frozenset()) | (
+        secret.secret_keys if secret else frozenset()
+    )
     rows: list[AdmissionRow] = []
 
     for workload in workloads:
         supported = "local-kubernetes" in workload["runtime"]["supported"]
-        manifest = _workload_manifest(workload)
+        manifest = _workload_manifest(workload, manifests)
         checks: list[str] = []
         blockers: list[str] = []
 
@@ -190,7 +203,7 @@ def admission_rows() -> list[AdmissionRow]:
             blockers.append("no local Kubernetes Deployment/Job manifest")
             manifest_name = ""
         else:
-            manifest_name = f"{manifest['kind']}/{_document_name(manifest)}"
+            manifest_name = f"{manifest.kind}/{manifest.name}"
             checks.append(manifest_name)
 
         if supported or manifest is not None:
@@ -203,30 +216,31 @@ def admission_rows() -> list[AdmissionRow]:
                 checks.append("config and secret names are injectable")
 
             if workload["kind"] == "service":
-                service = documents.get(("Service", _document_name(manifest or {})))
-                container = _first_container(manifest)
+                service = (
+                    manifests_by_kind_name.get(("Service", manifest.name))
+                    if manifest
+                    else None
+                )
                 if service is None:
                     blockers.append("no matching local Kubernetes Service")
                 elif supported:
-                    checks.append(f"Service/{_document_name(service)}")
-                if not _has_http_probe(container, "readinessProbe", "/ready"):
+                    checks.append(f"Service/{service.name}")
+                if manifest is None or "/ready" not in manifest.readiness_paths:
                     blockers.append("service lacks /ready readinessProbe")
-                if not _has_http_probe(container, "livenessProbe", "/health"):
+                if manifest is None or "/health" not in manifest.liveness_paths:
                     blockers.append("service lacks /health livenessProbe")
-                if container and supported:
+                if manifest and supported:
                     checks.append("health and readiness probes")
             else:
-                spec = manifest.get("spec", {}) if isinstance(manifest, dict) else {}
-                template_spec = spec.get("template", {}).get("spec", {})
-                if template_spec.get("restartPolicy") != "Never":
+                if manifest is None or manifest.restart_policy != "Never":
                     blockers.append("job restartPolicy must be Never")
-                if "backoffLimit" not in spec:
+                if manifest is None or not manifest.has_backoff_limit:
                     blockers.append("job backoffLimit is not explicit")
-                if supported and template_spec.get("restartPolicy") == "Never":
+                if supported and manifest and manifest.restart_policy == "Never":
                     checks.append("bounded job execution")
 
         if workload.get("dapr"):
-            if not _has_local_dapr_eventing(documents, manifest):
+            if not _has_local_dapr_eventing(manifests_by_kind_name, manifest):
                 blockers.append("local Kubernetes Dapr/eventing proof is not present")
             elif supported:
                 checks.append("Dapr pub/sub sidecar and Redis proof path")
@@ -246,48 +260,17 @@ def admission_rows() -> list[AdmissionRow]:
     return rows
 
 
-def _first_container(document: dict[str, Any] | None) -> dict[str, Any] | None:
-    if not isinstance(document, dict):
-        return None
-    containers = (
-        document.get("spec", {})
-        .get("template", {})
-        .get("spec", {})
-        .get("containers", [])
-    )
-    if isinstance(containers, list) and containers:
-        container = containers[0]
-        return container if isinstance(container, dict) else None
-    return None
-
-
-def _has_http_probe(container: dict[str, Any] | None, probe: str, path: str) -> bool:
-    if not isinstance(container, dict):
-        return False
-    http_get = container.get(probe, {}).get("httpGet", {})
-    return isinstance(http_get, dict) and http_get.get("path") == path
-
-
 def _has_local_dapr_eventing(
-    documents: dict[tuple[str, str], dict[str, Any]],
-    manifest: dict[str, Any] | None,
+    manifests: dict[tuple[str, str], ManifestFacts],
+    manifest: ManifestFacts | None,
 ) -> bool:
-    if not isinstance(manifest, dict):
+    if manifest is None:
         return False
-    containers = (
-        manifest.get("spec", {})
-        .get("template", {})
-        .get("spec", {})
-        .get("containers", [])
-    )
-    container_names = {
-        container.get("name") for container in containers if isinstance(container, dict)
-    }
     return (
-        "event-consumer" in container_names
-        and "daprd" in container_names
-        and ("ConfigMap", "dapr-components") in documents
-        and ("ConfigMap", "dapr-config") in documents
-        and ("Deployment", "redis") in documents
-        and ("Service", "redis") in documents
+        "event-consumer" in manifest.container_names
+        and "daprd" in manifest.container_names
+        and ("ConfigMap", "dapr-components") in manifests
+        and ("ConfigMap", "dapr-config") in manifests
+        and ("Deployment", "redis") in manifests
+        and ("Service", "redis") in manifests
     )
