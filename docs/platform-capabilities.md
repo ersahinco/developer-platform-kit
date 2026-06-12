@@ -7,6 +7,7 @@ Use:
 
 - [Platform Contract](platform-contract.md) for workload-facing rules
 - [Architecture](architecture.md) for placement and ownership
+- [Proof Ladder](proof-ladder.md) for the static-to-local-to-cloud evidence path
 
 Start with these operator views:
 

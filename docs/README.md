@@ -9,6 +9,7 @@ Canonical doc map. Find the owner before adding a new page.
 | First local-to-cloud validation pass | [First 30 Minutes](first-30-minutes.md) | New developer happy path through local proof and safe cloud readiness |
 | Repo shape and ownership boundaries | [Architecture](architecture.md) | Where code, Terraform, scripts, and docs belong |
 | Portable workload expectations | [Platform Contract](platform-contract.md) | Workload contract, metadata ownership, external contract rules |
+| Proof ladder and evidence levels | [Proof Ladder](proof-ladder.md) | Static contracts, local Compose, local Kubernetes proof, and AWS ECS evidence |
 | Current platform capability surface | [Platform Capabilities](platform-capabilities.md) | What exists today and where to extend it |
 | Runtime-target evaluation | [Runtime Toolkit](runtime-toolkit.md) | When and how to add another runtime target |
 | Runtime defaults | [Runtime Defaults](runtime-defaults.md) | Blessed auth, identity, secrets, observability, policy, CI/CD, and network defaults |
@@ -31,6 +32,7 @@ Canonical doc map. Find the owner before adding a new page.
 | Understand the platform itself | [Platform Contract](platform-contract.md), [Platform Capabilities](platform-capabilities.md) |
 | Add a workload | [Adding Workloads](adding-workloads.md), `make workload-readiness`, `make workload-readiness-check`, [Platform Contract](platform-contract.md#workload-checklist) |
 | Work locally | [Local Development](local-development.md), `make platform-doctor` |
+| Choose the right proof level | [Proof Ladder](proof-ladder.md), [Local Development](local-development.md) |
 | Deploy or operate AWS | [Operator Day 2 Commands](operator-day-2.md), [Deployment](deployment.md), [Infrastructure](../infra/README.md), [Runbooks](runbooks/README.md) |
 | Review pipeline gates | [DevOps Toolchain](devops-toolchain.md), [Deployment](deployment.md) |
 | Add or evaluate another runtime | [Runtime Toolkit](runtime-toolkit.md), [Runtime Defaults](runtime-defaults.md), `make enterprise-runtime-fit-check` |

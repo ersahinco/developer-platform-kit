@@ -1,0 +1,260 @@
+---
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: data-export-job
+  namespace: aws-sdlc-local
+  labels:
+    app.kubernetes.io/name: data-export-job
+    app.kubernetes.io/part-of: aws-sdlc-containers
+    runtime.target: local-kubernetes
+spec:
+  backoffLimit: 3
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: data-export-job
+        app.kubernetes.io/part-of: aws-sdlc-containers
+        runtime.target: local-kubernetes
+        workload: data_export_job
+    spec:
+      restartPolicy: Never
+      serviceAccountName: workload-runtime
+      initContainers:
+        - name: wait-for-pgbouncer
+          image: postgres:18.3
+          command: ["sh", "-c", "until pg_isready -h pgbouncer -U postgres -d aws_sdlc_containers; do sleep 2; done"]
+        - name: wait-for-schema
+          image: postgres:18.3
+          command:
+            - sh
+            - -c
+            - until psql -h pgbouncer -U postgres -d aws_sdlc_containers -tAc "SELECT to_regclass('public.order_contact_email')" | grep -q order_contact_email; do sleep 2; done
+          env:
+            - name: PGPASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: workload-secrets
+                  key: DB_PASSWORD
+      containers:
+        - name: data-export-job
+          image: aws-sdlc-containers-data-export-job:local-kubernetes
+          imagePullPolicy: IfNotPresent
+          envFrom:
+            - configMapRef:
+                name: workload-config
+            - secretRef:
+                name: workload-secrets
+          volumeMounts:
+            - name: data-exports
+              mountPath: /exports
+      volumes:
+        - name: data-exports
+          persistentVolumeClaim:
+            claimName: data-exports
+---
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: backfill-worker
+  namespace: aws-sdlc-local
+  labels:
+    app.kubernetes.io/name: backfill-worker
+    app.kubernetes.io/part-of: aws-sdlc-containers
+    runtime.target: local-kubernetes
+spec:
+  backoffLimit: 3
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: backfill-worker
+        app.kubernetes.io/part-of: aws-sdlc-containers
+        runtime.target: local-kubernetes
+        workload: backfill_worker
+    spec:
+      restartPolicy: Never
+      serviceAccountName: workload-runtime
+      initContainers:
+        - name: wait-for-schema
+          image: postgres:18.3
+          command:
+            - sh
+            - -c
+            - until psql -h db -U postgres -d aws_sdlc_containers -tAc "SELECT to_regclass('public.order_contact_email')" | grep -q order_contact_email; do sleep 2; done
+          env:
+            - name: PGPASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: workload-secrets
+                  key: DB_PASSWORD
+      containers:
+        - name: backfill-worker
+          image: aws-sdlc-containers-backfill-worker:local-kubernetes
+          imagePullPolicy: IfNotPresent
+          env:
+            - name: DATABASE_URL
+              value: postgresql://postgres:postgres@db:5432/aws_sdlc_containers
+            - name: DB_HOST
+              value: db
+            - name: DB_PORT
+              valueFrom:
+                configMapKeyRef:
+                  name: workload-config
+                  key: DB_PORT
+            - name: DB_USER
+              valueFrom:
+                configMapKeyRef:
+                  name: workload-config
+                  key: DB_USER
+            - name: DB_NAME
+              valueFrom:
+                configMapKeyRef:
+                  name: workload-config
+                  key: DB_NAME
+            - name: DB_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: workload-secrets
+                  key: DB_PASSWORD
+            - name: BACKFILL_BATCH_SIZE
+              valueFrom:
+                configMapKeyRef:
+                  name: workload-config
+                  key: BACKFILL_BATCH_SIZE
+            - name: BACKFILL_SLEEP_MS
+              valueFrom:
+                configMapKeyRef:
+                  name: workload-config
+                  key: BACKFILL_SLEEP_MS
+            - name: BACKFILL_MAX_BATCHES
+              valueFrom:
+                configMapKeyRef:
+                  name: workload-config
+                  key: BACKFILL_MAX_BATCHES
+---
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: operational-snapshot-job
+  namespace: aws-sdlc-local
+  labels:
+    app.kubernetes.io/name: operational-snapshot-job
+    app.kubernetes.io/part-of: aws-sdlc-containers
+    runtime.target: local-kubernetes
+spec:
+  backoffLimit: 3
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: operational-snapshot-job
+        app.kubernetes.io/part-of: aws-sdlc-containers
+        runtime.target: local-kubernetes
+        workload: operational_snapshot_job
+    spec:
+      restartPolicy: Never
+      serviceAccountName: workload-runtime
+      initContainers:
+        - name: wait-for-schema
+          image: postgres:18.3
+          command:
+            - sh
+            - -c
+            - until psql -h db -U postgres -d aws_sdlc_containers -tAc "SELECT to_regclass('public.outbox_messages')" | grep -q outbox_messages; do sleep 2; done
+          env:
+            - name: PGPASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: workload-secrets
+                  key: DB_PASSWORD
+      containers:
+        - name: operational-snapshot-job
+          image: aws-sdlc-containers-operational-snapshot-job:local-kubernetes
+          imagePullPolicy: IfNotPresent
+          env:
+            - name: DATABASE_URL
+              value: postgresql://postgres:postgres@db:5432/aws_sdlc_containers
+            - name: DB_HOST
+              value: db
+            - name: DB_PORT
+              valueFrom:
+                configMapKeyRef:
+                  name: workload-config
+                  key: DB_PORT
+            - name: DB_USER
+              valueFrom:
+                configMapKeyRef:
+                  name: workload-config
+                  key: DB_USER
+            - name: DB_NAME
+              valueFrom:
+                configMapKeyRef:
+                  name: workload-config
+                  key: DB_NAME
+            - name: DB_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: workload-secrets
+                  key: DB_PASSWORD
+            - name: OPERATIONAL_SNAPSHOT_RUN_ID
+              valueFrom:
+                configMapKeyRef:
+                  name: workload-config
+                  key: OPERATIONAL_SNAPSHOT_RUN_ID
+---
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: integration-check-job
+  namespace: aws-sdlc-local
+  labels:
+    app.kubernetes.io/name: integration-check-job
+    app.kubernetes.io/part-of: aws-sdlc-containers
+    runtime.target: local-kubernetes
+spec:
+  backoffLimit: 3
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: integration-check-job
+        app.kubernetes.io/part-of: aws-sdlc-containers
+        runtime.target: local-kubernetes
+        workload: integration_check_job
+    spec:
+      restartPolicy: Never
+      serviceAccountName: workload-runtime
+      initContainers:
+        - name: wait-for-api
+          image: curlimages/curl:8.17.0
+          command: ["sh", "-c", "until curl --fail --silent http://api:8000/health; do sleep 2; done"]
+      containers:
+        - name: integration-check-job
+          image: aws-sdlc-containers-integration-check-job:local-kubernetes
+          imagePullPolicy: IfNotPresent
+          env:
+            - name: INTEGRATION_CHECK_TARGETS
+              valueFrom:
+                configMapKeyRef:
+                  name: workload-config
+                  key: INTEGRATION_CHECK_TARGETS
+            - name: INTEGRATION_CHECK_TIMEOUT_SECONDS
+              valueFrom:
+                configMapKeyRef:
+                  name: workload-config
+                  key: INTEGRATION_CHECK_TIMEOUT_SECONDS
+            - name: INTEGRATION_CHECK_RUN_ID
+              valueFrom:
+                configMapKeyRef:
+                  name: workload-config
+                  key: INTEGRATION_CHECK_RUN_ID
+            - name: INTEGRATION_CHECK_OUTPUT_DIR
+              valueFrom:
+                configMapKeyRef:
+                  name: workload-config
+                  key: INTEGRATION_CHECK_OUTPUT_DIR
+          volumeMounts:
+            - name: data-exports
+              mountPath: /exports
+      volumes:
+        - name: data-exports
+          persistentVolumeClaim:
+            claimName: data-exports

@@ -192,7 +192,8 @@ def _local_kubernetes_checks(area: str) -> list[EvidenceCheck]:
         return [
             _primary_edge_auth_mode(),
             _contains(
-                "infra/local-kubernetes/workloads.yaml", "PRIMARY_EDGE_AUTH_TOKEN"
+                "infra/local-kubernetes/workload-services.yaml",
+                "PRIMARY_EDGE_AUTH_TOKEN",
             ),
             _contains("apps/api/main.py", "auth_status"),
             _contains(
@@ -209,10 +210,12 @@ def _local_kubernetes_checks(area: str) -> list[EvidenceCheck]:
     if area == "network":
         return [
             _exists("infra/local-kubernetes/kustomization.yaml"),
-            _contains("infra/local-kubernetes/workloads.yaml", "kind: Service"),
-            _contains("infra/local-kubernetes/workloads.yaml", "readinessProbe"),
-            _contains("infra/local-kubernetes/workloads.yaml", "livenessProbe"),
-            _contains("infra/local-kubernetes/runtime.yaml", "name: pgbouncer"),
+            _contains("infra/local-kubernetes/workload-services.yaml", "kind: Service"),
+            _contains(
+                "infra/local-kubernetes/workload-services.yaml", "readinessProbe"
+            ),
+            _contains("infra/local-kubernetes/workload-services.yaml", "livenessProbe"),
+            _contains("infra/local-kubernetes/runtime-db.yaml", "name: pgbouncer"),
         ]
     if area == "ci_cd":
         return [
@@ -223,7 +226,7 @@ def _local_kubernetes_checks(area: str) -> list[EvidenceCheck]:
         ]
     if area == "observability":
         return [
-            _contains("infra/local-kubernetes/workloads.yaml", "/metrics"),
+            _contains("infra/local-kubernetes/workload-services.yaml", "/metrics"),
             _contains(
                 "tests/contracts/test_workload_observability_contract.py",
                 "workload_info",
@@ -233,18 +236,20 @@ def _local_kubernetes_checks(area: str) -> list[EvidenceCheck]:
     if area == "secrets":
         return [
             _contains("platform/workloads.json", '"secrets"'),
-            _contains("infra/local-kubernetes/runtime.yaml", "kind: Secret"),
-            _contains("infra/local-kubernetes/workloads.yaml", "secretKeyRef"),
+            _contains("infra/local-kubernetes/runtime-db.yaml", "kind: Secret"),
+            _contains("infra/local-kubernetes/workload-services.yaml", "secretKeyRef"),
         ]
     if area == "service_identity":
         return [
-            _contains("infra/local-kubernetes/runtime.yaml", "kind: ServiceAccount"),
-            _contains("infra/local-kubernetes/workloads.yaml", "serviceAccountName"),
+            _contains("infra/local-kubernetes/runtime-db.yaml", "kind: ServiceAccount"),
             _contains(
-                "infra/local-kubernetes/workloads.yaml",
+                "infra/local-kubernetes/workload-services.yaml", "serviceAccountName"
+            ),
+            _contains(
+                "infra/local-kubernetes/workload-services.yaml",
                 "runtime.target: local-kubernetes",
             ),
-            _contains("infra/local-kubernetes/workloads.yaml", "workload: api"),
+            _contains("infra/local-kubernetes/workload-services.yaml", "workload: api"),
         ]
     raise ValueError(f"unsupported capability proof area: {area}")
 
