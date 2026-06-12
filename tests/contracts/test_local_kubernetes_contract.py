@@ -10,7 +10,10 @@ from ._helpers import ROOT, load_json
 LOCAL_KUBERNETES_ROOT = ROOT / "infra" / "local-kubernetes"
 LOCAL_KUBERNETES_WORKLOADS = {
     "api": "api",
+    "event_consumer": "event-consumer",
+    "backfill_worker": "backfill-worker",
     "data_export_job": "data-export-job",
+    "operational_snapshot_job": "operational-snapshot-job",
     "integration_check_job": "integration-check-job",
 }
 
@@ -113,6 +116,32 @@ def test_local_kubernetes_manifests_match_workload_contract() -> None:
     }
     assert {"wait-for-pgbouncer", "wait-for-schema"}.issubset(init_names)
 
+    event_consumer = workloads["event_consumer"]
+    event_deployment = documents[("Deployment", "event-consumer")]
+    event_service = documents[("Service", "event-consumer")]
+    event_pod_spec = event_deployment["spec"]["template"]["spec"]
+    event_containers = {
+        container["name"]: container for container in event_pod_spec["containers"]
+    }
+    event_app = event_containers["event-consumer"]
+    daprd = event_containers["daprd"]
+
+    assert event_app["image"] == ("aws-sdlc-containers-event-consumer:local-kubernetes")
+    assert event_app["ports"][0]["containerPort"] == event_consumer["service"]["port"]
+    assert (
+        event_service["spec"]["ports"][0]["port"] == event_consumer["service"]["port"]
+    )
+    assert event_app["readinessProbe"]["httpGet"]["path"] == "/ready"
+    assert event_app["livenessProbe"]["httpGet"]["path"] == "/health"
+    assert "--resources-path" in daprd["args"]
+    assert "--config" in daprd["args"]
+    assert documents[("ConfigMap", "dapr-components")]["data"][
+        "async-events-pubsub.yaml"
+    ]
+    assert documents[("ConfigMap", "dapr-config")]["data"]["config.yaml"]
+    assert ("Deployment", "redis") in documents
+    assert ("Service", "redis") in documents
+
 
 def test_local_kubernetes_runtime_proves_identity_network_and_storage() -> None:
     documents = _by_kind_name()
@@ -122,9 +151,14 @@ def test_local_kubernetes_runtime_proves_identity_network_and_storage() -> None:
     assert ("PersistentVolumeClaim", "data-exports") in documents
     assert ("Service", "db") in documents
     assert ("Service", "pgbouncer") in documents
+    assert ("Service", "redis") in documents
     assert ("Job", "liquibase") in documents
+    assert ("Job", "backfill-worker") in documents
+    assert ("Job", "operational-snapshot-job") in documents
     assert config_map["data"]["DATA_EXPORT_OUTPUT_DIR"] == "/exports"
     assert config_map["data"]["DATA_EXPORT_S3_BUCKET"] == ""
+    assert config_map["data"]["DAPR_PUBSUB_NAME"] == "async-events-pubsub"
+    assert config_map["data"]["DAPR_TOPIC"] == "async-events-v1.fifo"
 
     for document in _documents():
         metadata = document.get("metadata", {})

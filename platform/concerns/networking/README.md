@@ -10,6 +10,10 @@ Current capability rows live in `platform/platform-inventory.json` under
 
 - `local-compose`: Docker Compose networks and explicit host ports in
   `compose.yaml`
+- `local-kubernetes`: kind ClusterIP Services, probes, in-cluster DNS,
+  daprd-to-app sidecar routing, Redis-backed local pub/sub, and dependency routing
+  in `infra/local-kubernetes`, checked by
+  `tests/contracts/test_local_kubernetes_contract.py`
 - `aws-ecs`: ALB ingress, private ECS placement, VPC subnets, and security
   groups in `infra/platform/network.tf`, `infra/app/edge.tf`,
   `infra/app/compute_ecs.tf`, and `infra/app/workload_jobs.tf`

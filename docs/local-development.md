@@ -97,13 +97,40 @@ local Kubernetes target uses `kind` and static manifests only.
 ```bash
 make local-kubernetes-doctor
 make local-kubernetes-validate
+make local-kubernetes-rollout-proof
+make local-kubernetes-dapr-proof
+make local-kubernetes-evidence-drill
+make local-kubernetes-admission-report
 make local-kubernetes-down
 ```
 
-This proves the API, data export job, and integration check job against
-Postgres, PgBouncer, Liquibase, Services, probes, Secrets, ConfigMaps, and a
-PersistentVolumeClaim. It is not cloud Kubernetes, Helm, CRDs, or a platform
-control plane.
+This proves the API, event consumer, backfill worker, data export job,
+operational snapshot job, and integration check job against Postgres, PgBouncer,
+Liquibase, Redis, Dapr sidecar wiring, Services, probes, Secrets, ConfigMaps,
+and PersistentVolumeClaims. It is not cloud Kubernetes, Helm, CRDs, or a
+platform control plane.
+
+Use `make local-kubernetes-rollout-proof` when you want the closest local proof
+to production rollout behavior without adding a new runtime target. It creates a
+kind cluster, applies the static manifests, rolls the API Deployment to a second
+immutable local image tag, verifies `/health`, `/ready`, and `/metrics`, rolls
+back, and writes local evidence.
+
+Use `make local-kubernetes-dapr-proof` when you need proof that the existing
+Dapr pub/sub workload boundary works in kind. It creates an order through the
+API, lets the event consumer relay through its local daprd sidecar and Redis
+component, and waits for the consume log evidence.
+
+Use `make local-kubernetes-evidence-drill` as the repeatable local runtime
+evidence drill. It creates the kind cluster, runs validation plus Dapr proof,
+captures evidence, and cleans up without adding a scheduler or deployment
+workflow.
+
+Use `make local-kubernetes-evidence-bundle` against a running proof cluster when
+you want pods, events, logs, endpoints, rollout status, Dapr logs, and admission state in
+one local artifact. Use `make local-kubernetes-admission-report` before adding
+`local-kubernetes` to a workload contract; it explains missing manifests,
+config/secret injection, Dapr sidecar expectations, and probe/job expectations.
 
 ## Platform Toolkit Validation
 

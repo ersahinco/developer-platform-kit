@@ -29,6 +29,19 @@ data:
   INTEGRATION_CHECK_TIMEOUT_SECONDS: "5"
   INTEGRATION_CHECK_RUN_ID: local-kubernetes
   INTEGRATION_CHECK_OUTPUT_DIR: /exports/integration-checks
+  BACKFILL_BATCH_SIZE: "1000"
+  BACKFILL_SLEEP_MS: "100"
+  BACKFILL_MAX_BATCHES: "1"
+  OPERATIONAL_SNAPSHOT_RUN_ID: local-kubernetes
+  DAPR_HTTP_ENDPOINT: http://localhost:3500
+  DAPR_HTTP_PORT: "3500"
+  ASYNC_EVENT_WORKER_MODE: both
+  ASYNC_EVENT_WORKER_RUN_ONCE: "false"
+  DAPR_PUBSUB_NAME: async-events-pubsub
+  DAPR_TOPIC: async-events-v1.fifo
+  DAPR_SUBSCRIPTION_ROUTE: /internal/events/consume
+  OUTBOX_RELAY_BATCH_SIZE: "10"
+  OUTBOX_RELAY_IDLE_SLEEP_SECONDS: "1"
   OTEL_TRACES_ENABLED: "false"
   OTEL_EXPORTER_OTLP_TRACES_ENDPOINT: http://tempo:4318/v1/traces
   OTEL_SERVICE_NAME: aws-sdlc-containers-api
@@ -46,6 +59,80 @@ type: Opaque
 stringData:
   DB_PASSWORD: postgres
   PRIMARY_EDGE_AUTH_TOKEN: ""
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: dapr-components
+  namespace: aws-sdlc-local
+  labels:
+    app.kubernetes.io/part-of: aws-sdlc-containers
+    runtime.target: local-kubernetes
+data:
+  async-events-pubsub.yaml: |
+    apiVersion: dapr.io/v1alpha1
+    kind: Component
+    metadata:
+      name: async-events-pubsub
+    spec:
+      type: pubsub.redis
+      version: v1
+      metadata:
+        - name: redisHost
+          value: redis:6379
+        - name: enableTLS
+          value: "false"
+  resiliency.yaml: |
+    apiVersion: dapr.io/v1alpha1
+    kind: Resiliency
+    metadata:
+      name: async-eventing-resiliency
+    scopes:
+      - event-consumer
+    spec:
+      policies:
+        timeouts:
+          asyncEventsPubsub: 10s
+        retries:
+          asyncEventsPubsub:
+            policy: constant
+            duration: 1s
+            maxRetries: 2
+        circuitBreakers:
+          asyncEventsPubsub:
+            maxRequests: 1
+            interval: 30s
+            timeout: 30s
+            trip: consecutiveFailures > 5
+      targets:
+        components:
+          async-events-pubsub:
+            outbound:
+              timeout: asyncEventsPubsub
+              retry: asyncEventsPubsub
+              circuitBreaker: asyncEventsPubsub
+            inbound:
+              timeout: asyncEventsPubsub
+              retry: asyncEventsPubsub
+              circuitBreaker: asyncEventsPubsub
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: dapr-config
+  namespace: aws-sdlc-local
+  labels:
+    app.kubernetes.io/part-of: aws-sdlc-containers
+    runtime.target: local-kubernetes
+data:
+  config.yaml: |
+    apiVersion: dapr.io/v1alpha1
+    kind: Configuration
+    metadata:
+      name: async-eventing-config
+    spec:
+      tracing:
+        samplingRate: "1"
 ---
 apiVersion: v1
 kind: PersistentVolumeClaim
@@ -283,3 +370,59 @@ spec:
                 secretKeyRef:
                   name: workload-secrets
                   key: DB_PASSWORD
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: redis
+  namespace: aws-sdlc-local
+  labels:
+    app.kubernetes.io/name: redis
+    app.kubernetes.io/part-of: aws-sdlc-containers
+    runtime.target: local-kubernetes
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: redis
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: redis
+        app.kubernetes.io/part-of: aws-sdlc-containers
+        runtime.target: local-kubernetes
+        workload: redis
+    spec:
+      containers:
+        - name: redis
+          image: redis:8.2.1
+          ports:
+            - name: redis
+              containerPort: 6379
+          readinessProbe:
+            exec:
+              command: ["redis-cli", "ping"]
+            periodSeconds: 5
+            timeoutSeconds: 3
+          livenessProbe:
+            exec:
+              command: ["redis-cli", "ping"]
+            periodSeconds: 10
+            timeoutSeconds: 3
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: redis
+  namespace: aws-sdlc-local
+  labels:
+    app.kubernetes.io/name: redis
+    app.kubernetes.io/part-of: aws-sdlc-containers
+    runtime.target: local-kubernetes
+spec:
+  selector:
+    app.kubernetes.io/name: redis
+  ports:
+    - name: redis
+      port: 6379
+      targetPort: redis

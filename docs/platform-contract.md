@@ -46,6 +46,18 @@ workload boundary every relevant runtime target must understand; keep resource
 counts, product wiring, rollout choreography, and provider names at the
 platform edge.
 
+## Candidate, Helper, And Catalog Guardrail
+
+Candidate helpers and catalog artifacts may describe, check, or explain workload
+boundaries. They must not create app code, redefine workload identity, own
+deployment choreography, or become a hidden framework.
+
+Use this rule for workload-fit candidates, catalog building blocks, examples,
+and candidate capability rows. These artifacts can point back to
+`platform/workloads.json`, runtime defaults, and standard tool commands, but the
+workload contract remains the only source of workload identity and runtime
+targets remain responsible for realization.
+
 `platform/workload-patterns.json` owns:
 
 - reusable workload shape names such as `edge-service`, `internal-async-service`, `scheduled-job`, and `export-job`

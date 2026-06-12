@@ -72,7 +72,7 @@
       "owner": "platform-engineering",
       "app_path": "apps/event_consumer",
       "runtime": {
-        "supported": ["local-compose", "aws-ecs"],
+        "supported": ["local-compose", "local-kubernetes", "aws-ecs"],
         "admitted": ["aws-ecs"]
       },
       "operational": {
@@ -136,7 +136,7 @@
       "owner": "platform-engineering",
       "app_path": "apps/backfill_worker",
       "runtime": {
-        "supported": ["local-compose", "aws-ecs"],
+        "supported": ["local-compose", "local-kubernetes", "aws-ecs"],
         "admitted": ["aws-ecs"]
       },
       "operational": {
@@ -457,7 +457,7 @@
       "owner": "platform-engineering",
       "app_path": "apps/operational_snapshot_job",
       "runtime": {
-        "supported": ["local-compose", "aws-ecs"],
+        "supported": ["local-compose", "local-kubernetes", "aws-ecs"],
         "admitted": ["aws-ecs"]
       },
       "operational": {

@@ -11,6 +11,8 @@ resiliency semantics. Provider-specific broker details stay in `infra/`.
 The local profile intentionally uses a simple Redis-backed pub/sub component so
 the app-facing contract can be exercised without inheriting AWS broker shape.
 Production keeps the current runtime-target realization at the platform edge.
+Local Kubernetes proves the same boundary with a static event-consumer
+Deployment, daprd sidecar, Redis Service, and `make local-kubernetes-dapr-proof`.
 
 Keep Dapr as a first-class platform concern as workload complexity grows. The
 goal is to standardize portable app-facing building blocks, not to hide Dapr

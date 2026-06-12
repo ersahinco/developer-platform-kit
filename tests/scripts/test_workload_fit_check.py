@@ -45,6 +45,39 @@ def test_workload_fit_check_accepts_stable_center_candidate() -> None:
     assert {result.status for result in results} == {"ok"}
 
 
+def test_workload_fit_check_accepts_local_kubernetes_candidate(
+    tmp_path: Path,
+) -> None:
+    candidate = {
+        **_valid_candidate(),
+        "runtime": {"supported": ["local-compose", "local-kubernetes"], "admitted": []},
+    }
+    assert {result.status for result in evaluate_candidate(candidate)} == {"ok"}
+
+    candidate_path = tmp_path / "candidate.json"
+    candidate_path.write_text(json.dumps(candidate), encoding="utf-8")
+
+    completed = subprocess.run(
+        [
+            sys.executable,
+            "scripts/platform/workload_fit_check.py",
+            "--candidate",
+            str(candidate_path),
+        ],
+        check=True,
+        capture_output=True,
+        text=True,
+        cwd=ROOT,
+    )
+
+    assert "fit: yes" in completed.stdout
+    assert "local-compose: authn=none-local" in completed.stdout
+    assert "local-kubernetes: authn=none-local-with-explicit-dev-token" in (
+        completed.stdout
+    )
+    assert "network=clusterip-services-and-probes" in completed.stdout
+
+
 def test_workload_fit_check_rejects_platform_edge_wiring() -> None:
     candidate = {
         **_valid_candidate(),

@@ -66,6 +66,22 @@ ACTIVE_EVIDENCE_SEAMS = {
         "infra/local-kubernetes",
         "tests/contracts/test_local_kubernetes_contract.py",
     ],
+    ("local-kubernetes", "local_rollout_proof"): [
+        "Makefile",
+        "scripts/platform/local_kubernetes_proof.py",
+        "tests/scripts/test_local_kubernetes_proof.py",
+    ],
+    ("local-kubernetes", "local_dapr_eventing_proof"): [
+        "Makefile",
+        "scripts/platform/local_kubernetes_proof.py",
+        "infra/local-kubernetes",
+        "tests/contracts/test_local_kubernetes_contract.py",
+    ],
+    ("local-kubernetes", "local_evidence_drill"): [
+        "Makefile",
+        "scripts/platform/local_kubernetes_proof.py",
+        "tests/contracts/test_documented_make_targets.py",
+    ],
     ("aws-ecs", "authz_policy"): ["platform/concerns/policy"],
     ("aws-ecs", "ci_cd_delivery"): [
         ".github/workflows",
@@ -79,6 +95,15 @@ ACTIVE_EVIDENCE_SEAMS = {
         "infra/app/observability.tf",
         "scripts/observability",
     ],
+}
+
+CANDIDATE_CAPABILITY_KEYS = {
+    "capability",
+    "contract_surface",
+    "runtime_target",
+    "maturity",
+    "implementation",
+    "replacement_seam",
 }
 
 
@@ -202,6 +227,23 @@ def test_enterprise_candidate_defaults_are_candidate_capabilities_only() -> None
         if runtime_target == "enterprise-runtime-candidate"
     }
     assert ENTERPRISE_RELEVANT_CAPABILITIES.issubset(candidate_capabilities)
+
+
+def test_candidate_runtime_capabilities_stay_descriptive() -> None:
+    inventory = load_json("platform/platform-inventory.json")
+    runtime_defaults = load_json("platform/runtime-defaults.json")
+
+    active_targets = {target["id"] for target in inventory["runtime_targets"]}
+    candidate_profiles = set(runtime_defaults["candidate_runtime_profiles"])
+
+    for row in inventory["candidate_runtime_capabilities"]:
+        assert set(row) == CANDIDATE_CAPABILITY_KEYS
+        assert row["maturity"] == "candidate"
+        assert row["runtime_target"] in candidate_profiles
+        assert row["runtime_target"] not in active_targets
+        assert row["implementation"].startswith("Candidate runtime choice only;")
+        assert "future " in row["replacement_seam"]
+        assert "infra/" not in row["replacement_seam"]
 
 
 def test_active_capability_rows_point_to_real_evidence_seams() -> None:

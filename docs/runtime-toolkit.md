@@ -248,10 +248,13 @@ For this repo today:
 - CI-to-Loki publishing is ready but inactive
 - AWS-managed resource metrics still rely on CloudWatch at the platform edge
 - no additional production runtime target is implemented yet
-- local Kubernetes covers selected proof workloads only
+- local Kubernetes covers the API, event consumer, operator proof jobs, and
+  runtime evidence jobs that declare `local-kubernetes`; local-only sample
+  analytics and LLM workloads remain Compose-only until they need richer proof
 - live kind validation is local/manual; CI currently protects static
   local-kubernetes contracts and capability evidence
-- infra rollback remains reviewed plan/apply, not a permanent drill workflow
+- infra rollback remains reviewed plan/apply; the repeatable drill is local
+  Kubernetes evidence, not cloud-changing infrastructure rollback
 
 ## Implementation Steps
 

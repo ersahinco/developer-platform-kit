@@ -168,6 +168,30 @@
       "replacement_seam": "Makefile + infra/local-kubernetes + tests/contracts/test_documented_make_targets.py"
     },
     {
+      "capability": "local_rollout_proof",
+      "contract_surface": "local immutable image update, Kubernetes rollout status, API probe verification, rollback, and local evidence",
+      "runtime_target": "local-kubernetes",
+      "maturity": "active-local-proof",
+      "implementation": "kind plus kubectl set image, rollout status, rollout undo, in-cluster API probes, and JSON/Markdown evidence",
+      "replacement_seam": "Makefile + scripts/platform/local_kubernetes_proof.py + infra/local-kubernetes + tests/scripts/test_local_kubernetes_proof.py"
+    },
+    {
+      "capability": "local_dapr_eventing_proof",
+      "contract_surface": "Dapr pub/sub boundary, Redis-backed local broker, event-consumer sidecar, and CloudEvent delivery evidence",
+      "runtime_target": "local-kubernetes",
+      "maturity": "active-local-proof",
+      "implementation": "Static event-consumer Deployment with daprd sidecar, Redis Service, in-cluster API order creation, and event-consumer log proof",
+      "replacement_seam": "Makefile + scripts/platform/local_kubernetes_proof.py + infra/local-kubernetes + tests/contracts/test_local_kubernetes_contract.py"
+    },
+    {
+      "capability": "local_evidence_drill",
+      "contract_surface": "repeatable local proof for workloads, rollout evidence, Dapr eventing, logs, events, endpoints, and admission state",
+      "runtime_target": "local-kubernetes",
+      "maturity": "active-local-proof",
+      "implementation": "On-demand Make target creates kind, applies static manifests, runs smoke and Dapr proof, captures JSON/Markdown evidence, and cleans up",
+      "replacement_seam": "Makefile + scripts/platform/local_kubernetes_proof.py + infra/local-kubernetes + tests/contracts/test_documented_make_targets.py"
+    },
+    {
       "capability": "observability_routing",
       "contract_surface": "Prometheus metrics, structured logs, and workload identity labels from Kubernetes pods",
       "runtime_target": "local-kubernetes",

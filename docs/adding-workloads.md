@@ -70,6 +70,9 @@ make capability-proof-local
 
 Rule: copy a small existing workload shape, not a framework. The contract is
 the onboarding surface; Compose and local Kubernetes are proof runtimes.
+Candidate helpers, examples, and catalog entries may describe or check workload
+boundaries, but they must not generate app code, redefine workload identity, or
+own deployment choreography.
 
 ## Pick The Operational Class First
 

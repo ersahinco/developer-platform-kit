@@ -13,7 +13,6 @@ import sys
 from typing import Any
 
 
-KNOWN_RUNTIME_TARGETS = {"local-compose", "aws-ecs"}
 ROOT = Path(__file__).resolve().parents[2]
 RUNTIME_DEFAULTS_PATH = ROOT / "platform" / "runtime-defaults.json"
 VALID_KINDS = {"service", "job"}
@@ -280,6 +279,7 @@ def _service_or_job_shape(candidate: dict[str, Any]) -> FitResult:
 def _runtime_scope(candidate: dict[str, Any]) -> FitResult:
     supported = _get_path(candidate, "runtime.supported")
     admitted = _get_path(candidate, "runtime.admitted")
+    known_runtime_targets = _known_runtime_targets()
     failures: list[str] = []
 
     if not _is_string_list(supported) or not supported:
@@ -287,7 +287,7 @@ def _runtime_scope(candidate: dict[str, Any]) -> FitResult:
         supported_set: set[str] = set()
     else:
         supported_set = set(supported)
-        unknown_supported = sorted(supported_set - KNOWN_RUNTIME_TARGETS)
+        unknown_supported = sorted(supported_set - known_runtime_targets)
         if unknown_supported:
             failures.append(
                 "runtime.supported contains unknown targets: "
@@ -299,7 +299,7 @@ def _runtime_scope(candidate: dict[str, Any]) -> FitResult:
         admitted_set: set[str] = set()
     else:
         admitted_set = set(admitted)
-        unknown_admitted = sorted(admitted_set - KNOWN_RUNTIME_TARGETS)
+        unknown_admitted = sorted(admitted_set - known_runtime_targets)
         if unknown_admitted:
             failures.append(
                 "runtime.admitted contains unknown targets: "
@@ -512,6 +512,20 @@ def _load_runtime_defaults() -> dict[str, Any]:
     if not isinstance(data, dict):
         raise RuntimeError("platform/runtime-defaults.json must be a JSON object")
     return data
+
+
+def _known_runtime_targets() -> set[str]:
+    runtime_defaults = _load_runtime_defaults()
+    targets = runtime_defaults.get("runtime_targets", {})
+    if not isinstance(targets, dict):
+        return set()
+    return {
+        runtime_target
+        for runtime_target, profile in targets.items()
+        if isinstance(runtime_target, str)
+        and isinstance(profile, dict)
+        and profile.get("status") == "active"
+    }
 
 
 def _runtime_default_lines(candidate: dict[str, Any]) -> list[str]:
