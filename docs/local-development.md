@@ -32,6 +32,9 @@ reference-only samples.
 | check whether a workload fits local Kubernetes | `make local-kubernetes-admission-report` |
 | validate cloud readiness without applying infra | `make platform-toolkit-validate-cloud` |
 
+`local-kubernetes-admission-report` is static and safe to run first.
+`not-ready` is expected for workloads that are intentionally local Compose only.
+
 ## Preferred Setup
 
 Prefer the dev container. Native host setup is fine with Docker Desktop,

@@ -377,7 +377,7 @@ local-kubernetes-evidence-bundle: ## Capture local Kubernetes pods, events, logs
 
 .PHONY: local-kubernetes-admission-report
 local-kubernetes-admission-report: ## Local Kubernetes proof ladder: explain workload readiness gaps
-	uv run python scripts/platform/local_kubernetes_proof.py --namespace "$(LOCAL_KUBERNETES_NAMESPACE)" admission-report
+	python3 scripts/platform/local_kubernetes_proof.py --namespace "$(LOCAL_KUBERNETES_NAMESPACE)" admission-report
 
 .PHONY: local-kubernetes-contracts
 local-kubernetes-contracts: ## Run static local Kubernetes contract checks
