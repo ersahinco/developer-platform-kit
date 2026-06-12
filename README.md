@@ -79,6 +79,7 @@ Do not use it as:
 | Need | Read |
 |---|---|
 | Canonical doc map | [docs/README.md](docs/README.md) |
+| Which proof command to run | [docs/proof-ladder.md](docs/proof-ladder.md), [docs/local-development.md](docs/local-development.md#command-map) |
 | First local-to-cloud validation pass | [docs/first-30-minutes.md](docs/first-30-minutes.md) |
 | Repo boundaries | [docs/architecture.md](docs/architecture.md) |
 | Portable workload expectations | [docs/platform-contract.md](docs/platform-contract.md) |
@@ -92,7 +93,11 @@ Do not use it as:
 ## Quick Local Path
 
 For a first pass, use the opinionated validation path instead of sampling every
-target in the Makefile:
+target in the Makefile. Use the
+[proof ladder](docs/proof-ladder.md) and
+[local command map](docs/local-development.md#command-map) when choosing between
+static contracts, local Compose, local Kubernetes evidence, and AWS ECS
+evidence:
 
 ```bash
 make platform-doctor

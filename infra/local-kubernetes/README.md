@@ -12,7 +12,37 @@ platform control plane. Keep it small and static. Add workload manifests here
 only when a real local proof need exists and the workload already declares
 `local-kubernetes` in `platform/workloads.json`.
 
-## Commands
+Use [Local Development](../../docs/local-development.md) for the developer
+command journey and [Proof Ladder](../../docs/proof-ladder.md) for when to use
+this runtime target.
+
+## Manifest Ownership
+
+`kubectl apply -k infra/local-kubernetes` is the stable entrypoint. The files are
+split by concern so ownership stays visible:
+
+| File | Owns |
+|---|---|
+| `namespace.yaml` | local namespace boundary |
+| `runtime-db.yaml` | ServiceAccount, shared ConfigMap/Secret placeholders, PVCs, Postgres, PgBouncer, Liquibase |
+| `runtime-eventing.yaml` | Redis plus Dapr config/component ConfigMaps |
+| `workload-services.yaml` | API and event-consumer Deployments/Services, probes, service identity, runtime labels |
+| `workload-jobs.yaml` | backfill, data export, operational snapshot, and integration check Jobs |
+
+## Maintenance Rules
+
+- Keep manifests static and readable; do not add Helm, CRDs, operators, or a
+  provider abstraction layer.
+- Add `local-kubernetes` support only after the workload has a real proof need,
+  a manifest, injected declared config/secrets, and passing admission output.
+- Keep workload identity in `platform/workloads.json`; manifests realize it but
+  do not redefine it.
+- Keep Dapr/eventing local to the existing pub/sub proof path until async
+  workloads create another concrete need.
+- Keep evidence capture as an on-demand local artifact, not a scheduler or
+  permanent drill workflow.
+
+## Command Surface
 
 ```bash
 make local-kubernetes-doctor
@@ -25,29 +55,5 @@ make local-kubernetes-admission-report
 make local-kubernetes-down
 ```
 
-`make local-kubernetes-validate` builds the required local images, creates or
-reuses a kind cluster, loads the images, applies the manifests, waits for API
-and event-consumer readiness, checks `/health`, `/ready`, and `/metrics`,
-verifies proof jobs, proves Dapr event delivery, and then deletes the cluster.
-
-`make local-kubernetes-rollout-proof` exercises the API Deployment with a second
-immutable local image tag, waits for rollout readiness, probes `/health`,
-`/ready`, and `/metrics`, rolls back to the previous revision, and writes local
-JSON/Markdown evidence under `/tmp/aws-sdlc-containers-local-kubernetes-evidence`.
-
-`make local-kubernetes-dapr-proof` creates an order through the API and waits
-for the event consumer to receive the CloudEvent through its local daprd sidecar
-and Redis-backed pub/sub component.
-
-`make local-kubernetes-evidence-drill` is the repeatable local evidence drill:
-it creates kind, runs validation plus Dapr proof, captures JSON/Markdown
-evidence, and cleans up. It is an on-demand proof command, not a scheduler or CI
-deployment workflow.
-
-`make local-kubernetes-evidence-bundle` captures pods, deployments, services,
-jobs, endpoints, events, API rollout status, API logs, event-consumer and daprd
-logs, Redis logs, proof-job logs, and the static admission report for the
-current kind cluster.
-
-`make local-kubernetes-admission-report` is static. It explains which declared
-workloads are ready for `local-kubernetes` support and why the rest are not.
+The command explanations live in local development docs. This README owns what
+the manifests mean and what they must not grow into.

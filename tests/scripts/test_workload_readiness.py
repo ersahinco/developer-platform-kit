@@ -47,6 +47,13 @@ def test_workload_readiness_shows_paved_road_surfaces() -> None:
     rows = {row["workload"]: row for row in readiness_rows()}
 
     assert rows["api"]["service_endpoints"] == "/health,/ready,/metrics"
+    assert rows["api"]["local_compose"] == "yes"
+    assert rows["api"]["local_kubernetes"] == "yes"
+    assert rows["api"]["aws_ecs_supported"] == "yes"
+    assert rows["api"]["aws_ecs_admitted"] == "yes"
+    assert rows["api"]["local_kubernetes_admission"] == "ready"
+    assert "local-kubernetes-evidence-drill" in rows["api"]["proof_surface"]
+    assert "aws-ecs-evidence" in rows["api"]["proof_surface"]
     assert rows["api"]["run_workflow"] == "app-deploy.yml"
     assert "app-deploy.yml" in rows["api"]["evidence"]
     assert rows["backfill_worker"]["run_workflow"] == "data-backfill.yml"
@@ -92,8 +99,12 @@ def test_workload_readiness_check_reports_actionable_aws_gaps() -> None:
             "workload": "example_job",
             "kind": "job",
             "class": "operator-job",
-            "local": "yes",
-            "aws_ecs": "yes",
+            "local_compose": "yes",
+            "local_kubernetes": "no",
+            "aws_ecs_supported": "yes",
+            "aws_ecs_admitted": "yes",
+            "local_kubernetes_admission": "n/a",
+            "proof_surface": "runtime-conformance",
             "build_matrix": "no",
             "service_endpoints": "n/a",
             "job_terminal_event": "missing",

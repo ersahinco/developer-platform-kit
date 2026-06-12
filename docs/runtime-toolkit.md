@@ -12,6 +12,7 @@ Use with:
 - [Runtime Defaults](runtime-defaults.md): blessed runtime and capability defaults
 - [Architecture](architecture.md): repo and ownership boundaries
 - [Platform Capabilities](platform-capabilities.md): current capability map
+- [Proof Ladder](proof-ladder.md): when to use static contracts, local Compose, local Kubernetes, or AWS ECS evidence
 
 `platform/workloads.json` is the machine-readable workload contract.
 `platform/runtime-defaults.json` is the machine-readable runtime-default map.

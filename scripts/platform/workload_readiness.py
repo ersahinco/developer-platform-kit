@@ -17,6 +17,7 @@ from scripts.platform.workload_metadata import workload_repository  # noqa: E402
 from scripts.platform.workload_metadata import workload_runtime_admitted  # noqa: E402
 from scripts.platform.workload_metadata import workload_runtime_supported  # noqa: E402
 from scripts.platform.workload_metadata import workloads  # noqa: E402
+from scripts.platform.local_kubernetes.admission import admission_rows  # noqa: E402
 
 
 def _runtime_conformance() -> dict[str, Any]:
@@ -103,6 +104,28 @@ def _evidence(
     if capabilities["scheduled_execution"]:
         evidence_workflows.append("data-support-deploy.yml")
     return ",".join(sorted(set(evidence_workflows))) if evidence_workflows else "n/a"
+
+
+def _proof_surface(
+    *,
+    local_compose: bool,
+    local_kubernetes: bool,
+    local_kubernetes_admission: str,
+    aws_ecs_admitted: bool,
+    evidence: str,
+) -> str:
+    surfaces = []
+    if local_compose:
+        surfaces.append("runtime-conformance")
+    if local_kubernetes:
+        surfaces.append(
+            "local-kubernetes-evidence-drill"
+            if local_kubernetes_admission == "ready"
+            else "local-kubernetes-admission-report"
+        )
+    if aws_ecs_admitted and evidence != "n/a":
+        surfaces.append("aws-ecs-evidence")
+    return ",".join(surfaces) if surfaces else "missing"
 
 
 def _terminal_events(
@@ -232,6 +255,7 @@ def _has_app_tests(workload_name: str) -> bool:
 def readiness_rows() -> list[dict[str, str]]:
     conformance = _runtime_conformance()
     workflow_texts = _workflow_texts()
+    local_kubernetes_admissions = {row.workload: row for row in admission_rows()}
     aws_image_names = {
         image["name"]
         for image in build_image_matrix("sha-readiness", "pgbouncer-readiness")
@@ -243,15 +267,37 @@ def readiness_rows() -> list[dict[str, str]]:
         repository = workload_repository(workload)
         supported = set(workload_runtime_supported(workload))
         admitted = set(workload_runtime_admitted(workload))
-        local_supported = "local-compose" in supported
+        local_compose = "local-compose" in supported
+        local_kubernetes = "local-kubernetes" in supported
+        aws_supported = "aws-ecs" in supported
         aws_admitted = "aws-ecs" in admitted
+        local_kubernetes_admission = (
+            local_kubernetes_admissions[name].status
+            if local_kubernetes and name in local_kubernetes_admissions
+            else "n/a"
+        )
+        evidence = _evidence(
+            workload,
+            workflow_texts=workflow_texts,
+            aws_admitted=aws_admitted,
+        )
         rows.append(
             {
                 "workload": name,
                 "kind": str(workload.get("kind", "")),
                 "class": str(workload.get("operational", {}).get("class", "")),
-                "local": _yes(local_supported),
-                "aws_ecs": _yes(aws_admitted),
+                "local_compose": _yes(local_compose),
+                "local_kubernetes": _yes(local_kubernetes),
+                "aws_ecs_supported": _yes(aws_supported),
+                "aws_ecs_admitted": _yes(aws_admitted),
+                "local_kubernetes_admission": local_kubernetes_admission,
+                "proof_surface": _proof_surface(
+                    local_compose=local_compose,
+                    local_kubernetes=local_kubernetes,
+                    local_kubernetes_admission=local_kubernetes_admission,
+                    aws_ecs_admitted=aws_admitted,
+                    evidence=evidence,
+                ),
                 "build_matrix": _yes(not aws_admitted or name in aws_image_names),
                 "service_endpoints": _service_endpoints(workload),
                 "job_terminal_event": _terminal_events(
@@ -263,11 +309,7 @@ def readiness_rows() -> list[dict[str, str]]:
                     workflow_texts=workflow_texts,
                     aws_admitted=aws_admitted,
                 ),
-                "evidence": _evidence(
-                    workload,
-                    workflow_texts=workflow_texts,
-                    aws_admitted=aws_admitted,
-                ),
+                "evidence": evidence,
                 "log_group": (
                     f"/ecs/<stack>/{repository}" if aws_admitted else "local-only"
                 ),
@@ -282,7 +324,7 @@ def readiness_failures(rows: list[dict[str, str]]) -> list[str]:
     for row in rows:
         workload = row["workload"]
 
-        if row["local"] == "yes":
+        if row["local_compose"] == "yes":
             if row["config_contract"] != "declared":
                 failures.append(f"{workload}: local workload lacks config contract")
             if row["kind"] == "service" and row["service_endpoints"] == "missing":
@@ -292,7 +334,7 @@ def readiness_failures(rows: list[dict[str, str]]) -> list[str]:
             if row["kind"] == "job" and row["job_terminal_event"] == "missing":
                 failures.append(f"{workload}: local job lacks terminal success event")
 
-        if row["aws_ecs"] != "yes":
+        if row["aws_ecs_admitted"] != "yes":
             continue
 
         required_fields = {
@@ -328,8 +370,12 @@ def _print_table(rows: list[dict[str, str]]) -> None:
         "workload",
         "kind",
         "class",
-        "local",
-        "aws_ecs",
+        "local_compose",
+        "local_kubernetes",
+        "aws_ecs_supported",
+        "aws_ecs_admitted",
+        "local_kubernetes_admission",
+        "proof_surface",
         "build_matrix",
         "service_endpoints",
         "job_terminal_event",

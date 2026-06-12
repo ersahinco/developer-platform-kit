@@ -2,8 +2,9 @@
 
 Canonical local setup and day-to-day runbook.
 
-Use [Architecture](architecture.md) for ownership rules and
-[Platform Contract](platform-contract.md) for portable workload rules.
+Use [Architecture](architecture.md) for ownership rules,
+[Platform Contract](platform-contract.md) for portable workload rules, and the
+[Proof Ladder](proof-ladder.md) when choosing how much proof a change needs.
 Local development is a first-class runtime target for this platform monorepo:
 it should be fast, contract-faithful, and provider-light so engineers can
 iterate before touching cloud infrastructure.
@@ -18,6 +19,18 @@ make workload-addition-report
 Local-only workloads still belong in `apps/` when they have a real contract,
 local proof, and owner. Reserve `examples/` for teaching, demo, and
 reference-only samples.
+
+## Command Map
+
+| I want to... | Run |
+|---|---|
+| prove contracts fast | `make workload-readiness`, `make runtime-conformance`, `make local-kubernetes-contracts` |
+| run the default local app host path | `make dev`, `make migrate`, `make seed`, `make local-up` |
+| prove the local delivery toolkit | `make platform-toolkit-validate-local` |
+| prove rollout/rollback locally | `make local-kubernetes-rollout-proof` |
+| capture local Kubernetes runtime evidence | `make local-kubernetes-evidence-drill` |
+| check whether a workload fits local Kubernetes | `make local-kubernetes-admission-report` |
+| validate cloud readiness without applying infra | `make platform-toolkit-validate-cloud` |
 
 ## Preferred Setup
 
@@ -92,7 +105,9 @@ gate.
 
 Use local Kubernetes when Compose is too small to prove network, storage,
 compute, probes, jobs, service identity, or config/secret injection. The active
-local Kubernetes target uses `kind` and static manifests only.
+local Kubernetes target uses `kind` and static manifests only. The proof ladder
+explains when this rung is warranted; `infra/local-kubernetes/README.md` owns
+manifest boundaries and maintenance rules.
 
 ```bash
 make local-kubernetes-doctor
@@ -104,33 +119,18 @@ make local-kubernetes-admission-report
 make local-kubernetes-down
 ```
 
-This proves the API, event consumer, backfill worker, data export job,
-operational snapshot job, and integration check job against Postgres, PgBouncer,
-Liquibase, Redis, Dapr sidecar wiring, Services, probes, Secrets, ConfigMaps,
-and PersistentVolumeClaims. It is not cloud Kubernetes, Helm, CRDs, or a
-platform control plane.
+This proves selected workloads against Postgres, PgBouncer, Liquibase, Redis,
+Dapr sidecar wiring, Services, probes, Secrets, ConfigMaps, Jobs, and
+PersistentVolumeClaims. It is not cloud Kubernetes, Helm, CRDs, or a platform
+control plane.
 
-Use `make local-kubernetes-rollout-proof` when you want the closest local proof
-to production rollout behavior without adding a new runtime target. It creates a
-kind cluster, applies the static manifests, rolls the API Deployment to a second
-immutable local image tag, verifies `/health`, `/ready`, and `/metrics`, rolls
-back, and writes local evidence.
-
-Use `make local-kubernetes-dapr-proof` when you need proof that the existing
-Dapr pub/sub workload boundary works in kind. It creates an order through the
-API, lets the event consumer relay through its local daprd sidecar and Redis
-component, and waits for the consume log evidence.
-
-Use `make local-kubernetes-evidence-drill` as the repeatable local runtime
-evidence drill. It creates the kind cluster, runs validation plus Dapr proof,
-captures evidence, and cleans up without adding a scheduler or deployment
-workflow.
-
-Use `make local-kubernetes-evidence-bundle` against a running proof cluster when
-you want pods, events, logs, endpoints, rollout status, Dapr logs, and admission state in
-one local artifact. Use `make local-kubernetes-admission-report` before adding
-`local-kubernetes` to a workload contract; it explains missing manifests,
-config/secret injection, Dapr sidecar expectations, and probe/job expectations.
+Use `make local-kubernetes-rollout-proof` for local API Deployment
+rollout/rollback evidence. Use `make local-kubernetes-dapr-proof` for the
+existing Dapr pub/sub workload boundary. Use
+`make local-kubernetes-evidence-drill` for the repeatable runtime evidence
+capture. Use `make local-kubernetes-evidence-bundle` against a running proof
+cluster when you need pods, events, logs, endpoints, rollout status, Dapr logs,
+and admission state in one artifact.
 
 ## Platform Toolkit Validation
 

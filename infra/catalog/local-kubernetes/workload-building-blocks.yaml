@@ -56,7 +56,7 @@ entries:
       - config.env names
       - config.secrets names
     implementation:
-      - infra/local-kubernetes/runtime.yaml
+      - infra/local-kubernetes/runtime-db.yaml
       - platform/workloads.json
     adoption_steps:
       - inject only declared config and secret names
@@ -74,8 +74,8 @@ entries:
       - job success evidence
       - idempotent output behavior
     implementation:
-      - infra/local-kubernetes/runtime.yaml
-      - infra/local-kubernetes/workloads.yaml
+      - infra/local-kubernetes/runtime-db.yaml
+      - infra/local-kubernetes/workload-jobs.yaml
     adoption_steps:
       - mount storage only where the workload contract needs output evidence
       - keep cloud storage choices at the runtime edge

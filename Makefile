@@ -216,7 +216,7 @@ test: ## Run test suite (requires local services and app running)
 	uv run pytest tests/ -v
 
 .PHONY: runtime-conformance
-runtime-conformance: ## Build/run workload containers against the portable runtime contract
+runtime-conformance: ## Static proof ladder: build/run workloads against the portable contract
 	uv run pytest tests/runtime -v --run-runtime-conformance
 
 .PHONY: workload-addition-report
@@ -232,7 +232,7 @@ platform-doctor-cloud: ## Check local plus cloud/operator readiness for the deli
 	python3 scripts/platform/doctor.py --cloud
 
 .PHONY: platform-toolkit-validate-local
-platform-toolkit-validate-local: ## Validate local startup, API, Dapr, jobs, and runtime conformance
+platform-toolkit-validate-local: ## Local Compose proof ladder: validate API, Dapr, jobs, and conformance
 	@printf "\n==> Starting local database and PgBouncer\n"
 	@$(MAKE) dev
 	@printf "\n==> Applying local migrations\n"
@@ -344,7 +344,7 @@ local-kubernetes-validate: ## Validate selected workloads on local Kubernetes
 		$(MAKE) local-kubernetes-smoke
 
 .PHONY: local-kubernetes-rollout-proof
-local-kubernetes-rollout-proof: ## Prove local Kubernetes API rollout/rollback with evidence
+local-kubernetes-rollout-proof: ## Local Kubernetes proof ladder: API rollout/rollback evidence
 	@set -e; \
 		trap 'status=$$?; if [ $$status -ne 0 ]; then $(MAKE) local-kubernetes-evidence-bundle || true; fi; $(MAKE) local-kubernetes-down; exit $$status' EXIT; \
 		$(MAKE) local-kubernetes-doctor; \
@@ -361,7 +361,7 @@ local-kubernetes-dapr-proof: ## Prove local Kubernetes Dapr eventing boundary
 	uv run python scripts/platform/local_kubernetes_proof.py --namespace "$(LOCAL_KUBERNETES_NAMESPACE)" --output-dir "$(LOCAL_KUBERNETES_EVIDENCE_DIR)" dapr-eventing-proof
 
 .PHONY: local-kubernetes-evidence-drill
-local-kubernetes-evidence-drill: ## Run repeatable local Kubernetes proof and evidence drill
+local-kubernetes-evidence-drill: ## Local Kubernetes proof ladder: runtime evidence drill
 	@set -e; \
 		trap 'status=$$?; if [ $$status -ne 0 ]; then $(MAKE) local-kubernetes-evidence-bundle || true; fi; $(MAKE) local-kubernetes-down; exit $$status' EXIT; \
 		$(MAKE) local-kubernetes-doctor; \
@@ -376,7 +376,7 @@ local-kubernetes-evidence-bundle: ## Capture local Kubernetes pods, events, logs
 	uv run python scripts/platform/local_kubernetes_proof.py --namespace "$(LOCAL_KUBERNETES_NAMESPACE)" --output-dir "$(LOCAL_KUBERNETES_EVIDENCE_DIR)" evidence-bundle
 
 .PHONY: local-kubernetes-admission-report
-local-kubernetes-admission-report: ## Explain workload readiness for local Kubernetes support
+local-kubernetes-admission-report: ## Local Kubernetes proof ladder: explain workload readiness gaps
 	uv run python scripts/platform/local_kubernetes_proof.py --namespace "$(LOCAL_KUBERNETES_NAMESPACE)" admission-report
 
 .PHONY: local-kubernetes-contracts
@@ -485,7 +485,7 @@ pre-commit: ## Install and run pre-commit hooks
 	uv run pre-commit run --all-files
 
 .PHONY: platform-toolkit-validate-cloud
-platform-toolkit-validate-cloud: ## Run safe cloud readiness checks without mutating AWS
+platform-toolkit-validate-cloud: ## AWS ECS proof ladder: run safe cloud readiness checks
 	@printf "\n==> Checking workload paved-road readiness\n"
 	@$(MAKE) workload-readiness-check
 	@printf "\n==> Linting GitHub workflow shape\n"
@@ -670,7 +670,7 @@ workload-use-case-matrix: ## Print the declared workload use-case matrix from pl
 	python3 -m scripts.platform.workload_metadata use-case-matrix
 
 .PHONY: workload-readiness
-workload-readiness: ## Print workload paved-road readiness from contract, workflows, and evidence surfaces
+workload-readiness: ## Static proof ladder: print runtime readiness and evidence surfaces
 	python3 scripts/platform/workload_readiness.py
 
 .PHONY: workload-readiness-check

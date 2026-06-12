@@ -68,8 +68,10 @@ def test_local_kubernetes_kustomization_is_static_and_small() -> None:
     assert kustomization["kind"] == "Kustomization"
     assert set(kustomization["resources"]) == {
         "namespace.yaml",
-        "runtime.yaml",
-        "workloads.yaml",
+        "runtime-db.yaml",
+        "runtime-eventing.yaml",
+        "workload-services.yaml",
+        "workload-jobs.yaml",
     }
     assert not (LOCAL_KUBERNETES_ROOT / "Chart.yaml").exists()
 
