@@ -28,7 +28,7 @@ def rollout_rollback_proof(
 
     def record(name: str, command: list[str]) -> CommandResult:
         result = checked(command, runner)
-        steps.append({"name": name, **asdict(result)})
+        _append_step(steps, name, result)
         return result
 
     current_image = record(
@@ -159,7 +159,7 @@ def _record_ready_pods(
         "--timeout=180s",
     ]
     result = checked(command, runner)
-    steps.append({"name": name, **asdict(result)})
+    _append_step(steps, name, result)
 
 
 def _record_service_endpoints(
@@ -182,7 +182,7 @@ def _record_service_endpoints(
     result = checked(command, runner)
     if not result.stdout.strip():
         raise ProofError(f"{service} service has no ready endpoints")
-    steps.append({"name": name, **asdict(result)})
+    _append_step(steps, name, result)
 
 
 def _record_api_probe(
@@ -224,4 +224,12 @@ def _record_api_probe(
     result = checked(command, runner)
     if required_text is not None and required_text not in result.stdout:
         raise ProofError(f"{name} response did not contain {required_text!r}")
+    _append_step(steps, name, result)
+
+
+def _append_step(
+    steps: list[dict[str, Any]],
+    name: str,
+    result: CommandResult,
+) -> None:
     steps.append({"name": name, **asdict(result)})

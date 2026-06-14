@@ -178,25 +178,20 @@ def build_image_matrix(tag: str, pgbouncer_tag: str) -> list[dict[str, Any]]:
 
 
 def workload_capabilities(workload: dict[str, Any]) -> dict[str, Any]:
-    operational = workload.get("operational", {})
+    operational_value = workload.get("operational", {})
+    operational = operational_value if isinstance(operational_value, dict) else {}
     database = workload_database(workload)
     traces = workload.get("traces", {})
 
     return {
-        "edge_exposure": operational.get("exposure")
-        if isinstance(operational, dict)
-        else None,
+        "edge_exposure": operational.get("exposure"),
         "edge_service": workload.get("kind") == "service"
-        and isinstance(operational, dict)
         and operational.get("class") == "edge-service",
         "internal_service": workload.get("kind") == "service"
-        and isinstance(operational, dict)
         and operational.get("class") == "internal-service",
         "scheduled_execution": workload.get("kind") == "job"
-        and isinstance(operational, dict)
         and operational.get("class") == "scheduled-job",
         "operator_execution": workload.get("kind") == "job"
-        and isinstance(operational, dict)
         and operational.get("class") == "operator-job",
         "async_eventing": isinstance(workload.get("dapr"), dict),
         "pooled_database": isinstance(database, dict)
@@ -210,9 +205,11 @@ def workload_capabilities(workload: dict[str, Any]) -> dict[str, Any]:
 def workload_capability_rows() -> list[dict[str, str]]:
     rows: list[dict[str, str]] = []
     for workload in workloads():
-        operational = workload.get("operational", {})
+        operational_value = workload.get("operational", {})
+        operational = operational_value if isinstance(operational_value, dict) else {}
         database = workload_database(workload)
-        service = workload.get("service", {})
+        service_value = workload.get("service", {})
+        service = service_value if isinstance(service_value, dict) else {}
         capabilities = workload_capabilities(workload)
         rows.append(
             {
@@ -224,20 +221,10 @@ def workload_capability_rows() -> list[dict[str, str]]:
                 "runtime_supported": ",".join(workload_runtime_supported(workload)),
                 "runtime_admitted": ",".join(workload_runtime_admitted(workload)),
                 "repository": workload_repository(workload),
-                "edge_exposure": (
-                    str(operational.get("exposure", ""))
-                    if isinstance(operational, dict)
-                    else ""
-                ),
+                "edge_exposure": str(operational.get("exposure", "")),
                 "edge_auth_mode": workload_edge_auth_mode(workload),
-                "trigger": (
-                    str(operational.get("trigger", ""))
-                    if isinstance(operational, dict)
-                    else ""
-                ),
-                "service_port": (
-                    str(service.get("port", "")) if isinstance(service, dict) else ""
-                ),
+                "trigger": str(operational.get("trigger", "")),
+                "service_port": str(service.get("port", "")),
                 "database_pooling": (
                     str(database.get("pooling", ""))
                     if isinstance(database, dict)

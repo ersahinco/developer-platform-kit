@@ -60,7 +60,7 @@ def _manifest_texts(text: str) -> Iterable[str]:
 
 
 def _manifest_from_text(text: str) -> ManifestFacts | None:
-    kind = _top_level_value(text, "kind")
+    kind = _value_at_indent(text, "kind", indent=0)
     name = _metadata_name(text)
     if kind is None or name is None:
         return None
@@ -79,10 +79,6 @@ def _manifest_from_text(text: str) -> ManifestFacts | None:
         restart_policy=_indented_value(text, "restartPolicy"),
         has_backoff_limit=_indented_value(text, "backoffLimit") is not None,
     )
-
-
-def _top_level_value(text: str, key: str) -> str | None:
-    return _value_at_indent(text, key, indent=0)
 
 
 def _indented_value(text: str, key: str) -> str | None:

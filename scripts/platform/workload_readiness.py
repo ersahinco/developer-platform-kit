@@ -139,9 +139,7 @@ def _terminal_events(
     if not isinstance(fixture, dict):
         return "missing"
     event = fixture.get("expected_success_event")
-    if isinstance(event, str) and event:
-        return event
-    return "missing"
+    return event if isinstance(event, str) and event else "missing"
 
 
 def _service_endpoints(workload: dict[str, Any]) -> str:
@@ -160,9 +158,9 @@ def _config_contract(workload: dict[str, Any]) -> str:
         return "missing"
     env = config.get("env")
     secrets = config.get("secrets")
-    if isinstance(env, list) and isinstance(secrets, list):
-        return "declared"
-    return "missing"
+    return (
+        "declared" if isinstance(env, list) and isinstance(secrets, list) else "missing"
+    )
 
 
 def _compose_service_names(path: Path) -> set[str]:
@@ -245,11 +243,9 @@ def addition_rows() -> list[dict[str, str]]:
 
 
 def _has_app_tests(workload_name: str) -> bool:
-    if (ROOT / "tests" / "apps" / workload_name).exists():
-        return True
-    if workload_name == "api" and (ROOT / "tests" / "api").exists():
-        return True
-    return False
+    return (ROOT / "tests" / "apps" / workload_name).exists() or (
+        workload_name == "api" and (ROOT / "tests" / "api").exists()
+    )
 
 
 def readiness_rows() -> list[dict[str, str]]:

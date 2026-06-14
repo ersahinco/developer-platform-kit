@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-from dataclasses import asdict
 import json
 from pathlib import Path
 from typing import Any, Callable
@@ -10,6 +9,7 @@ from scripts.platform.local_kubernetes.constants import DEFAULT_OUTPUT_DIR
 from scripts.platform.local_kubernetes.constants import EVENT_CONSUMED_NEEDLE
 from scripts.platform.local_kubernetes.constants import EVENT_CONSUMER_METRIC_NEEDLE
 from scripts.platform.local_kubernetes.evidence import write_evidence
+from scripts.platform.local_kubernetes.rollout import _append_step
 from scripts.platform.local_kubernetes.rollout import _record_ready_pods
 from scripts.platform.local_kubernetes.rollout import _record_service_endpoints
 from scripts.platform.local_kubernetes.runner import CommandResult
@@ -33,7 +33,7 @@ def dapr_eventing_proof(
 
     def record(name: str, command: list[str]) -> CommandResult:
         result = checked(command, runner)
-        steps.append({"name": name, **asdict(result)})
+        _append_step(steps, name, result)
         return result
 
     record(
@@ -173,7 +173,7 @@ def dapr_eventing_proof(
         monotonic=monotonic,
         sleep=sleep,
     )
-    steps.append({"name": "event_consumed_logs", **asdict(logs)})
+    _append_step(steps, "event_consumed_logs", logs)
 
     evidence = {
         "runtime_target": "local-kubernetes",
@@ -225,7 +225,7 @@ def _record_event_consumer_probe(
     result = checked(command, runner)
     if required_text is not None and required_text not in result.stdout:
         raise ProofError(f"{name} response did not contain {required_text!r}")
-    steps.append({"name": name, **asdict(result)})
+    _append_step(steps, name, result)
 
 
 def _wait_for_log_text(

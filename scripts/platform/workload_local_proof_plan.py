@@ -61,8 +61,8 @@ def _runtime_conformance() -> dict[str, Any]:
     return _load_json(ROOT / "platform" / "runtime-conformance.json")
 
 
-def _compose_services() -> dict[str, Any]:
-    services: dict[str, Any] = {}
+def _compose_services() -> set[str]:
+    services: set[str] = set()
     in_services = False
     for line in (ROOT / "compose.yaml").read_text(encoding="utf-8").splitlines():
         if line == "services:":
@@ -74,7 +74,7 @@ def _compose_services() -> dict[str, Any]:
             break
         match = re.fullmatch(r"  ([A-Za-z0-9_-]+):", line)
         if match:
-            services[match.group(1)] = {}
+            services.add(match.group(1))
     return services
 
 
@@ -95,8 +95,7 @@ def _candidate_repository(candidate: dict[str, Any]) -> str:
 
 
 def _registered_local_workload(candidate: dict[str, Any]) -> bool:
-    contract = _workload_contract()
-    for workload in contract.get("workloads", []):
+    for workload in _workload_contract()["workloads"]:
         if not isinstance(workload, dict):
             continue
         if workload.get("name") != candidate.get("name"):
@@ -129,9 +128,8 @@ def _missing_additions(candidate: dict[str, Any]) -> list[str]:
 
 
 def _proof_items(candidate: dict[str, Any]) -> list[str]:
-    if candidate.get("kind") == "service":
-        return list(SERVICE_PROOF)
-    return list(JOB_PROOF)
+    proof = SERVICE_PROOF if candidate.get("kind") == "service" else JOB_PROOF
+    return list(proof)
 
 
 def build_local_proof_plan(candidate: dict[str, Any]) -> LocalProofPlan:
