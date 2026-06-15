@@ -659,10 +659,6 @@ capability-implementation-matrix: ## Print the current runtime capability-to-imp
 local-compose-live-proof: ## Run isolated live local Compose proof
 	python3 scripts/platform/local_compose_live_proof.py
 
-.PHONY: enterprise-runtime-fit-check
-enterprise-runtime-fit-check: ## Show candidate enterprise runtime promotion gaps
-	python3 scripts/platform/enterprise_runtime_fit_check.py
-
 .PHONY: runtime-defaults
 runtime-defaults: ## Print blessed defaults for active runtime targets
 	python3 -m scripts.platform.workload_metadata runtime-defaults

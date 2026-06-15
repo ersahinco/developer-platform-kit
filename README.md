@@ -169,8 +169,7 @@ use [docs/local-development.md](docs/local-development.md) and
    `make workload-readiness`, `make data-artifacts-list`
 6. Decide runtime admission:
    use [docs/runtime-toolkit.md](docs/runtime-toolkit.md),
-   `make workload-readiness-cloud`, `make runtime-defaults`, and
-   `make enterprise-runtime-fit-check`
+   `make workload-readiness-cloud`, and `make runtime-defaults`
 
 ## Keep It Useful
 

@@ -35,7 +35,7 @@ Canonical doc map. Find the owner before adding a new page.
 | Choose the right proof level | [Proof Ladder](proof-ladder.md), [Local Development](local-development.md) |
 | Deploy or operate AWS | [Operator Day 2 Commands](operator-day-2.md), [Deployment](deployment.md), [Infrastructure](../infra/README.md), [Runbooks](runbooks/README.md), `make workload-readiness-cloud` |
 | Review pipeline gates | [DevOps Toolchain](devops-toolchain.md), [Deployment](deployment.md) |
-| Add or evaluate another runtime | [Runtime Toolkit](runtime-toolkit.md), [Runtime Defaults](runtime-defaults.md), `make enterprise-runtime-fit-check` |
+| Add or evaluate another runtime | [Runtime Toolkit](runtime-toolkit.md), [Runtime Defaults](runtime-defaults.md), `make runtime-defaults` |
 | Work on telemetry or release evidence | [Workload Observability](workload-observability.md), [Observability](observability.md) |
 
 ## Critical Review

@@ -15,7 +15,6 @@ Start with these operator views:
 make workload-readiness
 make capability-implementation-matrix
 make runtime-defaults
-make enterprise-runtime-fit-check
 ```
 
 Use `make help` or the runtime docs when you need the narrower inventory,
@@ -130,15 +129,15 @@ Rule:
 
 Future runtime replacements should plug in at the seams named below and in the
 replacement seams in `platform/platform-inventory.json`. Use
-`make capability-implementation-matrix`, `make runtime-defaults`, and
-`make enterprise-runtime-fit-check` for executable views.
+`make capability-implementation-matrix` and `make runtime-defaults` for
+executable views.
 
 Use `make workload-readiness` and `make workload-readiness-cloud` to inspect
 declared workload proof surfaces. Use `make local-compose-live-proof` only
 when you need the isolated live Compose drill for token auth, health,
-readiness, metrics, logs, and local observability. Use
-`make enterprise-runtime-fit-check` to see why candidate enterprise capabilities
-remain candidate-only.
+readiness, metrics, logs, and local observability. Candidate enterprise
+capabilities remain candidate-only in `platform/runtime-defaults.json` until
+the runtime owner, conformance, evidence, failure mode, and runbook exist.
 
 ## Adapter Seams
 

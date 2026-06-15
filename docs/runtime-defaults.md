@@ -13,7 +13,6 @@ Inspect active defaults with:
 make runtime-defaults
 make capability-implementation-matrix
 make local-compose-live-proof
-make enterprise-runtime-fit-check
 ```
 
 ## Active Runtime Targets
@@ -60,10 +59,10 @@ Allowed runtime-edge choices include:
 These tools must stay out of workload metadata unless the workload business
 behavior genuinely depends on them.
 
-Use `make enterprise-runtime-fit-check` before promoting any candidate
-enterprise capability. A candidate runtime capability becomes active only when
-it has owner, config surface, conformance test, evidence artifact, failure mode,
-and runbook.
+Before promoting any candidate enterprise capability, update
+`platform/runtime-defaults.json` and the runtime default contract tests. A
+candidate runtime capability becomes active only when it has owner, config
+surface, conformance test, evidence artifact, failure mode, and runbook.
 
 ## Decision Rules
 
