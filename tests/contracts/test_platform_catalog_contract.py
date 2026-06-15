@@ -103,10 +103,10 @@ def _walk_keys(value: Any) -> list[str]:
 
 
 def test_catalog_manifests_describe_reusable_runtime_building_blocks() -> None:
-    inventory = load_json("platform/platform-inventory.json")
-    runtime_targets = {target["id"] for target in inventory["runtime_targets"]}
+    runtime_defaults = load_json("platform/runtime-defaults.json")
+    runtime_targets = set(runtime_defaults["runtime_targets"])
 
-    assert inventory["current_runtime_target"] == "aws-ecs"
+    assert runtime_defaults["current_runtime_target"] == "aws-ecs"
     assert runtime_targets == {"local-compose", "local-kubernetes", "aws-ecs"}
 
     for path, manifest in _catalog_manifests():
@@ -150,10 +150,9 @@ def test_examples_consume_platform_patterns_and_catalog_entries() -> None:
         pattern["name"]
         for pattern in load_json("platform/workload-patterns.json")["patterns"]
     }
-    runtime_targets = {
-        target["id"]
-        for target in load_json("platform/platform-inventory.json")["runtime_targets"]
-    }
+    runtime_targets = set(
+        load_json("platform/runtime-defaults.json")["runtime_targets"]
+    )
     catalog_refs = _catalog_entry_refs()
 
     for _path, manifest in _example_manifests():

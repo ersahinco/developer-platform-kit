@@ -10,6 +10,7 @@ Current scope:
 - `platform/workloads.json`
 - `platform/runtime-conformance.json`
 - `platform/platform-inventory.json`
+- `platform/runtime-defaults.json`
 
 Command:
 

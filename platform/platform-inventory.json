@@ -5,33 +5,6 @@
     "platform_concerns_root": "platform/concerns",
     "catalog_root": "infra/catalog"
   },
-  "current_runtime_target": "aws-ecs",
-  "runtime_targets": [
-    {
-      "id": "local-compose",
-      "role": "local-development",
-      "maturity": "active-local-proof",
-      "owner": "platform-toolkit",
-      "implementation": "Docker Compose + local Postgres/PgBouncer + Redis-backed Dapr + OSS observability",
-      "purpose": "Fast local iteration and workload contract proof without cloud provider dependencies."
-    },
-    {
-      "id": "local-kubernetes",
-      "role": "local-runtime-proof",
-      "maturity": "active-local-proof",
-      "owner": "platform-toolkit",
-      "implementation": "kind + kubectl + static Kubernetes manifests",
-      "purpose": "Richer local workload contract proof for network, storage, compute, probes, jobs, service identity, and runtime policy without cloud Kubernetes machinery."
-    },
-    {
-      "id": "aws-ecs",
-      "role": "production-runtime",
-      "maturity": "active-production-runtime",
-      "owner": "platform-runtime",
-      "implementation": "AWS ECS/Fargate + ALB/WAF + RDS + SNS/SQS + S3 + EventBridge Scheduler",
-      "purpose": "Current reviewed production realization of the workload contract."
-    }
-  ],
   "runtime_capabilities": [
     {
       "capability": "local_runtime",

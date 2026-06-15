@@ -79,6 +79,7 @@ def test_current_contract_surfaces_pass_policy_checks() -> None:
         ROOT / "platform" / "workloads.json",
         ROOT / "platform" / "runtime-conformance.json",
         ROOT / "platform" / "platform-inventory.json",
+        ROOT / "platform" / "runtime-defaults.json",
     )
 
     assert completed.returncode == 0, completed.stderr or completed.stdout
@@ -224,6 +225,25 @@ def test_platform_inventory_policy_rejects_default_capability_owner(
 
     assert completed.returncode != 0
     assert "must not own runtime default capability" in (
+        completed.stderr + completed.stdout
+    )
+
+
+def test_runtime_defaults_policy_rejects_unknown_current_target(
+    tmp_path: Path,
+) -> None:
+    runtime_defaults = json.loads(
+        (ROOT / "platform" / "runtime-defaults.json").read_text()
+    )
+    invalid = dict(runtime_defaults)
+    invalid["current_runtime_target"] = "missing-runtime"
+    fixture = tmp_path / "runtime-defaults.json"
+    fixture.write_text(json.dumps(invalid), encoding="utf-8")
+
+    completed = _run_conftest(fixture, cwd=tmp_path)
+
+    assert completed.returncode != 0
+    assert "current_runtime_target must name an active runtime target" in (
         completed.stderr + completed.stdout
     )
 

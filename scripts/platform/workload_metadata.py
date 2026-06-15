@@ -247,13 +247,13 @@ def inventory_runtime_capability_rows() -> list[dict[str, str]]:
 
 
 def runtime_target_maturity() -> dict[str, str]:
-    targets = platform_inventory_document().get("runtime_targets", [])
-    if not isinstance(targets, list):
+    targets = runtime_defaults_document().get("runtime_targets", {})
+    if not isinstance(targets, dict):
         return {}
     return {
-        str(target.get("id", "")): str(target.get("maturity", ""))
-        for target in targets
-        if isinstance(target, dict)
+        str(runtime_target): str(profile.get("maturity", ""))
+        for runtime_target, profile in targets.items()
+        if isinstance(profile, dict)
     }
 
 

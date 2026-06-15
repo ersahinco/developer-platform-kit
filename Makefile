@@ -411,13 +411,13 @@ lint-dockerfiles: ## Lint Dockerfiles
 .PHONY: lint-policy
 lint-policy: ## Check repo policy with OPA/Conftest
 	@if command -v conftest >/dev/null 2>&1; then \
-		conftest test --policy platform/concerns/policy/conftest .github/workflows/*.yml platform/workloads.json platform/runtime-conformance.json platform/platform-inventory.json; \
+		conftest test --policy platform/concerns/policy/conftest .github/workflows/*.yml platform/workloads.json platform/runtime-conformance.json platform/platform-inventory.json platform/runtime-defaults.json; \
 	else \
 		docker run --rm \
 			-v "$(CURDIR):/project" \
 			-w /project \
 			openpolicyagent/conftest:v0.64.0 \
-			test --policy platform/concerns/policy/conftest .github/workflows/*.yml platform/workloads.json platform/runtime-conformance.json platform/platform-inventory.json; \
+			test --policy platform/concerns/policy/conftest .github/workflows/*.yml platform/workloads.json platform/runtime-conformance.json platform/platform-inventory.json platform/runtime-defaults.json; \
 	fi
 
 .PHONY: secret-scan

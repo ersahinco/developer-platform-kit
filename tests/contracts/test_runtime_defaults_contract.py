@@ -98,16 +98,19 @@ EXTRA_EVIDENCE_SEAMS = {
 
 
 def test_active_runtime_targets_have_blessed_defaults() -> None:
-    inventory = load_json("platform/platform-inventory.json")
     runtime_defaults = load_json("platform/runtime-defaults.json")
 
-    active_targets = {target["id"] for target in inventory["runtime_targets"]}
     default_targets = runtime_defaults["runtime_targets"]
 
-    assert set(default_targets) == active_targets
+    assert runtime_defaults["current_runtime_target"] == "aws-ecs"
+    assert set(default_targets) == {"local-compose", "local-kubernetes", "aws-ecs"}
     for runtime_target, profile in default_targets.items():
         assert profile["status"] == "active"
         assert profile["owner"]
+        assert profile["role"]
+        assert profile["maturity"]
+        assert profile["implementation"]
+        assert profile["purpose"]
         defaults = profile["defaults"]
         assert set(defaults) == REQUIRED_DEFAULT_AREAS
         for area, default in defaults.items():
@@ -124,7 +127,8 @@ def test_runtime_capability_maturity_is_explicit_and_consistent() -> None:
     runtime_defaults = load_json("platform/runtime-defaults.json")
 
     target_maturity = {
-        target["id"]: target["maturity"] for target in inventory["runtime_targets"]
+        runtime_target: profile["maturity"]
+        for runtime_target, profile in runtime_defaults["runtime_targets"].items()
     }
     assert target_maturity == {
         "local-compose": "active-local-proof",
@@ -142,10 +146,9 @@ def test_runtime_capability_maturity_is_explicit_and_consistent() -> None:
 
 
 def test_enterprise_runtime_profile_is_candidate_not_active_target() -> None:
-    inventory = load_json("platform/platform-inventory.json")
     runtime_defaults = load_json("platform/runtime-defaults.json")
 
-    active_targets = {target["id"] for target in inventory["runtime_targets"]}
+    active_targets = set(runtime_defaults["runtime_targets"])
     candidates = runtime_defaults["candidate_runtime_profiles"]
 
     assert "enterprise-runtime-candidate" in candidates
@@ -233,10 +236,9 @@ def test_enterprise_candidate_defaults_are_candidate_capabilities_only() -> None
 
 
 def test_candidate_runtime_profiles_stay_descriptive() -> None:
-    inventory = load_json("platform/platform-inventory.json")
     runtime_defaults = load_json("platform/runtime-defaults.json")
 
-    active_targets = {target["id"] for target in inventory["runtime_targets"]}
+    active_targets = set(runtime_defaults["runtime_targets"])
     for runtime_target, profile in runtime_defaults[
         "candidate_runtime_profiles"
     ].items():

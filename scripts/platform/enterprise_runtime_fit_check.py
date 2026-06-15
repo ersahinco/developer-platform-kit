@@ -108,9 +108,8 @@ def _missing_conformance_checks(capability: str) -> list[str]:
 
 
 def enterprise_fit_rows() -> list[EnterpriseCapabilityFit]:
-    inventory = _read_json("platform/platform-inventory.json")
     runtime_defaults = _read_json("platform/runtime-defaults.json")
-    active_targets = {target["id"] for target in inventory["runtime_targets"]}
+    active_targets = set(runtime_defaults.get("runtime_targets", {}))
     profile = runtime_defaults["candidate_runtime_profiles"][ENTERPRISE_RUNTIME]
 
     fits: list[EnterpriseCapabilityFit] = []

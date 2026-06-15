@@ -1,9 +1,14 @@
 {
   "schema_version": "1",
+  "current_runtime_target": "aws-ecs",
   "runtime_targets": {
     "local-compose": {
       "status": "active",
       "owner": "platform-toolkit",
+      "role": "local-development",
+      "maturity": "active-local-proof",
+      "implementation": "Docker Compose + local Postgres/PgBouncer + Redis-backed Dapr + OSS observability",
+      "purpose": "Fast local iteration and workload contract proof without cloud provider dependencies.",
       "defaults": {
         "authn": {
           "capability": "edge_auth",
@@ -58,6 +63,10 @@
     "local-kubernetes": {
       "status": "active",
       "owner": "platform-toolkit",
+      "role": "local-runtime-proof",
+      "maturity": "active-local-proof",
+      "implementation": "kind + kubectl + static Kubernetes manifests",
+      "purpose": "Richer local workload contract proof for network, storage, compute, probes, jobs, service identity, and runtime policy without cloud Kubernetes machinery.",
       "defaults": {
         "authn": {
           "capability": "edge_auth",
@@ -112,6 +121,10 @@
     "aws-ecs": {
       "status": "active",
       "owner": "platform-runtime",
+      "role": "production-runtime",
+      "maturity": "active-production-runtime",
+      "implementation": "AWS ECS/Fargate + ALB/WAF + RDS + SNS/SQS + S3 + EventBridge Scheduler",
+      "purpose": "Current reviewed production realization of the workload contract.",
       "defaults": {
         "authn": {
           "capability": "edge_auth",

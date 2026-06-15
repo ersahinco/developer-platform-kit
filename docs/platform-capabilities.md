@@ -23,8 +23,9 @@ candidate, or cloud-wiring views.
 
 ## Capability Maturity
 
-Capability and runtime-target maturity is explicit on each row in
-`platform/platform-inventory.json`. Allowed values:
+Capability maturity is explicit on each runtime capability row in
+`platform/platform-inventory.json`. Runtime-target maturity lives with the
+active runtime defaults in `platform/runtime-defaults.json`. Allowed values:
 
 | Maturity | Meaning |
 |---|---|
@@ -39,9 +40,8 @@ targets stay `candidate` until they pass the admission rule below.
 
 Default auth, identity, secrets, observability, network, policy, and CI/CD
 capabilities live in `platform/runtime-defaults.json`. `platform/platform-inventory.json`
-keeps active runtime targets plus non-default capabilities such as local
-rollout proof, Dapr proof, database, eventing, jobs, object storage, tracing,
-and release evidence.
+keeps only non-default capability evidence such as local rollout proof, Dapr
+proof, database, eventing, jobs, object storage, tracing, and release evidence.
 
 ## Capability Map
 

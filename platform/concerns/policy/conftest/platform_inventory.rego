@@ -79,14 +79,14 @@ deny contains msg if {
 
 deny contains msg if {
   data.conftest.file.name == "platform-inventory.json"
-  not is_string(input.current_runtime_target)
-  msg := "platform/platform-inventory.json current_runtime_target must be a string"
+  object.get(input, "current_runtime_target", null) != null
+  msg := "platform/platform-inventory.json must not own current_runtime_target; use platform/runtime-defaults.json"
 }
 
 deny contains msg if {
   data.conftest.file.name == "platform-inventory.json"
-  trim_space(input.current_runtime_target) == ""
-  msg := "platform/platform-inventory.json current_runtime_target must be non-empty"
+  object.get(input, "runtime_targets", null) != null
+  msg := "platform/platform-inventory.json must not own runtime_targets; use platform/runtime-defaults.json"
 }
 
 deny contains msg if {
@@ -119,13 +119,6 @@ deny contains msg if {
   some row in input.runtime_capabilities
   row.capability in runtime_default_capabilities
   msg := sprintf("platform/platform-inventory.json must not own runtime default capability %s/%s; use platform/runtime-defaults.json", [row.runtime_target, row.capability])
-}
-
-deny contains msg if {
-  data.conftest.file.name == "platform-inventory.json"
-  some row in input.runtime_targets
-  not row.maturity in allowed_maturity_levels
-  msg := sprintf("runtime target %s has unsupported maturity %s", [row.id, row.maturity])
 }
 
 deny contains msg if {
