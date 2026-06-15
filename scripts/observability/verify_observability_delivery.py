@@ -32,7 +32,7 @@ from urllib.parse import urlparse, urlunparse
 
 import httpx
 
-from scripts.observability.platform_inventory import (
+from scripts.platform.workload_evidence import (
     DEFAULT_ALLOWED_EXTRA_STACK_LOG_GROUP_SUFFIXES,
     DEFAULT_AWS_REGION,
     DEFAULT_STACK_NAME,

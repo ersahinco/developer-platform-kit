@@ -27,13 +27,13 @@ from pathlib import Path
 from typing import Any
 from urllib import parse, request
 
-from scripts.observability.platform_inventory import DEFAULT_STACK_NAME
-from scripts.observability.platform_inventory import dapr_workload_service_name
-from scripts.observability.platform_inventory import delivery_event_selector
-from scripts.observability.platform_inventory import edge_service_repository
-from scripts.observability.platform_inventory import edge_service_hostname_label
-from scripts.observability.platform_inventory import edge_trace_service_name
-from scripts.observability.platform_inventory import incident_alarm_names
+from scripts.platform.workload_evidence import DEFAULT_STACK_NAME
+from scripts.platform.workload_evidence import dapr_workload_service_name
+from scripts.platform.workload_evidence import delivery_event_selector
+from scripts.platform.workload_evidence import edge_service_repository
+from scripts.platform.workload_evidence import edge_service_hostname_label
+from scripts.platform.workload_evidence import edge_trace_service_name
+from scripts.platform.workload_evidence import incident_alarm_names
 
 CORRELATION_FIELDS = [
     "stack",

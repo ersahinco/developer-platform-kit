@@ -19,7 +19,7 @@ import time
 from typing import Any
 from urllib import error, request
 
-from scripts.observability.platform_inventory import (
+from scripts.platform.workload_evidence import (
     DEFAULT_AWS_REGION,
     DEFAULT_ENVIRONMENT,
     DEFAULT_STACK_NAME,

@@ -14,9 +14,9 @@ sys.path.insert(0, str(ROOT))
 import scripts.observability.verify_observability_delivery as delivery  # noqa: E402
 import scripts.observability.generate_cloud_traffic as cloud_traffic  # noqa: E402
 import scripts.observability.incident_evidence_bundle as evidence  # noqa: E402
-import scripts.observability.platform_inventory as platform_inventory  # noqa: E402
 import scripts.observability.release_event as release_event  # noqa: E402
 import scripts.observability.verify_release_event_loki_delivery as release_verify  # noqa: E402
+import scripts.platform.workload_evidence as workload_evidence  # noqa: E402
 
 
 TEST_RUN_ID = "1234567890"
@@ -455,7 +455,7 @@ def test_incident_evidence_bundle_queries_loki_release_events(
     def fake_loki_json(loki_url: str, params: dict[str, str]) -> dict[str, Any]:
         assert loki_url == "http://127.0.0.1:3100"
         assert "query_range" not in loki_url
-        assert params["query"] == platform_inventory.delivery_event_selector(
+        assert params["query"] == workload_evidence.delivery_event_selector(
             "aws-sdlc-containers"
         )
         assert params["direction"] == "BACKWARD"

@@ -102,7 +102,9 @@ Prometheus remains the portable app metrics shape.
   scripts
 
 Default release and incident alarm inventories live in
-`scripts/observability/platform_inventory.py`.
+`scripts/platform/workload_evidence.py`. The
+`scripts/observability/platform_inventory.py` module remains only a small CLI
+for printing edge symptom alarm names.
 
 ## Debug Loop
 
