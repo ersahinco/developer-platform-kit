@@ -130,21 +130,30 @@ def workload_runtime_mode_endpoints(workload: dict[str, Any]) -> dict[str, str]:
     }
 
 
+def workload_image_entry(
+    workload: dict[str, Any],
+    *,
+    tag: str,
+    publish_strategy: str,
+) -> dict[str, Any]:
+    return {
+        "name": workload["name"],
+        "repository": workload_repository(workload),
+        "dockerfile": workload_image_dockerfile(workload),
+        "context": workload_image_context(workload),
+        "tag": tag,
+        "publish_strategy": publish_strategy,
+        "build_args": {
+            "APP_PATH": workload["app_path"],
+            "UV_PACKAGE": workload["image"]["package"],
+            "WORKLOAD_CMD": workload["image"]["command"],
+        },
+    }
+
+
 def build_image_matrix(tag: str, pgbouncer_tag: str) -> list[dict[str, Any]]:
     images = [
-        {
-            "name": workload["name"],
-            "repository": workload_repository(workload),
-            "dockerfile": workload_image_dockerfile(workload),
-            "context": workload_image_context(workload),
-            "tag": tag,
-            "publish_strategy": "push",
-            "build_args": {
-                "APP_PATH": workload["app_path"],
-                "UV_PACKAGE": workload["image"]["package"],
-                "WORKLOAD_CMD": workload["image"]["command"],
-            },
-        }
+        workload_image_entry(workload, tag=tag, publish_strategy="push")
         for workload in workloads()
         if workload_admitted_to_runtime(workload, "aws-ecs")
     ]
@@ -167,6 +176,32 @@ def build_image_matrix(tag: str, pgbouncer_tag: str) -> list[dict[str, Any]]:
             "tag": pgbouncer_tag,
             "publish_strategy": "reuse-if-present",
             "build_args": {"PGBOUNCER_TAG": pgbouncer_tag},
+        },
+    ]
+
+
+def build_local_kubernetes_image_matrix(tag: str) -> list[dict[str, Any]]:
+    primary_edge_name = primary_edge_service_workload()["name"]
+    images = [
+        {
+            **workload_image_entry(workload, tag=tag, publish_strategy="local-load"),
+            "repository": f"aws-sdlc-containers-{workload_repository(workload)}",
+            "primary_edge": workload["name"] == primary_edge_name,
+        }
+        for workload in workloads()
+        if "local-kubernetes" in workload_runtime_supported(workload)
+    ]
+    return [
+        *images,
+        {
+            "name": "liquibase",
+            "repository": "aws-sdlc-containers-liquibase",
+            "dockerfile": "db/Dockerfile",
+            "context": "db",
+            "tag": tag,
+            "publish_strategy": "local-load",
+            "primary_edge": False,
+            "build_args": {},
         },
     ]
 

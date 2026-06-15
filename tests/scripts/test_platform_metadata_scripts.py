@@ -180,3 +180,63 @@ def test_workload_metadata_image_matrix_matches_declared_apps() -> None:
 
     pgbouncer = next(image for image in images if image["name"] == "pgbouncer")
     assert pgbouncer["publish_strategy"] == "reuse-if-present"
+
+
+def test_workload_metadata_local_kubernetes_image_matrix_matches_supported_workloads() -> (
+    None
+):
+    contract = json.loads((ROOT / "platform" / "workloads.json").read_text())
+    completed = _run_workload_metadata(
+        "local-kubernetes-image-matrix",
+        "local-kubernetes-test",
+    )
+    images = json.loads(completed.stdout)
+
+    workload_images = {
+        image["name"]: image for image in images if image["name"] != "liquibase"
+    }
+    local_kubernetes_workloads = {
+        workload["name"]: workload
+        for workload in contract["workloads"]
+        if "local-kubernetes" in workload["runtime"]["supported"]
+    }
+    assert set(workload_images) == set(local_kubernetes_workloads)
+
+    primary_edges = {
+        workload["name"]
+        for workload in local_kubernetes_workloads.values()
+        if workload["kind"] == "service"
+        and workload["operational"]["class"] == "edge-service"
+        and workload["operational"]["exposure"] == "public"
+        and "aws-ecs" in workload["runtime"]["admitted"]
+    }
+    assert {
+        image["name"] for image in workload_images.values() if image["primary_edge"]
+    } == primary_edges
+
+    for workload_name, workload in local_kubernetes_workloads.items():
+        image = workload_images[workload_name]
+        assert image["repository"] == (
+            f"aws-sdlc-containers-{workload['image']['repository']}"
+        )
+        assert image["dockerfile"] == workload["image"].get(
+            "dockerfile", "platform/workload.Dockerfile"
+        )
+        assert image["context"] == workload["image"].get("context", ".")
+        assert image["tag"] == "local-kubernetes-test"
+        assert image["publish_strategy"] == "local-load"
+        assert image["build_args"]["APP_PATH"] == workload["app_path"]
+        assert image["build_args"]["UV_PACKAGE"] == workload["image"]["package"]
+        assert image["build_args"]["WORKLOAD_CMD"] == workload["image"]["command"]
+
+    liquibase = next(image for image in images if image["name"] == "liquibase")
+    assert liquibase == {
+        "name": "liquibase",
+        "repository": "aws-sdlc-containers-liquibase",
+        "dockerfile": "db/Dockerfile",
+        "context": "db",
+        "tag": "local-kubernetes-test",
+        "publish_strategy": "local-load",
+        "primary_edge": False,
+        "build_args": {},
+    }

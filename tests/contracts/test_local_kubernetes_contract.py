@@ -4,6 +4,8 @@ from typing import Any
 
 import yaml
 
+from scripts.platform.workload_read_model import build_local_kubernetes_image_matrix
+
 from ._helpers import ROOT, load_json
 
 
@@ -40,6 +42,22 @@ def _workloads() -> dict[str, dict[str, Any]]:
         workload["name"]: workload
         for workload in load_json("platform/workloads.json")["workloads"]
     }
+
+
+def _pod_images(document: dict[str, Any]) -> list[str]:
+    template = document.get("spec", {}).get("template", {})
+    pod_spec = template.get("spec", {}) if isinstance(template, dict) else {}
+    images: list[str] = []
+    for field in ["initContainers", "containers"]:
+        containers = pod_spec.get(field, [])
+        if isinstance(containers, list):
+            images.extend(
+                container["image"]
+                for container in containers
+                if isinstance(container, dict)
+                and isinstance(container.get("image"), str)
+            )
+    return images
 
 
 def _config_names(workload: dict[str, Any]) -> set[str]:
@@ -143,6 +161,21 @@ def test_local_kubernetes_manifests_match_workload_contract() -> None:
     assert documents[("ConfigMap", "dapr-config")]["data"]["config.yaml"]
     assert ("Deployment", "redis") in documents
     assert ("Service", "redis") in documents
+
+
+def test_local_kubernetes_workload_images_match_build_matrix() -> None:
+    build_images = {
+        f"{image['repository']}:{image['tag']}"
+        for image in build_local_kubernetes_image_matrix("local-kubernetes")
+    }
+    manifest_images = {
+        image
+        for document in _documents()
+        for image in _pod_images(document)
+        if image.startswith("aws-sdlc-containers-")
+    }
+
+    assert manifest_images == build_images
 
 
 def test_local_kubernetes_runtime_proves_identity_network_and_storage() -> None:

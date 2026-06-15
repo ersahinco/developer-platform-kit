@@ -48,6 +48,27 @@ LOCAL_KUBERNETES_NAMESPACE ?= aws-sdlc-local
 LOCAL_KUBERNETES_TAG ?= local-kubernetes
 LOCAL_KUBERNETES_ROLLOUT_TAG ?= local-kubernetes-rollout
 LOCAL_KUBERNETES_EVIDENCE_DIR ?= /tmp/aws-sdlc-containers-local-kubernetes-evidence
+LOCAL_KUBERNETES_IMAGE_MATRIX := uv run python -m scripts.platform.workload_metadata local-kubernetes-image-matrix
+
+define local_kubernetes_build_images
+	@set -e; \
+	$(LOCAL_KUBERNETES_IMAGE_MATRIX) "$(1)" | jq -r '$(2) | [(.repository + ":" + .tag), .dockerfile, .context, (.build_args.APP_PATH // ""), (.build_args.UV_PACKAGE // ""), (.build_args.WORKLOAD_CMD // "")] | @sh' | while read -r row; do \
+		eval "set -- $$row"; \
+		if [ -n "$$4" ]; then \
+			docker build -f "$$2" -t "$$1" --build-arg "APP_PATH=$$4" --build-arg "UV_PACKAGE=$$5" --build-arg "WORKLOAD_CMD=$$6" "$$3"; \
+		else \
+			docker build -f "$$2" -t "$$1" "$$3"; \
+		fi; \
+	done
+endef
+
+define local_kubernetes_image_names
+$(LOCAL_KUBERNETES_IMAGE_MATRIX) "$(1)" | jq -r '$(2) | .repository + ":" + .tag'
+endef
+
+define local_kubernetes_primary_edge_image
+$(call local_kubernetes_image_names,$(1),.[] | select(.primary_edge == true))
+endef
 
 # ── Help ──────────────────────────────────────────────────────────────────────
 
@@ -251,24 +272,19 @@ _local-kubernetes-doctor:
 
 .PHONY: _local-kubernetes-build
 _local-kubernetes-build:
-	docker build -f platform/workload.Dockerfile -t aws-sdlc-containers-api:$(LOCAL_KUBERNETES_TAG) --build-arg APP_PATH=apps/api --build-arg UV_PACKAGE=aws-sdlc-containers-api --build-arg WORKLOAD_CMD='uvicorn api.main:app --host 0.0.0.0 --port 8000' .
-	docker build -f platform/workload.Dockerfile -t aws-sdlc-containers-event-consumer:$(LOCAL_KUBERNETES_TAG) --build-arg APP_PATH=apps/event_consumer --build-arg UV_PACKAGE=aws-sdlc-containers-event-consumer --build-arg WORKLOAD_CMD='python -m event_consumer.main' .
-	docker build -f platform/workload.Dockerfile -t aws-sdlc-containers-backfill-worker:$(LOCAL_KUBERNETES_TAG) --build-arg APP_PATH=apps/backfill_worker --build-arg UV_PACKAGE=aws-sdlc-containers-backfill-worker --build-arg WORKLOAD_CMD='python -m backfill_worker.main' .
-	docker build -f platform/workload.Dockerfile -t aws-sdlc-containers-data-export-job:$(LOCAL_KUBERNETES_TAG) --build-arg APP_PATH=apps/data_export_job --build-arg UV_PACKAGE=aws-sdlc-containers-data-export-job --build-arg WORKLOAD_CMD='python -m data_export_job.main' .
-	docker build -f platform/workload.Dockerfile -t aws-sdlc-containers-operational-snapshot-job:$(LOCAL_KUBERNETES_TAG) --build-arg APP_PATH=apps/operational_snapshot_job --build-arg UV_PACKAGE=aws-sdlc-containers-operational-snapshot-job --build-arg WORKLOAD_CMD='python -m operational_snapshot_job.main' .
-	docker build -f platform/workload.Dockerfile -t aws-sdlc-containers-integration-check-job:$(LOCAL_KUBERNETES_TAG) --build-arg APP_PATH=apps/integration_check_job --build-arg UV_PACKAGE=aws-sdlc-containers-integration-check-job --build-arg WORKLOAD_CMD='python -m integration_check_job.main' .
-	docker build -t aws-sdlc-containers-liquibase:$(LOCAL_KUBERNETES_TAG) db
+	$(call local_kubernetes_build_images,$(LOCAL_KUBERNETES_TAG),.[])
+
+.PHONY: _local-kubernetes-build-rollout
+_local-kubernetes-build-rollout:
+	$(call local_kubernetes_build_images,$(LOCAL_KUBERNETES_ROLLOUT_TAG),.[] | select(.primary_edge == true))
 
 .PHONY: _local-kubernetes-up
 _local-kubernetes-up:
 	@kind get clusters | grep -qx "$(LOCAL_KUBERNETES_CLUSTER)" || kind create cluster --name "$(LOCAL_KUBERNETES_CLUSTER)"
-	kind load docker-image --name "$(LOCAL_KUBERNETES_CLUSTER)" aws-sdlc-containers-api:$(LOCAL_KUBERNETES_TAG)
-	kind load docker-image --name "$(LOCAL_KUBERNETES_CLUSTER)" aws-sdlc-containers-event-consumer:$(LOCAL_KUBERNETES_TAG)
-	kind load docker-image --name "$(LOCAL_KUBERNETES_CLUSTER)" aws-sdlc-containers-backfill-worker:$(LOCAL_KUBERNETES_TAG)
-	kind load docker-image --name "$(LOCAL_KUBERNETES_CLUSTER)" aws-sdlc-containers-data-export-job:$(LOCAL_KUBERNETES_TAG)
-	kind load docker-image --name "$(LOCAL_KUBERNETES_CLUSTER)" aws-sdlc-containers-operational-snapshot-job:$(LOCAL_KUBERNETES_TAG)
-	kind load docker-image --name "$(LOCAL_KUBERNETES_CLUSTER)" aws-sdlc-containers-integration-check-job:$(LOCAL_KUBERNETES_TAG)
-	kind load docker-image --name "$(LOCAL_KUBERNETES_CLUSTER)" aws-sdlc-containers-liquibase:$(LOCAL_KUBERNETES_TAG)
+	@set -e; \
+	$(call local_kubernetes_image_names,$(LOCAL_KUBERNETES_TAG),.[]) | while read -r image; do \
+		kind load docker-image --name "$(LOCAL_KUBERNETES_CLUSTER)" "$$image"; \
+	done
 
 .PHONY: _local-kubernetes-apply
 _local-kubernetes-apply:
@@ -311,11 +327,12 @@ local-kubernetes-rollout-proof: ## Local Kubernetes proof ladder: API rollout/ro
 		trap 'status=$$?; if [ $$status -ne 0 ]; then $(MAKE) _local-kubernetes-evidence-bundle || true; fi; $(MAKE) _local-kubernetes-down; exit $$status' EXIT; \
 		$(MAKE) _local-kubernetes-doctor; \
 		$(MAKE) _local-kubernetes-build; \
-		docker build -f platform/workload.Dockerfile -t aws-sdlc-containers-api:$(LOCAL_KUBERNETES_ROLLOUT_TAG) --build-arg APP_PATH=apps/api --build-arg UV_PACKAGE=aws-sdlc-containers-api --build-arg WORKLOAD_CMD='uvicorn api.main:app --host 0.0.0.0 --port 8000' .; \
+		$(MAKE) _local-kubernetes-build-rollout; \
 		$(MAKE) _local-kubernetes-up; \
-		kind load docker-image --name "$(LOCAL_KUBERNETES_CLUSTER)" aws-sdlc-containers-api:$(LOCAL_KUBERNETES_ROLLOUT_TAG); \
+		primary_edge_image="$$( $(call local_kubernetes_primary_edge_image,$(LOCAL_KUBERNETES_ROLLOUT_TAG)) )"; \
+		kind load docker-image --name "$(LOCAL_KUBERNETES_CLUSTER)" "$$primary_edge_image"; \
 		$(MAKE) _local-kubernetes-apply; \
-		uv run python scripts/platform/local_kubernetes_proof.py --namespace "$(LOCAL_KUBERNETES_NAMESPACE)" --output-dir "$(LOCAL_KUBERNETES_EVIDENCE_DIR)" rollout-proof --candidate-image "aws-sdlc-containers-api:$(LOCAL_KUBERNETES_ROLLOUT_TAG)"; \
+		uv run python scripts/platform/local_kubernetes_proof.py --namespace "$(LOCAL_KUBERNETES_NAMESPACE)" --output-dir "$(LOCAL_KUBERNETES_EVIDENCE_DIR)" rollout-proof --candidate-image "$$primary_edge_image"; \
 		$(MAKE) _local-kubernetes-evidence-bundle
 
 .PHONY: _local-kubernetes-dapr-proof

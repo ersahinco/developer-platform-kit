@@ -4,6 +4,7 @@ import json
 import sys
 
 from scripts.platform.workload_read_model import build_image_matrix
+from scripts.platform.workload_read_model import build_local_kubernetes_image_matrix
 from scripts.platform.workload_read_model import current_runtime_capability_rows
 from scripts.platform.workload_read_model import internal_service_workloads
 from scripts.platform.workload_read_model import operator_job_workloads
@@ -48,6 +49,25 @@ def _print_image_matrix(args: list[str]) -> int:
 
     tag, pgbouncer_tag = args
     print(json.dumps(build_image_matrix(tag, pgbouncer_tag), separators=(",", ":")))
+    return 0
+
+
+def _print_local_kubernetes_image_matrix(args: list[str]) -> int:
+    if len(args) != 1:
+        print(
+            "usage: python -m scripts.platform.workload_metadata "
+            "local-kubernetes-image-matrix <tag>",
+            file=sys.stderr,
+        )
+        return 1
+
+    (tag,) = args
+    print(
+        json.dumps(
+            build_local_kubernetes_image_matrix(tag),
+            separators=(",", ":"),
+        )
+    )
     return 0
 
 
@@ -117,7 +137,7 @@ def main(argv: list[str] | None = None) -> int:
     if not argv:
         print(
             "usage: python -m scripts.platform.workload_metadata "
-            "<primary-edge-contract|internal-services|support-task-workloads|operator-job-workloads|image-matrix|capability-matrix|implementation-matrix|runtime-defaults>",
+            "<primary-edge-contract|internal-services|support-task-workloads|operator-job-workloads|image-matrix|local-kubernetes-image-matrix|capability-matrix|implementation-matrix|runtime-defaults>",
             file=sys.stderr,
         )
         return 1
@@ -129,6 +149,7 @@ def main(argv: list[str] | None = None) -> int:
         "support-task-workloads": lambda _args: _print_support_task_workloads(),
         "operator-job-workloads": lambda _args: _print_operator_job_workloads(),
         "image-matrix": _print_image_matrix,
+        "local-kubernetes-image-matrix": _print_local_kubernetes_image_matrix,
         "capability-matrix": lambda _args: _print_capability_matrix(),
         "implementation-matrix": lambda _args: _print_implementation_matrix(),
         "runtime-defaults": lambda _args: _print_runtime_defaults(),
