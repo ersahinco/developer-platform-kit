@@ -119,6 +119,32 @@ def test_workload_metadata_runtime_defaults_matches_runtime_defaults_contract() 
             assert row[area] == profile["defaults"][area]["default"]
 
 
+def test_workload_metadata_implementation_matrix_derives_runtime_defaults() -> None:
+    runtime_defaults = json.loads(
+        (ROOT / "platform" / "runtime-defaults.json").read_text()
+    )
+    inventory = json.loads((ROOT / "platform" / "platform-inventory.json").read_text())
+
+    completed = _run_workload_metadata("implementation-matrix")
+    rows = list(csv.DictReader(io.StringIO(completed.stdout), delimiter="\t"))
+    rows_by_pair = {(row["runtime_target"], row["capability"]): row for row in rows}
+
+    assert len(rows_by_pair) == len(rows)
+
+    for runtime_target, profile in runtime_defaults["runtime_targets"].items():
+        for default in profile["defaults"].values():
+            pair = (runtime_target, default["capability"])
+            row = rows_by_pair[pair]
+            assert row["implementation"] == default["realization"]
+            assert row["replacement_seam"] == (
+                "platform/runtime-defaults.json + docs/runtime-defaults.md"
+            )
+
+    for capability in inventory["runtime_capabilities"]:
+        pair = (capability["runtime_target"], capability["capability"])
+        assert rows_by_pair[pair] == capability
+
+
 def test_workload_metadata_image_matrix_matches_declared_apps() -> None:
     contract = json.loads((ROOT / "platform" / "workloads.json").read_text())
     completed = _run_workload_metadata("image-matrix", "sha-test", "1.24.0")
