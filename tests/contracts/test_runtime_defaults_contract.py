@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+from scripts.platform.workload_metadata import current_runtime_capability_rows
+
 from ._helpers import ROOT
 from ._helpers import load_json
 from ._helpers import read_text
@@ -42,29 +44,15 @@ CAPABILITY_MATURITY_LEVELS = {
     "deprecated",
 }
 
-ACTIVE_EVIDENCE_SEAMS = {
-    ("local-compose", "authz_policy"): ["platform/concerns/policy"],
-    ("local-compose", "ci_cd_delivery"): ["Makefile", "tests/runtime"],
-    ("local-compose", "network_connectivity"): [
+EXTRA_EVIDENCE_SEAMS = {
+    ("local-compose", "local_runtime"): [
         "compose.yaml",
         "platform/runtime-conformance.json",
     ],
-    ("local-compose", "observability_routing"): [
-        "platform/concerns/observability",
-        "compose.yaml",
-    ],
-    ("local-kubernetes", "authz_policy"): ["platform/concerns/policy"],
-    ("local-kubernetes", "ci_cd_delivery"): [
-        "Makefile",
+    ("local-kubernetes", "local_runtime"): [
         "infra/local-kubernetes",
-    ],
-    ("local-kubernetes", "network_connectivity"): [
-        "infra/local-kubernetes",
-        "tests/contracts/test_local_kubernetes_contract.py",
-    ],
-    ("local-kubernetes", "observability_routing"): [
-        "infra/local-kubernetes",
-        "tests/contracts/test_local_kubernetes_contract.py",
+        "platform/workloads.json",
+        "platform/runtime-conformance.json",
     ],
     ("local-kubernetes", "local_rollout_proof"): [
         "Makefile",
@@ -82,19 +70,30 @@ ACTIVE_EVIDENCE_SEAMS = {
         "scripts/platform/local_kubernetes_proof.py",
         "tests/contracts/test_documented_make_targets.py",
     ],
-    ("aws-ecs", "authz_policy"): ["platform/concerns/policy"],
-    ("aws-ecs", "ci_cd_delivery"): [
-        ".github/workflows",
-        "infra/platform/github_actions.tf",
-    ],
-    ("aws-ecs", "network_connectivity"): [
-        "infra/platform/network.tf",
+    ("aws-ecs", "edge_http"): [
         "infra/app/edge.tf",
+        ".github/workflows/app-deploy.yml",
     ],
-    ("aws-ecs", "observability_routing"): [
+    ("aws-ecs", "relational_database"): [
+        "infra/app/database.tf",
+        "infra/app/workload_inventory.tf",
+    ],
+    ("aws-ecs", "async_eventing"): [
+        "platform/concerns/dapr",
+        "infra/app/messaging.tf",
+    ],
+    ("aws-ecs", "scheduled_execution"): ["infra/app/workload_jobs.tf"],
+    ("aws-ecs", "operator_job_execution"): [
+        ".github/workflows/data-backfill.yml",
+        ".github/workflows/operational-snapshot.yml",
+        "infra/app/workload_jobs.tf",
+    ],
+    ("aws-ecs", "object_storage"): ["infra/app/object_storage.tf"],
+    ("aws-ecs", "tracing"): [
         "infra/app/observability.tf",
-        "scripts/observability",
+        "infra/app/workload_inventory.tf",
     ],
+    ("aws-ecs", "release_evidence"): ["scripts/observability/release_event.py"],
 }
 
 
@@ -154,9 +153,13 @@ def test_enterprise_runtime_profile_is_candidate_not_active_target() -> None:
     assert candidates["enterprise-runtime-candidate"]["status"] == "candidate"
 
 
-def test_runtime_capabilities_include_enterprise_relevant_defaults() -> None:
-    inventory = load_json("platform/platform-inventory.json")
-    capabilities = {item["capability"] for item in inventory["runtime_capabilities"]}
+def test_runtime_defaults_include_enterprise_relevant_capabilities() -> None:
+    runtime_defaults = load_json("platform/runtime-defaults.json")
+    capabilities = {
+        default["capability"]
+        for profile in runtime_defaults["runtime_targets"].values()
+        for default in profile["defaults"].values()
+    }
 
     assert {
         "authz_policy",
@@ -169,22 +172,27 @@ def test_runtime_capabilities_include_enterprise_relevant_defaults() -> None:
     }.issubset(capabilities)
 
 
-def test_active_runtime_defaults_are_backed_by_capability_rows() -> None:
+def test_active_runtime_defaults_are_derived_not_duplicated() -> None:
     inventory = load_json("platform/platform-inventory.json")
     runtime_defaults = load_json("platform/runtime-defaults.json")
 
-    capability_pairs = {
+    inventory_pairs = {
         (row["runtime_target"], row["capability"])
         for row in inventory["runtime_capabilities"]
+    }
+    matrix_pairs = {
+        (row["runtime_target"], row["capability"])
+        for row in current_runtime_capability_rows()
     }
 
     for runtime_target, profile in runtime_defaults["runtime_targets"].items():
         for area, default in profile["defaults"].items():
             pair = (runtime_target, default["capability"])
-            assert pair in capability_pairs, (
-                f"{runtime_target}.{area} default points at {pair}, "
-                "but platform/platform-inventory.json has no active capability row"
+            assert pair not in inventory_pairs, (
+                f"{runtime_target}.{area} default is duplicated in "
+                "platform/platform-inventory.json"
             )
+            assert pair in matrix_pairs
 
 
 def test_enterprise_candidate_defaults_are_candidate_capabilities_only() -> None:
@@ -243,14 +251,14 @@ def test_candidate_runtime_profiles_stay_descriptive() -> None:
             assert "infra/" not in default["realization"]
 
 
-def test_active_capability_rows_point_to_real_evidence_seams() -> None:
+def test_extra_capability_rows_point_to_real_evidence_seams() -> None:
     inventory = load_json("platform/platform-inventory.json")
     active_capabilities = {
         (row["runtime_target"], row["capability"]): row
         for row in inventory["runtime_capabilities"]
     }
 
-    for pair, expected_paths in ACTIVE_EVIDENCE_SEAMS.items():
+    for pair, expected_paths in EXTRA_EVIDENCE_SEAMS.items():
         row = active_capabilities[pair]
         replacement_seam = row["replacement_seam"]
         for expected_path in expected_paths:

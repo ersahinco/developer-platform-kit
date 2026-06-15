@@ -17,6 +17,17 @@ required_runtime_capability_keys := {
   "runtime_target",
 }
 
+runtime_default_capabilities := {
+  "authz_policy",
+  "ci_cd_delivery",
+  "edge_auth",
+  "network_connectivity",
+  "observability_routing",
+  "runtime_policy",
+  "secrets_injection",
+  "service_identity",
+}
+
 allowed_maturity_levels := {
   "candidate",
   "active-local-proof",
@@ -101,6 +112,13 @@ deny contains msg if {
   data.conftest.file.name == "platform-inventory.json"
   object.get(input, "candidate_runtime_capabilities", null) != null
   msg := "platform/platform-inventory.json must not own candidate_runtime_capabilities; use platform/runtime-defaults.json"
+}
+
+deny contains msg if {
+  data.conftest.file.name == "platform-inventory.json"
+  some row in input.runtime_capabilities
+  row.capability in runtime_default_capabilities
+  msg := sprintf("platform/platform-inventory.json must not own runtime default capability %s/%s; use platform/runtime-defaults.json", [row.runtime_target, row.capability])
 }
 
 deny contains msg if {

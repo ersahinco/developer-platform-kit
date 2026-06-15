@@ -42,124 +42,12 @@
       "replacement_seam": "compose.yaml + platform/concerns/ + platform/runtime-conformance.json"
     },
     {
-      "capability": "edge_auth",
-      "contract_surface": "local edge authentication default and explicit dev-token opt-in",
-      "runtime_target": "local-compose",
-      "maturity": "active-local-proof",
-      "implementation": "Local workloads run without authentication by default; workloads that declare static bearer auth can enforce a configured dev token",
-      "replacement_seam": "platform/runtime-defaults.json + platform/workloads.json + apps/api/main.py + tests/api/test_api_operational.py"
-    },
-    {
-      "capability": "service_identity",
-      "contract_surface": "local workload host identity evidence",
-      "runtime_target": "local-compose",
-      "maturity": "active-local-proof",
-      "implementation": "Docker Compose service names, container names, and network aliases identify local workload hosts",
-      "replacement_seam": "compose.yaml + platform/runtime-conformance.json + tests/runtime"
-    },
-    {
-      "capability": "secrets_injection",
-      "contract_surface": "declared config secret names and local env or mounted file injection",
-      "runtime_target": "local-compose",
-      "maturity": "active-local-proof",
-      "implementation": "Local runs use environment variables and local files only; committed secret values are rejected by repository gates",
-      "replacement_seam": "platform/workloads.json + compose.yaml + Makefile"
-    },
-    {
-      "capability": "runtime_policy",
-      "contract_surface": "repository policy checks for workload metadata, runtime conformance, and workflows",
-      "runtime_target": "local-compose",
-      "maturity": "active-local-proof",
-      "implementation": "OPA/Conftest validates platform metadata locally through lint-policy",
-      "replacement_seam": "platform/concerns/policy + Makefile + tests/contracts/test_policy_contract.py"
-    },
-    {
-      "capability": "network_connectivity",
-      "contract_surface": "declared ports, Compose service names, and local runtime conformance endpoints",
-      "runtime_target": "local-compose",
-      "maturity": "active-local-proof",
-      "implementation": "Docker Compose networks provide local internal connectivity; host ports are explicit in compose.yaml",
-      "replacement_seam": "compose.yaml + platform/runtime-conformance.json + tests/runtime"
-    },
-    {
-      "capability": "ci_cd_delivery",
-      "contract_surface": "local validation commands and runtime conformance evidence",
-      "runtime_target": "local-compose",
-      "maturity": "active-local-proof",
-      "implementation": "Make targets and pytest prove local workload behavior before cloud-changing delivery",
-      "replacement_seam": "Makefile + tests/runtime + tests/contracts"
-    },
-    {
-      "capability": "observability_routing",
-      "contract_surface": "Prometheus metrics, structured logs, optional OTLP traces, and workload identity labels",
-      "runtime_target": "local-compose",
-      "maturity": "active-local-proof",
-      "implementation": "Local Prometheus, Loki, Tempo, Promtail, and Grafana consume standard workload signals",
-      "replacement_seam": "platform/concerns/observability + compose.yaml + tests/contracts/test_observability_contract.py"
-    },
-    {
-      "capability": "authz_policy",
-      "contract_surface": "app-local business authorization by default plus repository policy checks",
-      "runtime_target": "local-compose",
-      "maturity": "active-local-proof",
-      "implementation": "Workloads keep business checks local when needed; OPA/Conftest validates repository contracts",
-      "replacement_seam": "platform/concerns/policy + tests/contracts/test_policy_contract.py"
-    },
-    {
       "capability": "local_runtime",
       "contract_surface": "workload contract, runtime conformance, local config names, Kubernetes probes, jobs, services, and storage claims",
       "runtime_target": "local-kubernetes",
       "maturity": "active-local-proof",
       "implementation": "kind cluster with kubectl-applied static manifests for selected workload boundary proof",
       "replacement_seam": "infra/local-kubernetes + platform/workloads.json + platform/runtime-conformance.json"
-    },
-    {
-      "capability": "edge_auth",
-      "contract_surface": "local Kubernetes edge authentication default and explicit dev-token opt-in",
-      "runtime_target": "local-kubernetes",
-      "maturity": "active-local-proof",
-      "implementation": "The API workload can enforce the same declared static bearer token when configured through a Kubernetes Secret",
-      "replacement_seam": "infra/local-kubernetes + platform/workloads.json + apps/api/main.py + tests/api/test_api_operational.py"
-    },
-    {
-      "capability": "service_identity",
-      "contract_surface": "Kubernetes namespace, service account, service, pod labels, and workload identity evidence",
-      "runtime_target": "local-kubernetes",
-      "maturity": "active-local-proof",
-      "implementation": "Static manifests assign namespace, labels, services, and service accounts to local workload hosts",
-      "replacement_seam": "infra/local-kubernetes + tests/contracts/test_local_kubernetes_contract.py"
-    },
-    {
-      "capability": "secrets_injection",
-      "contract_surface": "declared config secret names and Kubernetes Secret injection",
-      "runtime_target": "local-kubernetes",
-      "maturity": "active-local-proof",
-      "implementation": "Local Kubernetes uses a checked-in placeholder Secret manifest for local-only values while preserving declared secret names",
-      "replacement_seam": "platform/workloads.json + infra/local-kubernetes"
-    },
-    {
-      "capability": "runtime_policy",
-      "contract_surface": "repository policy checks for workload metadata, runtime defaults, catalog, and Kubernetes manifests",
-      "runtime_target": "local-kubernetes",
-      "maturity": "active-local-proof",
-      "implementation": "OPA/Conftest and pytest contract checks validate the local Kubernetes runtime contract surface",
-      "replacement_seam": "platform/concerns/policy + tests/contracts/test_local_kubernetes_contract.py"
-    },
-    {
-      "capability": "network_connectivity",
-      "contract_surface": "declared ports, Kubernetes Services, probes, and private in-cluster dependency connectivity",
-      "runtime_target": "local-kubernetes",
-      "maturity": "active-local-proof",
-      "implementation": "Kubernetes Services route API, database, PgBouncer, and job connectivity inside a kind cluster",
-      "replacement_seam": "infra/local-kubernetes + tests/contracts/test_local_kubernetes_contract.py"
-    },
-    {
-      "capability": "ci_cd_delivery",
-      "contract_surface": "local validation commands, immutable local image tags, Kubernetes apply, smoke checks, and runtime evidence",
-      "runtime_target": "local-kubernetes",
-      "maturity": "active-local-proof",
-      "implementation": "Make targets build images, create or reuse kind, load images, apply manifests, run smoke checks, and clean up",
-      "replacement_seam": "Makefile + infra/local-kubernetes + tests/contracts/test_documented_make_targets.py"
     },
     {
       "capability": "local_rollout_proof",
@@ -186,76 +74,12 @@
       "replacement_seam": "Makefile + scripts/platform/local_kubernetes_proof.py + infra/local-kubernetes + tests/contracts/test_documented_make_targets.py"
     },
     {
-      "capability": "observability_routing",
-      "contract_surface": "Prometheus metrics, structured logs, and workload identity labels from Kubernetes pods",
-      "runtime_target": "local-kubernetes",
-      "maturity": "active-local-proof",
-      "implementation": "Workloads expose metrics and structured logs through standard endpoints and Kubernetes pod logs; full local observability backend remains optional",
-      "replacement_seam": "infra/local-kubernetes + tests/contracts/test_local_kubernetes_contract.py"
-    },
-    {
-      "capability": "authz_policy",
-      "contract_surface": "app-local business authorization by default plus repository and manifest policy checks",
-      "runtime_target": "local-kubernetes",
-      "maturity": "active-local-proof",
-      "implementation": "Workloads keep business checks local when needed; repository policy checks validate platform and manifest contract surfaces",
-      "replacement_seam": "platform/concerns/policy + tests/contracts/test_policy_contract.py + tests/contracts/test_local_kubernetes_contract.py"
-    },
-    {
       "capability": "edge_http",
       "contract_surface": "edge-service, /health, /ready, /metrics",
       "runtime_target": "aws-ecs",
       "maturity": "active-production-runtime",
       "implementation": "ALB + ECS service + ACM/WAF",
       "replacement_seam": "infra/app/edge.tf + .github/workflows/app-deploy.yml"
-    },
-    {
-      "capability": "edge_auth",
-      "contract_surface": "edge.auth_mode and edge-service exposure",
-      "runtime_target": "aws-ecs",
-      "maturity": "active-production-runtime",
-      "implementation": "ALB forwards HTTPS traffic to workload-enforced static bearer token for the current primary edge",
-      "replacement_seam": "platform/workloads.json + infra/app/edge.tf + apps/api auth middleware"
-    },
-    {
-      "capability": "service_identity",
-      "contract_surface": "runtime identity and delivery identity evidence",
-      "runtime_target": "aws-ecs",
-      "maturity": "active-production-runtime",
-      "implementation": "ECS task role for runtime identity and GitHub OIDC for delivery identity",
-      "replacement_seam": "infra/app/runtime_identity.tf + infra/platform/github_actions.tf"
-    },
-    {
-      "capability": "network_connectivity",
-      "contract_surface": "public edge ingress, private service placement, and private dependency connectivity",
-      "runtime_target": "aws-ecs",
-      "maturity": "active-production-runtime",
-      "implementation": "ALB owns public ingress; ECS tasks use awsvpc networking in private subnets; RDS and support jobs use VPC security groups",
-      "replacement_seam": "infra/platform/network.tf + infra/app/edge.tf + infra/app/compute_ecs.tf + infra/app/workload_jobs.tf"
-    },
-    {
-      "capability": "ci_cd_delivery",
-      "contract_surface": "immutable image tags, reviewed plan/apply, separated build/deploy, workflow run IDs, and release evidence",
-      "runtime_target": "aws-ecs",
-      "maturity": "active-production-runtime",
-      "implementation": "GitHub Actions uses OIDC to build, validate, deploy, run operator jobs, and emit release evidence",
-      "replacement_seam": ".github/workflows + infra/platform/github_actions.tf + scripts/observability/release_event.py"
-    },
-    {
-      "capability": "observability_routing",
-      "contract_surface": "Prometheus-compatible metrics, structured logs, optional OTLP traces, CloudWatch log groups, and release/incident evidence",
-      "runtime_target": "aws-ecs",
-      "maturity": "active-production-runtime",
-      "implementation": "Workloads emit standard signals; ECS routes logs to CloudWatch and optional ADOT collects Prometheus/OTLP signals",
-      "replacement_seam": "infra/app/app_log_groups.tf + infra/app/observability.tf + scripts/observability"
-    },
-    {
-      "capability": "authz_policy",
-      "contract_surface": "app-local business authorization by default plus repository policy checks",
-      "runtime_target": "aws-ecs",
-      "maturity": "active-production-runtime",
-      "implementation": "Application code owns business authorization unless a runtime policy owner exists; OPA/Conftest validates platform metadata and workflows",
-      "replacement_seam": "platform/concerns/policy + platform/runtime-defaults.json + tests/contracts/test_policy_contract.py"
     },
     {
       "capability": "relational_database",
@@ -296,22 +120,6 @@
       "maturity": "active-production-runtime",
       "implementation": "S3 data hub bucket",
       "replacement_seam": "infra/app/object_storage.tf"
-    },
-    {
-      "capability": "secrets_injection",
-      "contract_surface": "declared config secrets in platform/workloads.json",
-      "runtime_target": "aws-ecs",
-      "maturity": "active-production-runtime",
-      "implementation": "Secrets Manager + ECS secret injection",
-      "replacement_seam": "infra/app/workload_inventory.tf + ECS task definitions"
-    },
-    {
-      "capability": "runtime_policy",
-      "contract_surface": "repository policy checks and app-local business authorization by default",
-      "runtime_target": "aws-ecs",
-      "maturity": "active-production-runtime",
-      "implementation": "OPA/Conftest validates platform metadata; runtime policy engines stay future runtime choices until owned and conformance-tested",
-      "replacement_seam": "platform/concerns/policy + platform/runtime-defaults.json"
     },
     {
       "capability": "tracing",

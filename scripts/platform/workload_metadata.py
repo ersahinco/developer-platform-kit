@@ -241,9 +241,62 @@ def workload_capability_rows() -> list[dict[str, str]]:
     return rows
 
 
-def current_runtime_capability_rows() -> list[dict[str, str]]:
+def inventory_runtime_capability_rows() -> list[dict[str, str]]:
     rows = platform_inventory_document().get("runtime_capabilities", [])
     return [row for row in rows if isinstance(row, dict)]
+
+
+def runtime_target_maturity() -> dict[str, str]:
+    targets = platform_inventory_document().get("runtime_targets", [])
+    if not isinstance(targets, list):
+        return {}
+    return {
+        str(target.get("id", "")): str(target.get("maturity", ""))
+        for target in targets
+        if isinstance(target, dict)
+    }
+
+
+def runtime_default_capability_rows() -> list[dict[str, str]]:
+    targets = runtime_defaults_document().get("runtime_targets", {})
+    if not isinstance(targets, dict):
+        return []
+
+    maturity_by_target = runtime_target_maturity()
+    rows: list[dict[str, str]] = []
+    for runtime_target, profile in targets.items():
+        if not isinstance(profile, dict):
+            continue
+        defaults = profile.get("defaults", {})
+        if not isinstance(defaults, dict):
+            continue
+        for area, default in defaults.items():
+            if not isinstance(default, dict):
+                continue
+            evidence = default.get("evidence", [])
+            evidence_items = [
+                item for item in evidence if isinstance(item, str) and item
+            ]
+            rows.append(
+                {
+                    "capability": str(default.get("capability", "")),
+                    "contract_surface": ",".join(evidence_items) or str(area),
+                    "runtime_target": str(runtime_target),
+                    "maturity": maturity_by_target.get(str(runtime_target), ""),
+                    "implementation": str(default.get("realization", "")),
+                    "replacement_seam": (
+                        "platform/runtime-defaults.json + docs/runtime-defaults.md"
+                    ),
+                }
+            )
+    return rows
+
+
+def current_runtime_capability_rows() -> list[dict[str, str]]:
+    return [
+        *runtime_default_capability_rows(),
+        *inventory_runtime_capability_rows(),
+    ]
 
 
 def runtime_default_rows() -> list[dict[str, str]]:

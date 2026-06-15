@@ -37,6 +37,12 @@ Current local runtime targets are `active-local-proof`. `aws-ecs` is the
 current `active-production-runtime`. Enterprise tools and future runtime
 targets stay `candidate` until they pass the admission rule below.
 
+Default auth, identity, secrets, observability, network, policy, and CI/CD
+capabilities live in `platform/runtime-defaults.json`. `platform/platform-inventory.json`
+keeps active runtime targets plus non-default capabilities such as local
+rollout proof, Dapr proof, database, eventing, jobs, object storage, tracing,
+and release evidence.
+
 ## Capability Map
 
 | Capability | Workload-facing contract | Current owner |

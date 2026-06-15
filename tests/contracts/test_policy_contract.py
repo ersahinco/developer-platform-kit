@@ -199,6 +199,35 @@ def test_platform_inventory_policy_rejects_candidate_capability_owner(
     )
 
 
+def test_platform_inventory_policy_rejects_default_capability_owner(
+    tmp_path: Path,
+) -> None:
+    platform_inventory = json.loads(
+        (ROOT / "platform" / "platform-inventory.json").read_text()
+    )
+    invalid = dict(platform_inventory)
+    invalid["runtime_capabilities"] = [
+        *platform_inventory["runtime_capabilities"],
+        {
+            "capability": "edge_auth",
+            "contract_surface": "default auth",
+            "runtime_target": "local-compose",
+            "maturity": "active-local-proof",
+            "implementation": "duplicate default",
+            "replacement_seam": "platform/runtime-defaults.json",
+        },
+    ]
+    fixture = tmp_path / "platform-inventory.json"
+    fixture.write_text(json.dumps(invalid), encoding="utf-8")
+
+    completed = _run_conftest(fixture, cwd=tmp_path)
+
+    assert completed.returncode != 0
+    assert "must not own runtime default capability" in (
+        completed.stderr + completed.stdout
+    )
+
+
 def test_workflow_policy_rejects_continue_on_error(tmp_path: Path) -> None:
     fixture = tmp_path / "app-deploy.yml"
     fixture.write_text(
