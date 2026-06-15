@@ -4,7 +4,7 @@ from dataclasses import asdict
 import json
 import subprocess
 
-from scripts.platform.capability_live_proof import run_live_proof
+from scripts.platform.local_compose_live_proof import run_live_proof
 
 
 class _Ports:

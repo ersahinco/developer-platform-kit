@@ -134,7 +134,7 @@ replacement seams in `platform/platform-inventory.json`. Use
 `make enterprise-runtime-fit-check` for executable views.
 
 Use `make workload-readiness` and `make workload-readiness-cloud` to inspect
-declared workload proof surfaces. Use `make capability-proof-local-live` only
+declared workload proof surfaces. Use `make local-compose-live-proof` only
 when you need the isolated live Compose drill for token auth, health,
 readiness, metrics, logs, and local observability. Use
 `make enterprise-runtime-fit-check` to see why candidate enterprise capabilities

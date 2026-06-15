@@ -12,7 +12,7 @@ Inspect active defaults with:
 ```bash
 make runtime-defaults
 make capability-implementation-matrix
-make capability-proof-local-live
+make local-compose-live-proof
 make enterprise-runtime-fit-check
 ```
 
@@ -34,10 +34,10 @@ and the inventory views above. Candidate enterprise tools stay candidate-only;
 the contract checks point at real files, tests, workflows, and evidence seams
 instead of promoting a product choice.
 
-`make capability-proof-local-live` runs a dedicated temporary Compose project
+`make local-compose-live-proof` runs a dedicated temporary Compose project
 with token auth enabled, proves live health, readiness, metrics, auth 401/200,
 structured logs, Prometheus, Loki, Tempo, and Grafana, then tears the stack down
-by default. Use `--keep-stack` on `scripts/platform/capability_live_proof.py`
+by default. Use `--keep-stack` on `scripts/platform/local_compose_live_proof.py`
 only when you want to inspect the drill stack manually.
 
 ## Enterprise Candidate

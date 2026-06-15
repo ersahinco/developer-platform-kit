@@ -115,7 +115,7 @@ def _http_text(
 def _project_name(value: str | None) -> str:
     if value:
         return value
-    return f"capability-proof-local-live-{uuid.uuid4().hex[:8]}"
+    return f"local-compose-live-proof-{uuid.uuid4().hex[:8]}"
 
 
 def _ports(allocator: PortAllocator) -> dict[str, int]:

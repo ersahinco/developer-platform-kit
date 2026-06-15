@@ -669,9 +669,9 @@ workload-fit-check: ## Evaluate a draft externally operated workload before admi
 capability-implementation-matrix: ## Print the current runtime capability-to-implementation matrix
 	python3 -m scripts.platform.workload_metadata implementation-matrix
 
-.PHONY: capability-proof-local-live
-capability-proof-local-live: ## Run isolated live local runtime capability proof
-	python3 scripts/platform/capability_live_proof.py
+.PHONY: local-compose-live-proof
+local-compose-live-proof: ## Run isolated live local Compose proof
+	python3 scripts/platform/local_compose_live_proof.py
 
 .PHONY: enterprise-runtime-fit-check
 enterprise-runtime-fit-check: ## Show candidate enterprise runtime promotion gaps
