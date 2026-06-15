@@ -53,7 +53,7 @@ boundaries. They must not create app code, redefine workload identity, own
 deployment choreography, or become a hidden framework.
 
 Use this rule for workload-fit candidates, catalog building blocks, examples,
-and candidate capability rows. These artifacts can point back to
+and candidate runtime profiles. These artifacts can point back to
 `platform/workloads.json`, runtime defaults, and standard tool commands, but the
 workload contract remains the only source of workload identity and runtime
 targets remain responsible for realization.
