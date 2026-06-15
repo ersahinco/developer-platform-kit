@@ -25,4 +25,4 @@ def test_canonical_docs_delegate_live_workload_inventory_to_contract() -> None:
     assert "Current mappings live\nin `platform/workloads.json`" in architecture
     assert "Reference workloads:" not in local_development
     assert "make workload-readiness" in local_development
-    assert "make workload-addition-report" in local_development
+    assert "scripts/platform/workload_readiness.py --view addition" in local_development

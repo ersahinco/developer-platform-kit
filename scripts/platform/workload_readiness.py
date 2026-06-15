@@ -443,6 +443,16 @@ READINESS_VIEW_HEADERS = {
         "log_group",
         "config_contract",
     ],
+    "addition": [
+        "workload",
+        "app_files",
+        "uv_workspace",
+        "dockerfile_copy",
+        "compose_service",
+        "runtime_conformance",
+        "catalog_component",
+        "app_tests",
+    ],
 }
 
 
@@ -493,16 +503,7 @@ def _print_table(rows: list[dict[str, str]], *, view: str) -> None:
 
 
 def _print_addition_table(rows: list[dict[str, str]]) -> None:
-    headers = [
-        "workload",
-        "app_files",
-        "uv_workspace",
-        "dockerfile_copy",
-        "compose_service",
-        "runtime_conformance",
-        "catalog_component",
-        "app_tests",
-    ]
+    headers = READINESS_VIEW_HEADERS["addition"]
     print("\t".join(headers))
     for row in rows:
         print("\t".join(row[header] for header in headers))
@@ -517,21 +518,16 @@ def main() -> int:
         "--view",
         choices=sorted(READINESS_VIEW_HEADERS),
         default="summary",
-        help="Choose the human table view. JSON output always emits full readiness rows.",
+        help="Choose the human table view. JSON output emits rows for the selected view.",
     )
     parser.add_argument(
         "--check",
         action="store_true",
         help="Fail when declared workloads are missing paved-road delivery surfaces.",
     )
-    parser.add_argument(
-        "--addition-report",
-        action="store_true",
-        help="Show conventional files to check when adding or reviewing workloads.",
-    )
     args = parser.parse_args()
 
-    if args.addition_report:
+    if args.view == "addition":
         rows = addition_rows()
         if args.format == "json":
             print(json.dumps(rows, sort_keys=True))

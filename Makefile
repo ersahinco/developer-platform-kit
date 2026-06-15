@@ -195,10 +195,6 @@ test: ## Run test suite (requires local services and app running)
 runtime-conformance: ## Static proof ladder: build/run workloads against the portable contract
 	uv run pytest tests/runtime -v --run-runtime-conformance
 
-.PHONY: workload-addition-report
-workload-addition-report: ## Show conventional files to check when adding workloads
-	uv run python scripts/platform/workload_readiness.py --addition-report
-
 .PHONY: platform-doctor
 platform-doctor: ## Check local workstation readiness for the delivery toolkit
 	uv run python scripts/platform/doctor.py

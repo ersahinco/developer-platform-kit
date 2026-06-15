@@ -91,10 +91,10 @@ runtime realization.
 Inspect current declared classes and labels:
 
 ```bash
-make workload-addition-report
 make workload-capability-matrix
 make workload-readiness
 make workload-readiness-check
+uv run python scripts/platform/workload_readiness.py --view addition
 ```
 
 ## Add The Host
@@ -223,9 +223,9 @@ Managed provider-edge note:
 ## Verify
 
 ```bash
-make workload-addition-report
 make workload-readiness
 make workload-readiness-check
+uv run python scripts/platform/workload_readiness.py --view addition
 uv run pytest tests/contracts -q
 uv run pytest tests/apps -q
 make runtime-conformance

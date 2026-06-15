@@ -296,6 +296,16 @@ def test_workload_readiness_cli_outputs_scoped_views() -> None:
             "log_group",
             "config_contract",
         ],
+        "addition": [
+            "workload",
+            "app_files",
+            "uv_workspace",
+            "dockerfile_copy",
+            "compose_service",
+            "runtime_conformance",
+            "catalog_component",
+            "app_tests",
+        ],
     }
 
     for view, header in expected_headers.items():

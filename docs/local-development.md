@@ -13,7 +13,7 @@ Use the live workload contract when you need the current inventory:
 
 ```bash
 make workload-readiness
-make workload-addition-report
+uv run python scripts/platform/workload_readiness.py --view addition
 ```
 
 Local-only workloads still belong in `apps/` when they have a real contract,
