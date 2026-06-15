@@ -45,14 +45,10 @@ split by concern so ownership stays visible:
 ## Command Surface
 
 ```bash
-make local-kubernetes-doctor
-make local-kubernetes-validate
-make local-kubernetes-rollout-proof
-make local-kubernetes-dapr-proof
-make local-kubernetes-evidence-drill
-make local-kubernetes-evidence-bundle
+make local-kubernetes-contracts
 make local-kubernetes-admission-report
-make local-kubernetes-down
+make local-kubernetes-evidence-drill
+make local-kubernetes-rollout-proof
 ```
 
 The command explanations live in local development docs. This README owns what

@@ -72,19 +72,21 @@ make workload-readiness
 Use the local Kubernetes bootstrap only when you are proving that runtime target:
 
 ```bash
-make local-kubernetes-doctor
 make local-kubernetes-contracts
-make local-kubernetes-validate
+make local-kubernetes-admission-report
+make local-kubernetes-evidence-drill
 make lint-policy
 make lint-docs
 ```
 
 `local-kubernetes-contracts` is the fast static check used by CI.
-`local-kubernetes-validate` is the live proof. Success means Docker daemon
-access works, kind can create a local cluster, static Kubernetes manifests
-satisfy the workload contract, policy checks run, and docs links resolve. If a
-command fails before reaching Kubernetes, fix the toolchain first; if it fails
-inside the cluster, inspect the workload evidence.
+`local-kubernetes-admission-report` explains readiness before a live run.
+`local-kubernetes-evidence-drill` is the live proof. Success means Docker
+daemon access works, kind can create a local cluster, static Kubernetes
+manifests satisfy the workload contract, selected jobs complete, Dapr eventing
+works, and evidence is captured. If a command fails before reaching Kubernetes,
+fix the toolchain first; if it fails inside the cluster, inspect the workload
+evidence.
 
 Git hooks are active for commit and push. Install them from the repo-managed
 toolchain, not from a global Python:
@@ -130,13 +132,10 @@ explains when this rung is warranted; `infra/local-kubernetes/README.md` owns
 manifest boundaries and maintenance rules.
 
 ```bash
-make local-kubernetes-doctor
-make local-kubernetes-validate
-make local-kubernetes-rollout-proof
-make local-kubernetes-dapr-proof
-make local-kubernetes-evidence-drill
+make local-kubernetes-contracts
 make local-kubernetes-admission-report
-make local-kubernetes-down
+make local-kubernetes-rollout-proof
+make local-kubernetes-evidence-drill
 ```
 
 This proves selected workloads against Postgres, PgBouncer, Liquibase, Redis,
@@ -145,12 +144,10 @@ PersistentVolumeClaims. It is not cloud Kubernetes, Helm, CRDs, or a platform
 control plane.
 
 Use `make local-kubernetes-rollout-proof` for local API Deployment
-rollout/rollback evidence. Use `make local-kubernetes-dapr-proof` for the
-existing Dapr pub/sub workload boundary. Use
-`make local-kubernetes-evidence-drill` for the repeatable runtime evidence
-capture. Use `make local-kubernetes-evidence-bundle` against a running proof
-cluster when you need pods, events, logs, endpoints, rollout status, Dapr logs,
-and admission state in one artifact.
+rollout/rollback evidence. Use `make local-kubernetes-evidence-drill` for the
+repeatable runtime evidence capture; it includes the existing Dapr pub/sub
+workload boundary and captures pods, events, logs, endpoints, rollout status,
+Dapr logs, and admission state.
 
 ## Platform Toolkit Validation
 

@@ -247,14 +247,14 @@ platform-toolkit-smoke-local: ## Fast local smoke: API, Dapr, and one backfill b
 	@printf "\n==> Running one bounded backfill batch\n"
 	@$(MAKE) backfill-once
 
-.PHONY: local-kubernetes-doctor
-local-kubernetes-doctor: ## Check local Kubernetes proof prerequisites
+.PHONY: _local-kubernetes-doctor
+_local-kubernetes-doctor:
 	@command -v docker >/dev/null || (echo "docker is required for local-kubernetes" >&2; exit 1)
 	@command -v kind >/dev/null || (echo "kind is required for local-kubernetes" >&2; exit 1)
 	@command -v kubectl >/dev/null || (echo "kubectl is required for local-kubernetes" >&2; exit 1)
 
-.PHONY: local-kubernetes-build
-local-kubernetes-build: ## Build local images for the Kubernetes proof runtime
+.PHONY: _local-kubernetes-build
+_local-kubernetes-build:
 	docker build -f platform/workload.Dockerfile -t aws-sdlc-containers-api:$(LOCAL_KUBERNETES_TAG) --build-arg APP_PATH=apps/api --build-arg UV_PACKAGE=aws-sdlc-containers-api --build-arg WORKLOAD_CMD='uvicorn api.main:app --host 0.0.0.0 --port 8000' .
 	docker build -f platform/workload.Dockerfile -t aws-sdlc-containers-event-consumer:$(LOCAL_KUBERNETES_TAG) --build-arg APP_PATH=apps/event_consumer --build-arg UV_PACKAGE=aws-sdlc-containers-event-consumer --build-arg WORKLOAD_CMD='python -m event_consumer.main' .
 	docker build -f platform/workload.Dockerfile -t aws-sdlc-containers-backfill-worker:$(LOCAL_KUBERNETES_TAG) --build-arg APP_PATH=apps/backfill_worker --build-arg UV_PACKAGE=aws-sdlc-containers-backfill-worker --build-arg WORKLOAD_CMD='python -m backfill_worker.main' .
@@ -263,8 +263,8 @@ local-kubernetes-build: ## Build local images for the Kubernetes proof runtime
 	docker build -f platform/workload.Dockerfile -t aws-sdlc-containers-integration-check-job:$(LOCAL_KUBERNETES_TAG) --build-arg APP_PATH=apps/integration_check_job --build-arg UV_PACKAGE=aws-sdlc-containers-integration-check-job --build-arg WORKLOAD_CMD='python -m integration_check_job.main' .
 	docker build -t aws-sdlc-containers-liquibase:$(LOCAL_KUBERNETES_TAG) db
 
-.PHONY: local-kubernetes-up
-local-kubernetes-up: ## Create/reuse kind and load local Kubernetes proof images
+.PHONY: _local-kubernetes-up
+_local-kubernetes-up:
 	@kind get clusters | grep -qx "$(LOCAL_KUBERNETES_CLUSTER)" || kind create cluster --name "$(LOCAL_KUBERNETES_CLUSTER)"
 	kind load docker-image --name "$(LOCAL_KUBERNETES_CLUSTER)" aws-sdlc-containers-api:$(LOCAL_KUBERNETES_TAG)
 	kind load docker-image --name "$(LOCAL_KUBERNETES_CLUSTER)" aws-sdlc-containers-event-consumer:$(LOCAL_KUBERNETES_TAG)
@@ -274,8 +274,8 @@ local-kubernetes-up: ## Create/reuse kind and load local Kubernetes proof images
 	kind load docker-image --name "$(LOCAL_KUBERNETES_CLUSTER)" aws-sdlc-containers-integration-check-job:$(LOCAL_KUBERNETES_TAG)
 	kind load docker-image --name "$(LOCAL_KUBERNETES_CLUSTER)" aws-sdlc-containers-liquibase:$(LOCAL_KUBERNETES_TAG)
 
-.PHONY: local-kubernetes-apply
-local-kubernetes-apply: ## Apply local Kubernetes runtime manifests
+.PHONY: _local-kubernetes-apply
+_local-kubernetes-apply:
 	kubectl delete job liquibase backfill-worker data-export-job operational-snapshot-job integration-check-job -n "$(LOCAL_KUBERNETES_NAMESPACE)" --ignore-not-found
 	kubectl apply -k infra/local-kubernetes
 	kubectl wait --for=condition=available deployment/db -n "$(LOCAL_KUBERNETES_NAMESPACE)" --timeout=180s
@@ -285,8 +285,8 @@ local-kubernetes-apply: ## Apply local Kubernetes runtime manifests
 	kubectl wait --for=condition=available deployment/api -n "$(LOCAL_KUBERNETES_NAMESPACE)" --timeout=180s
 	kubectl wait --for=condition=available deployment/event-consumer -n "$(LOCAL_KUBERNETES_NAMESPACE)" --timeout=180s
 
-.PHONY: local-kubernetes-smoke
-local-kubernetes-smoke: ## Smoke test local Kubernetes API, Dapr eventing, and proof jobs
+.PHONY: _local-kubernetes-smoke
+_local-kubernetes-smoke:
 	kubectl wait --for=condition=complete job/backfill-worker -n "$(LOCAL_KUBERNETES_NAMESPACE)" --timeout=180s
 	kubectl wait --for=condition=complete job/data-export-job -n "$(LOCAL_KUBERNETES_NAMESPACE)" --timeout=180s
 	kubectl wait --for=condition=complete job/operational-snapshot-job -n "$(LOCAL_KUBERNETES_NAMESPACE)" --timeout=180s
@@ -303,52 +303,42 @@ local-kubernetes-smoke: ## Smoke test local Kubernetes API, Dapr eventing, and p
 	kubectl logs -n "$(LOCAL_KUBERNETES_NAMESPACE)" job/data-export-job | grep -q data_export_succeeded
 	kubectl logs -n "$(LOCAL_KUBERNETES_NAMESPACE)" job/operational-snapshot-job | grep -q operational_snapshot_succeeded
 	kubectl logs -n "$(LOCAL_KUBERNETES_NAMESPACE)" job/integration-check-job | grep -q integration_check_succeeded
-	$(MAKE) local-kubernetes-dapr-proof
+	$(MAKE) _local-kubernetes-dapr-proof
 
-.PHONY: local-kubernetes-down
-local-kubernetes-down: ## Delete the local Kubernetes proof cluster
+.PHONY: _local-kubernetes-down
+_local-kubernetes-down:
 	-kind delete cluster --name "$(LOCAL_KUBERNETES_CLUSTER)"
-
-.PHONY: local-kubernetes-validate
-local-kubernetes-validate: ## Validate selected workloads on local Kubernetes
-	@set -e; \
-		trap '$(MAKE) local-kubernetes-down' EXIT; \
-		$(MAKE) local-kubernetes-doctor; \
-		$(MAKE) local-kubernetes-build; \
-		$(MAKE) local-kubernetes-up; \
-		$(MAKE) local-kubernetes-apply; \
-		$(MAKE) local-kubernetes-smoke
 
 .PHONY: local-kubernetes-rollout-proof
 local-kubernetes-rollout-proof: ## Local Kubernetes proof ladder: API rollout/rollback evidence
 	@set -e; \
-		trap 'status=$$?; if [ $$status -ne 0 ]; then $(MAKE) local-kubernetes-evidence-bundle || true; fi; $(MAKE) local-kubernetes-down; exit $$status' EXIT; \
-		$(MAKE) local-kubernetes-doctor; \
-		$(MAKE) local-kubernetes-build; \
+		trap 'status=$$?; if [ $$status -ne 0 ]; then $(MAKE) _local-kubernetes-evidence-bundle || true; fi; $(MAKE) _local-kubernetes-down; exit $$status' EXIT; \
+		$(MAKE) _local-kubernetes-doctor; \
+		$(MAKE) _local-kubernetes-build; \
 		docker build -f platform/workload.Dockerfile -t aws-sdlc-containers-api:$(LOCAL_KUBERNETES_ROLLOUT_TAG) --build-arg APP_PATH=apps/api --build-arg UV_PACKAGE=aws-sdlc-containers-api --build-arg WORKLOAD_CMD='uvicorn api.main:app --host 0.0.0.0 --port 8000' .; \
-		$(MAKE) local-kubernetes-up; \
+		$(MAKE) _local-kubernetes-up; \
 		kind load docker-image --name "$(LOCAL_KUBERNETES_CLUSTER)" aws-sdlc-containers-api:$(LOCAL_KUBERNETES_ROLLOUT_TAG); \
-		$(MAKE) local-kubernetes-apply; \
+		$(MAKE) _local-kubernetes-apply; \
 		uv run python scripts/platform/local_kubernetes_proof.py --namespace "$(LOCAL_KUBERNETES_NAMESPACE)" --output-dir "$(LOCAL_KUBERNETES_EVIDENCE_DIR)" rollout-proof --candidate-image "aws-sdlc-containers-api:$(LOCAL_KUBERNETES_ROLLOUT_TAG)"; \
-		$(MAKE) local-kubernetes-evidence-bundle
+		$(MAKE) _local-kubernetes-evidence-bundle
 
-.PHONY: local-kubernetes-dapr-proof
-local-kubernetes-dapr-proof: ## Prove local Kubernetes Dapr eventing boundary
+.PHONY: _local-kubernetes-dapr-proof
+_local-kubernetes-dapr-proof:
 	uv run python scripts/platform/local_kubernetes_proof.py --namespace "$(LOCAL_KUBERNETES_NAMESPACE)" --output-dir "$(LOCAL_KUBERNETES_EVIDENCE_DIR)" dapr-eventing-proof
 
 .PHONY: local-kubernetes-evidence-drill
 local-kubernetes-evidence-drill: ## Local Kubernetes proof ladder: runtime evidence drill
 	@set -e; \
-		trap 'status=$$?; if [ $$status -ne 0 ]; then $(MAKE) local-kubernetes-evidence-bundle || true; fi; $(MAKE) local-kubernetes-down; exit $$status' EXIT; \
-		$(MAKE) local-kubernetes-doctor; \
-		$(MAKE) local-kubernetes-build; \
-		$(MAKE) local-kubernetes-up; \
-		$(MAKE) local-kubernetes-apply; \
-		$(MAKE) local-kubernetes-smoke; \
-		$(MAKE) local-kubernetes-evidence-bundle
+		trap 'status=$$?; if [ $$status -ne 0 ]; then $(MAKE) _local-kubernetes-evidence-bundle || true; fi; $(MAKE) _local-kubernetes-down; exit $$status' EXIT; \
+		$(MAKE) _local-kubernetes-doctor; \
+		$(MAKE) _local-kubernetes-build; \
+		$(MAKE) _local-kubernetes-up; \
+		$(MAKE) _local-kubernetes-apply; \
+		$(MAKE) _local-kubernetes-smoke; \
+		$(MAKE) _local-kubernetes-evidence-bundle
 
-.PHONY: local-kubernetes-evidence-bundle
-local-kubernetes-evidence-bundle: ## Capture local Kubernetes pods, events, logs, endpoints, and admission state
+.PHONY: _local-kubernetes-evidence-bundle
+_local-kubernetes-evidence-bundle:
 	uv run python scripts/platform/local_kubernetes_proof.py --namespace "$(LOCAL_KUBERNETES_NAMESPACE)" --output-dir "$(LOCAL_KUBERNETES_EVIDENCE_DIR)" evidence-bundle
 
 .PHONY: local-kubernetes-admission-report
