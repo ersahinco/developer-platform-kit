@@ -39,8 +39,8 @@ from decimal import Decimal
 from urllib.parse import urlparse
 
 import httpx
-from scripts.platform.workload_metadata import primary_edge_service_workload
-from scripts.platform.workload_metadata import workload_hostname_label
+from scripts.platform.workload_read_model import primary_edge_service_workload
+from scripts.platform.workload_read_model import workload_hostname_label
 
 
 @dataclass(frozen=True)

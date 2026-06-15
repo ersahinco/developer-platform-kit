@@ -36,7 +36,7 @@ from urllib.parse import urlparse
 
 import httpx
 from scripts.observability.platform_inventory import edge_service_repository
-from scripts.platform.workload_metadata import primary_edge_contract
+from scripts.platform.workload_read_model import primary_edge_contract
 
 
 @dataclass

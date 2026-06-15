@@ -11,7 +11,7 @@ from typing import Any
 ROOT = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(ROOT))
 
-from scripts.platform.workload_metadata import (  # noqa: E402
+from scripts.platform.workload_read_model import (  # noqa: E402
     workload_operational_class,
     workload_repository,
     workloads,

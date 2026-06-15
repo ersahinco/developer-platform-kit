@@ -3,9 +3,9 @@ from __future__ import annotations
 from functools import lru_cache
 import sys
 
-from scripts.platform.workload_metadata import primary_edge_service_workload
-from scripts.platform.workload_metadata import workload_capability_rows
-from scripts.platform.workload_metadata import workload_hostname_label
+from scripts.platform.workload_read_model import primary_edge_service_workload
+from scripts.platform.workload_read_model import workload_capability_rows
+from scripts.platform.workload_read_model import workload_hostname_label
 
 DEFAULT_STACK_NAME = "aws-sdlc-containers"
 DEFAULT_AWS_REGION = "eu-central-1"

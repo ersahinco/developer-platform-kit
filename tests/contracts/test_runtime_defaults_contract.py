@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from scripts.platform.workload_metadata import current_runtime_capability_rows
+from scripts.platform.workload_read_model import current_runtime_capability_rows
 
 from ._helpers import ROOT
 from ._helpers import load_json
