@@ -197,15 +197,15 @@ runtime-conformance: ## Static proof ladder: build/run workloads against the por
 
 .PHONY: workload-addition-report
 workload-addition-report: ## Show conventional files to check when adding workloads
-	python3 scripts/platform/workload_readiness.py --addition-report
+	uv run python scripts/platform/workload_readiness.py --addition-report
 
 .PHONY: platform-doctor
 platform-doctor: ## Check local workstation readiness for the delivery toolkit
-	python3 scripts/platform/doctor.py
+	uv run python scripts/platform/doctor.py
 
 .PHONY: platform-doctor-cloud
 platform-doctor-cloud: ## Check local plus cloud/operator readiness for the delivery toolkit
-	python3 scripts/platform/doctor.py --cloud
+	uv run python scripts/platform/doctor.py --cloud
 
 .PHONY: platform-toolkit-validate-local
 platform-toolkit-validate-local: ## Local Compose proof ladder: validate API, Dapr, jobs, and conformance
@@ -477,11 +477,11 @@ platform-toolkit-validate-cloud: ## AWS ECS proof ladder: run safe cloud readine
 .PHONY: workflow-dry-run-commands
 workflow-dry-run-commands: ## Print safe GitHub workflow dry-run dispatch commands
 	@IMAGE_TAG="$(IMAGE_TAG)" PLAN_RUN_ID="$(PLAN_RUN_ID)" TARGET_WORKLOAD="$(TARGET_WORKLOAD)" SCHEMA_PHASE="$(SCHEMA_PHASE)" SWITCH_STEP="$(SWITCH_STEP)" \
-		python3 scripts/ci/workflow_dry_run_commands.py commands
+		uv run python scripts/ci/workflow_dry_run_commands.py commands
 
 .PHONY: workflow-dry-run-validate
 workflow-dry-run-validate: ## Validate dry-run commands against local workflow input names
-	python3 scripts/ci/workflow_dry_run_commands.py validate-local
+	uv run python scripts/ci/workflow_dry_run_commands.py validate-local
 
 .PHONY: workflow-dry-run-validate-gh
 workflow-dry-run-validate-gh: workflow-dry-run-validate ## Check GitHub CLI auth before dispatching workflow dry runs
@@ -646,19 +646,19 @@ workload-capability-matrix: ## Print the declared workload capability matrix fro
 
 .PHONY: workload-readiness
 workload-readiness: ## Static proof ladder: summarize runtime readiness and evidence surfaces
-	@python3 scripts/platform/workload_readiness.py --view summary
+	@uv run python scripts/platform/workload_readiness.py --view summary
 
 .PHONY: workload-readiness-local
 workload-readiness-local: ## Static proof ladder: show local Compose and local Kubernetes readiness
-	@python3 scripts/platform/workload_readiness.py --view local
+	@uv run python scripts/platform/workload_readiness.py --view local
 
 .PHONY: workload-readiness-cloud
 workload-readiness-cloud: ## AWS ECS proof ladder: show cloud admission, workflow, and evidence readiness
-	@python3 scripts/platform/workload_readiness.py --view aws
+	@uv run python scripts/platform/workload_readiness.py --view aws
 
 .PHONY: workload-readiness-check
 workload-readiness-check: ## Fail when declared workloads lack paved-road readiness
-	@python3 scripts/platform/workload_readiness.py --view summary --check
+	@uv run python scripts/platform/workload_readiness.py --view summary --check
 
 .PHONY: workload-fit-check
 workload-fit-check: ## Evaluate a draft externally operated workload before admission

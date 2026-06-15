@@ -8,6 +8,8 @@ import sys
 import tomllib
 from typing import Any
 
+import yaml
+
 ROOT = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(ROOT))
 
@@ -204,38 +206,26 @@ def _config_contract(workload: dict[str, Any]) -> str:
 
 
 def _compose_service_names(path: Path) -> set[str]:
-    services: set[str] = set()
-    in_services = False
-    for line in path.read_text(encoding="utf-8").splitlines():
-        if not line.strip() or line.lstrip().startswith("#"):
-            continue
-        if line == "services:":
-            in_services = True
-            continue
-        if in_services and not line.startswith(" "):
-            break
-        if in_services and line.startswith("  ") and not line.startswith("    "):
-            name = line.strip().removesuffix(":")
-            if name:
-                services.add(name)
-    return services
+    document = yaml.safe_load(path.read_text(encoding="utf-8"))
+    if not isinstance(document, dict):
+        return set()
+    services = document.get("services", {})
+    if not isinstance(services, dict):
+        return set()
+    return {str(name) for name in services}
 
 
 def _catalog_targets(path: Path) -> set[str]:
-    targets: set[str] = set()
-    in_targets = False
-    for line in path.read_text(encoding="utf-8").splitlines():
-        stripped = line.strip()
-        if stripped == "targets:":
-            in_targets = True
-            continue
-        if in_targets and stripped.startswith("- "):
-            target = stripped.removeprefix("- ").removeprefix("./")
-            targets.add(target)
-            continue
-        if in_targets and stripped and not line.startswith(" "):
-            break
-    return targets
+    document = yaml.safe_load(path.read_text(encoding="utf-8"))
+    if not isinstance(document, dict):
+        return set()
+    spec = document.get("spec", {})
+    if not isinstance(spec, dict):
+        return set()
+    targets = spec.get("targets", [])
+    if not isinstance(targets, list):
+        return set()
+    return {str(target).removeprefix("./") for target in targets}
 
 
 def addition_rows() -> list[dict[str, str]]:

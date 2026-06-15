@@ -6,6 +6,8 @@ from pathlib import Path
 import shlex
 import sys
 
+import yaml
+
 
 ROOT = Path(__file__).resolve().parents[2]
 WORKFLOW_DIR = ROOT / ".github" / "workflows"
@@ -109,37 +111,19 @@ def dispatch_command(workflow: DryRunWorkflow) -> str:
 
 
 def workflow_dispatch_inputs(path: Path) -> set[str]:
-    lines = path.read_text().splitlines()
-    in_dispatch = False
-    in_inputs = False
-    dispatch_indent = 0
-    inputs_indent = 0
-    names: set[str] = set()
-
-    for line in lines:
-        stripped = line.strip()
-        if not stripped or stripped.startswith("#"):
-            continue
-        indent = len(line) - len(line.lstrip(" "))
-        if stripped == "workflow_dispatch:":
-            in_dispatch = True
-            in_inputs = False
-            dispatch_indent = indent
-            continue
-        if in_dispatch and indent <= dispatch_indent and stripped.endswith(":"):
-            in_dispatch = False
-            in_inputs = False
-        if not in_dispatch:
-            continue
-        if stripped == "inputs:":
-            in_inputs = True
-            inputs_indent = indent
-            continue
-        if in_inputs and indent <= inputs_indent and stripped.endswith(":"):
-            in_inputs = False
-        if in_inputs and indent == inputs_indent + 2 and stripped.endswith(":"):
-            names.add(stripped[:-1])
-    return names
+    workflow = yaml.load(path.read_text(encoding="utf-8"), Loader=yaml.BaseLoader)
+    if not isinstance(workflow, dict):
+        return set()
+    triggers = workflow.get("on", {})
+    if not isinstance(triggers, dict):
+        return set()
+    dispatch = triggers.get("workflow_dispatch", {})
+    if not isinstance(dispatch, dict):
+        return set()
+    inputs = dispatch.get("inputs", {})
+    if not isinstance(inputs, dict):
+        return set()
+    return {str(name) for name in inputs}
 
 
 def validate_local() -> int:

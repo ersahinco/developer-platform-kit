@@ -11,6 +11,35 @@ def test_dry_run_commands_use_declared_workflow_dispatch_inputs() -> None:
         assert generated <= declared
 
 
+def test_workflow_dispatch_inputs_use_yaml_shape(tmp_path) -> None:
+    workflow = tmp_path / "workflow.yml"
+    workflow.write_text(
+        """
+name: Example
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+    # comments and nested metadata must not become input names
+    inputs:
+      image_tag:
+        description: immutable image tag
+      dry_run:
+        type: boolean
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    steps: []
+""",
+        encoding="utf-8",
+    )
+
+    assert workflow_dry_run_commands.workflow_dispatch_inputs(workflow) == {
+        "dry_run",
+        "image_tag",
+    }
+
+
 def test_dry_run_commands_are_non_destructive() -> None:
     commands = [
         workflow_dry_run_commands.dispatch_command(workflow)

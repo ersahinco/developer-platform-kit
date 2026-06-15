@@ -44,6 +44,41 @@ def test_workload_addition_report_reads_compose_and_catalog_shapes() -> None:
     assert "catalog/support-triage-llm-component.yaml" in catalog_targets
 
 
+def test_workload_addition_report_reads_yaml_shapes(tmp_path) -> None:
+    compose = tmp_path / "compose.yaml"
+    compose.write_text(
+        """
+name: example
+services:
+  api:
+    image: example-api
+  worker:
+    profiles: ["jobs"]
+networks:
+  default: {}
+""",
+        encoding="utf-8",
+    )
+    catalog = tmp_path / "catalog-info.yaml"
+    catalog.write_text(
+        """
+apiVersion: backstage.io/v1alpha1
+kind: Location
+spec:
+  targets:
+    - ./catalog/api-component.yaml
+    - catalog/worker-component.yaml
+""",
+        encoding="utf-8",
+    )
+
+    assert _compose_service_names(compose) == {"api", "worker"}
+    assert _catalog_targets(catalog) == {
+        "catalog/api-component.yaml",
+        "catalog/worker-component.yaml",
+    }
+
+
 def test_workload_readiness_shows_paved_road_surfaces() -> None:
     rows = {row["workload"]: row for row in readiness_rows()}
 
