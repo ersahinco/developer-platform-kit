@@ -200,12 +200,16 @@ jobs:
           LOKI_PUSH_URL: ${{ secrets.LOKI_PUSH_URL || vars.LOKI_PUSH_URL }}
           LOKI_URL: ${{ vars.LOKI_URL }}
         run: |
+          evidence_workload_id="${{ inputs.target_workload }}"
+          if [[ "$evidence_workload_id" == "all" ]]; then
+            evidence_workload_id="support-tasks"
+          fi
           python3 -m scripts.observability.release_event \
             --event-type data_support_deploy \
             --status "${{ needs.deploy_support.result }}" \
             --summary "Data support deploy completed for target ${{ inputs.target_workload }} with status ${{ needs.deploy_support.result }}" \
             --service-name data-support \
-            --workload-id support-tasks \
+            --workload-id "$evidence_workload_id" \
             --image-tag "${{ env.IMAGE_TAG }}" \
             --deployment-id "${{ needs.deploy_support.outputs.promoted_task_definitions }}" \
             --include-alarms \

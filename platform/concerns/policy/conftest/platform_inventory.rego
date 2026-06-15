@@ -24,15 +24,6 @@ allowed_maturity_levels := {
   "deprecated",
 }
 
-required_adapter_seam_keys := {
-  "adapter_seam",
-  "capability",
-  "contract_surface",
-  "current_implementation",
-  "runtime_seam",
-  "runtime_target",
-}
-
 deny contains msg if {
   data.conftest.file.name == "platform-inventory.json"
   not input.schema_version
@@ -108,16 +99,8 @@ deny contains msg if {
 
 deny contains msg if {
   data.conftest.file.name == "platform-inventory.json"
-  object.get(input, "candidate_runtime_capabilities", []) != []
-  not is_array(input.candidate_runtime_capabilities)
-  msg := "platform/platform-inventory.json candidate_runtime_capabilities must be an array when present"
-}
-
-deny contains msg if {
-  data.conftest.file.name == "platform-inventory.json"
-  some row in object.get(input, "candidate_runtime_capabilities", [])
-  object.keys(row) != required_runtime_capability_keys
-  msg := "every candidate runtime capability row must contain only capability, contract_surface, runtime_target, maturity, implementation, and replacement_seam"
+  object.get(input, "candidate_runtime_capabilities", null) != null
+  msg := "platform/platform-inventory.json must not own candidate_runtime_capabilities; use platform/runtime-defaults.json"
 }
 
 deny contains msg if {
@@ -132,30 +115,4 @@ deny contains msg if {
   some row in input.runtime_capabilities
   not row.maturity in allowed_maturity_levels
   msg := sprintf("runtime capability %s/%s has unsupported maturity %s", [row.runtime_target, row.capability, row.maturity])
-}
-
-deny contains msg if {
-  data.conftest.file.name == "platform-inventory.json"
-  some row in object.get(input, "candidate_runtime_capabilities", [])
-  row.maturity != "candidate"
-  msg := sprintf("candidate runtime capability %s/%s must have candidate maturity", [row.runtime_target, row.capability])
-}
-
-deny contains msg if {
-  data.conftest.file.name == "platform-inventory.json"
-  not is_array(input.adapter_seams)
-  msg := "platform/platform-inventory.json adapter_seams must be an array"
-}
-
-deny contains msg if {
-  data.conftest.file.name == "platform-inventory.json"
-  count(input.adapter_seams) == 0
-  msg := "platform/platform-inventory.json must declare at least one adapter seam"
-}
-
-deny contains msg if {
-  data.conftest.file.name == "platform-inventory.json"
-  some row in input.adapter_seams
-  object.keys(row) != required_adapter_seam_keys
-  msg := "every adapter seam row must contain only capability, contract_surface, adapter_seam, runtime_target, current_implementation, and runtime_seam"
 }

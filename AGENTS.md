@@ -32,9 +32,9 @@ catalog.
 
 - The workload contract defines what a workload is, what it needs, and what guarantees it must satisfy.
 - The platform catalog provides reusable building blocks, templates, modules, policies, and delivery paths that realize those needs.
-- A runtime target is a pluggable implementation choice at the platform edge, such as local Compose, AWS ECS, jobs, or a future provider-edge integration backed by a real workload need.
+- A runtime target is a pluggable implementation choice at the platform edge, such as local Compose, local Kubernetes proof, AWS ECS, jobs, or a future provider-edge integration backed by a real workload need.
 - Runtime targets must realize the contract, not redefine workload identity, portability rules, or shared delivery policy.
-- The current local runtime target is Docker Compose. The current reviewed production runtime target is AWS/ECS. Additional runtime targets need a real workload reason and clear ownership.
+- The active local proof runtime targets are `local-compose` and `local-kubernetes`. The current reviewed production runtime target is AWS/ECS. Additional runtime targets need a real workload reason and clear ownership.
 
 ## Layer Map
 
@@ -76,9 +76,11 @@ Declare one class in `platform/workloads.json` for every workload:
 | `operator-job` | One-off task triggered manually or by CI/operator |
 | `scheduled-job` | Recurring task triggered by a scheduler |
 
-Current: `api` -> `edge-service`; `event_consumer` -> `internal-service`;
-`backfill_worker` -> `operator-job`; `data_export_job` -> `scheduled-job`;
-`operational_snapshot_job` -> `operator-job`; `integration_check_job` -> `operator-job`
+Use the live inventory instead of copying workload lists into this file:
+
+```bash
+make workload-readiness
+```
 
 ## Workload Contract
 

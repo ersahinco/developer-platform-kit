@@ -245,3 +245,20 @@ def test_operator_payloads_embed_runtime_correlation_inputs() -> None:
         assert "scripts/ci/extract_operator_event.py" in text
         for expected_input in expected_inputs:
             assert expected_input in text, f"{workflow_name} missing {expected_input}"
+
+
+def test_app_deploy_emits_app_host_set_evidence() -> None:
+    text = _workflow_text("app-deploy.yml")
+
+    assert "app_host_workloads" in text
+    assert "steps.internal-services.outputs.internal_workloads" in text
+    assert 'related_workload_args+=(--related-workload-id "$workload_id")' in text
+    assert '"${related_workload_args[@]}"' in text
+
+
+def test_data_support_deploy_emits_targeted_workload_evidence() -> None:
+    text = _workflow_text("data-support-deploy.yml")
+
+    assert 'evidence_workload_id="${{ inputs.target_workload }}"' in text
+    assert 'if [[ "$evidence_workload_id" == "all" ]]' in text
+    assert '--workload-id "$evidence_workload_id"' in text

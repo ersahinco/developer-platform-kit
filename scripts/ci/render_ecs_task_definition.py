@@ -259,6 +259,38 @@ def _declared_environment(
     ]
 
 
+def _workload_display_name(workload: dict[str, Any]) -> str:
+    return str(workload.get("name") or workload_repository(workload) or "unknown")
+
+
+def _service_port(workload: dict[str, Any]) -> int:
+    service = workload.get("service")
+    workload_name = _workload_display_name(workload)
+    if not isinstance(service, dict):
+        raise RuntimeError(
+            f"service workload {workload_name!r} must declare service.port for AWS ECS"
+        )
+    raw_port = service.get("port")
+    if not isinstance(raw_port, int | str):
+        raise RuntimeError(
+            f"service workload {workload_name!r} declares invalid service.port "
+            f"for AWS ECS: {raw_port!r}"
+        )
+    try:
+        port = int(raw_port)
+    except (TypeError, ValueError) as error:
+        raise RuntimeError(
+            f"service workload {workload_name!r} declares invalid service.port "
+            f"for AWS ECS: {raw_port!r}"
+        ) from error
+    if port < 1 or port > 65535:
+        raise RuntimeError(
+            f"service workload {workload_name!r} declares invalid service.port "
+            f"for AWS ECS: {raw_port!r}"
+        )
+    return port
+
+
 def _declared_env_names(workload: dict[str, Any]) -> set[str]:
     config = workload.get("config", {})
     declared = config.get("env", []) if isinstance(config, dict) else []
@@ -271,10 +303,24 @@ def _declared_secrets(
 ) -> list[dict[str, str]]:
     config = workload.get("config", {})
     declared = config.get("secrets", []) if isinstance(config, dict) else []
+    declared_secret_names = [
+        secret_name
+        for secret_name in declared
+        if isinstance(secret_name, str) and secret_name
+    ]
+    missing = [
+        secret_name
+        for secret_name in declared_secret_names
+        if secret_name not in secret_values
+    ]
+    if missing:
+        raise RuntimeError(
+            f"workload {_workload_display_name(workload)!r} declares AWS runtime secrets without "
+            f"a runtime mapping: {', '.join(missing)}"
+        )
     return [
         {"name": secret_name, "valueFrom": secret_values[secret_name]}
-        for secret_name in declared
-        if isinstance(secret_name, str) and secret_name in secret_values
+        for secret_name in declared_secret_names
     ]
 
 
@@ -396,7 +442,7 @@ def _render_primary_edge(
     primary_edge_task_role_arn: str,
 ) -> dict[str, Any]:
     repository = workload_repository(workload)
-    service_port = int(workload["service"]["port"])
+    service_port = _service_port(workload)
     runtime_shape = _runtime_shape_for_workload(workload)
     enable_adot_sidecar = _parse_bool(os.getenv("ENABLE_ADOT_SIDECAR"), default=True)
     declared_env = _declared_environment(
@@ -620,7 +666,7 @@ def _render_internal_async_service(
     db_secret_arn: str,
 ) -> dict[str, Any]:
     repository = workload_repository(workload)
-    service_port = int(workload["service"]["port"])
+    service_port = _service_port(workload)
     runtime_shape = _runtime_shape_for_workload(workload)
     dapr = workload["dapr"]
     runtime_config_bucket = f"{stack_name}-runtime-config-{account_id}"

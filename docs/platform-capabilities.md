@@ -12,19 +12,19 @@ Use:
 Start with these operator views:
 
 ```bash
+make workload-readiness
 make capability-implementation-matrix
-make capability-proof-local
-make capability-proof-local-live
+make runtime-defaults
 make enterprise-runtime-fit-check
 ```
 
 Use `make help` or the runtime docs when you need the narrower inventory,
-candidate, adapter-seam, or cloud-wiring views.
+candidate, or cloud-wiring views.
 
 ## Capability Maturity
 
-Capability and runtime-target maturity is explicit in
-`platform/platform-inventory.json`:
+Capability and runtime-target maturity is explicit on each row in
+`platform/platform-inventory.json`. Allowed values:
 
 | Maturity | Meaning |
 |---|---|
@@ -122,15 +122,15 @@ Rule:
 - do not turn the contract into deployment choreography
 - keep local fast enough to stay the default development loop
 
-Future runtime replacements should plug in at the seams shown by
-`make capability-implementation-matrix`, `make candidate-capability-matrix`, and
-`make adapter-seam-matrix`.
+Future runtime replacements should plug in at the seams named below and in the
+replacement seams in `platform/platform-inventory.json`. Use
+`make capability-implementation-matrix`, `make runtime-defaults`, and
+`make enterprise-runtime-fit-check` for executable views.
 
-Use `make capability-proof-local` to see current local evidence behind each
-active runtime capability. Use `make capability-proof-cloud` to inspect AWS
-wiring evidence; it is not a live deployed-cloud probe. Use
-`make capability-proof-local-live` for an isolated live local drill that starts
-Compose, enables token auth, probes runtime behavior, and cleans up. Use
+Use `make workload-readiness` and `make workload-readiness-cloud` to inspect
+declared workload proof surfaces. Use `make capability-proof-local-live` only
+when you need the isolated live Compose drill for token auth, health,
+readiness, metrics, logs, and local observability. Use
 `make enterprise-runtime-fit-check` to see why candidate enterprise capabilities
 remain candidate-only.
 

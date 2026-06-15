@@ -2,10 +2,9 @@ from __future__ import annotations
 
 from functools import lru_cache
 import sys
-from typing import Any
 
-from scripts.platform.workload_metadata import platform_inventory
 from scripts.platform.workload_metadata import primary_edge_service_workload
+from scripts.platform.workload_metadata import workload_capability_rows
 from scripts.platform.workload_metadata import workload_hostname_label
 
 DEFAULT_STACK_NAME = "aws-sdlc-containers"
@@ -79,12 +78,8 @@ _WORKLOAD_ALARM_SUFFIXES_BY_NAME = {
 
 
 @lru_cache(maxsize=1)
-def _platform_inventory() -> dict[str, Any]:
-    return platform_inventory()
-
-
 def _workload_rows() -> list[dict[str, str]]:
-    rows = _platform_inventory().get("workloads", [])
+    rows = workload_capability_rows()
     return [row for row in rows if isinstance(row, dict)]
 
 

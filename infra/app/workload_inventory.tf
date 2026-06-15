@@ -183,6 +183,21 @@ locals {
     PRIMARY_EDGE_AUTH_TOKEN = local.primary_edge_auth_token_secret_arn
   }
 
+  unmapped_workload_secrets = flatten([
+    for name, workload in local.workloads_by_name : [
+      for secret_name in workload.config.secrets : "${name}:${secret_name}"
+      if !contains(keys(local.shared_secret_value_from), secret_name)
+    ]
+  ])
+
+  aws_admitted_service_port_gaps = [
+    for name, workload in local.workloads_by_name : name
+    if workload.kind == "service" && !try(
+      tonumber(workload.service.port) >= 1 && tonumber(workload.service.port) <= 65535,
+      false
+    )
+  ]
+
   workload_env_values = {
     for name, workload in local.workloads_by_name :
     name => merge(
@@ -223,5 +238,25 @@ locals {
       }
       if contains(keys(local.workload_secret_values[name]), secret_name)
     ]
+  }
+}
+
+check "aws_admitted_workload_secrets_are_mapped" {
+  assert {
+    condition = length(local.unmapped_workload_secrets) == 0
+    error_message = format(
+      "AWS-admitted workload config.secrets must be mapped by local.shared_secret_value_from: %s",
+      join(", ", local.unmapped_workload_secrets)
+    )
+  }
+}
+
+check "aws_admitted_services_have_runtime_ports" {
+  assert {
+    condition = length(local.aws_admitted_service_port_gaps) == 0
+    error_message = format(
+      "AWS-admitted service workloads must declare a valid service.port for ECS health checks and port mappings: %s",
+      join(", ", local.aws_admitted_service_port_gaps)
+    )
   }
 }

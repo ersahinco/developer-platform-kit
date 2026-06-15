@@ -532,6 +532,25 @@ def test_release_event_writes_markdown_json_and_jsonl(tmp_path: Path) -> None:
     assert event["alarm_snapshot"]["alarms"][0]["state"] == "OK"
 
 
+def test_release_event_captures_related_workloads_in_artifact(
+    tmp_path: Path,
+) -> None:
+    event = _release_event(
+        related_workload_ids=["api", "event_consumer", "api", ""],
+    )
+
+    json_path, _, markdown_path = release_event.write_event(event, tmp_path)
+    written_event = json.loads(json_path.read_text(encoding="utf-8"))
+    markdown = markdown_path.read_text(encoding="utf-8")
+
+    assert written_event["related_workload_ids"] == ["api", "event_consumer"]
+    assert written_event["correlation"]["related_workload_ids"] == [
+        "api",
+        "event_consumer",
+    ]
+    assert "Related workloads: `api`, `event_consumer`" in markdown
+
+
 def test_release_event_exposes_required_correlation_keys() -> None:
     task_arn = "arn:aws:ecs:eu-central-1:123456789012:task/cluster/task-id"
     event = _release_event(deployment_id=task_arn)
@@ -548,6 +567,7 @@ def test_release_event_exposes_required_correlation_keys() -> None:
         "service": "api",
         "runtime_id": "aws-ecs",
         "workload_id": "api",
+        "related_workload_ids": [],
         "deployment_id": task_arn,
         "image_digest": None,
         "image_tag": TEST_IMAGE_TAG,

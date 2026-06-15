@@ -97,15 +97,6 @@ ACTIVE_EVIDENCE_SEAMS = {
     ],
 }
 
-CANDIDATE_CAPABILITY_KEYS = {
-    "capability",
-    "contract_surface",
-    "runtime_target",
-    "maturity",
-    "implementation",
-    "replacement_seam",
-}
-
 
 def test_active_runtime_targets_have_blessed_defaults() -> None:
     inventory = load_json("platform/platform-inventory.json")
@@ -131,8 +122,7 @@ def test_active_runtime_targets_have_blessed_defaults() -> None:
 
 def test_runtime_capability_maturity_is_explicit_and_consistent() -> None:
     inventory = load_json("platform/platform-inventory.json")
-
-    assert set(inventory["capability_maturity_levels"]) == CAPABILITY_MATURITY_LEVELS
+    runtime_defaults = load_json("platform/runtime-defaults.json")
 
     target_maturity = {
         target["id"]: target["maturity"] for target in inventory["runtime_targets"]
@@ -142,12 +132,14 @@ def test_runtime_capability_maturity_is_explicit_and_consistent() -> None:
         "local-kubernetes": "active-local-proof",
         "aws-ecs": "active-production-runtime",
     }
+    assert set(target_maturity.values()) <= CAPABILITY_MATURITY_LEVELS
 
     for row in inventory["runtime_capabilities"]:
+        assert row["maturity"] in CAPABILITY_MATURITY_LEVELS
         assert row["maturity"] == target_maturity[row["runtime_target"]]
 
-    for row in inventory["candidate_runtime_capabilities"]:
-        assert row["maturity"] == "candidate"
+    for profile in runtime_defaults["candidate_runtime_profiles"].values():
+        assert profile["status"] == "candidate"
 
 
 def test_enterprise_runtime_profile_is_candidate_not_active_target() -> None:
@@ -200,8 +192,11 @@ def test_enterprise_candidate_defaults_are_candidate_capabilities_only() -> None
     runtime_defaults = load_json("platform/runtime-defaults.json")
 
     candidate_pairs = {
-        (row["runtime_target"], row["capability"])
-        for row in inventory["candidate_runtime_capabilities"]
+        (runtime_target, default["capability"])
+        for runtime_target, profile in runtime_defaults[
+            "candidate_runtime_profiles"
+        ].items()
+        for default in profile["defaults"].values()
     }
     active_pairs = {
         (row["runtime_target"], row["capability"])
@@ -229,21 +224,23 @@ def test_enterprise_candidate_defaults_are_candidate_capabilities_only() -> None
     assert ENTERPRISE_RELEVANT_CAPABILITIES.issubset(candidate_capabilities)
 
 
-def test_candidate_runtime_capabilities_stay_descriptive() -> None:
+def test_candidate_runtime_profiles_stay_descriptive() -> None:
     inventory = load_json("platform/platform-inventory.json")
     runtime_defaults = load_json("platform/runtime-defaults.json")
 
     active_targets = {target["id"] for target in inventory["runtime_targets"]}
-    candidate_profiles = set(runtime_defaults["candidate_runtime_profiles"])
-
-    for row in inventory["candidate_runtime_capabilities"]:
-        assert set(row) == CANDIDATE_CAPABILITY_KEYS
-        assert row["maturity"] == "candidate"
-        assert row["runtime_target"] in candidate_profiles
-        assert row["runtime_target"] not in active_targets
-        assert row["implementation"].startswith("Candidate runtime choice only;")
-        assert "future " in row["replacement_seam"]
-        assert "infra/" not in row["replacement_seam"]
+    for runtime_target, profile in runtime_defaults[
+        "candidate_runtime_profiles"
+    ].items():
+        assert runtime_target not in active_targets
+        assert profile["status"] == "candidate"
+        assert profile["owner"] == "future-runtime-owner-required"
+        for default in profile["defaults"].values():
+            assert default["capability"]
+            assert default["default"]
+            assert default["realization"]
+            assert default["evidence"]
+            assert "infra/" not in default["realization"]
 
 
 def test_active_capability_rows_point_to_real_evidence_seams() -> None:

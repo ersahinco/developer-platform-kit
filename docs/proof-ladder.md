@@ -12,7 +12,7 @@ cannot prove the boundary you care about.
 | Rung | Use it for | Primary commands | Owner |
 |---|---|---|---|
 | Static contracts | Workload shape, runtime support/admission, docs links, policy, and manifest contracts | `make workload-readiness`, `make local-kubernetes-contracts`, `make runtime-conformance` | `platform/`, `tests/contracts/`, `tests/runtime/` |
-| Local Compose | Fast app host proof with local database, Dapr, observability, jobs, and runtime fixtures | `make dev`, `make local-up`, `make platform-toolkit-smoke-local` | `compose.yaml`, `platform/runtime-conformance.json` |
+| Local Compose | Fast app host proof with local database, Dapr, jobs, runtime fixtures, and optional observability | `make dev`, `make local-app-up`, `make platform-toolkit-smoke-local`, `make local-up` | `compose.yaml`, `platform/runtime-conformance.json` |
 | Local Kubernetes evidence drill | Local proof for Services, probes, Jobs, ConfigMaps, Secrets, service identity, rollout/rollback, Dapr sidecar wiring, endpoints, logs, and events | `make local-kubernetes-evidence-drill`, `make local-kubernetes-rollout-proof`, `make local-kubernetes-admission-report` | `infra/local-kubernetes/`, `scripts/platform/local_kubernetes/` |
 | AWS ECS evidence | Reviewed production runtime proof with immutable images, IAM, ALB/WAF, RDS, SNS/SQS behind Dapr, S3, scheduled jobs, CloudWatch, and release evidence | `make platform-toolkit-validate-cloud`, `make release-evidence-runs`, `make operational-snapshot-cloud` | `.github/workflows/`, `infra/app/`, `scripts/observability/` |
 

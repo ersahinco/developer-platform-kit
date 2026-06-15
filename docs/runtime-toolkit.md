@@ -208,11 +208,8 @@ Inspection commands:
 ```bash
 make workload-capability-matrix
 make capability-implementation-matrix
-make candidate-capability-matrix
-make adapter-seam-matrix
-make capability-proof-local
-make capability-proof-local-live
-make capability-proof-cloud
+make runtime-defaults
+make enterprise-runtime-fit-check
 ```
 
 For current AWS rollout and operator flow, use [Deployment](deployment.md).

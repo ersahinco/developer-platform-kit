@@ -7,6 +7,7 @@ from dataclasses import dataclass
 import os
 from pathlib import Path
 import shutil
+import socket
 import subprocess
 import sys
 
@@ -16,8 +17,8 @@ Runner = Callable[[list[str]], subprocess.CompletedProcess[str]]
 
 LOCAL_OPERATOR_PATH = (
     "make workload-readiness-check",
-    "make platform-toolkit-validate-local",
     "make platform-toolkit-smoke-local",
+    "make platform-toolkit-validate-local",
 )
 
 CLOUD_OPERATOR_PATH = (
@@ -28,6 +29,20 @@ CLOUD_OPERATOR_PATH = (
     "GH_RUN_ID=<workflow-run-id> make release-evidence-download",
     "GH_RUN_ID=<workflow-run-id> make operator-payload-download",
     "GH_RUN_ID=<workflow-run-id> LOOKBACK_MINUTES=60 make incident-evidence",
+)
+
+LOCAL_PORTS = (
+    ("local api port", "APP_PORT", 8000, "api", 8000, True),
+    ("local postgres port", "POSTGRES_PORT", 5432, "db", 5432, True),
+    ("local pgbouncer port", "PGBOUNCER_PORT", 6432, "pgbouncer", 5432, True),
+    ("local redis port", "REDIS_PORT", 6379, "redis", 6379, True),
+    ("local dapr http port", "DAPR_HTTP_PORT", 3500, "event-consumer-dapr", 3500, True),
+    ("local prometheus port", "PROMETHEUS_PORT", 9090, "prometheus", 9090, False),
+    ("local loki port", "LOKI_PORT", 3100, "loki", 3100, False),
+    ("local tempo port", "TEMPO_PORT", 3200, "tempo", 3200, False),
+    ("local tempo otlp http port", "TEMPO_OTLP_HTTP_PORT", 4318, "tempo", 4318, False),
+    ("local tempo otlp grpc port", "TEMPO_OTLP_GRPC_PORT", 4317, "tempo", 4317, False),
+    ("local grafana port", "GRAFANA_PORT", 3000, "grafana", 3000, False),
 )
 
 
@@ -117,6 +132,74 @@ def _repo_file_checks() -> list[CheckResult]:
     return results
 
 
+def _port_is_available(port: int) -> bool:
+    try:
+        with socket.create_server(("0.0.0.0", port)):
+            return True
+    except OSError:
+        return False
+
+
+def _compose_published_host_ports(
+    *,
+    runner: Runner,
+    service: str,
+    container_port: int,
+) -> set[int]:
+    completed = runner(["docker", "compose", "port", service, str(container_port)])
+    if completed.returncode != 0:
+        return set()
+    ports: set[int] = set()
+    for line in completed.stdout.splitlines():
+        value = line.strip()
+        if not value or value.startswith("time="):
+            continue
+        try:
+            ports.add(int(value.rsplit(":", 1)[1]))
+        except IndexError, ValueError:
+            continue
+    return ports
+
+
+def _local_port_checks(*, runner: Runner) -> list[CheckResult]:
+    results: list[CheckResult] = []
+    for name, env_var, default_port, service, container_port, required in LOCAL_PORTS:
+        raw_port = os.environ.get(env_var, str(default_port))
+        try:
+            port = int(raw_port)
+        except ValueError:
+            results.append(
+                CheckResult("fail", name, f"{env_var} must be a port number")
+            )
+            continue
+        if _port_is_available(port):
+            results.append(CheckResult("ok", name))
+            continue
+        published_ports = _compose_published_host_ports(
+            runner=runner,
+            service=service,
+            container_port=container_port,
+        )
+        if port in published_ports:
+            results.append(CheckResult("ok", name, f"already owned by {service}"))
+            continue
+        hint = f"free port {port} or set {env_var}=<free-port>"
+        if env_var == "APP_PORT":
+            hint = (
+                "free port "
+                f"{port} or set APP_PORT=<free-port> "
+                "LOCAL_API_BASE_URL=http://127.0.0.1:<free-port>"
+            )
+        results.append(
+            CheckResult(
+                "fail" if required else "warn",
+                name,
+                hint,
+            )
+        )
+    return results
+
+
 def doctor_results(*, cloud: bool, runner: Runner = _run) -> list[CheckResult]:
     results: list[CheckResult] = []
     results.extend(
@@ -124,7 +207,7 @@ def doctor_results(*, cloud: bool, runner: Runner = _run) -> list[CheckResult]:
             _tool_check("uv", required=True, hint="install uv"),
             _tool_check("docker", required=True, hint="install Docker Desktop"),
             _tool_check("jq", required=True, hint="install jq"),
-            _tool_check("gh", required=True, hint="install GitHub CLI"),
+            _tool_check("gh", required=cloud, hint="install GitHub CLI"),
         ]
     )
     results.extend(_repo_file_checks())
@@ -147,12 +230,13 @@ def doctor_results(*, cloud: bool, runner: Runner = _run) -> list[CheckResult]:
             hint="start Docker Desktop",
         )
     )
+    results.extend(_local_port_checks(runner=runner))
     results.append(
         _command_check(
             "github auth",
             ["gh", "auth", "status"],
             runner=runner,
-            required=True,
+            required=cloud,
             hint="run gh auth login",
         )
     )

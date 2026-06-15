@@ -25,6 +25,7 @@ lives in canonical docs:
 
 | Priority | Next move | Trigger |
 |---|---|---|
+| First-run clarity | keep `make help-*`, readiness views, and first-run docs aligned | a target is added, renamed, or promoted into the newcomer path |
 | Runbook quality | keep operator docs parameterized with outputs, placeholders, and runtime-owned commands | any runbook still assumes a demo stack name or fixed region |
 | Workflow guardrails | expand tests around workflow ownership and approved cloud-changing paths | a workflow picks up a new responsibility |
 | Workload onboarding | keep workload classes and copy-from examples current in docs and tests | a real workload introduces a new class or concern |
@@ -32,6 +33,18 @@ lives in canonical docs:
 | Observability inventory | derive alarm, log-group, and evidence defaults from workload metadata where practical | a workload or signal path adds handwritten inventory |
 | Runtime target ergonomics | prefer Terraform outputs, runtime inventory, and small scripts over repeated shell literals | examples or scripts duplicate target-specific naming rules |
 | Provider horizon clarity | keep managed DB and DNS provider edges documented as future cost or hybrid options, not implied implementations | docs or metadata start blurring horizon intent with reviewed runtime capability |
+
+## Lean Delivery Toolkit Next Slices
+
+Track only outcome-level follow-up here. Remove rows when they no longer help
+future agents keep the toolkit lean.
+
+| Slice | Status | Outcome | Keep lean by |
+|---|---|---|---|
+| Command surface | baseline in place | newcomers can tell daily, proof, cloud, and operator commands apart from Make entrypoints | grouped Make help, not a new CLI |
+| First-run proof | baseline in place | local diagnostics, local Compose proof, local Kubernetes proof, and AWS readiness are visibly separate | existing README and docs owners, not new process docs |
+| Runtime guardrails | baseline in place | AWS-admitted workload realization fails loudly when the workload contract cannot be fulfilled | contract tests and narrow Terraform checks, not deployment DSL growth |
+| Readiness evidence | baseline in place | workload maturity reports show local and AWS evidence without decoding platform history | report views, not orchestration |
 
 ## Current Promotion Decision
 
@@ -81,6 +94,7 @@ Rule: predictable extension over maximal abstraction.
 
 | Date | Decision |
 |---|---|
+| 2026-06-14 | Keep lean delivery toolkit follow-up as small slices: command clarity, first-run proof, runtime guardrails, and readiness evidence; do not add portals, generators, provider abstractions, Helm/CRD surfaces, or new runtime targets. |
 | 2026-06-02 | Keep the new data, churn, and support-triage LLM workloads local-first until runtime ownership and cloud evidence paths are reviewed. |
 | 2026-05-21 | Treat the workload contract and platform catalog as the stable center; runtime targets are pluggable realizations. |
 | 2026-05-19 | Harden one workload intent source and one AWS runtime realization layer. |

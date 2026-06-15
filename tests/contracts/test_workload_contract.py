@@ -213,6 +213,24 @@ def test_workload_runtime_support_and_admission_are_explicit() -> None:
         assert admitted.issubset(supported)
 
 
+def test_aws_runtime_realization_is_sourced_from_workload_contract() -> None:
+    workload_inventory = read_text("infra/app/workload_inventory.tf")
+
+    assert 'jsondecode(file("${path.module}/../../platform/workloads.json"))' in (
+        workload_inventory
+    )
+    assert 'contains(try(workload.runtime.admitted, []), "aws-ecs")' in (
+        workload_inventory
+    )
+    assert "workloads_by_name" in workload_inventory
+    assert "workload_environment" in workload_inventory
+    assert "workload_secrets" in workload_inventory
+    assert "unmapped_workload_secrets" in workload_inventory
+    assert "aws_admitted_service_port_gaps" in workload_inventory
+    assert 'check "aws_admitted_workload_secrets_are_mapped"' in workload_inventory
+    assert 'check "aws_admitted_services_have_runtime_ports"' in workload_inventory
+
+
 def test_workloads_declare_portable_owner() -> None:
     contract = load_json("platform/workloads.json")
 
@@ -356,6 +374,49 @@ def test_cloud_dry_runs_still_validate_image_availability() -> None:
         for match in re.finditer(r"aws ecr describe-images", text):
             preceding_lines = text[: match.start()].splitlines()[-3:]
             assert "if: ${{ !inputs.dry_run }}" not in "\n".join(preceding_lines)
+
+
+def test_aws_admitted_workload_secrets_have_runtime_mapping_guard() -> None:
+    contract = load_json("platform/workloads.json")
+    workload_inventory = read_text("infra/app/workload_inventory.tf")
+    shared_secret_block = re.search(
+        r"shared_secret_value_from = \{(?P<body>.*?)^\s+\}",
+        workload_inventory,
+        re.MULTILINE | re.DOTALL,
+    )
+    assert shared_secret_block is not None
+    mapped_secret_names = set(
+        re.findall(r"^\s+([A-Z0-9_]+)\s*=", shared_secret_block.group("body"), re.M)
+    )
+    aws_secret_names = {
+        secret
+        for workload in contract["workloads"]
+        if "aws-ecs" in workload["runtime"]["admitted"]
+        for secret in workload["config"]["secrets"]
+    }
+
+    assert aws_secret_names.issubset(mapped_secret_names)
+    assert "unmapped_workload_secrets" in workload_inventory
+    assert 'check "aws_admitted_workload_secrets_are_mapped"' in workload_inventory
+
+
+def test_aws_admitted_services_have_runtime_port_guard() -> None:
+    contract = load_json("platform/workloads.json")
+    workload_inventory = read_text("infra/app/workload_inventory.tf")
+
+    for workload in contract["workloads"]:
+        if "aws-ecs" not in workload["runtime"]["admitted"]:
+            continue
+        if workload["kind"] != "service":
+            continue
+
+        port = workload.get("service", {}).get("port")
+        assert isinstance(port, int)
+        assert 1 <= port <= 65535
+
+    assert "aws_admitted_service_port_gaps" in workload_inventory
+    assert "tonumber(workload.service.port)" in workload_inventory
+    assert 'check "aws_admitted_services_have_runtime_ports"' in workload_inventory
 
 
 def test_primary_edge_task_definition_revisions_are_deploy_owned() -> None:

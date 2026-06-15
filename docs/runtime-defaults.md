@@ -12,10 +12,7 @@ Inspect active defaults with:
 ```bash
 make runtime-defaults
 make capability-implementation-matrix
-make candidate-capability-matrix
-make capability-proof-local
 make capability-proof-local-live
-make capability-proof-cloud
 make enterprise-runtime-fit-check
 ```
 
@@ -30,16 +27,12 @@ make enterprise-runtime-fit-check
 The current AWS edge does not standardize on Okta, Kong, OPA, or a JWT provider.
 Those are valid future runtime choices, not workload metadata.
 
-## Capability Proofs
+## Live Local Drill
 
-`make capability-proof-local` summarizes the local evidence that exists today
-for authn/authz, network connectivity, CI/CD delivery, observability routing,
-secrets, and service identity. `make capability-proof-cloud` summarizes AWS
-runtime wiring evidence; it is not a live deployed-cloud probe.
-
-The proof commands do not promote candidate enterprise tools. They point at
-existing files, tests, workflows, and evidence seams so operators can see which
-runtime blades are actually implemented.
+Static runtime default proof lives in `tests/contracts/test_runtime_defaults_contract.py`
+and the inventory views above. Candidate enterprise tools stay candidate-only;
+the contract checks point at real files, tests, workflows, and evidence seams
+instead of promoting a product choice.
 
 `make capability-proof-local-live` runs a dedicated temporary Compose project
 with token auth enabled, proves live health, readiness, metrics, auth 401/200,

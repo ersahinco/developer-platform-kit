@@ -10,7 +10,13 @@ from typing import Any
 
 
 ROOT = Path(__file__).resolve().parents[2]
+
 ENTERPRISE_RUNTIME = "enterprise-runtime-candidate"
+ENTERPRISE_RUNTIME_OWNED_SEAMS = [
+    "platform/runtime-defaults.json",
+    "docs/runtime-defaults.md",
+    "future enterprise runtime catalog",
+]
 
 
 @dataclass(frozen=True)
@@ -77,20 +83,6 @@ def _promotion_gate(capability: str) -> list[PromotionRequirement]:
     ]
 
 
-def _required_evidence(capability: str) -> list[str]:
-    defaults = _read_json("platform/runtime-defaults.json")
-    profile = defaults["candidate_runtime_profiles"][ENTERPRISE_RUNTIME]
-    evidence: list[str] = []
-    for default in profile["defaults"].values():
-        if default["capability"] == capability:
-            evidence.extend(default["evidence"])
-    return evidence
-
-
-def _owned_seams(row: dict[str, str]) -> list[str]:
-    return [seam.strip() for seam in row["replacement_seam"].split("+") if seam.strip()]
-
-
 def _missing_conformance_checks(capability: str) -> list[str]:
     expected = {
         f"enterprise_runtime_{capability}_runtime_check": (
@@ -117,16 +109,13 @@ def _missing_conformance_checks(capability: str) -> list[str]:
 
 def enterprise_fit_rows() -> list[EnterpriseCapabilityFit]:
     inventory = _read_json("platform/platform-inventory.json")
+    runtime_defaults = _read_json("platform/runtime-defaults.json")
     active_targets = {target["id"] for target in inventory["runtime_targets"]}
-    rows = [
-        row
-        for row in inventory["candidate_runtime_capabilities"]
-        if row["runtime_target"] == ENTERPRISE_RUNTIME
-    ]
+    profile = runtime_defaults["candidate_runtime_profiles"][ENTERPRISE_RUNTIME]
 
     fits: list[EnterpriseCapabilityFit] = []
-    for row in rows:
-        capability = row["capability"]
+    for _area, default in sorted(profile["defaults"].items()):
+        capability = default["capability"]
         candidate_only = ENTERPRISE_RUNTIME not in active_targets
         missing = _missing_conformance_checks(capability)
         gate = _promotion_gate(capability)
@@ -136,8 +125,8 @@ def enterprise_fit_rows() -> list[EnterpriseCapabilityFit]:
                 capability=capability,
                 status="candidate-only" if candidate_only else "active",
                 candidate_only=candidate_only,
-                required_evidence=_required_evidence(capability),
-                owned_seams=_owned_seams(row),
+                required_evidence=list(default["evidence"]),
+                owned_seams=ENTERPRISE_RUNTIME_OWNED_SEAMS,
                 missing_conformance_checks=missing,
                 promotion_gate=gate,
             )

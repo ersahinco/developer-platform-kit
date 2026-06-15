@@ -137,7 +137,6 @@ views instead of copying a workload list into new docs:
 
 ```bash
 make workload-capability-matrix
-make workload-use-case-matrix
 make workload-readiness
 ```
 

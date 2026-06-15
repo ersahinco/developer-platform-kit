@@ -62,6 +62,7 @@ jobs:
     outputs:
       primary_service: ${{ steps.primary-service.outputs.service }}
       primary_workload: ${{ steps.primary-service.outputs.workload_name }}
+      app_host_workloads: ${{ steps.app-host-workloads.outputs.workloads }}
       task_definition: ${{ steps.deploy-app.outputs.task_def_arn || '' }}
       rollout_seconds: ${{ steps.deploy-app.outputs.rollout_seconds || '' }}
       verify_seconds: ${{ steps.verify-app.outputs.verify_seconds || steps.verify-current.outputs.verify_seconds }}
@@ -127,8 +128,20 @@ jobs:
           } >> "$GITHUB_OUTPUT"
 
       - name: Resolve internal service inventory
+        id: internal-services
         run: |
           python3 -m scripts.platform.workload_metadata internal-services > "$RUNNER_TEMP/internal-services.tsv"
+          internal_workloads=$(cut -f1 "$RUNNER_TEMP/internal-services.tsv" | paste -sd, -)
+          echo "internal_workloads=${internal_workloads}" >> "$GITHUB_OUTPUT"
+
+      - name: Resolve app host evidence set
+        id: app-host-workloads
+        run: |
+          workloads="${{ steps.primary-service.outputs.workload_name }}"
+          if [[ -n "${{ steps.internal-services.outputs.internal_workloads }}" ]]; then
+            workloads="${workloads},${{ steps.internal-services.outputs.internal_workloads }}"
+          fi
+          echo "workloads=${workloads}" >> "$GITHUB_OUTPUT"
 
       - name: Verify approved primary edge image exists
         run: |
@@ -268,7 +281,14 @@ jobs:
         run: |
           status="${{ needs.deploy.result }}"
           summary="App deploy workflow completed with deploy=${{ needs.deploy.result }}"
+          related_workload_args=()
+          IFS=',' read -ra related_workload_ids <<< "${{ needs.deploy.outputs.app_host_workloads }}"
+          for workload_id in "${related_workload_ids[@]}"; do
+            [[ -z "$workload_id" ]] && continue
+            related_workload_args+=(--related-workload-id "$workload_id")
+          done
           python3 -m scripts.observability.release_event \
+            "${related_workload_args[@]}" \
             --event-type app_deploy \
             --status "${status}" \
             --summary "${summary}" \

@@ -6,70 +6,11 @@
 #   Native host tooling is optional; keep it aligned with docs/local-development.md.
 #
 # Usage:
-#   make help                — list all targets
-#   make dev                 — start local Postgres + PgBouncer
-#   make local-up            — build/start app + local observability
-#   make dapr-up             — build/start local Dapr event consumer runtime
-#   make platform-toolkit-smoke-local
-#                             — fast local confidence check
-#   make platform-toolkit-validate-local
-#                             — prove the local workload journey end to end
-#   make test                — run test suite
-#   make runtime-conformance — build/run workload images against platform contract
-#   make workload-readiness  — show paved-road coverage for each workload
-#   make workload-readiness-check
-#                             — fail on missing paved-road workload coverage
-#   make workload-addition-report
-#                             — show conventional files for workload additions
-#   make workload-fit-init   — generate a draft externally operated workload
-#   make workload-fit-check  — evaluate a draft externally operated workload
-#   make workload-local-proof-plan
-#                             — plan local proof work for a passing candidate
-#   make runtime-defaults     — show blessed defaults for active runtimes
-#   make candidate-capability-matrix
-#                             — show candidate-only enterprise runtime choices
-#   make capability-proof-local
-#                             — summarize local runtime capability evidence
-#   make capability-proof-local-kubernetes
-#                             — summarize local Kubernetes runtime evidence
-#   make local-kubernetes-validate
-#                             — prove selected workloads on local kind runtime
-#   make local-kubernetes-rollout-proof
-#                             — prove local Kubernetes rollout/rollback and evidence
-#   make local-kubernetes-dapr-proof
-#                             — prove local Kubernetes Dapr eventing boundary
-#   make local-kubernetes-evidence-drill
-#                             — run repeatable local Kubernetes evidence drill
-#   make local-kubernetes-admission-report
-#                             — explain local Kubernetes workload readiness gaps
-#   make capability-proof-local-live
-#                             — run isolated live local runtime capability drill
-#   make capability-proof-cloud
-#                             — summarize AWS runtime wiring evidence
-#   make enterprise-runtime-fit-check
-#                             — show candidate enterprise promotion gaps
-#   make platform-toolkit-validate-cloud
-#                             — run safe cloud readiness checks without mutating AWS
-#   make platform-doctor      — check human workstation readiness
-#   make lint                — run all linters (app + infra)
-#   make fmt                 — auto-format everything
-#
-#   make bootstrap           — one-time AWS account setup, idempotent
-#
-#   make infra-platform-plan — terraform plan for platform/bootstrap root
-#   make infra-app-plan      — terraform plan for app-owned root
-#   make infra-validate-local
-#                             — terraform fmt/init/validate without remote backend
-#
-#   make app-deploy          — force new ECS deployment
-#   make operational-snapshot
-#                             — emit local operational readiness snapshot
-#   make integration-check    — run configured local HTTP integration checks
-#
-#   make db-tunnel           — SSM port-forward localhost:LOCAL_PORT → RDS:5432
-#   make db-exec             — open psql inside a running app task
-#   make db-seed             — seed DB via SSM tunnel (idempotent)
-#   make api-get-order ORDER_ID=1 FIELD=billing_email
+#   make help                — focused command groups
+#   make help-local          — first-run and daily local commands
+#   make help-proof          — proof ladder and evidence commands
+#   make help-cloud          — cloud readiness and deploy commands
+#   make help-operator       — day-2 evidence and operator commands
 # ─────────────────────────────────────────────────────────────────────────────
 
 .DEFAULT_GOAL := help
@@ -110,10 +51,39 @@ LOCAL_KUBERNETES_EVIDENCE_DIR ?= /tmp/aws-sdlc-containers-local-kubernetes-evide
 
 # ── Help ──────────────────────────────────────────────────────────────────────
 
-.PHONY: help
-help:
-	@grep -E '^[a-zA-Z_-]+:.*?## .*$$' $(MAKEFILE_LIST) \
-		| awk 'BEGIN {FS = ":.*?## "}; {printf "  %-36s %s\n", $$1, $$2}'
+HELP_LOCAL_TARGETS := platform-doctor workload-readiness workload-readiness-local dev migrate seed local-app-up local-up api-smoke dapr-up dapr-smoke platform-toolkit-smoke-local platform-toolkit-validate-local local-down local-reset
+HELP_PROOF_TARGETS := workload-readiness workload-readiness-local workload-readiness-cloud workload-readiness-check runtime-conformance local-kubernetes-contracts local-kubernetes-admission-report local-kubernetes-evidence-drill local-kubernetes-rollout-proof workflow-dry-run-validate
+HELP_CLOUD_TARGETS := platform-doctor-cloud platform-toolkit-validate-cloud infra-validate-local workflow-dry-run-validate workflow-dry-run-commands workflow-dry-run-validate-gh infra-platform-plan infra-app-plan app-deploy post-deploy-verify release-evidence-runs operational-snapshot-cloud
+HELP_OPERATOR_TARGETS := release-evidence-runs release-evidence-download operator-payload-download operational-snapshot operational-snapshot-dry-run operational-snapshot-cloud incident-evidence db-tunnel db-exec db-seed api-get-order observability-delivery-verify release-event-delivery-verify integration-check data-artifacts-list
+
+define print_help_targets
+	@awk -v targets="$(strip $(1))" 'BEGIN { count = split(targets, names, " ") } /^[a-zA-Z0-9_-]+:.*## / { target = $$1; sub(/:.*/, "", target); help = $$0; sub(/^[^:]+:.*## /, "", help); help_by_target[target] = help } END { for (i = 1; i <= count; i++) { target = names[i]; if (target in help_by_target) { printf "  %-36s %s\n", target, help_by_target[target] } else { missing = missing " " target } } if (missing != "") { print "Missing documented targets:" missing > "/dev/stderr"; exit 1 } }' $(MAKEFILE_LIST)
+endef
+
+.PHONY: help help-local help-proof help-cloud help-operator
+help: ## Show focused command groups
+	@printf "Start here\n"
+	@printf "  %-36s %s\n" "help-local" "First-run and daily local commands"
+	@printf "  %-36s %s\n" "help-proof" "Proof ladder and evidence commands"
+	@printf "  %-36s %s\n" "help-cloud" "Cloud readiness and deploy commands"
+	@printf "  %-36s %s\n" "help-operator" "Day-2 evidence and operator commands"
+	@printf "\nRun a focused help target instead of scanning every Make target.\n"
+
+help-local: ## Show first-run and daily local commands
+	@printf "Local developer loop\n"
+	$(call print_help_targets,$(HELP_LOCAL_TARGETS))
+
+help-proof: ## Show proof ladder and evidence commands
+	@printf "Proof and evidence\n"
+	$(call print_help_targets,$(HELP_PROOF_TARGETS))
+
+help-cloud: ## Show cloud readiness and deploy commands
+	@printf "Cloud readiness and deploy\n"
+	$(call print_help_targets,$(HELP_CLOUD_TARGETS))
+
+help-operator: ## Show day-2 evidence and operator commands
+	@printf "Operator evidence and day-2\n"
+	$(call print_help_targets,$(HELP_OPERATOR_TARGETS))
 
 # ── Local dev ─────────────────────────────────────────────────────────────────
 
@@ -132,6 +102,12 @@ local-up: ## Build/start local API + Prometheus + Loki + Promtail + Grafana
 	docker compose build api
 	OTEL_TRACES_ENABLED=true docker compose --profile observability up -d --remove-orphans db pgbouncer api prometheus loki tempo promtail grafana
 	docker compose --profile observability ps db pgbouncer api prometheus loki tempo promtail grafana
+
+.PHONY: local-app-up
+local-app-up: ## Build/start local API without the observability stack
+	docker compose build api
+	docker compose up -d --remove-orphans db pgbouncer api
+	docker compose ps db pgbouncer api
 
 .PHONY: dapr-up
 dapr-up: ## Build/start local Dapr event consumer runtime with Redis pub/sub
@@ -263,7 +239,7 @@ platform-toolkit-smoke-local: ## Fast local smoke: API, Dapr, and one backfill b
 	@printf "\n==> Starting local app and Dapr surfaces\n"
 	@$(MAKE) dev
 	@$(MAKE) migrate
-	@$(MAKE) local-up
+	@$(MAKE) local-app-up
 	@$(MAKE) dapr-up
 	@printf "\n==> Verifying API and Dapr\n"
 	@$(MAKE) api-smoke
@@ -381,8 +357,7 @@ local-kubernetes-admission-report: ## Local Kubernetes proof ladder: explain wor
 
 .PHONY: local-kubernetes-contracts
 local-kubernetes-contracts: ## Run static local Kubernetes contract checks
-	uv run pytest tests/contracts/test_local_kubernetes_contract.py tests/contracts/test_runtime_defaults_contract.py tests/scripts/test_capability_proof.py -q
-	uv run python scripts/platform/capability_proof.py --runtime-target local-kubernetes
+	uv run pytest tests/contracts/test_local_kubernetes_contract.py tests/contracts/test_runtime_defaults_contract.py -q
 
 # ── Lint & format ─────────────────────────────────────────────────────────────
 
@@ -483,6 +458,8 @@ fmt: ## Auto-format Python and Terraform
 pre-commit: ## Install and run pre-commit hooks
 	uv run pre-commit install
 	uv run pre-commit run --all-files
+
+# ── Cloud readiness proof ────────────────────────────────────────────────────
 
 .PHONY: platform-toolkit-validate-cloud
 platform-toolkit-validate-cloud: ## AWS ECS proof ladder: run safe cloud readiness checks
@@ -661,79 +638,48 @@ operational-snapshot-cloud: ## Dispatch the reviewed AWS operational snapshot op
 		-f confirm_snapshot=run-operational-snapshot \
 		-f dry_run=false
 
+# ── Workload inventory & runtime evidence ────────────────────────────────────
+
 .PHONY: workload-capability-matrix
 workload-capability-matrix: ## Print the declared workload capability matrix from platform/workloads.json
 	python3 -m scripts.platform.workload_metadata capability-matrix
 
-.PHONY: workload-use-case-matrix
-workload-use-case-matrix: ## Print the declared workload use-case matrix from platform/workloads.json
-	python3 -m scripts.platform.workload_metadata use-case-matrix
-
 .PHONY: workload-readiness
-workload-readiness: ## Static proof ladder: print runtime readiness and evidence surfaces
-	python3 scripts/platform/workload_readiness.py
+workload-readiness: ## Static proof ladder: summarize runtime readiness and evidence surfaces
+	@python3 scripts/platform/workload_readiness.py --view summary
+
+.PHONY: workload-readiness-local
+workload-readiness-local: ## Static proof ladder: show local Compose and local Kubernetes readiness
+	@python3 scripts/platform/workload_readiness.py --view local
+
+.PHONY: workload-readiness-cloud
+workload-readiness-cloud: ## AWS ECS proof ladder: show cloud admission, workflow, and evidence readiness
+	@python3 scripts/platform/workload_readiness.py --view aws
 
 .PHONY: workload-readiness-check
 workload-readiness-check: ## Fail when declared workloads lack paved-road readiness
-	python3 scripts/platform/workload_readiness.py --check
+	@python3 scripts/platform/workload_readiness.py --view summary --check
 
 .PHONY: workload-fit-check
 workload-fit-check: ## Evaluate a draft externally operated workload before admission
 	@[ -n "$(WORKLOAD_CANDIDATE)" ] || (echo "Set WORKLOAD_CANDIDATE=/path/to/workload.json" >&2; exit 1)
 	python3 scripts/platform/workload_fit_check.py --candidate "$(WORKLOAD_CANDIDATE)"
 
-.PHONY: workload-fit-init
-workload-fit-init: ## Generate a draft externally operated workload candidate
-	@[ -n "$(NAME)" ] || (echo "Set NAME=<workload_name>" >&2; exit 1)
-	@[ -n "$(KIND)" ] || (echo "Set KIND=service or KIND=job" >&2; exit 1)
-	@[ -n "$(CLASS)" ] || (echo "Set CLASS=<operational-class>" >&2; exit 1)
-	@[ -n "$(OWNER)" ] || (echo "Set OWNER=<team-name>" >&2; exit 1)
-	python3 scripts/platform/workload_fit_init.py --name "$(NAME)" --kind "$(KIND)" --class "$(CLASS)" --owner "$(OWNER)" $(if $(OUTPUT),--output "$(OUTPUT)",)
-
-.PHONY: workload-local-proof-plan
-workload-local-proof-plan: ## Plan local proof work for a passing workload candidate
-	@[ -n "$(WORKLOAD_CANDIDATE)" ] || (echo "Set WORKLOAD_CANDIDATE=/path/to/workload.json" >&2; exit 1)
-	python3 scripts/platform/workload_local_proof_plan.py --candidate "$(WORKLOAD_CANDIDATE)"
-
 .PHONY: capability-implementation-matrix
 capability-implementation-matrix: ## Print the current runtime capability-to-implementation matrix
 	python3 -m scripts.platform.workload_metadata implementation-matrix
-
-.PHONY: candidate-capability-matrix
-candidate-capability-matrix: ## Print candidate-only enterprise runtime capability choices
-	python3 -m scripts.platform.workload_metadata candidate-implementation-matrix
-
-.PHONY: capability-proof-local
-capability-proof-local: ## Summarize local runtime capability proof evidence
-	python3 scripts/platform/capability_proof.py --runtime-target local-compose
-
-.PHONY: capability-proof-local-kubernetes
-capability-proof-local-kubernetes: ## Summarize local Kubernetes runtime capability proof evidence
-	python3 scripts/platform/capability_proof.py --runtime-target local-kubernetes
 
 .PHONY: capability-proof-local-live
 capability-proof-local-live: ## Run isolated live local runtime capability proof
 	python3 scripts/platform/capability_live_proof.py
 
-.PHONY: capability-proof-cloud
-capability-proof-cloud: ## Summarize AWS runtime wiring proof evidence
-	python3 scripts/platform/capability_proof.py --runtime-target aws-ecs
-
 .PHONY: enterprise-runtime-fit-check
 enterprise-runtime-fit-check: ## Show candidate enterprise runtime promotion gaps
 	python3 scripts/platform/enterprise_runtime_fit_check.py
 
-.PHONY: adapter-seam-matrix
-adapter-seam-matrix: ## Print contract-to-adapter-to-runtime seams for portable capabilities
-	python3 -m scripts.platform.workload_metadata adapter-seam-matrix
-
 .PHONY: runtime-defaults
 runtime-defaults: ## Print blessed defaults for active runtime targets
 	python3 -m scripts.platform.workload_metadata runtime-defaults
-
-.PHONY: platform-inventory-json
-platform-inventory-json: ## Print machine-readable platform inventory for workloads, runtime seams, and adapter seams
-	python3 -m scripts.platform.workload_metadata inventory-json
 
 .PHONY: observability-cloud-traffic
 observability-cloud-traffic: ## Generate live API traffic for Grafana/CloudWatch observation

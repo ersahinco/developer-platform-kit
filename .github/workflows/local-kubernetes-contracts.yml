@@ -9,10 +9,9 @@ on:
       - "platform/platform-inventory.json"
       - "platform/runtime-defaults.json"
       - "platform/workloads.json"
-      - "scripts/platform/capability_proof.py"
+      - "scripts/platform/workload_metadata.py"
       - "tests/contracts/test_local_kubernetes_contract.py"
       - "tests/contracts/test_runtime_defaults_contract.py"
-      - "tests/scripts/test_capability_proof.py"
   push:
     branches: [main]
     paths:
@@ -22,10 +21,9 @@ on:
       - "platform/platform-inventory.json"
       - "platform/runtime-defaults.json"
       - "platform/workloads.json"
-      - "scripts/platform/capability_proof.py"
+      - "scripts/platform/workload_metadata.py"
       - "tests/contracts/test_local_kubernetes_contract.py"
       - "tests/contracts/test_runtime_defaults_contract.py"
-      - "tests/scripts/test_capability_proof.py"
 
 permissions:
   contents: read

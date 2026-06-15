@@ -24,11 +24,6 @@ def runtime_defaults_document() -> dict[str, Any]:
     return json.loads((ROOT / "platform" / "runtime-defaults.json").read_text())
 
 
-@lru_cache(maxsize=1)
-def workload_pattern_contract() -> dict[str, Any]:
-    return json.loads((ROOT / "platform" / "workload-patterns.json").read_text())
-
-
 def workloads() -> list[dict[str, Any]]:
     values = workload_contract().get("workloads", [])
     return values if isinstance(values, list) else []
@@ -251,16 +246,6 @@ def current_runtime_capability_rows() -> list[dict[str, str]]:
     return [row for row in rows if isinstance(row, dict)]
 
 
-def candidate_runtime_capability_rows() -> list[dict[str, str]]:
-    rows = platform_inventory_document().get("candidate_runtime_capabilities", [])
-    return [row for row in rows if isinstance(row, dict)]
-
-
-def adapter_seam_rows() -> list[dict[str, str]]:
-    rows = platform_inventory_document().get("adapter_seams", [])
-    return [row for row in rows if isinstance(row, dict)]
-
-
 def runtime_default_rows() -> list[dict[str, str]]:
     targets = runtime_defaults_document().get("runtime_targets", {})
     if not isinstance(targets, dict):
@@ -296,22 +281,6 @@ def _nested_default(defaults: dict[str, Any], area: str) -> str:
         return ""
     default = value.get("default")
     return default if isinstance(default, str) else ""
-
-
-def platform_inventory() -> dict[str, Any]:
-    document = platform_inventory_document()
-    return {
-        "schema_version": int(str(document.get("schema_version", "1"))),
-        "stable_center": dict(document.get("stable_center", {})),
-        "current_runtime_target": str(document.get("current_runtime_target", "")),
-        "runtime_targets": document.get("runtime_targets", []),
-        "workload_patterns": workload_pattern_contract().get("patterns", []),
-        "workloads": workload_capability_rows(),
-        "runtime_capabilities": current_runtime_capability_rows(),
-        "candidate_runtime_capabilities": candidate_runtime_capability_rows(),
-        "runtime_defaults": runtime_default_rows(),
-        "adapter_seams": adapter_seam_rows(),
-    }
 
 
 def internal_service_workloads() -> list[dict[str, Any]]:
@@ -449,23 +418,6 @@ def _print_capability_matrix() -> int:
     return 0
 
 
-def _print_use_case_matrix() -> int:
-    headers = [
-        "name",
-        "kind",
-        "owner",
-        "class",
-        "use_cases",
-        "runtime_supported",
-        "runtime_admitted",
-        "repository",
-    ]
-    print("\t".join(headers))
-    for row in workload_capability_rows():
-        print("\t".join(row[header] for header in headers))
-    return 0
-
-
 def _print_implementation_matrix() -> int:
     headers = [
         "capability",
@@ -477,36 +429,6 @@ def _print_implementation_matrix() -> int:
     ]
     print("\t".join(headers))
     for row in current_runtime_capability_rows():
-        print("\t".join(row[header] for header in headers))
-    return 0
-
-
-def _print_candidate_implementation_matrix() -> int:
-    headers = [
-        "capability",
-        "contract_surface",
-        "runtime_target",
-        "maturity",
-        "implementation",
-        "replacement_seam",
-    ]
-    print("\t".join(headers))
-    for row in candidate_runtime_capability_rows():
-        print("\t".join(row[header] for header in headers))
-    return 0
-
-
-def _print_adapter_seam_matrix() -> int:
-    headers = [
-        "capability",
-        "contract_surface",
-        "adapter_seam",
-        "runtime_target",
-        "current_implementation",
-        "runtime_seam",
-    ]
-    print("\t".join(headers))
-    for row in adapter_seam_rows():
         print("\t".join(row[header] for header in headers))
     return 0
 
@@ -531,17 +453,12 @@ def _print_runtime_defaults() -> int:
     return 0
 
 
-def _print_inventory_json() -> int:
-    print(json.dumps(platform_inventory(), separators=(",", ":")))
-    return 0
-
-
 def main(argv: list[str] | None = None) -> int:
     argv = sys.argv[1:] if argv is None else argv
     if not argv:
         print(
             "usage: python -m scripts.platform.workload_metadata "
-            "<primary-edge-contract|internal-services|support-task-workloads|operator-job-workloads|image-matrix|capability-matrix|use-case-matrix|implementation-matrix|candidate-implementation-matrix|adapter-seam-matrix|runtime-defaults|inventory-json>",
+            "<primary-edge-contract|internal-services|support-task-workloads|operator-job-workloads|image-matrix|capability-matrix|implementation-matrix|runtime-defaults>",
             file=sys.stderr,
         )
         return 1
@@ -554,14 +471,8 @@ def main(argv: list[str] | None = None) -> int:
         "operator-job-workloads": lambda _args: _print_operator_job_workloads(),
         "image-matrix": _print_image_matrix,
         "capability-matrix": lambda _args: _print_capability_matrix(),
-        "use-case-matrix": lambda _args: _print_use_case_matrix(),
         "implementation-matrix": lambda _args: _print_implementation_matrix(),
-        "candidate-implementation-matrix": (
-            lambda _args: _print_candidate_implementation_matrix()
-        ),
-        "adapter-seam-matrix": lambda _args: _print_adapter_seam_matrix(),
         "runtime-defaults": lambda _args: _print_runtime_defaults(),
-        "inventory-json": lambda _args: _print_inventory_json(),
     }
     handler = handlers.get(command)
     if handler is None:

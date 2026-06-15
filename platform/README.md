@@ -4,7 +4,7 @@
 
 - `workloads.json`: canonical workload contract
 - `workload-patterns.json`: supported workload classification shapes
-- `platform-inventory.json`: canonical static platform inventory for current runtime and adapter seams
+- `platform-inventory.json`: canonical static platform inventory for active runtime capabilities
 - `runtime-conformance.json`: local/CI fixture data only
 - `workload.Dockerfile`: shared workload image build
 - `concerns/`: shared runtime capabilities

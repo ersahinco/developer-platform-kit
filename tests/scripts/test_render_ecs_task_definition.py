@@ -6,11 +6,60 @@ import sys
 from pathlib import Path
 from typing import Any
 
+import pytest
+
 
 ROOT = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(ROOT))
 
 import scripts.ci.render_ecs_task_definition as renderer  # noqa: E402
+
+
+def test_renderer_rejects_unmapped_declared_secret() -> None:
+    workload = {
+        "name": "example_job",
+        "config": {"secrets": ["DB_PASSWORD", "MISSING_RUNTIME_SECRET"]},
+    }
+
+    with pytest.raises(RuntimeError) as error:
+        renderer._declared_secrets(
+            workload,
+            {"DB_PASSWORD": "arn:aws:secretsmanager:eu-central-1:123:secret:rds"},
+        )
+
+    message = str(error.value)
+    assert "example_job" in message
+    assert "MISSING_RUNTIME_SECRET" in message
+
+
+def test_renderer_rejects_service_without_declared_port() -> None:
+    workload = {
+        "name": "example_service",
+        "kind": "service",
+        "service": {},
+    }
+
+    with pytest.raises(RuntimeError) as error:
+        renderer._service_port(workload)
+
+    message = str(error.value)
+    assert "example_service" in message
+    assert "service.port" in message
+
+
+def test_renderer_rejects_service_with_invalid_declared_port() -> None:
+    workload = {
+        "name": "example_service",
+        "kind": "service",
+        "service": {"port": 70000},
+    }
+
+    with pytest.raises(RuntimeError) as error:
+        renderer._service_port(workload)
+
+    message = str(error.value)
+    assert "example_service" in message
+    assert "70000" in message
 
 
 def test_render_primary_edge_task_definition_is_repo_sourced(monkeypatch) -> None:

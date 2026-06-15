@@ -129,3 +129,46 @@ def test_wait_for_dapr_metadata_times_out_with_missing_subscription(
         )
 
     assert "Dapr metadata does not include subscription" in capsys.readouterr().err
+
+
+def test_wait_for_app_readiness_accepts_ready_after_initial_miss(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    responses = iter([{"status": "unready"}, {"status": "ready"}])
+    monkeypatch.setattr(
+        local_dapr_smoke,
+        "load_app_readiness",
+        lambda _endpoint, *, app_id: next(responses),
+    )
+    monkeypatch.setattr(local_dapr_smoke.time, "sleep", lambda _: None)
+
+    readiness = local_dapr_smoke.wait_for_app_readiness(
+        "http://localhost:3500",
+        app_id="event-consumer",
+        timeout_seconds=1.0,
+        poll_interval_seconds=0.0,
+    )
+
+    assert readiness == {"status": "ready"}
+
+
+def test_wait_for_app_readiness_times_out_with_last_payload(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(
+        local_dapr_smoke,
+        "load_app_readiness",
+        lambda _endpoint, *, app_id: {"status": "unready"},
+    )
+    monotonic_values = iter([0.0, 1.0])
+    monkeypatch.setattr(
+        local_dapr_smoke.time, "monotonic", lambda: next(monotonic_values)
+    )
+
+    with pytest.raises(RuntimeError, match="Dapr app channel did not report ready"):
+        local_dapr_smoke.wait_for_app_readiness(
+            "http://localhost:3500",
+            app_id="event-consumer",
+            timeout_seconds=0.5,
+            poll_interval_seconds=0.0,
+        )

@@ -45,6 +45,32 @@ def _workflow_mentions(workflow_texts: dict[str, str], *needles: str) -> list[st
     return present
 
 
+def _workflow_emits_evidence(text: str) -> bool:
+    return "release-evidence-" in text or "operator-payload-" in text
+
+
+def _targeted_support_evidence_workflow(workflow_texts: dict[str, str]) -> str | None:
+    workflow = "data-support-deploy.yml"
+    text = workflow_texts.get(workflow, "")
+    if (
+        _workflow_emits_evidence(text)
+        and "target_workload" in text
+        and 'evidence_workload_id="${{ inputs.target_workload }}"' in text
+        and '--workload-id "$evidence_workload_id"' in text
+    ):
+        return workflow
+    return None
+
+
+def _app_deploy_has_related_workload_evidence(workflow_texts: dict[str, str]) -> bool:
+    text = workflow_texts.get("app-deploy.yml", "")
+    return (
+        _workflow_emits_evidence(text)
+        and "app_host_workloads" in text
+        and "--related-workload-id" in text
+    )
+
+
 def _run_workflows(
     workload: dict[str, Any],
     *,
@@ -52,7 +78,7 @@ def _run_workflows(
     aws_admitted: bool,
 ) -> str:
     if not aws_admitted:
-        return "local-only"
+        return "not-aws-admitted"
 
     capabilities = workload_capabilities(workload)
     if capabilities["edge_service"] or capabilities["internal_service"]:
@@ -92,17 +118,31 @@ def _evidence(
     name = str(workload["name"])
     repository = workload_repository(workload)
     matches = _workflow_mentions(workflow_texts, name, repository)
+    ignored_runtime_evidence_workflows = {
+        "app-build.yml",
+        "infra-plan.yml",
+        "infra-apply.yml",
+        "security.yml",
+        "semgrep.yml",
+        "local-kubernetes-contracts.yml",
+    }
     evidence_workflows = [
         workflow
         for workflow in matches
-        if "release-evidence-" in workflow_texts[workflow]
-        or "operator-payload-" in workflow_texts[workflow]
+        if workflow not in ignored_runtime_evidence_workflows
+        and _workflow_emits_evidence(workflow_texts[workflow])
     ]
     capabilities = workload_capabilities(workload)
-    if capabilities["edge_service"] or capabilities["internal_service"]:
+    if capabilities["edge_service"]:
+        evidence_workflows.append("app-deploy.yml")
+    if capabilities["internal_service"] and _app_deploy_has_related_workload_evidence(
+        workflow_texts
+    ):
         evidence_workflows.append("app-deploy.yml")
     if capabilities["scheduled_execution"]:
-        evidence_workflows.append("data-support-deploy.yml")
+        support_workflow = _targeted_support_evidence_workflow(workflow_texts)
+        if support_workflow is not None:
+            evidence_workflows.append(support_workflow)
     return ",".join(sorted(set(evidence_workflows))) if evidence_workflows else "n/a"
 
 
@@ -307,7 +347,7 @@ def readiness_rows() -> list[dict[str, str]]:
                 ),
                 "evidence": evidence,
                 "log_group": (
-                    f"/ecs/<stack>/{repository}" if aws_admitted else "local-only"
+                    f"/ecs/<stack>/{repository}" if aws_admitted else "not-aws-admitted"
                 ),
                 "config_contract": _config_contract(workload),
             }
@@ -342,7 +382,7 @@ def readiness_failures(rows: list[dict[str, str]]) -> list[str]:
             if row[field] != expected:
                 failures.append(f"{workload}: {message}")
 
-        if row["run_workflow"] in {"missing", "local-only"}:
+        if row["run_workflow"] in {"missing", "not-aws-admitted"}:
             failures.append(f"{workload}: AWS-admitted workload lacks run workflow")
         if row["evidence"] == "n/a":
             failures.append(f"{workload}: AWS-admitted workload lacks evidence surface")
@@ -361,8 +401,41 @@ def readiness_failures(rows: list[dict[str, str]]) -> list[str]:
     return failures
 
 
-def _print_table(rows: list[dict[str, str]]) -> None:
-    headers = [
+READINESS_VIEW_HEADERS = {
+    "summary": [
+        "workload",
+        "kind",
+        "class",
+        "local_proof",
+        "aws_ecs",
+        "proof_surface",
+        "proof_command",
+    ],
+    "local": [
+        "workload",
+        "kind",
+        "class",
+        "local_compose",
+        "local_kubernetes",
+        "local_kubernetes_admission",
+        "service_endpoints",
+        "job_terminal_event",
+        "config_contract",
+        "proof_surface",
+    ],
+    "aws": [
+        "workload",
+        "kind",
+        "class",
+        "aws_ecs_supported",
+        "aws_ecs_admitted",
+        "build_matrix",
+        "run_workflow",
+        "evidence",
+        "log_group",
+        "config_contract",
+    ],
+    "all": [
         "workload",
         "kind",
         "class",
@@ -379,10 +452,54 @@ def _print_table(rows: list[dict[str, str]]) -> None:
         "evidence",
         "log_group",
         "config_contract",
-    ]
+    ],
+}
+
+
+def _local_proof_state(row: dict[str, str]) -> str:
+    surfaces = []
+    if row["local_compose"] == "yes":
+        surfaces.append("local-compose")
+    if row["local_kubernetes"] == "yes":
+        surfaces.append(f"local-kubernetes:{row['local_kubernetes_admission']}")
+    return "+".join(surfaces) if surfaces else "missing"
+
+
+def _aws_ecs_state(row: dict[str, str]) -> str:
+    if row["aws_ecs_admitted"] == "yes":
+        return "admitted"
+    if row["aws_ecs_supported"] == "yes":
+        return "supported-not-admitted"
+    return "not-supported"
+
+
+def _proof_command(row: dict[str, str]) -> str:
+    if row["aws_ecs_admitted"] == "yes":
+        return "make platform-toolkit-validate-cloud"
+    if row["local_kubernetes"] == "yes":
+        if row["local_kubernetes_admission"] == "ready":
+            return "make local-kubernetes-evidence-drill"
+        return "make local-kubernetes-admission-report"
+    if row["local_compose"] == "yes":
+        return "make runtime-conformance"
+    return "missing"
+
+
+def _display_row(row: dict[str, str]) -> dict[str, str]:
+    return {
+        **row,
+        "local_proof": _local_proof_state(row),
+        "aws_ecs": _aws_ecs_state(row),
+        "proof_command": _proof_command(row),
+    }
+
+
+def _print_table(rows: list[dict[str, str]], *, view: str) -> None:
+    headers = READINESS_VIEW_HEADERS[view]
     print("\t".join(headers))
     for row in rows:
-        print("\t".join(row[header] for header in headers))
+        display_row = _display_row(row)
+        print("\t".join(display_row[header] for header in headers))
 
 
 def _print_addition_table(rows: list[dict[str, str]]) -> None:
@@ -407,6 +524,12 @@ def main() -> int:
     )
     parser.add_argument("--format", choices=["table", "json"], default="table")
     parser.add_argument(
+        "--view",
+        choices=sorted(READINESS_VIEW_HEADERS),
+        default="summary",
+        help="Choose the human table view. JSON output always emits full readiness rows.",
+    )
+    parser.add_argument(
         "--check",
         action="store_true",
         help="Fail when declared workloads are missing paved-road delivery surfaces.",
@@ -430,7 +553,7 @@ def main() -> int:
     if args.format == "json":
         print(json.dumps(rows, sort_keys=True))
     else:
-        _print_table(rows)
+        _print_table(rows, view=args.view)
     failures = readiness_failures(rows)
     if args.check and failures:
         print("\nReadiness check failed:", file=sys.stderr)

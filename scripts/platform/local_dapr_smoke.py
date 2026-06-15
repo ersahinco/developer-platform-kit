@@ -19,8 +19,11 @@ DEFAULT_DATABASE_URL = (
 DEFAULT_PUBSUB_NAME = "async-events-pubsub"
 DEFAULT_TOPIC = "async-events-v1.fifo"
 DEFAULT_ROUTE = "/internal/events/consume"
+DEFAULT_APP_ID = "event-consumer"
 DEFAULT_METADATA_TIMEOUT_SECONDS = 20.0
 DEFAULT_METADATA_POLL_INTERVAL_SECONDS = 0.5
+DEFAULT_APP_READY_TIMEOUT_SECONDS = 30.0
+DEFAULT_APP_READY_POLL_INTERVAL_SECONDS = 0.5
 
 
 def build_cloud_event(*, event_id: str, occurred_at: str) -> dict[str, object]:
@@ -140,6 +143,47 @@ def wait_for_dapr_metadata(
         time.sleep(poll_interval_seconds)
 
 
+def load_app_readiness(endpoint: str, *, app_id: str) -> dict[str, Any]:
+    url = f"{endpoint.rstrip('/')}/v1.0/invoke/{app_id}/method/ready"
+    try:
+        with request.urlopen(url, timeout=5.0) as response:
+            body = response.read().decode("utf-8")
+    except error.URLError as exc:
+        raise RuntimeError(
+            f"Could not reach local Dapr app channel for {app_id!r} at {url}."
+        ) from exc
+    readiness = json.loads(body)
+    if not isinstance(readiness, dict):
+        raise RuntimeError("Dapr app readiness response must be a JSON object.")
+    return readiness
+
+
+def wait_for_app_readiness(
+    endpoint: str,
+    *,
+    app_id: str,
+    timeout_seconds: float = DEFAULT_APP_READY_TIMEOUT_SECONDS,
+    poll_interval_seconds: float = DEFAULT_APP_READY_POLL_INTERVAL_SECONDS,
+) -> dict[str, Any]:
+    deadline = time.monotonic() + timeout_seconds
+    last_readiness: dict[str, Any] | None = None
+    while True:
+        try:
+            readiness = load_app_readiness(endpoint, app_id=app_id)
+        except RuntimeError:
+            readiness = None
+        if readiness is not None:
+            last_readiness = readiness
+            if readiness.get("status") == "ready":
+                return readiness
+        if time.monotonic() >= deadline:
+            raise RuntimeError(
+                "Dapr app channel did not report ready before the smoke timeout: "
+                f"{last_readiness}"
+            )
+        time.sleep(poll_interval_seconds)
+
+
 def publish_cloud_event(
     endpoint: str,
     *,
@@ -215,6 +259,7 @@ def run() -> int:
     pubsub_name = os.environ.get("DAPR_PUBSUB_NAME", DEFAULT_PUBSUB_NAME)
     topic = os.environ.get("DAPR_TOPIC", DEFAULT_TOPIC)
     route = os.environ.get("DAPR_SUBSCRIPTION_ROUTE", DEFAULT_ROUTE)
+    app_id = os.environ.get("DAPR_APP_ID", DEFAULT_APP_ID)
     metadata_timeout_seconds = float(
         os.environ.get(
             "DAPR_METADATA_TIMEOUT_SECONDS",
@@ -227,6 +272,18 @@ def run() -> int:
             str(DEFAULT_METADATA_POLL_INTERVAL_SECONDS),
         )
     )
+    app_ready_timeout_seconds = float(
+        os.environ.get(
+            "DAPR_APP_READY_TIMEOUT_SECONDS",
+            str(DEFAULT_APP_READY_TIMEOUT_SECONDS),
+        )
+    )
+    app_ready_poll_interval_seconds = float(
+        os.environ.get(
+            "DAPR_APP_READY_POLL_INTERVAL_SECONDS",
+            str(DEFAULT_APP_READY_POLL_INTERVAL_SECONDS),
+        )
+    )
 
     try:
         wait_for_dapr_metadata(
@@ -236,6 +293,12 @@ def run() -> int:
             route=route,
             timeout_seconds=metadata_timeout_seconds,
             poll_interval_seconds=metadata_poll_interval_seconds,
+        )
+        wait_for_app_readiness(
+            endpoint,
+            app_id=app_id,
+            timeout_seconds=app_ready_timeout_seconds,
+            poll_interval_seconds=app_ready_poll_interval_seconds,
         )
     except RuntimeError:
         return 1

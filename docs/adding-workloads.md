@@ -55,16 +55,17 @@ Use this path for the smallest useful app host:
 4. Run local proof:
 
 ```bash
+make workload-readiness-local
 make workload-readiness-check
 make platform-toolkit-smoke-local
-make capability-proof-local
 ```
 
 5. Inspect evidence: service metrics, structured logs, job event payloads, data
    artifacts, and readiness output.
 6. Add `local-kubernetes` support only when the workload needs richer local
-   proof for Services, probes, jobs, storage, service identity, or config/secret
-   injection.
+   proof for Services, probes, jobs, storage, service identity, rollout/rollback,
+   Dapr sidecar wiring, or config/secret injection. Use
+   `make local-kubernetes-admission-report` before running a live drill.
 7. Ask for `aws-ecs` admission only after the runtime owner adds the reviewed
    infra and delivery path.
 
@@ -92,7 +93,6 @@ Inspect current declared classes and labels:
 ```bash
 make workload-addition-report
 make workload-capability-matrix
-make workload-use-case-matrix
 make workload-readiness
 make workload-readiness-check
 ```
@@ -256,9 +256,15 @@ make workflow-dry-run-validate-gh
 For local proof:
 
 ```bash
+make workload-readiness-local
+make local-kubernetes-admission-report
 make platform-toolkit-smoke-local
 make platform-toolkit-validate-local
 ```
+
+`platform-toolkit-smoke-local` starts only the app-host services, Dapr path, and
+one bounded backfill batch. Use `platform-toolkit-validate-local` when you need
+the full local Compose proof ladder with observability and data jobs.
 
 For safe cloud readiness:
 

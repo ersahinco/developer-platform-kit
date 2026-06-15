@@ -180,6 +180,25 @@ def test_platform_inventory_policy_rejects_wrong_stable_center(tmp_path: Path) -
     )
 
 
+def test_platform_inventory_policy_rejects_candidate_capability_owner(
+    tmp_path: Path,
+) -> None:
+    platform_inventory = json.loads(
+        (ROOT / "platform" / "platform-inventory.json").read_text()
+    )
+    invalid = dict(platform_inventory)
+    invalid["candidate_runtime_capabilities"] = []
+    fixture = tmp_path / "platform-inventory.json"
+    fixture.write_text(json.dumps(invalid), encoding="utf-8")
+
+    completed = _run_conftest(fixture, cwd=tmp_path)
+
+    assert completed.returncode != 0
+    assert "must not own candidate_runtime_capabilities" in (
+        completed.stderr + completed.stdout
+    )
+
+
 def test_workflow_policy_rejects_continue_on_error(tmp_path: Path) -> None:
     fixture = tmp_path / "app-deploy.yml"
     fixture.write_text(

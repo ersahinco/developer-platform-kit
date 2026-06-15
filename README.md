@@ -79,7 +79,7 @@ Do not use it as:
 | Need | Read |
 |---|---|
 | Canonical doc map | [docs/README.md](docs/README.md) |
-| Which proof command to run | [docs/proof-ladder.md](docs/proof-ladder.md), [docs/local-development.md](docs/local-development.md#command-map) |
+| Which proof command to run | `make help-proof`, [docs/proof-ladder.md](docs/proof-ladder.md), [docs/local-development.md](docs/local-development.md#command-map) |
 | First local-to-cloud validation pass | [docs/first-30-minutes.md](docs/first-30-minutes.md) |
 | Repo boundaries | [docs/architecture.md](docs/architecture.md) |
 | Portable workload expectations | [docs/platform-contract.md](docs/platform-contract.md) |
@@ -92,38 +92,64 @@ Do not use it as:
 
 ## Quick Local Path
 
-For a first pass, use the opinionated validation path instead of sampling every
-target in the Makefile. Use the
-[proof ladder](docs/proof-ladder.md) and
-[local command map](docs/local-development.md#command-map) when choosing between
-static contracts, local Compose, local Kubernetes evidence, and AWS ECS
-evidence:
+Start with the smallest proof that answers the question in front of you. Use
+the grouped help views instead of sampling every target in the Makefile:
+
+```bash
+make help-local
+make help-proof
+```
+
+For a cold workstation check, stay local and non-mutating:
 
 ```bash
 make platform-doctor
-make platform-toolkit-validate-local
-make capability-proof-local-live
+make workload-readiness
+make local-kubernetes-admission-report
 ```
 
-Use this shorter path for daily work after the stack is already familiar:
+For cheap static proof before starting the app host:
 
 ```bash
-make lint
+make workload-readiness-check
+make local-kubernetes-contracts
+```
+
+For the first live local app-host proof:
+
+```bash
 make platform-toolkit-smoke-local
-make runtime-conformance
+```
+
+This smoke path avoids the local observability stack; use `make local-up` when
+you need Prometheus, Loki, Tempo, Promtail, and Grafana.
+
+For the full local Compose proof ladder:
+
+```bash
+make platform-toolkit-validate-local
+```
+
+For the richer local Kubernetes proof runtime target, first inspect admission
+and then run the live drill only when the workload needs that level of proof:
+
+```bash
+make workload-readiness-local
+make local-kubernetes-admission-report
+make local-kubernetes-evidence-drill
 ```
 
 Use this non-mutating cloud readiness path before opening cloud-changing work:
 
 ```bash
+make workload-readiness-cloud
 make platform-doctor-cloud
 make platform-toolkit-validate-cloud
 ```
 
-The doctor targets are human diagnostics. They check expected tools, Docker,
-GitHub auth, optional cloud tools, repo files, and workload readiness with short
-command hints. `capability-proof-local-live` is an isolated live local drill for
-runtime capability behavior; it is not the full local validation journey.
+The doctor targets are human diagnostics. The local doctor requires local tools,
+Docker, repo files, and workload readiness; cloud-only tools and GitHub auth are
+warnings unless you run `make platform-doctor-cloud`.
 
 For full local setup, exact inventory views, and optional observability helpers,
 use [docs/local-development.md](docs/local-development.md) and
@@ -131,17 +157,20 @@ use [docs/local-development.md](docs/local-development.md) and
 
 ## Use It In Anger
 
-1. Prove the local path:
+1. Inspect workload and runtime maturity:
+   `make workload-readiness`
+2. Prove the local Compose path:
    `make platform-toolkit-validate-local`
-2. Prove the live local runtime blades:
-   `make capability-proof-local-live`
-3. Add or onboard one real workload:
+3. Use local Kubernetes proof when Compose is too small:
+   `make workload-readiness-local`, `make local-kubernetes-evidence-drill`
+4. Add or onboard one real workload:
    [docs/adding-workloads.md](docs/adding-workloads.md)
-4. Inspect evidence and readiness:
-   `make workload-readiness`, `make capability-proof-local`, `make data-artifacts-list`
-5. Decide runtime admission:
+5. Inspect evidence and artifacts:
+   `make workload-readiness`, `make data-artifacts-list`
+6. Decide runtime admission:
    use [docs/runtime-toolkit.md](docs/runtime-toolkit.md),
-   `make capability-proof-cloud`, and `make enterprise-runtime-fit-check`
+   `make workload-readiness-cloud`, `make runtime-defaults`, and
+   `make enterprise-runtime-fit-check`
 
 ## Keep It Useful
 
@@ -159,7 +188,6 @@ Useful inventory commands when you need them:
 
 ```bash
 make workload-capability-matrix
-make workload-use-case-matrix
 make workload-readiness
 ```
 

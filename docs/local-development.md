@@ -24,12 +24,15 @@ reference-only samples.
 
 | I want to... | Run |
 |---|---|
+| find the right command group | `make help-local`, `make help-proof`, `make help-cloud` |
+| check a cold workstation | `make platform-doctor`, `make workload-readiness` |
+| inspect local proof maturity | `make workload-readiness-local`, `make local-kubernetes-admission-report` |
 | prove contracts fast | `make workload-readiness`, `make runtime-conformance`, `make local-kubernetes-contracts` |
-| run the default local app host path | `make dev`, `make migrate`, `make seed`, `make local-up` |
+| run the default local app host path | `make dev`, `make migrate`, `make seed`, `make local-app-up` |
+| run the API with local observability | `make local-up` |
 | prove the local delivery toolkit | `make platform-toolkit-validate-local` |
 | prove rollout/rollback locally | `make local-kubernetes-rollout-proof` |
 | capture local Kubernetes runtime evidence | `make local-kubernetes-evidence-drill` |
-| check whether a workload fits local Kubernetes | `make local-kubernetes-admission-report` |
 | validate cloud readiness without applying infra | `make platform-toolkit-validate-cloud` |
 
 `local-kubernetes-admission-report` is static and safe to run first.
@@ -62,6 +65,13 @@ export PATH="/opt/homebrew/bin:/usr/local/bin:$PATH"
 Then prove the workstation before chasing runtime behavior:
 
 ```bash
+make platform-doctor
+make workload-readiness
+```
+
+Use the local Kubernetes bootstrap only when you are proving that runtime target:
+
+```bash
 make local-kubernetes-doctor
 make local-kubernetes-contracts
 make local-kubernetes-validate
@@ -90,19 +100,26 @@ against the current tree.
 
 ```bash
 make platform-doctor
+make workload-readiness
 make dev
 make migrate
 make seed
-make local-up
+make local-app-up
 curl --fail --show-error http://127.0.0.1:8000/health
 ```
 
 Use stepwise Docker commands only when you intentionally want the API without
 the full local profile.
 
-`make platform-doctor` checks local tools, Docker daemon access, GitHub auth,
-expected repo files, and workload readiness. It is a human diagnostic, not a CI
-gate.
+`make platform-doctor` checks local tools, Docker daemon access, expected repo
+files, workload readiness, and default local Compose port availability. If a
+port is already owned by this repo's running Compose service, the doctor treats
+it as ready; otherwise it tells you which `*_PORT` override to set. For the API
+port, set `APP_PORT` and the matching `LOCAL_API_BASE_URL` used by `api-smoke`.
+Ports needed by the fast app-host proof are blockers; observability-only ports
+are warnings until you choose `make local-up`. GitHub auth and cloud-only tools
+are warnings in the local doctor; `make platform-doctor-cloud` promotes the
+cloud operator checks. The doctor is a human diagnostic, not a CI gate.
 
 ## Local Kubernetes Proof
 
@@ -151,11 +168,15 @@ fast confidence pass:
 make platform-toolkit-smoke-local
 ```
 
-It runs the standard local startup path, verifies `/health`, `/ready`, and
-`/metrics`, publishes a CloudEvent through the local Dapr sidecar and confirms
-the event consumer recorded it, runs the data export job, emits an operational
-snapshot, runs configured integration checks, runs the `open_dataset_pipeline`
-workload, and finishes with
+`platform-toolkit-smoke-local` runs the standard local startup path, verifies
+`/health`, `/ready`, and `/metrics`, publishes a CloudEvent through the local
+Dapr sidecar, and runs one bounded backfill batch. It intentionally starts only
+the app-host services it needs; use `make local-up` or `make observability` when
+you also need Prometheus, Loki, Tempo, Promtail, and Grafana.
+
+`platform-toolkit-validate-local` is the full local Compose proof. It also runs
+the data export job, emits an operational snapshot, runs configured integration
+checks, runs the `open_dataset_pipeline` workload, and finishes with
 `make runtime-conformance`.
 
 The target prints section headers before each slice. Docker and pytest still
@@ -257,27 +278,15 @@ INTEGRATION_CHECK_TARGETS=api=http://api:8000/health make integration-check
 make open-dataset-pipeline
 ```
 
-## Common Targets
+## Current Target Inventory
+
+Use the focused Make help views for the current command list:
 
 ```bash
-make help
-make dev
-make local-up
-make local-down
-make local-reset
-make observability
-make dapr-up
-make migrate
-make seed
-make api-smoke
-make backfill-once
-make data-export
-make operational-snapshot
-INTEGRATION_CHECK_TARGETS=api=http://api:8000/health make integration-check
-make data-artifacts-list
-make open-dataset-pipeline
-docker compose --profile llm up support-triage-llm
-make test
-make lint
-make fmt
+make help-local
+make help-proof
+make help-cloud
+make help-operator
 ```
+
+Keep this page for workflow guidance; keep target inventory in the Makefile.
