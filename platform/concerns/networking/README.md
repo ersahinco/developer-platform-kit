@@ -5,7 +5,7 @@ Shared runtime networking capability owned at the platform edge.
 The workload contract declares portable needs such as exposure, service ports,
 and runtime support. Runtime targets decide the concrete network machinery.
 
-Current capability rows live in `platform/platform-inventory.json` under
+Current network defaults live in `platform/runtime-defaults.json` under
 `network_connectivity`:
 
 - `local-compose`: Docker Compose networks and explicit host ports in

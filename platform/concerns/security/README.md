@@ -6,7 +6,7 @@ The toolkit keeps security machinery opinionated without putting product
 choices into workload metadata. Workloads declare needs and emit evidence;
 runtime targets realize those needs.
 
-Current capability rows live in `platform/platform-inventory.json`:
+Current defaults live in `platform/runtime-defaults.json`:
 
 - `edge_auth`: local defaults are unauthenticated unless an explicit dev token
   is declared; the current AWS primary edge uses workload-enforced static bearer

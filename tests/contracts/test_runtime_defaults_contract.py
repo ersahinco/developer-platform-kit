@@ -277,7 +277,11 @@ def test_workload_metadata_does_not_embed_runtime_tool_fields() -> None:
 def test_runtime_defaults_are_documented() -> None:
     runtime_toolkit = read_text("docs/runtime-toolkit.md")
     runtime_defaults_doc = read_text("docs/runtime-defaults.md")
+    security_concern = read_text("platform/concerns/security/README.md")
+    networking_concern = read_text("platform/concerns/networking/README.md")
 
     assert "[Runtime Defaults](runtime-defaults.md)" in runtime_toolkit
     assert "platform/runtime-defaults.json" in runtime_defaults_doc
     assert "enterprise-runtime-candidate" in runtime_defaults_doc
+    assert "platform/runtime-defaults.json" in security_concern
+    assert "platform/runtime-defaults.json" in networking_concern
