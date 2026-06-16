@@ -4,8 +4,12 @@ import json
 from pathlib import Path
 import subprocess
 import sys
+import textwrap
 from typing import Callable
 
+import yaml
+
+from scripts.platform.local_kubernetes.admission import _manifest_from_document
 from scripts.platform.local_kubernetes_proof import API_METRIC_NEEDLE
 from scripts.platform.local_kubernetes_proof import CommandResult
 from scripts.platform.local_kubernetes_proof import admission_rows
@@ -28,6 +32,100 @@ def test_admission_report_marks_current_local_kubernetes_workloads_ready() -> No
     assert rows["integration_check_job"].status == "ready"
     assert rows["event_consumer"].blockers == []
     assert "Dapr pub/sub sidecar and Redis proof path" in rows["event_consumer"].checks
+
+
+def test_admission_manifest_parser_reads_yaml_structure() -> None:
+    documents = list(
+        yaml.safe_load_all(
+            textwrap.dedent(
+                """
+            # Field ordering and comments should not affect admission facts.
+            apiVersion: apps/v1
+            metadata:
+              name: api
+            kind: Deployment
+            spec:
+              template:
+                spec:
+                  initContainers:
+                    - image: busybox
+                      name: wait-for-db
+                  containers:
+                    - readinessProbe:
+                        httpGet:
+                          port: http
+                          path: /ready
+                      image: example/api:test
+                      name: api
+                      livenessProbe:
+                        httpGet:
+                          path: /health
+                          port: http
+                  restartPolicy: Always
+                metadata:
+                  labels:
+                    workload: api
+            ---
+            kind: ConfigMap
+            metadata:
+              name: workload-config
+            data:
+              DATABASE_URL: postgresql://example
+              FEATURE_FLAG: "true"
+            ---
+            stringData:
+              API_TOKEN: test
+              DATABASE_PASSWORD: test
+            metadata:
+              name: workload-secrets
+            kind: Secret
+            ---
+            apiVersion: batch/v1
+            kind: Job
+            metadata:
+              name: backfill-worker
+            spec:
+              template:
+                metadata:
+                  labels:
+                    workload: backfill_worker
+                spec:
+                  containers:
+                    - name: backfill-worker
+                      image: example/backfill:test
+                  restartPolicy: Never
+              backoffLimit: 2
+            """
+            )
+        )
+    )
+
+    deployment, config_map, secret, job = [
+        _manifest_from_document(document) for document in documents
+    ]
+
+    assert deployment is not None
+    assert deployment.kind == "Deployment"
+    assert deployment.name == "api"
+    assert deployment.workload == "api"
+    assert deployment.container_names == ("wait-for-db", "api")
+    assert deployment.readiness_paths == frozenset({"/ready"})
+    assert deployment.liveness_paths == frozenset({"/health"})
+    assert deployment.restart_policy == "Always"
+    assert not deployment.has_backoff_limit
+
+    assert config_map is not None
+    assert config_map.config_keys == frozenset({"DATABASE_URL", "FEATURE_FLAG"})
+
+    assert secret is not None
+    assert secret.secret_keys == frozenset({"API_TOKEN", "DATABASE_PASSWORD"})
+
+    assert job is not None
+    assert job.kind == "Job"
+    assert job.workload == "backfill_worker"
+    assert job.container_names == ("backfill-worker",)
+    assert job.restart_policy == "Never"
+    assert job.has_backoff_limit
 
 
 def test_admission_report_cli_outputs_json() -> None:

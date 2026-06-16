@@ -1,11 +1,11 @@
 from __future__ import annotations
 
-from collections.abc import Iterable
 from dataclasses import dataclass
 from dataclasses import field
 import json
-import re
 from typing import Any
+
+import yaml
 
 from scripts.platform.local_kubernetes.constants import LOCAL_KUBERNETES_ROOT
 from scripts.platform.local_kubernetes.constants import ROOT
@@ -46,111 +46,101 @@ def _load_json(path: str) -> dict[str, Any]:
 def _manifests() -> list[ManifestFacts]:
     manifests: list[ManifestFacts] = []
     for path in sorted(LOCAL_KUBERNETES_ROOT.glob("*.yaml")):
-        for text in _manifest_texts(path.read_text(encoding="utf-8")):
-            manifest = _manifest_from_text(text)
+        for document in yaml.safe_load_all(path.read_text(encoding="utf-8")):
+            manifest = _manifest_from_document(document)
             if manifest is not None:
                 manifests.append(manifest)
     return manifests
 
 
-def _manifest_texts(text: str) -> Iterable[str]:
-    for section in re.split(r"^---\s*$", text, flags=re.MULTILINE):
-        if section.strip():
-            yield section
-
-
-def _manifest_from_text(text: str) -> ManifestFacts | None:
-    kind = _value_at_indent(text, "kind", indent=0)
-    name = _metadata_name(text)
-    if kind is None or name is None:
+def _manifest_from_document(document: Any) -> ManifestFacts | None:
+    if not isinstance(document, dict):
         return None
+
+    kind = document.get("kind")
+    metadata = _mapping(document.get("metadata"))
+    name = metadata.get("name")
+    if not isinstance(kind, str) or not isinstance(name, str):
+        return None
+
+    spec = _mapping(document.get("spec"))
+    pod_metadata = _pod_template_metadata(spec)
+    pod_spec = _pod_template_spec(spec)
 
     return ManifestFacts(
         kind=kind,
         name=name,
-        workload=_indented_value(text, "workload"),
-        config_keys=_mapping_keys(text, "data") if kind == "ConfigMap" else frozenset(),
-        secret_keys=(
-            _mapping_keys(text, "stringData") if kind == "Secret" else frozenset()
+        workload=_workload_label(pod_metadata),
+        config_keys=(
+            _mapping_keys(document.get("data")) if kind == "ConfigMap" else frozenset()
         ),
-        container_names=tuple(_list_item_names(text)),
-        readiness_paths=_probe_paths(text, "readinessProbe"),
-        liveness_paths=_probe_paths(text, "livenessProbe"),
-        restart_policy=_indented_value(text, "restartPolicy"),
-        has_backoff_limit=_indented_value(text, "backoffLimit") is not None,
+        secret_keys=(
+            _mapping_keys(document.get("stringData"))
+            if kind == "Secret"
+            else frozenset()
+        ),
+        container_names=_container_names(pod_spec),
+        readiness_paths=_probe_paths(pod_spec, "readinessProbe"),
+        liveness_paths=_probe_paths(pod_spec, "livenessProbe"),
+        restart_policy=_string_or_none(pod_spec.get("restartPolicy")),
+        has_backoff_limit="backoffLimit" in spec,
     )
 
 
-def _indented_value(text: str, key: str) -> str | None:
-    for line in text.splitlines():
-        stripped = line.strip()
-        if line.startswith(" ") and stripped.startswith(f"{key}:"):
-            return stripped.split(":", 1)[1].strip()
-    return None
+def _mapping(value: Any) -> dict[str, Any]:
+    return value if isinstance(value, dict) else {}
 
 
-def _value_at_indent(text: str, key: str, *, indent: int) -> str | None:
-    prefix = " " * indent + f"{key}:"
-    for line in text.splitlines():
-        if line.startswith(prefix):
-            return line.split(":", 1)[1].strip()
-    return None
+def _string_or_none(value: Any) -> str | None:
+    return value if isinstance(value, str) else None
 
 
-def _metadata_name(text: str) -> str | None:
-    lines = text.splitlines()
-    for index, line in enumerate(lines):
-        if line == "metadata:":
-            for metadata_line in lines[index + 1 :]:
-                if metadata_line and not metadata_line.startswith(" "):
-                    return None
-                if metadata_line.startswith("  name:"):
-                    return metadata_line.split(":", 1)[1].strip()
-    return None
+def _pod_template_metadata(spec: dict[str, Any]) -> dict[str, Any]:
+    template = _mapping(spec.get("template"))
+    return _mapping(template.get("metadata"))
 
 
-def _mapping_keys(text: str, section: str) -> frozenset[str]:
-    keys: set[str] = set()
-    lines = text.splitlines()
-    for index, line in enumerate(lines):
-        if line == f"{section}:":
-            for mapping_line in lines[index + 1 :]:
-                if mapping_line and not mapping_line.startswith(" "):
-                    break
-                if mapping_line.startswith("  ") and not mapping_line.startswith(
-                    "    "
-                ):
-                    key = mapping_line.strip().split(":", 1)[0]
-                    if key:
-                        keys.add(key)
-            break
-    return frozenset(keys)
+def _pod_template_spec(spec: dict[str, Any]) -> dict[str, Any]:
+    template = _mapping(spec.get("template"))
+    return _mapping(template.get("spec"))
 
 
-def _list_item_names(text: str) -> list[str]:
+def _workload_label(pod_metadata: dict[str, Any]) -> str | None:
+    labels = _mapping(pod_metadata.get("labels"))
+    return _string_or_none(labels.get("workload"))
+
+
+def _mapping_keys(value: Any) -> frozenset[str]:
+    if not isinstance(value, dict):
+        return frozenset()
+    return frozenset(key for key in value if isinstance(key, str))
+
+
+def _containers(pod_spec: dict[str, Any]) -> list[dict[str, Any]]:
+    containers: list[dict[str, Any]] = []
+    for section in ("initContainers", "containers"):
+        section_value = pod_spec.get(section)
+        if isinstance(section_value, list):
+            containers.extend(item for item in section_value if isinstance(item, dict))
+    return containers
+
+
+def _container_names(pod_spec: dict[str, Any]) -> tuple[str, ...]:
     names: list[str] = []
-    for line in text.splitlines():
-        stripped = line.strip()
-        if stripped.startswith("- name:"):
-            names.append(stripped.split(":", 1)[1].strip())
-    return names
+    for container in _containers(pod_spec):
+        name = container.get("name")
+        if isinstance(name, str):
+            names.append(name)
+    return tuple(names)
 
 
-def _probe_paths(text: str, probe: str) -> frozenset[str]:
+def _probe_paths(pod_spec: dict[str, Any], probe: str) -> frozenset[str]:
     paths: set[str] = set()
-    lines = text.splitlines()
-    for index, line in enumerate(lines):
-        if line.strip() != f"{probe}:":
-            continue
-        probe_indent = len(line) - len(line.lstrip())
-        for probe_line in lines[index + 1 :]:
-            if probe_line.strip() and not probe_line.startswith(
-                " " * (probe_indent + 1)
-            ):
-                break
-            stripped = probe_line.strip()
-            if stripped.startswith("path:"):
-                paths.add(stripped.split(":", 1)[1].strip())
+    for container in _containers(pod_spec):
+        http_get = _mapping(_mapping(container.get(probe)).get("httpGet"))
+        path = http_get.get("path")
+        if isinstance(path, str):
+            paths.add(path)
     return frozenset(paths)
 
 
