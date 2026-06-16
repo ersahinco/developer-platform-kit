@@ -5,24 +5,28 @@ on:
     paths:
       - ".github/workflows/local-kubernetes-contracts.yml"
       - "Makefile"
+      - "infra/catalog/**"
       - "infra/local-kubernetes/**"
       - "platform/platform-inventory.json"
       - "platform/runtime-defaults.json"
       - "platform/workloads.json"
       - "scripts/platform/workload_metadata.py"
       - "tests/contracts/test_local_kubernetes_contract.py"
+      - "tests/contracts/test_non_goal_boundary_contract.py"
       - "tests/contracts/test_runtime_defaults_contract.py"
   push:
     branches: [main]
     paths:
       - ".github/workflows/local-kubernetes-contracts.yml"
       - "Makefile"
+      - "infra/catalog/**"
       - "infra/local-kubernetes/**"
       - "platform/platform-inventory.json"
       - "platform/runtime-defaults.json"
       - "platform/workloads.json"
       - "scripts/platform/workload_metadata.py"
       - "tests/contracts/test_local_kubernetes_contract.py"
+      - "tests/contracts/test_non_goal_boundary_contract.py"
       - "tests/contracts/test_runtime_defaults_contract.py"
 
 permissions:

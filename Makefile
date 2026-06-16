@@ -362,7 +362,7 @@ local-kubernetes-admission-report: ## Local Kubernetes proof ladder: explain wor
 
 .PHONY: local-kubernetes-contracts
 local-kubernetes-contracts: ## Run static local Kubernetes contract checks
-	uv run pytest tests/contracts/test_local_kubernetes_contract.py tests/contracts/test_runtime_defaults_contract.py -q
+	uv run pytest tests/contracts/test_local_kubernetes_contract.py tests/contracts/test_runtime_defaults_contract.py tests/contracts/test_non_goal_boundary_contract.py -q
 
 # ── Lint & format ─────────────────────────────────────────────────────────────
 
