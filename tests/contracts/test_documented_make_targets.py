@@ -125,3 +125,16 @@ def test_fast_smoke_uses_lightweight_local_app_startup() -> None:
     assert smoke_target is not None
     assert "$(MAKE) local-app-up" in smoke_target.group(0)
     assert "$(MAKE) local-up" not in smoke_target.group(0)
+
+
+def test_local_kubernetes_doctor_checks_direct_proof_tools() -> None:
+    makefile = (ROOT / "Makefile").read_text(encoding="utf-8")
+    doctor_target = re.search(
+        r"_local-kubernetes-doctor:.*?(?=^\.PHONY:)",
+        makefile,
+        re.MULTILINE | re.DOTALL,
+    )
+
+    assert doctor_target is not None
+    for tool in ["uv", "jq", "docker", "kind", "kubectl"]:
+        assert f"command -v {tool}" in doctor_target.group(0)

@@ -266,6 +266,8 @@ platform-toolkit-smoke-local: ## Fast local smoke: API, Dapr, and one backfill b
 
 .PHONY: _local-kubernetes-doctor
 _local-kubernetes-doctor:
+	@command -v uv >/dev/null || (echo "uv is required for local-kubernetes" >&2; exit 1)
+	@command -v jq >/dev/null || (echo "jq is required for local-kubernetes" >&2; exit 1)
 	@command -v docker >/dev/null || (echo "docker is required for local-kubernetes" >&2; exit 1)
 	@command -v kind >/dev/null || (echo "kind is required for local-kubernetes" >&2; exit 1)
 	@command -v kubectl >/dev/null || (echo "kubectl is required for local-kubernetes" >&2; exit 1)
