@@ -12,6 +12,7 @@ Canonical doc map. Find the owner before adding a new page.
 | Proof ladder and evidence levels | [Proof Ladder](proof-ladder.md) | Static contracts, local Compose, local Kubernetes proof, and AWS ECS evidence |
 | Current platform capability surface | [Platform Capabilities](platform-capabilities.md) | What exists today and where to extend it |
 | Runtime-target evaluation | [Runtime Toolkit](runtime-toolkit.md) | When and how to add another runtime target |
+| Deployment option evaluation | [Deployment Options](deployment-options.md) | Greenfield, brownfield, hybrid Supabase, and network-pattern choices without changing workload identity |
 | Runtime defaults | [Runtime Defaults](runtime-defaults.md) | Blessed auth, identity, secrets, observability, policy, CI/CD, and network defaults |
 | Local workflow | [Local Development](local-development.md) | Setup, migrations, local services |
 | AWS delivery and operator flow | [Deployment](deployment.md) | Workflow ownership, rollout sequence, review loop |
@@ -33,6 +34,7 @@ Canonical doc map. Find the owner before adding a new page.
 | Add a workload | [Adding Workloads](adding-workloads.md), `make workload-readiness`, `make workload-readiness-check`, [Platform Contract](platform-contract.md#workload-checklist) |
 | Work locally | [Local Development](local-development.md), `make platform-doctor`, `make workload-readiness-local` |
 | Choose the right proof level | [Proof Ladder](proof-ladder.md), [Local Development](local-development.md) |
+| Compare deployment options | [Deployment Options](deployment-options.md), [Runtime Toolkit](runtime-toolkit.md), [Runtime Defaults](runtime-defaults.md) |
 | Deploy or operate AWS | [Operator Day 2 Commands](operator-day-2.md), [Deployment](deployment.md), [Infrastructure](../infra/README.md), [Runbooks](runbooks/README.md), `make workload-readiness-cloud` |
 | Review pipeline gates | [DevOps Toolchain](devops-toolchain.md), [Deployment](deployment.md) |
 | Add or evaluate another runtime | [Runtime Toolkit](runtime-toolkit.md), [Runtime Defaults](runtime-defaults.md), `make runtime-defaults` |

@@ -10,6 +10,7 @@ Use with:
 
 - [Platform Contract](platform-contract.md): portable workload rules
 - [Runtime Defaults](runtime-defaults.md): blessed runtime and capability defaults
+- [Deployment Options](deployment-options.md): greenfield, brownfield, hybrid Supabase, and networking decision guidance
 - [Architecture](architecture.md): repo and ownership boundaries
 - [Platform Capabilities](platform-capabilities.md): current capability map
 - [Proof Ladder](proof-ladder.md): when to use static contracts, local Compose, local Kubernetes, or AWS ECS evidence
@@ -42,6 +43,11 @@ Do not add a runtime target just to prove portability.
 For now, AWS is the only reviewed cloud runtime in this repo. Managed database,
 DNS, edge, identity, or storage providers stay on the horizon until a workload
 has a concrete need and clear runtime ownership.
+
+Use [Deployment Options](deployment-options.md) when comparing ECS/Fargate with
+AWS-managed dependencies, ECS/Fargate with Supabase Postgres, compute elsewhere,
+or brownfield connectivity patterns. That page is decision guidance only; it
+does not activate new runtime targets or add provider-specific workload fields.
 
 Local Kubernetes is now the first richer local proof runtime target. Future
 production Kubernetes remains out of scope until app teams, data science, batch,

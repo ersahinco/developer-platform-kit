@@ -89,6 +89,7 @@ Do not use it as:
 | Local workflow | [docs/local-development.md](docs/local-development.md) |
 | DevOps gates and reusable pipeline shape | [docs/devops-toolchain.md](docs/devops-toolchain.md), [docs/deployment.md](docs/deployment.md) |
 | AWS delivery and operator flow | [docs/operator-day-2.md](docs/operator-day-2.md), [docs/deployment.md](docs/deployment.md) |
+| Greenfield and brownfield deployment options | [docs/deployment-options.md](docs/deployment-options.md) |
 | Incident response | [docs/runbooks/README.md](docs/runbooks/README.md) |
 | Current work state | [docs/roadmaps.md](docs/roadmaps.md) |
 
