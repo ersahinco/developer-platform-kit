@@ -45,6 +45,73 @@ def test_workload_fit_check_accepts_stable_center_candidate() -> None:
     assert {result.status for result in results} == {"ok"}
 
 
+def test_workload_fit_check_accepts_dapr_pubsub_capability_intent() -> None:
+    candidate = {
+        **_valid_candidate(),
+        "name": "order_event_consumer",
+        "use_cases": ["event-consumer", "integration"],
+        "dapr": {
+            "app_id": "order-event-consumer",
+            "scope": "pubsub",
+            "pubsub_name": "async-events-pubsub",
+            "topic": "orders-v1",
+            "subscription_route": "/internal/events/consume",
+        },
+        "config": {
+            "env": [
+                "DATABASE_URL",
+                "DB_HOST",
+                "DB_PORT",
+                "DB_USER",
+                "DB_NAME",
+                "DAPR_HTTP_ENDPOINT",
+                "DAPR_PUBSUB_NAME",
+                "DAPR_TOPIC",
+                "DAPR_SUBSCRIPTION_ROUTE",
+            ],
+            "secrets": ["DB_PASSWORD"],
+        },
+    }
+
+    results = evaluate_candidate(candidate)
+
+    assert {result.status for result in results} == {"ok"}
+
+
+def test_workload_fit_check_accepts_operator_and_scheduled_job_intent() -> None:
+    base_job = {
+        "kind": "job",
+        "use_cases": ["operator-task"],
+        "owner": "payments-platform",
+        "runtime": {"supported": ["local-compose"], "admitted": []},
+        "image": {
+            "repository": "payments-maintenance",
+            "package": "payments-maintenance",
+            "command": "python -m payments_maintenance.main",
+        },
+        "traces": {"supported": False},
+        "config": {
+            "env": ["PAYMENTS_RUN_ID", "PAYMENTS_OUTPUT_DIR"],
+            "secrets": [],
+        },
+        "job": {"idempotency": "safe to rerun for the same run id"},
+    }
+    operator_job = {
+        **base_job,
+        "name": "payments_backfill",
+        "operational": {"class": "operator-job", "trigger": "manual"},
+    }
+    scheduled_job = {
+        **base_job,
+        "name": "payments_export",
+        "use_cases": ["data-export", "scheduled-pipeline"],
+        "operational": {"class": "scheduled-job", "trigger": "schedule"},
+    }
+
+    assert {result.status for result in evaluate_candidate(operator_job)} == {"ok"}
+    assert {result.status for result in evaluate_candidate(scheduled_job)} == {"ok"}
+
+
 def test_workload_fit_check_accepts_local_kubernetes_candidate(
     tmp_path: Path,
 ) -> None:
@@ -109,6 +176,60 @@ def test_workload_fit_check_rejects_platform_edge_wiring() -> None:
     assert "observability_contract" in failures
     assert "account_id" in failures["platform_edge_boundary"]
     assert "runtime tool wiring" in failures["platform_edge_boundary"]
+
+
+def test_workload_fit_check_rejects_provider_resource_vending() -> None:
+    candidate = {
+        **_valid_candidate(),
+        "dapr": {
+            "app_id": "payments-gateway",
+            "scope": "pubsub",
+            "pubsub_name": "async-events-pubsub",
+            "topic": "payments-v1",
+            "subscription_route": "/internal/events/consume",
+            "sqs_queue_url": "https://sqs.eu-central-1.amazonaws.com/123456789012/payments.fifo",
+            "sns_topic_arn": "arn:aws:sns:eu-central-1:123456789012:payments.fifo",
+        },
+        "storage": {
+            "s3_bucket_name": "payments-prod-artifacts",
+            "s3_bucket_arn": "arn:aws:s3:::payments-prod-artifacts",
+        },
+        "runtime_resources": {
+            "ecs_task_definition": "payments:42",
+            "eventbridge_rule_name": "payments-nightly",
+            "subnet_ids": ["subnet-1234567890abcdef0"],
+        },
+    }
+
+    results = evaluate_candidate(candidate)
+    platform_edge = next(
+        result for result in results if result.area == "platform_edge_boundary"
+    )
+
+    assert platform_edge.status == "fail"
+    remove_paths = platform_edge.details["remove_from_stable_center"]
+    assert "dapr.sqs_queue_url" in remove_paths
+    assert "dapr.sns_topic_arn" in remove_paths
+    assert "storage.s3_bucket_name" in remove_paths
+    assert "storage.s3_bucket_arn" in remove_paths
+    assert "runtime_resources.ecs_task_definition" in remove_paths
+    assert "runtime_resources.eventbridge_rule_name" in remove_paths
+    assert "runtime_resources.subnet_ids[0]" in remove_paths
+
+
+def test_workload_fit_check_rejects_runtime_admission_without_support() -> None:
+    candidate = {
+        **_valid_candidate(),
+        "runtime": {"supported": ["local-compose"], "admitted": ["aws-ecs"]},
+    }
+
+    results = evaluate_candidate(candidate)
+    runtime_scope = next(result for result in results if result.area == "runtime_scope")
+
+    assert runtime_scope.status == "fail"
+    assert "runtime.admitted must be a subset of runtime.supported" in (
+        runtime_scope.message
+    )
 
 
 def test_workload_fit_check_cli_outputs_json(tmp_path: Path) -> None:

@@ -67,6 +67,40 @@ proof, database, eventing, jobs, object storage, tracing, and release evidence.
 | Observability routing | standard metrics/logs/traces emitted by workloads and routed by the runtime edge | `platform/concerns/observability/`, `compose.yaml`, `infra/app/app_log_groups.tf`, `infra/app/observability.tf`, `scripts/observability/` |
 | Authz policy | app-local business authorization by default plus repo/runtime metadata policy checks | `platform/concerns/policy/`, `platform/runtime-defaults.json`, `tests/contracts/test_policy_contract.py` |
 
+## Self-Service Boundary
+
+The self-service product shape for this repo is workload and capability
+admission on existing infrastructure. Developers request contract-level
+outcomes; platform engineering realizes them through the current runtime target
+and catalog surfaces.
+
+For separate application repositories, app teams own application code and their
+copy of the CI lane. This platform repo owns the workload contract shape,
+runtime realization, catalog entries, policy checks, and evidence expectations.
+
+Good admission requests:
+
+- add or promote a contract-governed workload
+- attach an object artifact sink to a job
+- add operator or scheduled execution for a declared job
+- add Dapr pub/sub for a real async boundary
+- grant bounded dependency access through declared config and secret names
+
+Non-goals:
+
+- arbitrary AWS resource vending
+- per-team Terraform surfaces
+- raw ECS, IAM, subnet, queue, rule, bucket, or database product fields in
+  `platform/workloads.json`
+- a portal, generator, control plane, Helm/CRD layer, or provider-neutral
+  infrastructure module before repeated workload need proves it
+
+Use the GitHub issue form `Workload or capability admission` as the intake
+surface and `workload-capability-admission.md` as the matching implementation
+PR template. Use `make workload-readiness`, `make workload-readiness-check`,
+and `make workload-fit-check` for candidate review before adding runtime
+realization.
+
 ## Dapr Boundary
 
 Dapr is useful when an app interacts with multiple systems that run at

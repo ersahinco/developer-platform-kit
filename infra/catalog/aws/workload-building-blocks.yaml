@@ -81,6 +81,26 @@ entries:
       - realize provider-specific database plumbing at the runtime edge
       - do not leak provider SDKs into domain or application packages
 
+  - id: dapr-pubsub-boundary
+    type: eventing-runtime
+    provides:
+      - app-facing Dapr pub/sub boundary
+      - CloudEvents delivery shape
+      - broker realization hidden behind runtime-owned wiring
+    consumes_contract:
+      - declared Dapr app id
+      - pub/sub component name
+      - topic and subscription route
+      - idempotent application consumer behavior
+    implementation:
+      - platform/concerns/dapr
+      - infra/app/messaging.tf
+      - packages/infrastructure/dapr
+    adoption_steps:
+      - declare Dapr only when a real async boundary exists
+      - keep application code on Dapr pub/sub names and CloudEvents
+      - keep SNS, SQS, Redis, or other broker choices at the runtime edge
+
   - id: object-artifact-sink
     type: storage-runtime
     provides:

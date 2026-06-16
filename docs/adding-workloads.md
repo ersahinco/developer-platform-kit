@@ -37,6 +37,39 @@ Declare the smallest truthful set:
 - logs, metrics, traces, and evidence the operator must inspect
 - workload owner, supported runtime targets, and admitted runtime targets
 
+## Self-Service Admission
+
+Use the GitHub issue form `Workload or capability admission` when an app team
+needs the platform to admit a workload or bounded capability on existing
+infrastructure. Use the named PR template
+`workload-capability-admission.md` when implementing the admitted change. The
+request should name the desired outcome in contract language:
+
+- run this workload
+- promote this local workload to `local-kubernetes` or `aws-ecs`
+- give this job an object artifact sink
+- schedule this job
+- run this one-off operator job
+- subscribe or publish through the Dapr pub/sub boundary
+- grant bounded dependency access
+
+Do not request raw AWS resources such as ECS task definitions, subnets, IAM
+policies, S3 bucket names, queue URLs, or EventBridge rules. Those details are
+runtime realization choices after the workload contract fits. For brownfield or
+early discovery, draft the candidate workload JSON outside the repo and run:
+
+```bash
+WORKLOAD_CANDIDATE=/tmp/<workload>.json make workload-fit-check
+```
+
+Then use the normal proof path before asking for runtime admission:
+
+```bash
+make workload-readiness
+make workload-readiness-check
+uv run python scripts/platform/workload_readiness.py --view addition
+```
+
 A tiny container app can start as a real `apps/` workload with
 `runtime.supported: ["local-compose"]`, no database, no Dapr, no cloud
 admission, and no extra platform machinery. Add runtime admission only after
