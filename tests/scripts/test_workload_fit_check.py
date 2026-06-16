@@ -43,6 +43,7 @@ def test_workload_fit_check_accepts_stable_center_candidate() -> None:
     results = evaluate_candidate(_valid_candidate())
 
     assert {result.status for result in results} == {"ok"}
+    assert "capability_profile_fit" in {result.area for result in results}
 
 
 def test_workload_fit_check_accepts_dapr_pubsub_capability_intent() -> None:
@@ -277,12 +278,41 @@ def test_workload_fit_check_cli_prints_next_actions_on_success(tmp_path: Path) -
     assert "runtime defaults:" in completed.stdout
     assert "local-compose: authn=none-local" in completed.stdout
     assert "observability=prometheus-loki-tempo-grafana" in completed.stdout
+    assert "capability profile:" in completed.stdout
+    assert "- requested: network_connectivity, relational_database" in (
+        completed.stdout
+    )
     assert "next make workload-readiness" in completed.stdout
     assert "next make platform-doctor" in completed.stdout
     assert (
         "next add to platform/workloads.json only after local proof exists"
         in completed.stdout
     )
+
+
+def test_workload_fit_check_reports_missing_profile_capability(monkeypatch) -> None:
+    def profile_without_database() -> dict[str, object]:
+        return {
+            "infra_capabilities": [
+                {"capability": "network_connectivity"},
+            ],
+        }
+
+    monkeypatch.setattr(
+        "scripts.platform.workload_fit_check.monorepo_capability_profile",
+        profile_without_database,
+    )
+
+    results = evaluate_candidate(_valid_candidate())
+    profile_fit = next(
+        result for result in results if result.area == "capability_profile_fit"
+    )
+
+    assert profile_fit.status == "fail"
+    assert "relational_database" in profile_fit.message
+    assert profile_fit.details["missing_profile_capabilities"] == [
+        "relational_database"
+    ]
 
 
 def test_workload_fit_check_cli_groups_removals_on_failure(tmp_path: Path) -> None:

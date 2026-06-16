@@ -13,6 +13,8 @@ Start with these operator views:
 
 ```bash
 make monorepo-capability-profile
+make monorepo-capability-profile-md
+make monorepo-capability-profile-check
 make workload-readiness
 make capability-implementation-matrix
 make runtime-defaults
@@ -21,7 +23,10 @@ make runtime-defaults
 Use `make help` or the runtime docs when you need the narrower inventory,
 candidate, or cloud-wiring views. `monorepo-capability-profile` is the compact
 machine-readable view that ties GitHub Actions lanes, workload contract usage,
-app-facing concerns, and runtime capability realization together.
+app-facing concerns, and runtime capability realization together. The matching
+Markdown view is for humans, and the check target fails when required delivery
+lanes or runtime capabilities disappear. `app-build.yml` uploads both views as
+the `monorepo-capability-profile-<run-id>` validation artifact.
 
 ## Capability Maturity
 
@@ -109,7 +114,9 @@ Use the GitHub issue form `Workload or capability admission` as the intake
 surface and `workload-capability-admission.md` as the matching implementation
 PR template. Use `make workload-readiness`, `make workload-readiness-check`,
 and `make workload-fit-check` for candidate review before adding runtime
-realization.
+realization. The fit check derives the candidate's requested capabilities and
+compares them with the current monorepo capability profile, so admission review
+stays tied to implemented delivery, app-contract, and runtime surfaces.
 
 ## Dapr Boundary
 

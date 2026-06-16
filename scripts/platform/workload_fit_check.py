@@ -14,6 +14,14 @@ from typing import Any
 
 
 ROOT = Path(__file__).resolve().parents[2]
+if str(ROOT) not in sys.path:
+    sys.path.insert(0, str(ROOT))
+
+from scripts.platform.workload_read_model import monorepo_capability_profile  # noqa: E402
+from scripts.platform.workload_read_model import (  # noqa: E402
+    required_capabilities_for_workload,
+)
+
 RUNTIME_DEFAULTS_PATH = ROOT / "platform" / "runtime-defaults.json"
 VALID_KINDS = {"service", "job"}
 SERVICE_CLASSES = {"edge-service", "internal-service"}
@@ -510,11 +518,42 @@ def _observability_contract(candidate: dict[str, Any]) -> FitResult:
     )
 
 
+def _capability_profile_fit(candidate: dict[str, Any]) -> FitResult:
+    requested = sorted(required_capabilities_for_workload(candidate))
+    profile = monorepo_capability_profile()
+    available = sorted(
+        {
+            row["capability"]
+            for row in profile["infra_capabilities"]
+            if isinstance(row, dict) and isinstance(row.get("capability"), str)
+        }
+    )
+    missing = sorted(set(requested) - set(available))
+    details = {
+        "requested_profile_capabilities": requested,
+        "missing_profile_capabilities": missing,
+    }
+    if missing:
+        return _fail(
+            "capability_profile_fit",
+            "candidate asks for capabilities outside the current monorepo profile: "
+            + ", ".join(missing),
+            details=details,
+        )
+    return FitResult(
+        area="capability_profile_fit",
+        status="ok",
+        message="candidate asks for current monorepo profile capabilities",
+        details=details,
+    )
+
+
 def evaluate_candidate(candidate: dict[str, Any]) -> list[FitResult]:
     return [
         _stable_center_fields(candidate),
         _service_or_job_shape(candidate),
         _runtime_scope(candidate),
+        _capability_profile_fit(candidate),
         _platform_edge_boundary(candidate),
         _database_intent(candidate),
         _observability_contract(candidate),
@@ -599,6 +638,13 @@ def _print_table(results: list[FitResult], candidate: dict[str, Any]) -> None:
             print("runtime defaults:")
             for line in runtime_lines:
                 print(f"- {line}")
+        profile_fit = next(
+            result for result in results if result.area == "capability_profile_fit"
+        )
+        requested = profile_fit.details.get("requested_profile_capabilities", [])
+        if requested:
+            print("capability profile:")
+            print("- requested: " + ", ".join(requested))
         print("next make workload-readiness")
         print("next make platform-doctor")
         print("next add to platform/workloads.json only after local proof exists")

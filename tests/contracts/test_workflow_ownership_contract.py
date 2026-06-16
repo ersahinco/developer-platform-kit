@@ -406,6 +406,16 @@ def test_app_deploy_emits_app_host_set_evidence() -> None:
     assert '"${related_workload_args[@]}"' in text
 
 
+def test_app_build_uploads_monorepo_capability_profile_artifact() -> None:
+    text = _workflow_text("app-build.yml")
+
+    assert "make monorepo-capability-profile-check" in text
+    assert "make monorepo-capability-profile-md" in text
+    assert "monorepo-capability-profile-${{ github.run_id }}" in text
+    assert "profile.json" in text
+    assert "profile.md" in text
+
+
 def test_data_support_deploy_emits_targeted_workload_evidence() -> None:
     text = _workflow_text("data-support-deploy.yml")
 

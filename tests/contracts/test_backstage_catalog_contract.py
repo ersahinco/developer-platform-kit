@@ -139,6 +139,30 @@ def test_catalog_entity_files_declare_backstage_entities_for_platform_and_worklo
     assert ("Component", "platform-monorepo") in entities
 
 
+def test_platform_catalog_exposes_generated_capability_profile_metadata() -> None:
+    documents = _load_catalog_entity_documents()
+    platform = next(
+        document
+        for document in documents
+        if document.get("kind") == "Component"
+        and document.get("metadata", {}).get("name") == "platform-monorepo"
+    )
+    annotations = platform["metadata"]["annotations"]
+
+    assert (
+        annotations["aws-sdlc-containers/capability-profile-command"]
+        == "make monorepo-capability-profile"
+    )
+    assert (
+        annotations["aws-sdlc-containers/capability-profile-artifact"]
+        == "monorepo-capability-profile-${github.run_id}"
+    )
+    assert (
+        annotations["aws-sdlc-containers/capability-profile-schema"]
+        == "lean-monorepo-capabilities/v1"
+    )
+
+
 def test_catalog_info_workload_components_match_workload_contract() -> None:
     documents = _load_catalog_entity_documents()
     component_entities = {

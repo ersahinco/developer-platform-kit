@@ -21,6 +21,17 @@ WORKFLOW_LANES = {
     "local-proof": ["local-kubernetes-contracts.yml"],
 }
 
+REQUIRED_MONOREPO_PROFILE_LANES = {"infra", "app", "data"}
+REQUIRED_MONOREPO_PROFILE_CAPABILITIES = {
+    "async_eventing",
+    "ci_cd_delivery",
+    "network_connectivity",
+    "object_storage",
+    "operator_job_execution",
+    "relational_database",
+    "scheduled_execution",
+}
+
 
 @lru_cache(maxsize=1)
 def workload_contract() -> dict[str, Any]:
@@ -404,6 +415,10 @@ def _workload_infra_capabilities(workload: dict[str, Any]) -> list[str]:
     return names
 
 
+def required_capabilities_for_workload(workload: dict[str, Any]) -> list[str]:
+    return _workload_infra_capabilities(workload)
+
+
 def monorepo_capability_profile() -> dict[str, Any]:
     workload_values = workloads()
     runtime_rows = current_runtime_capability_rows()
@@ -518,6 +533,125 @@ def monorepo_capability_profile() -> dict[str, Any]:
             "delivery_root": ".github/workflows",
         },
     }
+
+
+def monorepo_capability_profile_errors(
+    profile: dict[str, Any] | None = None,
+) -> list[str]:
+    profile = monorepo_capability_profile() if profile is None else profile
+    lanes = {
+        lane.get("lane"): lane
+        for lane in profile.get("delivery_lanes", [])
+        if isinstance(lane, dict)
+    }
+    capabilities = {
+        row.get("capability")
+        for row in profile.get("infra_capabilities", [])
+        if isinstance(row, dict)
+    }
+    errors: list[str] = []
+
+    missing_lanes = sorted(REQUIRED_MONOREPO_PROFILE_LANES - set(lanes))
+    if missing_lanes:
+        errors.append("missing delivery lanes: " + ", ".join(missing_lanes))
+    for lane_name, lane in sorted(lanes.items()):
+        missing_workflows = lane.get("missing_workflows", [])
+        if missing_workflows:
+            errors.append(
+                f"{lane_name} lane has missing workflows: "
+                + ", ".join(str(item) for item in missing_workflows)
+            )
+
+    missing_capabilities = sorted(REQUIRED_MONOREPO_PROFILE_CAPABILITIES - capabilities)
+    if missing_capabilities:
+        errors.append(
+            "missing runtime capabilities: " + ", ".join(missing_capabilities)
+        )
+
+    return errors
+
+
+def monorepo_capability_profile_markdown(
+    profile: dict[str, Any] | None = None,
+) -> str:
+    profile = monorepo_capability_profile() if profile is None else profile
+    workload_contract = profile["workload_contract"]
+    app_contract = profile["app_contract"]
+    lines = [
+        "# Monorepo Capability Profile",
+        "",
+        f"Profile: `{profile['profile']}`",
+        "",
+        "## Delivery Lanes",
+        "",
+        "| Lane | Workflows |",
+        "|---|---|",
+    ]
+    for lane in profile["delivery_lanes"]:
+        lines.append(
+            f"| `{lane['lane']}` | "
+            + ", ".join(f"`{workflow}`" for workflow in lane["workflows"])
+            + " |"
+        )
+
+    lines.extend(
+        [
+            "",
+            "## Workload Contract",
+            "",
+            f"- Workloads: {workload_contract['workload_count']}",
+            f"- Services: {workload_contract['service_count']}",
+            f"- Jobs: {workload_contract['job_count']}",
+            "- Operational classes: "
+            + ", ".join(
+                f"`{value}`" for value in workload_contract["operational_classes"]
+            ),
+            "- Runtime targets: "
+            + ", ".join(f"`{value}`" for value in workload_contract["runtime_targets"]),
+            "",
+            "## App Contract",
+            "",
+            "- Dapr pub/sub workloads: "
+            + _markdown_list(app_contract["dapr_pubsub_workloads"]),
+            "- Database workloads: "
+            + _markdown_list(app_contract["database_workloads"]),
+            "- Object output workloads: "
+            + _markdown_list(app_contract["object_output_workloads"]),
+            "- Metrics workloads: " + _markdown_list(app_contract["metrics_workloads"]),
+            "- Tracing workloads: " + _markdown_list(app_contract["tracing_workloads"]),
+            "",
+            "## Runtime Capabilities",
+            "",
+            "| Runtime target | Capability | Maturity |",
+            "|---|---|---|",
+        ]
+    )
+    for row in profile["infra_capabilities"]:
+        lines.append(
+            f"| `{row['runtime_target']}` | `{row['capability']}` | "
+            f"`{row['maturity']}` |"
+        )
+
+    lines.extend(
+        [
+            "",
+            "## Lean Controls",
+            "",
+            "- Metadata sources: "
+            + _markdown_list(profile["lean_controls"]["metadata_sources"]),
+            "- Runtime realization roots: "
+            + _markdown_list(profile["lean_controls"]["runtime_realization_roots"]),
+            "- App contract roots: "
+            + _markdown_list(profile["lean_controls"]["app_contract_roots"]),
+            f"- Delivery root: `{profile['lean_controls']['delivery_root']}`",
+            "",
+        ]
+    )
+    return "\n".join(lines)
+
+
+def _markdown_list(values: list[str]) -> str:
+    return ", ".join(f"`{value}`" for value in values) if values else "`none`"
 
 
 def runtime_default_rows() -> list[dict[str, str]]:

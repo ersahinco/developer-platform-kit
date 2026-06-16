@@ -64,6 +64,10 @@ draft the candidate workload JSON outside the repo and run:
 WORKLOAD_CANDIDATE=/tmp/<workload>.json make workload-fit-check
 ```
 
+The fit check compares the candidate's requested capabilities with the current
+`monorepo-capability-profile`, so unsupported asks are visible before metadata
+or runtime realization changes land.
+
 Then use the normal proof path before asking for runtime admission:
 
 ```bash

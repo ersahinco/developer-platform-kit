@@ -210,6 +210,8 @@ Useful inventory commands when you need them:
 
 ```bash
 make monorepo-capability-profile
+make monorepo-capability-profile-md
+make monorepo-capability-profile-check
 make workload-capability-matrix
 make workload-readiness
 ```

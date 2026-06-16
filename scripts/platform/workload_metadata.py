@@ -8,6 +8,8 @@ from scripts.platform.workload_read_model import build_local_kubernetes_image_ma
 from scripts.platform.workload_read_model import current_runtime_capability_rows
 from scripts.platform.workload_read_model import internal_service_workloads
 from scripts.platform.workload_read_model import monorepo_capability_profile
+from scripts.platform.workload_read_model import monorepo_capability_profile_errors
+from scripts.platform.workload_read_model import monorepo_capability_profile_markdown
 from scripts.platform.workload_read_model import operator_job_workloads
 from scripts.platform.workload_read_model import primary_edge_contract
 from scripts.platform.workload_read_model import runtime_default_rows
@@ -133,8 +135,36 @@ def _print_runtime_defaults() -> int:
     return 0
 
 
-def _print_monorepo_capability_profile() -> int:
-    print(json.dumps(monorepo_capability_profile(), separators=(",", ":")))
+def _print_monorepo_capability_profile(args: list[str]) -> int:
+    if (
+        len(args) > 2
+        or len(set(args)) != len(args)
+        or any(
+            arg not in {"--check", "--format=json", "--format=markdown"} for arg in args
+        )
+    ):
+        print(
+            "usage: python -m scripts.platform.workload_metadata "
+            "monorepo-capability-profile [--check] "
+            "[--format=json|--format=markdown]",
+            file=sys.stderr,
+        )
+        return 1
+
+    profile = monorepo_capability_profile()
+    check = "--check" in args
+    output_format = "markdown" if "--format=markdown" in args else "json"
+    errors = monorepo_capability_profile_errors(profile)
+
+    if output_format == "markdown":
+        print(monorepo_capability_profile_markdown(profile))
+    else:
+        print(json.dumps(profile, separators=(",", ":")))
+
+    if check and errors:
+        for error in errors:
+            print(f"capability profile check failed: {error}", file=sys.stderr)
+        return 1
     return 0
 
 
@@ -159,9 +189,7 @@ def main(argv: list[str] | None = None) -> int:
         "capability-matrix": lambda _args: _print_capability_matrix(),
         "implementation-matrix": lambda _args: _print_implementation_matrix(),
         "runtime-defaults": lambda _args: _print_runtime_defaults(),
-        "monorepo-capability-profile": (
-            lambda _args: _print_monorepo_capability_profile()
-        ),
+        "monorepo-capability-profile": _print_monorepo_capability_profile,
     }
     handler = handlers.get(command)
     if handler is None:

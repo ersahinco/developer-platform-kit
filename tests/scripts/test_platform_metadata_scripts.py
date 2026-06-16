@@ -209,6 +209,22 @@ def test_workload_metadata_monorepo_capability_profile_is_derived() -> None:
     }
 
 
+def test_workload_metadata_monorepo_capability_profile_check_and_markdown() -> None:
+    checked = _run_workload_metadata("monorepo-capability-profile", "--check")
+    checked_profile = json.loads(checked.stdout)
+    assert checked_profile["profile"] == "lean-monorepo-capabilities"
+
+    markdown = _run_workload_metadata(
+        "monorepo-capability-profile",
+        "--format=markdown",
+    ).stdout
+    assert "# Monorepo Capability Profile" in markdown
+    assert "## Delivery Lanes" in markdown
+    assert "`app-build.yml`" in markdown
+    assert "## Runtime Capabilities" in markdown
+    assert "`relational_database`" in markdown
+
+
 def test_workload_metadata_image_matrix_matches_declared_apps() -> None:
     contract = json.loads((ROOT / "platform" / "workloads.json").read_text())
     completed = _run_workload_metadata("image-matrix", "sha-test", "1.24.0")

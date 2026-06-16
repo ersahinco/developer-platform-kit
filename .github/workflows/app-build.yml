@@ -130,6 +130,21 @@ jobs:
       - name: Check workload paved-road readiness
         run: make workload-readiness-check
 
+      - name: Write monorepo capability profile
+        run: |
+          mkdir -p "$RUNNER_TEMP/monorepo-capability-profile"
+          make monorepo-capability-profile-check \
+            > "$RUNNER_TEMP/monorepo-capability-profile/profile.json"
+          make monorepo-capability-profile-md \
+            > "$RUNNER_TEMP/monorepo-capability-profile/profile.md"
+
+      - name: Upload monorepo capability profile
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
+        with:
+          name: monorepo-capability-profile-${{ github.run_id }}
+          path: ${{ runner.temp }}/monorepo-capability-profile
+          retention-days: 30
+
       - name: Init DB schema
         run: |
           PGPASSWORD=postgres psql -h localhost -U postgres -d aws_sdlc_containers \

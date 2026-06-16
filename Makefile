@@ -73,7 +73,7 @@ endef
 # ── Help ──────────────────────────────────────────────────────────────────────
 
 HELP_LOCAL_TARGETS := platform-doctor workload-readiness workload-readiness-local dev migrate seed local-app-up local-up api-smoke dapr-up dapr-smoke platform-toolkit-smoke-local platform-toolkit-validate-local local-down local-reset
-HELP_PROOF_TARGETS := monorepo-capability-profile workload-readiness workload-readiness-local workload-readiness-cloud workload-readiness-check runtime-conformance local-compose-live-proof local-kubernetes-contracts local-kubernetes-admission-report local-kubernetes-evidence-drill local-kubernetes-rollout-proof workflow-dry-run-validate
+HELP_PROOF_TARGETS := monorepo-capability-profile monorepo-capability-profile-md monorepo-capability-profile-check workload-readiness workload-readiness-local workload-readiness-cloud workload-readiness-check runtime-conformance local-compose-live-proof local-kubernetes-contracts local-kubernetes-admission-report local-kubernetes-evidence-drill local-kubernetes-rollout-proof workflow-dry-run-validate
 HELP_CLOUD_TARGETS := platform-doctor-cloud platform-toolkit-validate-cloud security-readiness infra-validate-local workflow-dry-run-validate workflow-dry-run-commands workflow-dry-run-validate-gh infra-platform-plan infra-app-plan app-deploy post-deploy-verify release-evidence-runs operational-snapshot-cloud
 HELP_OPERATOR_TARGETS := release-evidence-runs release-evidence-download operator-payload-download operational-snapshot operational-snapshot-dry-run operational-snapshot-cloud incident-evidence db-tunnel db-exec db-seed api-get-order observability-delivery-verify release-event-delivery-verify integration-check data-artifacts-list
 
@@ -656,7 +656,15 @@ operational-snapshot-cloud: ## Dispatch the reviewed AWS operational snapshot op
 
 .PHONY: monorepo-capability-profile
 monorepo-capability-profile: ## Print derived delivery, workload, app-contract, and runtime capability profile
-	python3 -m scripts.platform.workload_metadata monorepo-capability-profile
+	@python3 -m scripts.platform.workload_metadata monorepo-capability-profile
+
+.PHONY: monorepo-capability-profile-md
+monorepo-capability-profile-md: ## Print the derived monorepo capability profile as compact Markdown
+	@python3 -m scripts.platform.workload_metadata monorepo-capability-profile --format=markdown
+
+.PHONY: monorepo-capability-profile-check
+monorepo-capability-profile-check: ## Fail if expected delivery lanes or runtime capabilities disappear
+	@python3 -m scripts.platform.workload_metadata monorepo-capability-profile --check
 
 .PHONY: workload-capability-matrix
 workload-capability-matrix: ## Print the declared workload capability matrix from platform/workloads.json

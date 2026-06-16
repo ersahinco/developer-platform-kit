@@ -3,6 +3,10 @@ kind: Component
 metadata:
   name: platform-monorepo
   description: Stable-center platform monorepo contract, catalog, and delivery toolkit.
+  annotations:
+    aws-sdlc-containers/capability-profile-command: make monorepo-capability-profile
+    aws-sdlc-containers/capability-profile-artifact: monorepo-capability-profile-${github.run_id}
+    aws-sdlc-containers/capability-profile-schema: lean-monorepo-capabilities/v1
   tags:
     - platform
     - self-service

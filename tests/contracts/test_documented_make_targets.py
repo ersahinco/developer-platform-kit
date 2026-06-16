@@ -78,6 +78,8 @@ def test_make_help_points_to_focused_views() -> None:
         ],
         "help-proof": [
             "monorepo-capability-profile",
+            "monorepo-capability-profile-md",
+            "monorepo-capability-profile-check",
             "workload-readiness-check",
             "local-compose-live-proof",
             "local-kubernetes-contracts",
