@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import re
 import subprocess
 from pathlib import Path
 
@@ -10,6 +11,12 @@ import yaml
 ROOT = Path(__file__).resolve().parents[2]
 POLICY_DIR = ROOT / "platform" / "concerns" / "policy" / "conftest"
 POLICY_IMAGE = "openpolicyagent/conftest:v0.64.0"
+
+
+def _rego_string_set(policy_text: str, name: str) -> set[str]:
+    match = re.search(rf"^{name}\s*:=\s*\{{([^}}]+)\}}", policy_text, re.MULTILINE)
+    assert match is not None
+    return set(re.findall(r'"([^"]+)"', match.group(1)))
 
 
 def _run_conftest(*targets: Path, cwd: Path = ROOT) -> subprocess.CompletedProcess[str]:
@@ -83,6 +90,17 @@ def test_current_contract_surfaces_pass_policy_checks() -> None:
     )
 
     assert completed.returncode == 0, completed.stderr or completed.stdout
+
+
+def test_workload_contract_policy_runtime_targets_match_runtime_defaults() -> None:
+    policy_text = (POLICY_DIR / "workload_contract.rego").read_text(encoding="utf-8")
+    runtime_defaults = json.loads(
+        (ROOT / "platform" / "runtime-defaults.json").read_text(encoding="utf-8")
+    )
+
+    assert _rego_string_set(policy_text, "known_runtime_targets") == set(
+        runtime_defaults["runtime_targets"]
+    )
 
 
 def test_workload_contract_policy_rejects_runtime_without_support(

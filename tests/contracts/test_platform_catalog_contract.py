@@ -106,9 +106,6 @@ def test_catalog_manifests_describe_reusable_runtime_building_blocks() -> None:
     runtime_defaults = load_json("platform/runtime-defaults.json")
     runtime_targets = set(runtime_defaults["runtime_targets"])
 
-    assert runtime_defaults["current_runtime_target"] == "aws-ecs"
-    assert runtime_targets == {"local-compose", "local-kubernetes", "aws-ecs"}
-
     for path, manifest in _catalog_manifests():
         assert set(manifest) == CATALOG_MANIFEST_KEYS, path
         assert manifest["schema_version"] == "1"

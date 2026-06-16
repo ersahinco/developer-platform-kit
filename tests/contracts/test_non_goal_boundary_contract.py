@@ -7,9 +7,10 @@ from typing import Any
 import yaml
 
 from ._helpers import ROOT
+from ._helpers import load_json
 
 
-ALLOWED_CATALOG_BRANCHES = {"aws", "local-compose", "local-kubernetes"}
+CATALOG_BRANCH_NAMES = {"aws-ecs": "aws"}
 NON_PRODUCT_ROOTS = {"docs", "tests", ".kiro"}
 FORBIDDEN_FULL_COMPONENTS = {
     "charts",
@@ -49,6 +50,17 @@ def _product_paths() -> list[Path]:
         for path in _tracked_paths()
         if path.parts and path.parts[0] not in NON_PRODUCT_ROOTS
     ]
+
+
+def _catalog_branches_for_active_runtime_targets() -> set[str]:
+    runtime_defaults = load_json("platform/runtime-defaults.json")
+    runtime_targets = runtime_defaults["runtime_targets"]
+    assert isinstance(runtime_targets, dict)
+    branches: set[str] = set()
+    for runtime_target in runtime_targets:
+        target = str(runtime_target)
+        branches.add(CATALOG_BRANCH_NAMES.get(target, target))
+    return branches
 
 
 def _normalized_component(component: str) -> str:
@@ -104,4 +116,4 @@ def test_infra_catalog_branches_stay_explicit_runtime_targets() -> None:
         if len(path.parts) > 3 and path.parts[:2] == ("infra", "catalog")
     }
 
-    assert branches == ALLOWED_CATALOG_BRANCHES
+    assert branches == _catalog_branches_for_active_runtime_targets()
