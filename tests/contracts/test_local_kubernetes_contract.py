@@ -60,6 +60,14 @@ def _pod_images(document: dict[str, Any]) -> list[str]:
     return images
 
 
+def _template_workload_label(document: dict[str, Any]) -> str | None:
+    template = document.get("spec", {}).get("template", {})
+    metadata = template.get("metadata", {}) if isinstance(template, dict) else {}
+    labels = metadata.get("labels", {}) if isinstance(metadata, dict) else {}
+    workload = labels.get("workload") if isinstance(labels, dict) else None
+    return workload if isinstance(workload, str) else None
+
+
 def _config_names(workload: dict[str, Any]) -> set[str]:
     config = workload["config"]
     return set(config["env"]) | set(config["secrets"])
@@ -74,6 +82,17 @@ def test_local_kubernetes_supported_workloads_are_intentional() -> None:
     }
 
     assert supported == set(LOCAL_KUBERNETES_WORKLOADS)
+    expected_workload_images = {
+        f"aws-sdlc-containers-{workloads[name]['image']['repository']}:local-kubernetes"
+        for name in supported
+    }
+    manifest_workload_labels = {
+        workload_label
+        for document in _documents()
+        if any(image in expected_workload_images for image in _pod_images(document))
+        if (workload_label := _template_workload_label(document)) is not None
+    }
+    assert manifest_workload_labels == supported
     for name in supported:
         assert "local-kubernetes" not in workloads[name]["runtime"]["admitted"]
 

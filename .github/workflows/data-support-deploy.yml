@@ -212,6 +212,7 @@ jobs:
             --workload-id "$evidence_workload_id" \
             --image-tag "${{ env.IMAGE_TAG }}" \
             --deployment-id "${{ needs.deploy_support.outputs.promoted_task_definitions }}" \
+            --rollback-category support_task_image \
             --include-alarms \
             --push-loki \
             --loki-push-best-effort \

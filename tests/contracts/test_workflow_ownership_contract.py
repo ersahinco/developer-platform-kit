@@ -25,24 +25,38 @@ WORKFLOW_OWNERSHIP = {
     "app-deploy.yml": {
         "lane": "deploy",
         "event_type": "app_deploy",
-        "requires": ["--workload-id", "--image-tag", "--task-definition"],
+        "rollback_category": "app_image",
+        "requires": [
+            "--workload-id",
+            "--image-tag",
+            "--task-definition",
+            "--rollback-category",
+        ],
         "forbids": ["terraform apply"],
     },
     "data-support-deploy.yml": {
         "lane": "data-operation",
         "event_type": "data_support_deploy",
-        "requires": ["--workload-id", "--image-tag", "--deployment-id"],
+        "rollback_category": "support_task_image",
+        "requires": [
+            "--workload-id",
+            "--image-tag",
+            "--deployment-id",
+            "--rollback-category",
+        ],
         "forbids": ["terraform apply", "aws ecs update-service"],
     },
     "data-runtime-switch.yml": {
         "lane": "data-operation",
         "event_type": "data_runtime_switch",
+        "rollback_category": "runtime_data_phase",
         "requires": ["--workload-id", "--read-mode", "--write-mode"],
         "forbids": ["terraform apply", "aws ecs register-task-definition"],
     },
     "data-schema-apply.yml": {
         "lane": "data-operation",
         "event_type": "data_schema_apply",
+        "rollback_category": "schema_phase",
         "requires": [
             "--workload-id",
             "--image-tag",
@@ -56,6 +70,7 @@ WORKFLOW_OWNERSHIP = {
     "data-backfill.yml": {
         "lane": "data-operation",
         "event_type": "data_backfill",
+        "rollback_category": "runtime_data_phase",
         "requires": [
             "--workload-id",
             "--image-tag",
@@ -69,6 +84,7 @@ WORKFLOW_OWNERSHIP = {
     "operational-snapshot.yml": {
         "lane": "operator-job",
         "event_type": "operational_snapshot",
+        "rollback_category": "runtime_observability",
         "requires": [
             "--workload-id",
             "--image-tag",
@@ -91,6 +107,35 @@ NON_CLOUD_CHANGING_WORKFLOWS = {
     "security.yml",
     "semgrep.yml",
 }
+
+SECURITY_WORKFLOW_COMMANDS = [
+    "uv sync --frozen --all-packages --group dev --group scripts --group test",
+    "make secret-scan",
+    "make lint-docs",
+    "make lint-policy",
+    "make lint-workflows",
+    "make lint-dockerfiles",
+    "make dependency-audit",
+]
+
+SEMGREP_PATH_FILTERS = [
+    ".github/workflows/semgrep.yml",
+    "apps/**",
+    "packages/**",
+    "scripts/**",
+    "tests/**",
+    "pyproject.toml",
+    "uv.lock",
+]
+SEMGREP_SCAN_COMMAND = "semgrep scan --config auto apps/ packages/ scripts/"
+
+MUTATING_DELIVERY_COMMANDS = [
+    "aws ecs register-task-definition",
+    "scripts/ci/ci_deploy_ecs_service.sh",
+    "scripts/ci/ci_run_ecs_task.sh",
+    "terraform apply",
+    "-X POST",
+]
 
 OPERATOR_PAYLOAD_CORRELATION_INPUTS = {
     "data-backfill.yml": {
@@ -163,6 +208,13 @@ def _workflow_yaml(name: str) -> dict:
     return yaml.safe_load(_workflow_text(name))
 
 
+def _workflow_triggers(name: str) -> dict:
+    workflow = _workflow_yaml(name)
+    triggers = workflow.get("on", workflow.get(True, {}))
+    assert isinstance(triggers, dict), name
+    return triggers
+
+
 def _release_event_types(text: str) -> list[str]:
     return re.findall(r"--event-type\s+([a-z_]+)", text)
 
@@ -172,6 +224,31 @@ def _release_event_block(text: str) -> str:
     if marker not in text:
         return ""
     return text[text.index(marker) :]
+
+
+def _workflow_dispatch_inputs(name: str) -> dict:
+    return _workflow_triggers(name).get("workflow_dispatch", {}).get("inputs", {})
+
+
+def _job_text(job: dict) -> str:
+    return yaml.safe_dump(job, sort_keys=True)
+
+
+def _step_env(step: dict) -> dict:
+    env = step.get("env", {})
+    return env if isinstance(env, dict) else {}
+
+
+def _step_is_guarded_from_dry_run(job: dict, step: dict) -> bool:
+    job_if = str(job.get("if", ""))
+    step_if = str(step.get("if", ""))
+    run = str(step.get("run", ""))
+    env = _step_env(step)
+    script_guard = (
+        env.get("DRY_RUN") == "${{ inputs.dry_run }}"
+        and 'if [[ "$DRY_RUN" != "true" ]]' in run
+    )
+    return "!inputs.dry_run" in job_if or "!inputs.dry_run" in step_if or script_guard
 
 
 def test_all_workflows_have_one_documented_ownership_lane() -> None:
@@ -223,6 +300,11 @@ def test_cloud_changing_workflows_emit_one_release_event_with_correlation_inputs
         release_block = _release_event_block(text)
         for required in expected["requires"]:
             assert required in release_block, f"{workflow_name} missing {required}"
+        rollback_category = expected.get("rollback_category")
+        if rollback_category is not None:
+            assert f"--rollback-category {rollback_category}" in release_block, (
+                f"{workflow_name} missing rollback category {rollback_category}"
+            )
 
 
 def test_workflow_lanes_do_not_pick_up_other_cloud_changing_responsibilities() -> None:
@@ -230,6 +312,74 @@ def test_workflow_lanes_do_not_pick_up_other_cloud_changing_responsibilities() -
         text = _workflow_text(workflow_name)
         for forbidden in expected["forbids"]:
             assert forbidden not in text, f"{workflow_name} must not run {forbidden}"
+
+
+def test_image_tag_inputs_are_validated_before_cloud_changing_work() -> None:
+    for workflow_name in WORKFLOW_OWNERSHIP:
+        inputs = _workflow_dispatch_inputs(workflow_name)
+        if "image_tag" not in inputs:
+            continue
+
+        text = _workflow_text(workflow_name)
+        assert "scripts/ci/ci_validate_image_tag.sh" in text, workflow_name
+
+
+def test_dry_run_workflows_guard_runtime_mutation_steps() -> None:
+    for workflow_name in WORKFLOW_OWNERSHIP:
+        if "dry_run" not in _workflow_dispatch_inputs(workflow_name):
+            continue
+
+        workflow = _workflow_yaml(workflow_name)
+        for job_name, job in workflow["jobs"].items():
+            for step in job.get("steps", []):
+                run = str(step.get("run", ""))
+                if not any(command in run for command in MUTATING_DELIVERY_COMMANDS):
+                    continue
+
+                assert _step_is_guarded_from_dry_run(job, step), (
+                    workflow_name,
+                    job_name,
+                    step.get("name"),
+                )
+
+
+def test_dry_run_workflows_do_not_emit_release_evidence() -> None:
+    for workflow_name in WORKFLOW_OWNERSHIP:
+        workflow = _workflow_yaml(workflow_name)
+        inputs = _workflow_dispatch_inputs(workflow_name)
+        for job_name, job in workflow["jobs"].items():
+            if "scripts.observability.release_event" not in _job_text(job):
+                continue
+            job_if = str(job.get("if", ""))
+            if "dry_run" in inputs:
+                assert "!inputs.dry_run" in job_if, (workflow_name, job_name)
+            else:
+                assert "inputs.confirm_build == 'build'" in job_if, (
+                    workflow_name,
+                    job_name,
+                )
+
+
+def test_security_workflow_runs_repo_hygiene_gates_with_standard_tools() -> None:
+    workflow = _workflow_yaml("security.yml")
+    steps = workflow["jobs"]["security-scan"]["steps"]
+    run_commands = [step["run"] for step in steps if "run" in step]
+
+    assert run_commands == SECURITY_WORKFLOW_COMMANDS
+
+
+def test_semgrep_workflow_scans_owned_code_paths_with_pinned_container() -> None:
+    workflow = _workflow_yaml("semgrep.yml")
+    triggers = _workflow_triggers("semgrep.yml")
+    job = workflow["jobs"]["scan"]
+
+    assert triggers["pull_request"]["paths"] == SEMGREP_PATH_FILTERS
+    assert triggers["push"]["paths"] == SEMGREP_PATH_FILTERS
+    assert re.match(
+        r"semgrep/semgrep:[^@]+@sha256:[0-9a-f]{64}$",
+        job["container"]["image"],
+    )
+    assert job["steps"][-1]["run"] == SEMGREP_SCAN_COMMAND
 
 
 def test_non_cloud_changing_workflows_do_not_emit_release_evidence() -> None:

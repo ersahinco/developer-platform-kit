@@ -73,8 +73,8 @@ endef
 # ── Help ──────────────────────────────────────────────────────────────────────
 
 HELP_LOCAL_TARGETS := platform-doctor workload-readiness workload-readiness-local dev migrate seed local-app-up local-up api-smoke dapr-up dapr-smoke platform-toolkit-smoke-local platform-toolkit-validate-local local-down local-reset
-HELP_PROOF_TARGETS := workload-readiness workload-readiness-local workload-readiness-cloud workload-readiness-check runtime-conformance local-kubernetes-contracts local-kubernetes-admission-report local-kubernetes-evidence-drill local-kubernetes-rollout-proof workflow-dry-run-validate
-HELP_CLOUD_TARGETS := platform-doctor-cloud platform-toolkit-validate-cloud infra-validate-local workflow-dry-run-validate workflow-dry-run-commands workflow-dry-run-validate-gh infra-platform-plan infra-app-plan app-deploy post-deploy-verify release-evidence-runs operational-snapshot-cloud
+HELP_PROOF_TARGETS := workload-readiness workload-readiness-local workload-readiness-cloud workload-readiness-check runtime-conformance local-compose-live-proof local-kubernetes-contracts local-kubernetes-admission-report local-kubernetes-evidence-drill local-kubernetes-rollout-proof workflow-dry-run-validate
+HELP_CLOUD_TARGETS := platform-doctor-cloud platform-toolkit-validate-cloud security-readiness infra-validate-local workflow-dry-run-validate workflow-dry-run-commands workflow-dry-run-validate-gh infra-platform-plan infra-app-plan app-deploy post-deploy-verify release-evidence-runs operational-snapshot-cloud
 HELP_OPERATOR_TARGETS := release-evidence-runs release-evidence-download operator-payload-download operational-snapshot operational-snapshot-dry-run operational-snapshot-cloud incident-evidence db-tunnel db-exec db-seed api-get-order observability-delivery-verify release-event-delivery-verify integration-check data-artifacts-list
 
 define print_help_targets
@@ -443,6 +443,11 @@ dependency-audit: ## Audit uv-locked Python dependencies for known vulnerabiliti
 	uv --quiet export --format requirements.txt --all-packages --all-groups --no-emit-project --no-emit-workspace --frozen --output-file "$$tmpfile"; \
 	uv run pip-audit -r "$$tmpfile" --disable-pip --require-hashes --progress-spinner off --desc off --aliases off
 
+.PHONY: security-readiness
+security-readiness: ## Run local security checks before cloud mutation
+	@$(MAKE) secret-scan
+	@$(MAKE) dependency-audit
+
 .PHONY: lint-infra
 lint-infra: ## Lint Terraform (fmt check + tflint + checkov)
 	terraform fmt -check -recursive infra/
@@ -470,10 +475,14 @@ pre-commit: ## Install and run pre-commit hooks
 platform-toolkit-validate-cloud: ## AWS ECS proof ladder: run safe cloud readiness checks
 	@printf "\n==> Checking workload paved-road readiness\n"
 	@$(MAKE) workload-readiness-check
+	@printf "\n==> Running security readiness checks\n"
+	@$(MAKE) security-readiness
 	@printf "\n==> Linting GitHub workflow shape\n"
 	@$(MAKE) lint-workflows
 	@printf "\n==> Checking platform policy\n"
 	@$(MAKE) lint-policy
+	@printf "\n==> Validating Terraform syntax without backend mutation\n"
+	@$(MAKE) infra-validate-local
 	@printf "\n==> Validating generated workflow dry-run commands\n"
 	@$(MAKE) workflow-dry-run-validate
 	@printf "\n==> Running contract and operator-script tests\n"
@@ -485,7 +494,7 @@ workflow-dry-run-commands: ## Print safe GitHub workflow dry-run dispatch comman
 		uv run python scripts/ci/workflow_dry_run_commands.py commands
 
 .PHONY: workflow-dry-run-validate
-workflow-dry-run-validate: ## Validate dry-run commands against local workflow input names
+workflow-dry-run-validate: ## Validate dry-run commands and non-mutating workflow guards
 	uv run python scripts/ci/workflow_dry_run_commands.py validate-local
 
 .PHONY: workflow-dry-run-validate-gh

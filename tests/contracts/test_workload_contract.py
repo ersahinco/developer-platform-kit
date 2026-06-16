@@ -12,6 +12,8 @@ from ._helpers import load_json, read_text
 ENV_NAME_PATTERN = re.compile(
     r'env_(?:str|int|bool|float|optional_int)\("([A-Z0-9_]+)"'
 )
+USE_CASE_PATTERN = re.compile(r"[a-z0-9]+(?:-[a-z0-9]+)*")
+IDEMPOTENCY_PATTERN = re.compile(r"[a-z0-9]+(?:[_-][a-z0-9]+)*")
 
 
 def _runtime_conformance() -> dict[str, Any]:
@@ -225,8 +227,10 @@ def test_aws_runtime_realization_is_sourced_from_workload_contract() -> None:
     assert "workloads_by_name" in workload_inventory
     assert "workload_environment" in workload_inventory
     assert "workload_secrets" in workload_inventory
+    assert "unmapped_workload_env" in workload_inventory
     assert "unmapped_workload_secrets" in workload_inventory
     assert "aws_admitted_service_port_gaps" in workload_inventory
+    assert 'check "aws_admitted_workload_env_is_realized"' in workload_inventory
     assert 'check "aws_admitted_workload_secrets_are_mapped"' in workload_inventory
     assert 'check "aws_admitted_services_have_runtime_ports"' in workload_inventory
 
@@ -238,6 +242,45 @@ def test_workloads_declare_portable_owner() -> None:
         owner = _declared_owner(workload)
         assert owner
         assert re.fullmatch(r"[a-z0-9]+(?:-[a-z0-9]+)*", owner)
+
+
+def test_workload_contract_declares_proof_fields_without_runtime_choreography() -> None:
+    contract = load_json("platform/workloads.json")
+
+    for workload in contract["workloads"]:
+        use_cases = workload.get("use_cases")
+        assert isinstance(use_cases, list), workload["name"]
+        assert use_cases, workload["name"]
+        assert all(USE_CASE_PATTERN.fullmatch(str(use_case)) for use_case in use_cases)
+
+        if workload["kind"] == "service":
+            metrics = workload.get("metrics")
+            assert isinstance(metrics, dict), workload["name"]
+            assert metrics["format"] == "prometheus"
+            required_names = metrics.get("required_names")
+            assert isinstance(required_names, list), workload["name"]
+            assert "workload_info" in required_names
+            assert all(isinstance(name, str) and name for name in required_names)
+
+        if workload["kind"] == "job":
+            job = workload.get("job")
+            assert isinstance(job, dict), workload["name"]
+            idempotency = job.get("idempotency")
+            assert isinstance(idempotency, str), workload["name"]
+            assert IDEMPOTENCY_PATTERN.fullmatch(idempotency), workload["name"]
+
+        dapr = workload.get("dapr")
+        if dapr is not None:
+            assert dapr["scope"] == "pubsub"
+            assert set(dapr) == {
+                "app_id",
+                "scope",
+                "pubsub_name",
+                "topic",
+                "subscription_route",
+            }
+            for field in ["app_id", "pubsub_name", "topic", "subscription_route"]:
+                assert isinstance(dapr[field], str) and dapr[field], workload["name"]
 
 
 def test_compose_workload_env_names_stay_within_declared_contract() -> None:
@@ -398,6 +441,25 @@ def test_aws_admitted_workload_secrets_have_runtime_mapping_guard() -> None:
     assert aws_secret_names.issubset(mapped_secret_names)
     assert "unmapped_workload_secrets" in workload_inventory
     assert 'check "aws_admitted_workload_secrets_are_mapped"' in workload_inventory
+
+
+def test_aws_admitted_workload_env_has_runtime_realization_guard() -> None:
+    contract = load_json("platform/workloads.json")
+    workload_inventory = read_text("infra/app/workload_inventory.tf")
+    mapped_env_names = set(
+        re.findall(r"^\s+([A-Z0-9_]+)\s*=", workload_inventory, re.M)
+    ) | set(re.findall(r'"([A-Z0-9_]+)"', workload_inventory))
+    aws_env_names = {
+        env_name
+        for workload in contract["workloads"]
+        if "aws-ecs" in workload["runtime"]["admitted"]
+        for env_name in workload["config"]["env"]
+    }
+
+    assert aws_env_names.issubset(mapped_env_names)
+    assert "unmapped_workload_env" in workload_inventory
+    assert "workload_realized_env_names" in workload_inventory
+    assert 'check "aws_admitted_workload_env_is_realized"' in workload_inventory
 
 
 def test_aws_admitted_services_have_runtime_port_guard() -> None:

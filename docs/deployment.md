@@ -22,7 +22,7 @@ tasks, not duplicated infrastructure.
 |---|---|---|---|
 | `app-build.yml` | Manual `workflow_dispatch` with `confirm_build=build` after PR review on the default branch | builds, scans, attests, and pushes immutable images only | `release-evidence-app-build-*` artifact and build summary |
 | `app-deploy.yml` | Manual `workflow_dispatch` with approved immutable `image_tag` and `confirm_deploy=deploy` on the default branch | updates ECS service revisions and verifies runtime health only | `release-evidence-app-deploy-*` artifact and step summary |
-| `data-support-deploy.yml` | Manual `workflow_dispatch` with approved immutable `image_tag` and `confirm_data_support_deploy=deploy-data-support` on the default branch | promotes support job task-definition revisions for explicit data workloads | `release-evidence-data-support-deploy-*` artifact and step summary |
+| `data-support-deploy.yml` | Manual `workflow_dispatch` with approved immutable `image_tag` and `confirm_data_support_deploy=deploy-data-support` on the default branch | promotes support job task-definition revisions for explicit data workloads; rollback category `support_task_image` | `release-evidence-data-support-deploy-*` artifact and step summary |
 | `operational-snapshot.yml` | Manual `workflow_dispatch` with `confirm_snapshot=run-operational-snapshot` on the default branch | runs the promoted `operational_snapshot_job` task definition and captures its structured readiness event | `release-evidence-operational-snapshot-*` artifact and step summary |
 | `data-runtime-switch.yml` | Manual `workflow_dispatch` with reviewed `switch_step` and `confirm_switch=switch-runtime` on the default branch | advances runtime mode through one guarded forward transition at a time | `release-evidence-data-runtime-switch-*` artifact and step summary |
 | `data-schema-apply.yml` | Manual `workflow_dispatch` with approved immutable `image_tag`, reviewed `schema_phase`, and `confirm_schema_apply=apply-schema` on the default branch | runs reviewed Liquibase schema apply as an explicit data stage; contract phase additionally requires `confirm_contract_ready=contract-ready` and `READ_MODE=new` plus `WRITE_MODE=new` | `release-evidence-data-schema-apply-*` artifact and step summary |
@@ -252,23 +252,30 @@ dry-readiness gate:
 ```bash
 make platform-doctor-cloud
 make platform-toolkit-validate-cloud
-make infra-validate-local
-make workflow-dry-run-validate
 make workflow-dry-run-commands
 ```
 
 It does not call AWS mutating APIs. It checks workstation/cloud operator
-readiness, lints GitHub workflow shape, checks platform policy, and runs the
-contract/script tests that prove workflows, Terraform helpers, task-definition
-rendering, post-deploy verification, release evidence, and incident evidence
-still derive from the platform contract where appropriate.
+readiness, runs local security checks, lints GitHub workflow shape, checks
+platform policy, and runs the contract/script tests that prove workflows,
+Terraform helpers, task-definition rendering, post-deploy verification, release
+evidence, and incident evidence still derive from the platform contract where
+appropriate.
 
-`make infra-validate-local` mirrors the Terraform parse/validate portion of
-`infra-plan.yml` without remote backend initialization or cloud mutation. It can
-still download provider plugins through Terraform if they are not already
+Run `make workload-readiness-cloud` first when you need the per-workload cloud
+view: AWS admission, policy/delivery gate, structured log contract, secret
+injection proof, delivery workflow, evidence artifact, log group, and rollback
+proof category.
+
+`make platform-toolkit-validate-cloud` includes `make security-readiness`,
+`make infra-validate-local`, and local workflow dry-run validation.
+`security-readiness` runs `make secret-scan` and `make dependency-audit`.
+`infra-validate-local` mirrors the Terraform parse/validate portion of
+`infra-plan.yml` without remote backend initialization or cloud mutation. It
+can still download provider plugins through Terraform if they are not already
 cached. If provider initialization reaches AWS credential checks, the target
-prints an actionable readiness message instead of treating an expired or missing
-token as a Terraform syntax failure.
+prints an actionable readiness message instead of treating an expired or
+missing token as a Terraform syntax failure.
 
 `make workflow-dry-run-commands` prints copy-ready `gh workflow run` commands
 for each non-destructive workflow dry run, including the app-build validation
@@ -287,8 +294,9 @@ make workflow-dry-run-commands
 ```
 
 `make workflow-dry-run-validate` checks the generated command inputs against the
-local workflow files. Use `make workflow-dry-run-validate-gh` when you also want
-to confirm GitHub CLI authentication and list the remote workflows before
+local workflow files and confirms dry-run-capable workflows guard mutation and
+release-evidence steps. Use `make workflow-dry-run-validate-gh` when you also
+want to confirm GitHub CLI authentication and list the remote workflows before
 dispatch.
 
 The dry-run dispatches still run inside the `aws` GitHub environment and may

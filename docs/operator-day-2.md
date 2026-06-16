@@ -43,10 +43,14 @@ make workload-readiness-check
 
 ```bash
 make platform-toolkit-validate-cloud
-make infra-validate-local
 make workflow-dry-run-validate-gh
 make workflow-dry-run-commands
 ```
+
+`platform-toolkit-validate-cloud` already runs the local Terraform readiness and
+workflow dry-run validation checks. Use `workflow-dry-run-validate-gh` when you
+also want to confirm GitHub CLI auth and remote workflow visibility before
+dispatching dry runs.
 
 ## Deploy Observation
 

@@ -40,6 +40,7 @@ Use [Deployment](deployment.md) for rollout flow and
 | Dockerfiles | `make lint-dockerfiles` |
 | secrets | `make secret-scan` |
 | dependencies | `make dependency-audit` |
+| cloud security readiness | `make security-readiness` |
 | Terraform | `terraform fmt`, `terraform validate`, TFLint, Checkov, reviewed plan, separate apply |
 
 Rules:

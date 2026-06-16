@@ -32,6 +32,23 @@ def test_renderer_rejects_unmapped_declared_secret() -> None:
     assert "MISSING_RUNTIME_SECRET" in message
 
 
+def test_renderer_rejects_unrealized_declared_env() -> None:
+    workload = {
+        "name": "example_job",
+        "config": {"env": ["KNOWN_RUNTIME_ENV", "MISSING_RUNTIME_ENV"]},
+    }
+
+    with pytest.raises(RuntimeError) as error:
+        renderer._declared_environment(
+            workload,
+            {"KNOWN_RUNTIME_ENV": "configured"},
+        )
+
+    message = str(error.value)
+    assert "example_job" in message
+    assert "MISSING_RUNTIME_ENV" in message
+
+
 def test_renderer_rejects_service_without_declared_port() -> None:
     workload = {
         "name": "example_service",

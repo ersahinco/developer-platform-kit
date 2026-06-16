@@ -127,15 +127,19 @@ walking the expand, dual-write, backfill, switch, and contract path.
 make workload-readiness-cloud
 make platform-doctor-cloud
 make platform-toolkit-validate-cloud
-make infra-validate-local
-make workflow-dry-run-validate
 make workflow-dry-run-commands
 ```
 
 These commands do not mutate AWS. They validate local/cloud operator
-prerequisites, workflow shape, platform policy, contract/script behavior,
-Terraform syntax without remote backends, and the generated GitHub workflow
-dry-run dispatch commands.
+prerequisites, local security checks, workflow shape, platform policy,
+contract/script behavior, Terraform syntax without remote backends, and the
+generated GitHub workflow dry-run dispatch commands. `workload-readiness-cloud`
+also shows the policy/delivery gate, structured log contract, secret injection
+proof, delivery workflow, evidence artifact, log group, and rollback proof
+category for each workload. `platform-toolkit-validate-cloud` runs
+`security-readiness`, local Terraform readiness, and workflow dry-run
+validation checks; use `workflow-dry-run-commands` when you want the copy-ready
+`gh workflow run` commands.
 
 Use the real cloud-changing workflows only after review, immutable image
 selection, and the confirmation inputs described in

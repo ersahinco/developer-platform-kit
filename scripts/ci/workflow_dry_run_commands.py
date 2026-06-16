@@ -11,6 +11,13 @@ import yaml
 
 ROOT = Path(__file__).resolve().parents[2]
 WORKFLOW_DIR = ROOT / ".github" / "workflows"
+MUTATING_DELIVERY_COMMANDS = (
+    "aws ecs register-task-definition",
+    "scripts/ci/ci_deploy_ecs_service.sh",
+    "scripts/ci/ci_run_ecs_task.sh",
+    "terraform apply",
+    "-X POST",
+)
 
 
 @dataclass(frozen=True)
@@ -110,9 +117,16 @@ def dispatch_command(workflow: DryRunWorkflow) -> str:
     return " ".join(shlex.quote(part) for part in parts)
 
 
-def workflow_dispatch_inputs(path: Path) -> set[str]:
+def workflow_document(path: Path) -> dict:
     workflow = yaml.load(path.read_text(encoding="utf-8"), Loader=yaml.BaseLoader)
     if not isinstance(workflow, dict):
+        return {}
+    return workflow
+
+
+def workflow_dispatch_inputs(path: Path) -> set[str]:
+    workflow = workflow_document(path)
+    if not workflow:
         return set()
     triggers = workflow.get("on", {})
     if not isinstance(triggers, dict):
@@ -126,8 +140,98 @@ def workflow_dispatch_inputs(path: Path) -> set[str]:
     return {str(name) for name in inputs}
 
 
+def release_evidence_workflows() -> tuple[str, ...]:
+    return tuple(
+        path.name
+        for path in sorted(WORKFLOW_DIR.glob("*.yml"))
+        if "scripts.observability.release_event" in path.read_text(encoding="utf-8")
+    )
+
+
+def generated_dry_run_workflow_names() -> tuple[str, ...]:
+    return tuple(workflow.filename for workflow in dry_run_workflows())
+
+
+def _has_generated_dry_run_switch(workflow: DryRunWorkflow) -> bool:
+    inputs = dict(workflow.inputs)
+    if workflow.filename == "app-build.yml":
+        return inputs.get("confirm_build") == "dry-run"
+    return inputs.get("dry_run") == "true"
+
+
+def _step_env(step: dict) -> dict:
+    env = step.get("env", {})
+    return env if isinstance(env, dict) else {}
+
+
+def _job_text(job: dict) -> str:
+    return yaml.safe_dump(job, sort_keys=True)
+
+
+def _step_is_guarded_from_dry_run(job: dict, step: dict) -> bool:
+    job_if = str(job.get("if", ""))
+    step_if = str(step.get("if", ""))
+    run = str(step.get("run", ""))
+    env = _step_env(step)
+    script_guard = (
+        env.get("DRY_RUN") == "${{ inputs.dry_run }}"
+        and 'if [[ "$DRY_RUN" != "true" ]]' in run
+    )
+    return "!inputs.dry_run" in job_if or "!inputs.dry_run" in step_if or script_guard
+
+
+def dry_run_guard_errors(path: Path) -> list[str]:
+    workflow = workflow_document(path)
+    inputs = workflow_dispatch_inputs(path)
+    jobs = workflow.get("jobs", {}) if isinstance(workflow.get("jobs"), dict) else {}
+    errors: list[str] = []
+
+    for job_name, job in jobs.items():
+        if not isinstance(job, dict):
+            continue
+        job_if = str(job.get("if", ""))
+        if "scripts.observability.release_event" in _job_text(job):
+            if "dry_run" in inputs and "!inputs.dry_run" not in job_if:
+                errors.append(
+                    f"{path.name}:{job_name} emits release evidence in dry run"
+                )
+            if (
+                "dry_run" not in inputs
+                and "inputs.confirm_build == 'build'" not in job_if
+            ):
+                errors.append(
+                    f"{path.name}:{job_name} emits release evidence without build confirmation"
+                )
+        for step in job.get("steps", []):
+            if not isinstance(step, dict):
+                continue
+            run = str(step.get("run", ""))
+            if not any(command in run for command in MUTATING_DELIVERY_COMMANDS):
+                continue
+            if "dry_run" in inputs and not _step_is_guarded_from_dry_run(job, step):
+                step_name = step.get("name") or "<unnamed>"
+                errors.append(
+                    f"{path.name}:{job_name}:{step_name} mutates runtime state in dry run"
+                )
+    return errors
+
+
 def validate_local() -> int:
     errors: list[str] = []
+    evidence_workflows = set(release_evidence_workflows())
+    generated_workflows = set(generated_dry_run_workflow_names())
+    missing_dry_run_workflows = sorted(evidence_workflows - generated_workflows)
+    stale_dry_run_workflows = sorted(generated_workflows - evidence_workflows)
+    if missing_dry_run_workflows:
+        errors.append(
+            "release-evidence workflows without generated dry-run commands: "
+            + ", ".join(missing_dry_run_workflows)
+        )
+    if stale_dry_run_workflows:
+        errors.append(
+            "generated dry-run commands without release-evidence workflows: "
+            + ", ".join(stale_dry_run_workflows)
+        )
     for workflow in dry_run_workflows():
         path = workflow.path
         if not path.exists():
@@ -140,11 +244,19 @@ def validate_local() -> int:
             errors.append(
                 f"{workflow.filename} generated unknown inputs: {', '.join(missing)}"
             )
+        if not _has_generated_dry_run_switch(workflow):
+            errors.append(f"{workflow.filename} generated command is not a dry run")
+        if workflow.filename != "app-build.yml" and "dry_run" not in declared_inputs:
+            errors.append(f"{workflow.filename} does not declare dry_run input")
+        errors.extend(dry_run_guard_errors(path))
     if errors:
         for error in errors:
             print(error, file=sys.stderr)
         return 1
-    print("workflow dry-run commands match local workflow_dispatch inputs")
+    print(
+        "workflow dry-run commands match release-evidence workflows "
+        "and local workflow_dispatch inputs with non-mutating guards"
+    )
     return 0
 
 

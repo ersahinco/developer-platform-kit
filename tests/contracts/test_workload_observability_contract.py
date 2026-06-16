@@ -34,6 +34,13 @@ SERVICE_METRICS = {
     "foreign_inventory_sync": foreign_inventory_sync_main.metrics,
     "support_triage_llm": support_triage_main.metrics,
 }
+SERVICE_REQUEST_EVENTS = {
+    "api": api_main._http_request_event,
+    "churn_prediction_api": churn_prediction_main._http_request_event,
+    "event_consumer": event_consumer_main._http_request_event,
+    "foreign_inventory_sync": foreign_inventory_sync_main._http_request_event,
+    "support_triage_llm": support_triage_main._http_request_event,
+}
 
 
 def _metrics_text(response: Response) -> str:
@@ -66,37 +73,43 @@ def test_service_metrics_expose_workload_identity() -> None:
 
 
 def test_service_request_logs_include_workload_event_and_status() -> None:
+    service_workloads = [
+        workload
+        for workload in load_json("platform/workloads.json")["workloads"]
+        if workload["kind"] == "service"
+    ]
+    missing_modules = [
+        workload["name"]
+        for workload in service_workloads
+        if workload["name"] not in SERVICE_REQUEST_EVENTS
+    ]
+    assert missing_modules == []
+
     request: Any = SimpleNamespace(
         method="GET",
         scope={"route": SimpleNamespace(path="/health")},
         url=SimpleNamespace(path="/health"),
     )
 
-    api_event = api_main._http_request_event(
-        request, Response(status_code=200), "request-1", 0.01
-    )
-    consumer_event = event_consumer_main._http_request_event(
-        request, Response(status_code=503), "request-2", 0.01
-    )
-    foreign_event = foreign_inventory_sync_main._http_request_event(
-        request, Response(status_code=200), "request-3", 0.01
-    )
-    support_triage_event = support_triage_main._http_request_event(
-        request, Response(status_code=200), "request-4", 0.01
-    )
+    for workload in service_workloads:
+        event_builder = SERVICE_REQUEST_EVENTS[workload["name"]]
+        success_event = event_builder(
+            request, Response(status_code=200), "request-1", 0.01
+        )
+        failure_event = event_builder(
+            request, Response(status_code=503), "request-2", 0.01
+        )
 
-    assert api_event["workload"] == "api"
-    assert api_event["event"] == "http_request"
-    assert api_event["status"] == "succeeded"
-    assert consumer_event["workload"] == "event_consumer"
-    assert consumer_event["event"] == "http_request"
-    assert consumer_event["status"] == "failed"
-    assert foreign_event["workload"] == "foreign_inventory_sync"
-    assert foreign_event["event"] == "http_request"
-    assert foreign_event["status"] == "succeeded"
-    assert support_triage_event["workload"] == "support_triage_llm"
-    assert support_triage_event["event"] == "http_request"
-    assert support_triage_event["status"] == "succeeded"
+        assert success_event["workload"] == workload["name"]
+        assert success_event["event"] == "http_request"
+        assert success_event["request_id"] == "request-1"
+        assert success_event["status"] == "succeeded"
+        assert success_event["status_code"] == 200
+        assert failure_event["workload"] == workload["name"]
+        assert failure_event["event"] == "http_request"
+        assert failure_event["request_id"] == "request-2"
+        assert failure_event["status"] == "failed"
+        assert failure_event["status_code"] == 503
 
 
 class _CompletedBackfillRepository:

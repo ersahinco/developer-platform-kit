@@ -16,6 +16,10 @@ from scripts.platform.workload_read_model import (  # noqa: E402
     workload_repository,
     workloads,
 )
+from scripts.platform.workload_runtime_config import (  # noqa: E402
+    aws_env_realization_exception_names,
+    declared_env_names,
+)
 
 DEFAULT_DB_NAME = "aws_sdlc_containers"
 DEFAULT_DB_USER = "app"
@@ -252,10 +256,23 @@ def _declared_environment(
 ) -> list[dict[str, str]]:
     config = workload.get("config", {})
     declared = config.get("env", []) if isinstance(config, dict) else []
+    declared_names = [
+        env_name for env_name in declared if isinstance(env_name, str) and env_name
+    ]
+    realized_names = set(runtime_values) | aws_env_realization_exception_names(workload)
+    missing = [
+        env_name for env_name in declared_names if env_name not in realized_names
+    ]
+    if missing:
+        raise RuntimeError(
+            f"workload {_workload_display_name(workload)!r} declares AWS runtime env "
+            "without a runtime value, app composition, app default, or run-task "
+            f"override: {', '.join(missing)}"
+        )
     return [
         {"name": env_name, "value": runtime_values[env_name]}
-        for env_name in declared
-        if isinstance(env_name, str) and env_name in runtime_values
+        for env_name in declared_names
+        if env_name in runtime_values
     ]
 
 
@@ -292,9 +309,7 @@ def _service_port(workload: dict[str, Any]) -> int:
 
 
 def _declared_env_names(workload: dict[str, Any]) -> set[str]:
-    config = workload.get("config", {})
-    declared = config.get("env", []) if isinstance(config, dict) else []
-    return {env_name for env_name in declared if isinstance(env_name, str) and env_name}
+    return declared_env_names(workload)
 
 
 def _declared_secrets(

@@ -1,7 +1,9 @@
 # aws-sdlc-containers
 
-Developer-first delivery toolkit for portable workload boundaries, local proof,
-AWS ECS realization, and evidence-driven operations.
+This delivery toolkit helps teams define portable workload boundaries, prove
+them locally, deliver them through GitHub Actions, and realize them at the
+platform edge with runtime evidence, without hiding standard DevOps tools behind
+a framework.
 
 Short form: standardize the delivery workflow, do not replace the tools.
 
@@ -130,6 +132,14 @@ For the full local Compose proof ladder:
 make platform-toolkit-validate-local
 ```
 
+When the risk is the local runtime boundary itself, use the isolated Compose
+drill for token auth, health, readiness, metrics, structured logs, and local
+observability:
+
+```bash
+make local-compose-live-proof
+```
+
 For the richer local Kubernetes proof runtime target, first inspect admission
 and then run the live drill only when the workload needs that level of proof:
 
@@ -146,6 +156,10 @@ make workload-readiness-cloud
 make platform-doctor-cloud
 make platform-toolkit-validate-cloud
 ```
+
+`workload-readiness-cloud` shows the AWS admission, policy/delivery gate,
+structured log contract, secret injection proof, delivery workflow, evidence
+artifact, log group, and rollback proof category for each workload.
 
 The doctor targets are human diagnostics. The local doctor requires local tools,
 Docker, repo files, and workload readiness; cloud-only tools and GitHub auth are

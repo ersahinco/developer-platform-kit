@@ -53,6 +53,10 @@ def _release_event(**overrides: Any) -> dict[str, Any]:
         "env": env,
     }
     values.update(overrides)
+    values.setdefault(
+        "rollback_category",
+        release_event.ROLLBACK_CATEGORY_BY_EVENT_TYPE.get(str(values["event_type"])),
+    )
     return release_event.build_event(**values)
 
 
@@ -520,11 +524,13 @@ def test_release_event_writes_markdown_json_and_jsonl(tmp_path: Path) -> None:
     assert TEST_RUN_ID in markdown
     assert "aws-ecs" in markdown
     assert "ECS rollout: 45s" in markdown
+    assert "Rollback category: `app_image`" in markdown
     assert "Alarm Snapshot" in markdown
     assert "aws-sdlc-containers-api-target-5xx: OK" in markdown
     assert event["runtime_id"] == "aws-ecs"
     assert event["workload_id"] == "api"
     assert event["deployment_id"] == TEST_TASK_DEFINITION
+    assert event["rollback_category"] == "app_image"
     assert event["source_workflow"] == "App Deploy"
     assert event["correlation"]["github_run_id"] == TEST_RUN_ID
     assert event["revision"]["image_tag"].startswith("sha-")
@@ -621,8 +627,10 @@ def test_incident_evidence_bundle_surfaces_release_metadata(
     _, markdown_path = evidence.write_bundle(bundle, tmp_path / "bundle")
 
     assert bundle["release_events"][0]["workload_id"] == "api"
+    assert bundle["release_events"][0]["rollback_category"] == "app_image"
     markdown = markdown_path.read_text(encoding="utf-8")
     assert "workload_id: `api`" in markdown
+    assert "rollback_category: `app_image`" in markdown
 
 
 def test_incident_evidence_bundle_preserves_release_correlation_keys(
@@ -673,6 +681,7 @@ def test_incident_evidence_bundle_preserves_release_correlation_keys(
     assert release_summary["image_tag"] == TEST_IMAGE_TAG
     assert release_summary["task_definition"] == TEST_TASK_DEFINITION
     assert release_summary["task_arn"] == task_arn
+    assert release_summary["rollback_category"] == "app_image"
     for field in [
         "workload_id",
         "run_id",
@@ -694,6 +703,33 @@ def test_release_event_contract_requires_portable_fields() -> None:
     del broken_event["source_workflow"]
     with pytest.raises(ValueError, match="source_workflow"):
         release_event.validate_event_contract(broken_event)
+
+
+def test_release_event_contract_rejects_unknown_vocab_and_rollback_shape() -> None:
+    event = _release_event()
+
+    with pytest.raises(ValueError, match="event_type"):
+        release_event.validate_event_contract({**event, "event_type": "custom_deploy"})
+    with pytest.raises(ValueError, match="status"):
+        release_event.validate_event_contract({**event, "status": "green"})
+    with pytest.raises(ValueError, match="app_deploy rollback_category"):
+        release_event.validate_event_contract({**event, "rollback_category": None})
+    with pytest.raises(ValueError, match="app_build must not set rollback_category"):
+        release_event.validate_event_contract(
+            {
+                **event,
+                "event_type": "app_build",
+                "rollback_category": "app_image",
+            }
+        )
+
+
+def test_release_event_vocab_matches_delivery_query_vocab() -> None:
+    assert set(release_event.DELIVERY_EVENT_TYPES) == set(
+        workload_evidence.DELIVERY_EVENT_TYPES
+    )
+    assert "release_event_delivery_probe" in release_event.ALLOWED_EVENT_TYPES
+    assert "release_event_delivery_probe" not in workload_evidence.DELIVERY_EVENT_TYPES
 
 
 def test_release_event_captures_cloudwatch_alarm_snapshot(monkeypatch) -> None:

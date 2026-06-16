@@ -274,8 +274,8 @@ make platform-toolkit-validate-cloud
 
 Use the report first, then the check. If `make workload-readiness-check` says a
 workload lacks a run workflow, evidence surface, terminal job event, log group,
-or config contract, fix that paved-road gap before adding more workload
-behavior.
+logs contract, secret injection proof, or config contract, fix that paved-road
+gap before adding more workload behavior.
 
 ## Done Checklist
 

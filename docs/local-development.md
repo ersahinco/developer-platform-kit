@@ -30,6 +30,7 @@ reference-only samples.
 | prove contracts fast | `make workload-readiness`, `make runtime-conformance`, `make local-kubernetes-contracts` |
 | run the default local app host path | `make dev`, `make migrate`, `make seed`, `make local-app-up` |
 | run the API with local observability | `make local-up` |
+| prove the isolated local Compose runtime boundary | `make local-compose-live-proof` |
 | prove the local delivery toolkit | `make platform-toolkit-validate-local` |
 | prove rollout/rollback locally | `make local-kubernetes-rollout-proof` |
 | capture local Kubernetes runtime evidence | `make local-kubernetes-evidence-drill` |
@@ -170,6 +171,11 @@ make platform-toolkit-smoke-local
 Dapr sidecar, and runs one bounded backfill batch. It intentionally starts only
 the app-host services it needs; use `make local-up` or `make observability` when
 you also need Prometheus, Loki, Tempo, Promtail, and Grafana.
+
+`local-compose-live-proof` runs a separate temporary Compose project with token
+auth enabled. It proves health, readiness, Prometheus metrics, structured API
+logs, and the local Prometheus, Loki, Tempo, and Grafana endpoints, then tears
+the project down by default.
 
 `platform-toolkit-validate-local` is the full local Compose proof. It also runs
 the data export job, emits an operational snapshot, runs configured integration

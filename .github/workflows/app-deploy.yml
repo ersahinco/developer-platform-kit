@@ -297,6 +297,7 @@ jobs:
             --image-tag "${{ env.IMAGE_TAG }}" \
             --task-definition "${{ needs.deploy.outputs.task_definition }}" \
             --rollout-seconds "${{ needs.deploy.outputs.rollout_seconds }}" \
+            --rollback-category app_image \
             --verify-seconds "${{ needs.deploy.outputs.verify_seconds }}" \
             --include-alarms \
             --push-loki \

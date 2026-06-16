@@ -23,6 +23,7 @@ from scripts.platform.workload_evidence import (
     DEFAULT_AWS_REGION,
     DEFAULT_ENVIRONMENT,
     DEFAULT_STACK_NAME,
+    DELIVERY_EVENT_TYPES,
     edge_service_repository,
     release_alarm_names,
 )
@@ -43,6 +44,20 @@ REQUIRED_EVENT_FIELDS = [
     ("evidence_links",),
     ("alarm_snapshot",),
 ]
+PROBE_EVENT_TYPES = ["release_event_delivery_probe"]
+ALLOWED_EVENT_TYPES = [*DELIVERY_EVENT_TYPES, *PROBE_EVENT_TYPES]
+ALLOWED_STATUS_VALUES = ["cancelled", "failure", "skipped", "success", "unknown"]
+ROLLBACK_CATEGORY_BY_EVENT_TYPE = {
+    "app_deploy": "app_image",
+    "data_support_deploy": "support_task_image",
+    "data_runtime_switch": "runtime_data_phase",
+    "data_schema_apply": "schema_phase",
+    "data_backfill": "runtime_data_phase",
+    "operational_snapshot": "runtime_observability",
+}
+NO_ROLLBACK_CATEGORY_EVENT_TYPES = set(ALLOWED_EVENT_TYPES) - set(
+    ROLLBACK_CATEGORY_BY_EVENT_TYPE
+)
 
 
 def _task_arn_from_deployment_id(deployment_id: str | None) -> str | None:
@@ -284,6 +299,38 @@ def validate_event_contract(event: dict[str, Any]) -> None:
             + ", ".join(sorted(missing))
         )
 
+    errors: list[str] = []
+    if event.get("schema_version") != "1":
+        errors.append("schema_version must be 1")
+    if event.get("event_type") not in ALLOWED_EVENT_TYPES:
+        errors.append(
+            "event_type must be one of " + ", ".join(sorted(ALLOWED_EVENT_TYPES))
+        )
+    if event.get("status") not in ALLOWED_STATUS_VALUES:
+        errors.append(
+            "status must be one of " + ", ".join(sorted(ALLOWED_STATUS_VALUES))
+        )
+    for field in ["runtime_id", "workload_id"]:
+        value = event.get(field)
+        if not isinstance(value, str) or not value:
+            errors.append(f"{field} must be a non-empty string")
+
+    event_type = event.get("event_type")
+    rollback_category = event.get("rollback_category")
+    expected_rollback_category = ROLLBACK_CATEGORY_BY_EVENT_TYPE.get(str(event_type))
+    if expected_rollback_category is not None:
+        if rollback_category != expected_rollback_category:
+            errors.append(
+                f"{event_type} rollback_category must be {expected_rollback_category}"
+            )
+    elif (
+        event_type in NO_ROLLBACK_CATEGORY_EVENT_TYPES and rollback_category is not None
+    ):
+        errors.append(f"{event_type} must not set rollback_category")
+
+    if errors:
+        raise ValueError("Release event contract is invalid: " + "; ".join(errors))
+
 
 def render_markdown(event: dict[str, Any]) -> str:
     revision = event["revision"]
@@ -311,6 +358,8 @@ def render_markdown(event: dict[str, Any]) -> str:
         lines.append(f"- Image digest: `{event['image_digest']}`")
     if event.get("source_workflow"):
         lines.append(f"- Source workflow: {event['source_workflow']}")
+    if event.get("rollback_category"):
+        lines.append(f"- Rollback category: `{event['rollback_category']}`")
     if event.get("summary"):
         lines.append(f"- Summary: {event['summary']}")
     if github.get("run_url"):

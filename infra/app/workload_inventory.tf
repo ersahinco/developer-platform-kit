@@ -178,6 +178,31 @@ locals {
     }
   }
 
+  workload_app_default_env_names = {
+    event_consumer = toset([
+      "ASYNC_EVENT_WORKER_MODE",
+      "ASYNC_EVENT_WORKER_RUN_ONCE",
+      "OUTBOX_RELAY_BATCH_SIZE",
+      "OUTBOX_RELAY_IDLE_SLEEP_SECONDS",
+    ])
+    backfill_worker = toset([
+      "BACKFILL_BATCH_SIZE",
+      "BACKFILL_SLEEP_MS",
+      "BACKFILL_MAX_BATCHES",
+    ])
+    data_export_job = toset([
+      "DATA_EXPORT_OUTPUT_DIR",
+      "DATA_EXPORT_RUN_ID",
+      "DATA_EXPORT_DATE",
+    ])
+  }
+
+  workload_run_task_override_env_names = {
+    operational_snapshot_job = toset([
+      "OPERATIONAL_SNAPSHOT_RUN_ID",
+    ])
+  }
+
   shared_secret_value_from = {
     DB_PASSWORD             = "${module.rds.db_instance_master_user_secret_arn}:password::"
     PRIMARY_EDGE_AUTH_TOKEN = local.primary_edge_auth_token_secret_arn
@@ -209,6 +234,28 @@ locals {
     )
   }
 
+  workload_composed_env_names = {
+    for name, capabilities in local.workload_capabilities :
+    name => capabilities.has_database ? toset(["DATABASE_URL"]) : toset([])
+  }
+
+  workload_realized_env_names = {
+    for name, workload in local.workloads_by_name :
+    name => setunion(
+      toset(keys(local.workload_env_values[name])),
+      local.workload_composed_env_names[name],
+      lookup(local.workload_app_default_env_names, name, toset([])),
+      lookup(local.workload_run_task_override_env_names, name, toset([]))
+    )
+  }
+
+  unmapped_workload_env = flatten([
+    for name, workload in local.workloads_by_name : [
+      for env_name in workload.config.env : "${name}:${env_name}"
+      if !contains(local.workload_realized_env_names[name], env_name)
+    ]
+  ])
+
   workload_secret_values = {
     for name, workload in local.workloads_by_name :
     name => {
@@ -238,6 +285,16 @@ locals {
       }
       if contains(keys(local.workload_secret_values[name]), secret_name)
     ]
+  }
+}
+
+check "aws_admitted_workload_env_is_realized" {
+  assert {
+    condition = length(local.unmapped_workload_env) == 0
+    error_message = format(
+      "AWS-admitted workload config.env must be realized by runtime values, app composition, app defaults, or run-task overrides: %s",
+      join(", ", local.unmapped_workload_env)
+    )
   }
 }
 
