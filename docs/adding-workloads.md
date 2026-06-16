@@ -47,16 +47,18 @@ request should name the desired outcome in contract language:
 
 - run this workload
 - promote this local workload to `local-kubernetes` or `aws-ecs`
-- give this job an object artifact sink
+- give this workload or job object output
 - schedule this job
 - run this one-off operator job
 - subscribe or publish through the Dapr pub/sub boundary
 - grant bounded dependency access
 
-Do not request raw AWS resources such as ECS task definitions, subnets, IAM
-policies, S3 bucket names, queue URLs, or EventBridge rules. Those details are
-runtime realization choices after the workload contract fits. For brownfield or
-early discovery, draft the candidate workload JSON outside the repo and run:
+AWS-shaped asks such as ECS, IAM, subnets, buckets, queues, or schedulers are
+valid discovery context, but they are not the admission surface. Translate them
+to the outcome and capability first; task definitions, subnet IDs, IAM policies,
+S3 bucket names, queue URLs, and EventBridge rules remain runtime realization
+choices after the workload contract fits. For brownfield or early discovery,
+draft the candidate workload JSON outside the repo and run:
 
 ```bash
 WORKLOAD_CANDIDATE=/tmp/<workload>.json make workload-fit-check

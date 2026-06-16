@@ -1,8 +1,10 @@
 # Workload Or Capability Admission
 
 Use this template for PRs that admit a workload or bounded platform capability.
-Keep the PR in contract language first; runtime-specific resources belong only
-in the runtime realization layer.
+Keep the PR in contract language first. AWS-shaped context such as ECS, IAM,
+subnets, buckets, queues, or schedulers must map to an admitted workload or
+bounded capability; runtime-specific resources belong only in the runtime
+realization layer.
 
 ## Admission Outcome
 
@@ -49,5 +51,6 @@ in the runtime realization layer.
 
 - [ ] This does not turn `platform/workloads.json` into a deployment DSL.
 - [ ] This does not add arbitrary AWS resource vending or per-team Terraform.
+- [ ] AWS-shaped asks have been translated into workload or capability outcomes.
 - [ ] This does not add a portal, generator, Helm/CRD layer, or new runtime target.
 - [ ] Cloud admission has owner, evidence, delivery path, and operator notes.

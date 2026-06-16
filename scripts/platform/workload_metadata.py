@@ -7,6 +7,7 @@ from scripts.platform.workload_read_model import build_image_matrix
 from scripts.platform.workload_read_model import build_local_kubernetes_image_matrix
 from scripts.platform.workload_read_model import current_runtime_capability_rows
 from scripts.platform.workload_read_model import internal_service_workloads
+from scripts.platform.workload_read_model import monorepo_capability_profile
 from scripts.platform.workload_read_model import operator_job_workloads
 from scripts.platform.workload_read_model import primary_edge_contract
 from scripts.platform.workload_read_model import runtime_default_rows
@@ -132,12 +133,17 @@ def _print_runtime_defaults() -> int:
     return 0
 
 
+def _print_monorepo_capability_profile() -> int:
+    print(json.dumps(monorepo_capability_profile(), separators=(",", ":")))
+    return 0
+
+
 def main(argv: list[str] | None = None) -> int:
     argv = sys.argv[1:] if argv is None else argv
     if not argv:
         print(
             "usage: python -m scripts.platform.workload_metadata "
-            "<primary-edge-contract|internal-services|support-task-workloads|operator-job-workloads|image-matrix|local-kubernetes-image-matrix|capability-matrix|implementation-matrix|runtime-defaults>",
+            "<primary-edge-contract|internal-services|support-task-workloads|operator-job-workloads|image-matrix|local-kubernetes-image-matrix|capability-matrix|implementation-matrix|runtime-defaults|monorepo-capability-profile>",
             file=sys.stderr,
         )
         return 1
@@ -153,6 +159,9 @@ def main(argv: list[str] | None = None) -> int:
         "capability-matrix": lambda _args: _print_capability_matrix(),
         "implementation-matrix": lambda _args: _print_implementation_matrix(),
         "runtime-defaults": lambda _args: _print_runtime_defaults(),
+        "monorepo-capability-profile": (
+            lambda _args: _print_monorepo_capability_profile()
+        ),
     }
     handler = handlers.get(command)
     if handler is None:

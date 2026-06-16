@@ -12,13 +12,16 @@ Use:
 Start with these operator views:
 
 ```bash
+make monorepo-capability-profile
 make workload-readiness
 make capability-implementation-matrix
 make runtime-defaults
 ```
 
 Use `make help` or the runtime docs when you need the narrower inventory,
-candidate, or cloud-wiring views.
+candidate, or cloud-wiring views. `monorepo-capability-profile` is the compact
+machine-readable view that ties GitHub Actions lanes, workload contract usage,
+app-facing concerns, and runtime capability realization together.
 
 ## Capability Maturity
 
@@ -74,16 +77,23 @@ admission on existing infrastructure. Developers request contract-level
 outcomes; platform engineering realizes them through the current runtime target
 and catalog surfaces.
 
+Requests may arrive in AWS-shaped language such as ECS, IAM, subnets, buckets,
+queues, or schedulers. Treat those as runtime context, not the product surface.
+Admission is approved only after the request is translated into a
+contract-governed workload or bounded capability that the platform catalog can
+realize at the platform edge.
+
 For separate application repositories, app teams own application code and their
 copy of the CI lane. This platform repo owns the workload contract shape,
 runtime realization, catalog entries, policy checks, and evidence expectations.
 
 Good admission requests:
 
-- add or promote a contract-governed workload
-- attach an object artifact sink to a job
-- add operator or scheduled execution for a declared job
-- add Dapr pub/sub for a real async boundary
+- run or promote a contract-governed workload
+- give a workload or job object output through a declared artifact sink
+- subscribe or publish through the Dapr pub/sub boundary for a real async need
+- schedule a declared job or add one-off operator execution
+- promote a local workload to `aws-ecs` after local proof
 - grant bounded dependency access through declared config and secret names
 
 Non-goals:

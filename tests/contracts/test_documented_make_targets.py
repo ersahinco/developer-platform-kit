@@ -77,6 +77,7 @@ def test_make_help_points_to_focused_views() -> None:
             "platform-toolkit-smoke-local",
         ],
         "help-proof": [
+            "monorepo-capability-profile",
             "workload-readiness-check",
             "local-compose-live-proof",
             "local-kubernetes-contracts",

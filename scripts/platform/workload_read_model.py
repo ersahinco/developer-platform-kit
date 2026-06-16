@@ -7,6 +7,20 @@ from typing import Any
 
 ROOT = Path(__file__).resolve().parents[2]
 
+WORKFLOW_LANES = {
+    "infra": ["infra-plan.yml", "infra-apply.yml"],
+    "app": ["app-build.yml", "app-deploy.yml"],
+    "data": [
+        "data-schema-apply.yml",
+        "data-runtime-switch.yml",
+        "data-backfill.yml",
+        "data-support-deploy.yml",
+        "operational-snapshot.yml",
+    ],
+    "security": ["security.yml", "semgrep.yml"],
+    "local-proof": ["local-kubernetes-contracts.yml"],
+}
+
 
 @lru_cache(maxsize=1)
 def workload_contract() -> dict[str, Any]:
@@ -331,6 +345,179 @@ def current_runtime_capability_rows() -> list[dict[str, str]]:
         *runtime_default_capability_rows(),
         *inventory_runtime_capability_rows(),
     ]
+
+
+def _workflow_lanes() -> list[dict[str, Any]]:
+    workflow_root = ROOT / ".github" / "workflows"
+    lanes: list[dict[str, Any]] = []
+    for lane, workflow_names in WORKFLOW_LANES.items():
+        lanes.append(
+            {
+                "lane": lane,
+                "toolkit": "github-actions",
+                "workflows": workflow_names,
+                "missing_workflows": [
+                    name
+                    for name in workflow_names
+                    if not (workflow_root / name).is_file()
+                ],
+            }
+        )
+    return lanes
+
+
+def _workload_config_names(workload: dict[str, Any], key: str) -> list[str]:
+    config = workload.get("config", {})
+    if not isinstance(config, dict):
+        return []
+    values = config.get(key, [])
+    return [value for value in values if isinstance(value, str)]
+
+
+def _has_object_output(workload: dict[str, Any]) -> bool:
+    env_names = _workload_config_names(workload, "env")
+    return any(
+        name.endswith("_S3_BUCKET")
+        or name.endswith("_OUTPUT_BUCKET")
+        or name.endswith("_OUTPUT_DIR")
+        for name in env_names
+    )
+
+
+def _workload_infra_capabilities(workload: dict[str, Any]) -> list[str]:
+    capabilities = workload_capabilities(workload)
+    names = ["network_connectivity"]
+    if capabilities["edge_service"]:
+        names.append("edge_http")
+    if workload_database(workload) is not None:
+        names.append("relational_database")
+    if capabilities["async_eventing"]:
+        names.append("async_eventing")
+    if capabilities["scheduled_execution"]:
+        names.append("scheduled_execution")
+    if capabilities["operator_execution"]:
+        names.append("operator_job_execution")
+    if _has_object_output(workload):
+        names.append("object_storage")
+    if capabilities["tracing"]:
+        names.append("tracing")
+    return names
+
+
+def monorepo_capability_profile() -> dict[str, Any]:
+    workload_values = workloads()
+    runtime_rows = current_runtime_capability_rows()
+    config_env_names = sorted(
+        {
+            name
+            for workload in workload_values
+            for name in _workload_config_names(workload, "env")
+        }
+    )
+    secret_names = sorted(
+        {
+            name
+            for workload in workload_values
+            for name in _workload_config_names(workload, "secrets")
+        }
+    )
+
+    return {
+        "schema_version": "1",
+        "profile": "lean-monorepo-capabilities",
+        "stable_center": platform_inventory_document().get("stable_center", {}),
+        "delivery_lanes": _workflow_lanes(),
+        "runtime_targets": [
+            {
+                "runtime_target": runtime_target,
+                "maturity": maturity,
+            }
+            for runtime_target, maturity in sorted(runtime_target_maturity().items())
+        ],
+        "infra_capabilities": [
+            {
+                "capability": row["capability"],
+                "runtime_target": row["runtime_target"],
+                "maturity": row["maturity"],
+                "implementation": row["implementation"],
+            }
+            for row in sorted(
+                runtime_rows,
+                key=lambda value: (value["runtime_target"], value["capability"]),
+            )
+        ],
+        "workload_contract": {
+            "source": "platform/workloads.json",
+            "workload_count": len(workload_values),
+            "service_count": sum(
+                1 for workload in workload_values if workload.get("kind") == "service"
+            ),
+            "job_count": sum(
+                1 for workload in workload_values if workload.get("kind") == "job"
+            ),
+            "operational_classes": sorted(
+                {
+                    workload_operational_class(workload)
+                    for workload in workload_values
+                    if workload_operational_class(workload)
+                }
+            ),
+            "runtime_targets": sorted(
+                {
+                    runtime_target
+                    for workload in workload_values
+                    for runtime_target in workload_runtime_supported(workload)
+                    + workload_runtime_admitted(workload)
+                }
+            ),
+        },
+        "app_contract": {
+            "dapr_pubsub_workloads": [
+                workload["name"]
+                for workload in workload_values
+                if workload_capabilities(workload)["async_eventing"]
+            ],
+            "database_workloads": [
+                workload["name"]
+                for workload in workload_values
+                if workload_database(workload) is not None
+            ],
+            "object_output_workloads": [
+                workload["name"]
+                for workload in workload_values
+                if _has_object_output(workload)
+            ],
+            "metrics_workloads": [
+                workload["name"]
+                for workload in workload_values
+                if isinstance(workload.get("metrics"), dict)
+            ],
+            "tracing_workloads": [
+                workload["name"]
+                for workload in workload_values
+                if workload_capabilities(workload)["tracing"]
+            ],
+            "config_env_names": config_env_names,
+            "secret_names": secret_names,
+        },
+        "workload_infra_usage": [
+            {
+                "workload": workload["name"],
+                "capabilities": _workload_infra_capabilities(workload),
+            }
+            for workload in workload_values
+        ],
+        "lean_controls": {
+            "metadata_sources": [
+                "platform/workloads.json",
+                "platform/runtime-defaults.json",
+                "platform/platform-inventory.json",
+            ],
+            "runtime_realization_roots": ["infra/app", "infra/catalog"],
+            "app_contract_roots": ["apps", "packages", "platform/concerns"],
+            "delivery_root": ".github/workflows",
+        },
+    }
 
 
 def runtime_default_rows() -> list[dict[str, str]]:

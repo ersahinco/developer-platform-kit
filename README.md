@@ -19,6 +19,13 @@ an owner, conformance path, evidence artifact, failure mode, and runbook.
 The repo also ships a conventional Backstage descriptor in `catalog-info.yaml`
 so a portal or software catalog can ingest the monorepo without custom glue.
 
+The monorepo is capability-rich but deliberately lean. It includes modern
+GitHub Actions lanes for infra, app, and data delivery; infrastructure
+capabilities from network placement through database, object storage, messaging,
+jobs, and scheduler realization; and an app development contract that brings
+portable concerns such as Dapr, observability, config, secrets, and evidence
+into the app host from the start.
+
 App size is not the fit test. A tiny container, a long-running app host, a
 scheduled job, or a larger data/ML workload fits when its ports,
 health/readiness, config, secrets, network, storage, auth, logs/metrics,
@@ -56,6 +63,7 @@ Do not use it as:
 - Platform center: workload contract plus reusable catalog and concern definitions
 - Workload contract: `platform/workloads.json`; local/CI proof in `platform/runtime-conformance.json`
 - Boundaries: thin `apps/*` hosts, reusable `packages/*`, pluggable runtime targets realized at the edge in `infra/*`, workflows, and Compose
+- Capabilities: network, database, object storage, messaging, jobs, scheduling, Dapr, observability, secrets, and evidence selected by workload need
 - Ownership: each workload declares a portable owner before cloud runtime admission
 - DevEx: repeatable app-host conventions, local proof, checks, and evidence before runtime-specific work
 - Delivery: build before deploy, plan before apply, immutable image tags, release evidence
@@ -201,6 +209,7 @@ small corrections over new machinery:
 Useful inventory commands when you need them:
 
 ```bash
+make monorepo-capability-profile
 make workload-capability-matrix
 make workload-readiness
 ```

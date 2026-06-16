@@ -145,6 +145,70 @@ def test_workload_metadata_implementation_matrix_derives_runtime_defaults() -> N
         assert rows_by_pair[pair] == capability
 
 
+def test_workload_metadata_monorepo_capability_profile_is_derived() -> None:
+    completed = _run_workload_metadata("monorepo-capability-profile")
+    profile = json.loads(completed.stdout)
+
+    assert profile["schema_version"] == "1"
+    assert profile["profile"] == "lean-monorepo-capabilities"
+    assert profile["stable_center"] == {
+        "workload_contract": "platform/workloads.json",
+        "platform_concerns_root": "platform/concerns",
+        "catalog_root": "infra/catalog",
+    }
+
+    lanes = {lane["lane"]: lane for lane in profile["delivery_lanes"]}
+    assert {"infra", "app", "data"}.issubset(lanes)
+    for lane in lanes.values():
+        assert lane["toolkit"] == "github-actions"
+        assert lane["missing_workflows"] == []
+        for workflow in lane["workflows"]:
+            assert (ROOT / ".github" / "workflows" / workflow).is_file()
+
+    capability_names = {row["capability"] for row in profile["infra_capabilities"]}
+    assert {
+        "network_connectivity",
+        "relational_database",
+        "object_storage",
+        "async_eventing",
+        "scheduled_execution",
+        "operator_job_execution",
+        "ci_cd_delivery",
+    }.issubset(capability_names)
+
+    app_contract = profile["app_contract"]
+    assert "event_consumer" in app_contract["dapr_pubsub_workloads"]
+    assert "api" in app_contract["database_workloads"]
+    assert "data_export_job" in app_contract["object_output_workloads"]
+    assert "DATABASE_URL" in app_contract["config_env_names"]
+    assert "DB_PASSWORD" in app_contract["secret_names"]
+
+    workload_usage = {
+        row["workload"]: set(row["capabilities"])
+        for row in profile["workload_infra_usage"]
+    }
+    assert {"edge_http", "relational_database", "tracing"}.issubset(
+        workload_usage["api"]
+    )
+    assert {"async_eventing", "relational_database"}.issubset(
+        workload_usage["event_consumer"]
+    )
+    assert {"scheduled_execution", "object_storage"}.issubset(
+        workload_usage["data_export_job"]
+    )
+
+    assert profile["lean_controls"] == {
+        "metadata_sources": [
+            "platform/workloads.json",
+            "platform/runtime-defaults.json",
+            "platform/platform-inventory.json",
+        ],
+        "runtime_realization_roots": ["infra/app", "infra/catalog"],
+        "app_contract_roots": ["apps", "packages", "platform/concerns"],
+        "delivery_root": ".github/workflows",
+    }
+
+
 def test_workload_metadata_image_matrix_matches_declared_apps() -> None:
     contract = json.loads((ROOT / "platform" / "workloads.json").read_text())
     completed = _run_workload_metadata("image-matrix", "sha-test", "1.24.0")
