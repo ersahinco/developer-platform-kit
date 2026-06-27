@@ -25,6 +25,7 @@ Short form: standardize the delivery workflow, do not replace the tools.
 | platform catalog | reusable building blocks, templates, modules, policies, concerns, and delivery paths that realize workload needs |
 | platform edge | Terraform, Dapr components, GitHub Actions, runtime-facing scripts, and infrastructure adapters |
 | workload contract | canonical workload intent: image, config, secrets, health, telemetry, rollback, evidence, and tests |
+| bounded dependency | external system access described by purpose, owner, direction, declared config names, secret names, and evidence; provider wiring stays at the platform edge |
 | runtime target | hosting implementation such as `local-compose`, `local-kubernetes`, `aws-ecs`, managed provider edges, jobs, or future data runtimes |
 | portability by boundary | app contract and evidence shape travel; provider implementation stays isolated |
 | conformance | executable proof that an implementation satisfies a contract |
@@ -47,6 +48,7 @@ Short form: standardize the delivery workflow, do not replace the tools.
 | delivery toolkit | custom framework |
 | runtime target | cloud abstraction |
 | portable by boundary | cloud-neutral |
+| bounded dependency | raw provider integration |
 
 ## Placement Rules
 

@@ -14,6 +14,7 @@ Expected candidates over time:
 - Dapr broker backing resources
 - object storage baseline
 - app delivery identity baseline
+- bounded dependency baseline for identity, DNS, external APIs, external databases, and partner systems
 
 Until real reuse exists, keep implementation in `infra/platform` and
 `infra/app`.

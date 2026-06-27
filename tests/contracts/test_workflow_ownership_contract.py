@@ -409,6 +409,8 @@ def test_app_deploy_emits_app_host_set_evidence() -> None:
 def test_app_build_uploads_monorepo_capability_profile_artifact() -> None:
     text = _workflow_text("app-build.yml")
 
+    assert "infra/catalog/**" in text
+    assert "make workload-admission-check" in text
     assert "make monorepo-capability-profile-check" in text
     assert "make monorepo-capability-profile-md" in text
     assert "monorepo-capability-profile-${{ github.run_id }}" in text

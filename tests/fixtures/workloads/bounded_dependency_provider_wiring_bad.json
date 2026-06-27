@@ -1,0 +1,61 @@
+{
+  "name": "identity_aware_partner_api",
+  "kind": "service",
+  "use_cases": ["internal-api", "connector"],
+  "owner": "partner-platform",
+  "runtime": {
+    "supported": ["local-compose"],
+    "admitted": []
+  },
+  "operational": {
+    "class": "internal-service",
+    "exposure": "internal"
+  },
+  "service": {
+    "port": 8080
+  },
+  "image": {
+    "repository": "identity-aware-partner-api",
+    "package": "identity-aware-partner-api",
+    "command": "python -m identity_aware_partner_api.main"
+  },
+  "metrics": {
+    "format": "prometheus",
+    "required_names": ["workload_info", "http_requests_total"]
+  },
+  "traces": {
+    "supported": false
+  },
+  "database": {
+    "semantics": "postgresql",
+    "pooling": "direct"
+  },
+  "config": {
+    "env": [
+      "DATABASE_URL",
+      "DB_HOST",
+      "DB_PORT",
+      "DB_USER",
+      "DB_NAME",
+      "IDENTITY_ISSUER"
+    ],
+    "secrets": ["DB_PASSWORD", "IDENTITY_CLIENT_SECRET"]
+  },
+  "bounded_dependencies": [
+    {
+      "name": "workforce_identity",
+      "kind": "identity-provider",
+      "purpose": "Authenticate inbound users through Entra ID.",
+      "direction": "inbound",
+      "owner": "identity-platform",
+      "config": {
+        "env": ["IDENTITY_ISSUER"],
+        "secrets": ["IDENTITY_CLIENT_SECRET"],
+        "tenant_id": "72f988bf-86f1-41af-91ab-2d7cd011db47"
+      },
+      "evidence": ["token validation smoke check"],
+      "client_id": "11111111-2222-3333-4444-555555555555",
+      "issuer_url": "https://login.microsoftonline.com/example/v2.0"
+    }
+  ]
+}

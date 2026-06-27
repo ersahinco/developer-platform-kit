@@ -80,6 +80,7 @@ def test_make_help_points_to_focused_views() -> None:
             "monorepo-capability-profile",
             "monorepo-capability-profile-md",
             "monorepo-capability-profile-check",
+            "workload-admission-check",
             "workload-readiness-check",
             "local-compose-live-proof",
             "local-kubernetes-contracts",

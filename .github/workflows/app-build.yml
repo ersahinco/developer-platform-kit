@@ -21,6 +21,7 @@ on:
       - "apps/**"
       - "compose.yaml"
       - "platform/**"
+      - "infra/catalog/**"
       - "packages/**"
       - "pyproject.toml"
       - "db/**"
@@ -42,6 +43,7 @@ on:
       - "apps/**"
       - "compose.yaml"
       - "platform/**"
+      - "infra/catalog/**"
       - "packages/**"
       - "pyproject.toml"
       - "db/**"
@@ -129,6 +131,9 @@ jobs:
 
       - name: Check workload paved-road readiness
         run: make workload-readiness-check
+
+      - name: Check workload admission candidates
+        run: make workload-admission-check
 
       - name: Write monorepo capability profile
         run: |

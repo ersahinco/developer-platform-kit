@@ -29,6 +29,12 @@ realization layer.
 - `runtime.admitted`:
 - Config env names:
 - Secret names:
+- Bounded dependencies, if any:
+  - name/kind/purpose:
+  - direction:
+  - owner:
+  - declared config env/secret names:
+  - evidence:
 - Health/readiness/metrics or job evidence:
 
 ## Runtime Realization

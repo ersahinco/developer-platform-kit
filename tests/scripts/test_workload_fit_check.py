@@ -79,6 +79,129 @@ def test_workload_fit_check_accepts_dapr_pubsub_capability_intent() -> None:
     assert {result.status for result in results} == {"ok"}
 
 
+def test_workload_fit_check_accepts_bounded_entra_and_dns_dependencies() -> None:
+    candidate = {
+        **_valid_candidate(),
+        "config": {
+            "env": [
+                "DATABASE_URL",
+                "DB_HOST",
+                "DB_PORT",
+                "DB_USER",
+                "DB_NAME",
+                "IDENTITY_ISSUER",
+                "PARTNER_DNS_ZONE",
+            ],
+            "secrets": ["DB_PASSWORD", "IDENTITY_CLIENT_SECRET"],
+        },
+        "bounded_dependencies": [
+            {
+                "name": "workforce_identity",
+                "kind": "identity-provider",
+                "purpose": "Authenticate inbound users through Entra ID at the platform edge.",
+                "direction": "inbound",
+                "owner": "identity-platform",
+                "config": {
+                    "env": ["IDENTITY_ISSUER"],
+                    "secrets": ["IDENTITY_CLIENT_SECRET"],
+                },
+                "evidence": ["token validation smoke check"],
+            },
+            {
+                "name": "partner_dns",
+                "kind": "dns-provider",
+                "purpose": "Publish the workload hostname through an external DNS provider.",
+                "direction": "outbound",
+                "owner": "network-platform",
+                "config": {"env": ["PARTNER_DNS_ZONE"], "secrets": []},
+                "evidence": ["delegation check"],
+            },
+        ],
+    }
+
+    results = evaluate_candidate(candidate)
+
+    assert {result.status for result in results} == {"ok"}
+
+
+def test_workload_fit_check_rejects_bounded_dependency_provider_wiring() -> None:
+    candidate = {
+        **_valid_candidate(),
+        "config": {
+            "env": [
+                "DATABASE_URL",
+                "DB_HOST",
+                "DB_PORT",
+                "DB_USER",
+                "DB_NAME",
+                "IDENTITY_ISSUER",
+            ],
+            "secrets": ["DB_PASSWORD", "IDENTITY_CLIENT_SECRET"],
+        },
+        "bounded_dependencies": [
+            {
+                "name": "workforce_identity",
+                "kind": "identity-provider",
+                "purpose": "Authenticate inbound users through Entra ID.",
+                "direction": "inbound",
+                "owner": "identity-platform",
+                "config": {
+                    "env": ["IDENTITY_ISSUER"],
+                    "secrets": ["IDENTITY_CLIENT_SECRET"],
+                    "tenant_id": "72f988bf-86f1-41af-91ab-2d7cd011db47",
+                },
+                "evidence": ["token validation smoke check"],
+                "client_id": "11111111-2222-3333-4444-555555555555",
+                "issuer_url": "https://login.microsoftonline.com/example/v2.0",
+            }
+        ],
+    }
+
+    results = evaluate_candidate(candidate)
+    failures = {
+        result.area: result.message for result in results if result.status == "fail"
+    }
+
+    assert "bounded_dependencies" in failures
+    assert "extra keys: client_id, issuer_url" in failures["bounded_dependencies"]
+    assert "extra keys: tenant_id" in failures["bounded_dependencies"]
+    platform_edge = next(
+        result for result in results if result.area == "platform_edge_boundary"
+    )
+    assert platform_edge.status == "fail"
+    assert "bounded_dependencies[0].client_id" in platform_edge.message
+    assert "bounded_dependencies[0].issuer_url" in platform_edge.message
+
+
+def test_workload_fit_check_rejects_undeclared_bounded_dependency_config() -> None:
+    candidate = {
+        **_valid_candidate(),
+        "bounded_dependencies": [
+            {
+                "name": "partner_api",
+                "kind": "external-api",
+                "purpose": "Call a partner API through a platform-owned edge.",
+                "direction": "outbound",
+                "owner": "partner-platform",
+                "config": {
+                    "env": ["PARTNER_API_BASE_URL"],
+                    "secrets": ["PARTNER_API_TOKEN"],
+                },
+                "evidence": ["synthetic dependency check"],
+            }
+        ],
+    }
+
+    results = evaluate_candidate(candidate)
+    bounded = next(
+        result for result in results if result.area == "bounded_dependencies"
+    )
+
+    assert bounded.status == "fail"
+    assert "config.env: PARTNER_API_BASE_URL" in bounded.message
+    assert "config.secrets: PARTNER_API_TOKEN" in bounded.message
+
+
 def test_workload_fit_check_accepts_operator_and_scheduled_job_intent() -> None:
     base_job = {
         "kind": "job",
@@ -407,3 +530,41 @@ def test_workload_fit_check_accepts_corrected_foreign_fixture() -> None:
 
     assert "fit: yes" in completed.stdout
     assert "next make workload-readiness" in completed.stdout
+
+
+def test_workload_fit_check_accepts_bounded_dependency_fixture() -> None:
+    completed = subprocess.run(
+        [
+            sys.executable,
+            "scripts/platform/workload_fit_check.py",
+            "--candidate",
+            str(WORKLOAD_FIXTURES / "bounded_dependency_entra_dns_good.json"),
+        ],
+        check=True,
+        capture_output=True,
+        text=True,
+        cwd=ROOT,
+    )
+
+    assert "fit: yes" in completed.stdout
+
+
+def test_workload_fit_check_rejects_bounded_dependency_fixture_wiring() -> None:
+    completed = subprocess.run(
+        [
+            sys.executable,
+            "scripts/platform/workload_fit_check.py",
+            "--candidate",
+            str(WORKLOAD_FIXTURES / "bounded_dependency_provider_wiring_bad.json"),
+        ],
+        check=False,
+        capture_output=True,
+        text=True,
+        cwd=ROOT,
+    )
+
+    assert completed.returncode == 1
+    assert "fit: no" in completed.stdout
+    assert "bounded_dependencies[0].client_id" in completed.stdout
+    assert "bounded_dependencies[0].issuer_url" in completed.stdout
+    assert "bounded_dependencies[0].config.tenant_id" in completed.stdout

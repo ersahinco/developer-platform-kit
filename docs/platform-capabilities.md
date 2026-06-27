@@ -15,6 +15,7 @@ Start with these operator views:
 make monorepo-capability-profile
 make monorepo-capability-profile-md
 make monorepo-capability-profile-check
+make workload-admission-check
 make workload-readiness
 make capability-implementation-matrix
 make runtime-defaults
@@ -88,6 +89,13 @@ Admission is approved only after the request is translated into a
 contract-governed workload or bounded capability that the platform catalog can
 realize at the platform edge.
 
+External systems such as Entra ID, DNS providers, SaaS APIs, or external
+databases follow the same rule. Model them as bounded dependencies when the
+workload needs access: name the purpose, owner, direction, declared config
+names, declared secret names, and evidence. Tenant IDs, client IDs, DNS zone
+IDs, URLs, ARNs, subnet IDs, and provider resource names stay in runtime
+realization or operator-owned secret/config systems.
+
 For separate application repositories, app teams own application code and their
 copy of the CI lane. This platform repo owns the workload contract shape,
 runtime realization, catalog entries, policy checks, and evidence expectations.
@@ -101,6 +109,27 @@ Good admission requests:
 - promote a local workload to `aws-ecs` after local proof
 - grant bounded dependency access through declared config and secret names
 
+Bounded dependency candidate shape:
+
+```json
+{
+  "bounded_dependencies": [
+    {
+      "name": "workforce_identity",
+      "kind": "identity-provider",
+      "purpose": "Authenticate inbound users through Entra ID at the platform edge.",
+      "direction": "inbound",
+      "owner": "identity-platform",
+      "config": {
+        "env": ["IDENTITY_ISSUER"],
+        "secrets": ["IDENTITY_CLIENT_SECRET"]
+      },
+      "evidence": ["token validation smoke check"]
+    }
+  ]
+}
+```
+
 Non-goals:
 
 - arbitrary AWS resource vending
@@ -113,10 +142,14 @@ Non-goals:
 Use the GitHub issue form `Workload or capability admission` as the intake
 surface and `workload-capability-admission.md` as the matching implementation
 PR template. Use `make workload-readiness`, `make workload-readiness-check`,
-and `make workload-fit-check` for candidate review before adding runtime
-realization. The fit check derives the candidate's requested capabilities and
-compares them with the current monorepo capability profile, so admission review
-stays tied to implemented delivery, app-contract, and runtime surfaces.
+`make workload-admission-check`, and `make workload-fit-check` for candidate
+review before adding runtime realization. The admission check validates
+repo-owned samples in `platform/admission/candidates/` against
+`platform/admission/workload-candidate.schema.json` and the same fit-check
+rules used for one-off candidates. The fit check derives the candidate's
+requested capabilities and compares them with the current monorepo capability
+profile, so admission review stays tied to implemented delivery, app-contract,
+and runtime surfaces.
 
 ## Dapr Boundary
 

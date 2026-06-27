@@ -92,6 +92,12 @@ body:
         - database need:
         - Dapr pub/sub need:
         - object output or artifact need:
+        - bounded dependencies, if any:
+          - name/kind/purpose:
+          - direction:
+          - config env names:
+          - secret names:
+          - evidence:
     validations:
       required: true
 

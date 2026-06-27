@@ -73,7 +73,7 @@ endef
 # ── Help ──────────────────────────────────────────────────────────────────────
 
 HELP_LOCAL_TARGETS := platform-doctor workload-readiness workload-readiness-local dev migrate seed local-app-up local-up api-smoke dapr-up dapr-smoke platform-toolkit-smoke-local platform-toolkit-validate-local local-down local-reset
-HELP_PROOF_TARGETS := monorepo-capability-profile monorepo-capability-profile-md monorepo-capability-profile-check workload-readiness workload-readiness-local workload-readiness-cloud workload-readiness-check runtime-conformance local-compose-live-proof local-kubernetes-contracts local-kubernetes-admission-report local-kubernetes-evidence-drill local-kubernetes-rollout-proof workflow-dry-run-validate
+HELP_PROOF_TARGETS := monorepo-capability-profile monorepo-capability-profile-md monorepo-capability-profile-check workload-admission-check workload-readiness workload-readiness-local workload-readiness-cloud workload-readiness-check runtime-conformance local-compose-live-proof local-kubernetes-contracts local-kubernetes-admission-report local-kubernetes-evidence-drill local-kubernetes-rollout-proof workflow-dry-run-validate
 HELP_CLOUD_TARGETS := platform-doctor-cloud platform-toolkit-validate-cloud security-readiness infra-validate-local workflow-dry-run-validate workflow-dry-run-commands workflow-dry-run-validate-gh infra-platform-plan infra-app-plan app-deploy post-deploy-verify release-evidence-runs operational-snapshot-cloud
 HELP_OPERATOR_TARGETS := release-evidence-runs release-evidence-download operator-payload-download operational-snapshot operational-snapshot-dry-run operational-snapshot-cloud incident-evidence db-tunnel db-exec db-seed api-get-order observability-delivery-verify release-event-delivery-verify integration-check data-artifacts-list
 
@@ -690,6 +690,14 @@ workload-readiness-check: ## Fail when declared workloads lack paved-road readin
 workload-fit-check: ## Evaluate a draft externally operated workload before admission
 	@[ -n "$(WORKLOAD_CANDIDATE)" ] || (echo "Set WORKLOAD_CANDIDATE=/path/to/workload.json" >&2; exit 1)
 	python3 scripts/platform/workload_fit_check.py --candidate "$(WORKLOAD_CANDIDATE)"
+
+.PHONY: workload-admission-check
+workload-admission-check: ## Validate repo-owned admission candidate samples
+	@if [ -x .venv/bin/python ]; then \
+		.venv/bin/python scripts/platform/admission_check.py; \
+	else \
+		uv run python scripts/platform/admission_check.py; \
+	fi
 
 .PHONY: capability-implementation-matrix
 capability-implementation-matrix: ## Print the current runtime capability-to-implementation matrix

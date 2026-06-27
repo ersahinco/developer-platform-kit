@@ -60,6 +60,18 @@ S3 bucket names, queue URLs, and EventBridge rules remain runtime realization
 choices after the workload contract fits. For brownfield or early discovery,
 draft the candidate workload JSON outside the repo and run:
 
+For external systems such as Entra ID, DNS providers, SaaS APIs, or external
+databases, use `bounded_dependencies` in the candidate JSON. Keep it lean:
+`name`, `kind`, `purpose`, `direction`, `owner`, declared `config.env`,
+declared `config.secrets`, and `evidence`. Do not put tenant IDs, client IDs,
+URLs, DNS zone IDs, ARNs, subnet IDs, or provider resource names in the
+workload contract. Keep repo-owned examples under `platform/admission/candidates/`
+and validate them with:
+
+```bash
+make workload-admission-check
+```
+
 ```bash
 WORKLOAD_CANDIDATE=/tmp/<workload>.json make workload-fit-check
 ```

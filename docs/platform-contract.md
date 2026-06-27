@@ -200,6 +200,14 @@ Object storage and file-output expectations follow the same rule: declare
 portable config and secret names plus operator-visible evidence, then let the
 runtime target choose S3, local volumes, or another owned implementation.
 
+External dependencies follow the same boundary. A candidate workload may ask
+for bounded dependency access to systems such as Entra ID, an external DNS
+provider, a SaaS API, or an externally owned database. The contract-level shape
+is purpose, owner, direction, declared config names, declared secret names, and
+evidence. Provider tenant IDs, client IDs, DNS zone IDs, URLs, ARNs, subnet IDs,
+and product resource names belong at the platform edge or in operator-owned
+secret/config systems.
+
 ## Eventing
 
 Dapr is the app-facing eventing boundary.

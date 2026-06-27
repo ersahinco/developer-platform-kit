@@ -27,6 +27,25 @@ VALID_KINDS = {"service", "job"}
 SERVICE_CLASSES = {"edge-service", "internal-service"}
 JOB_CLASSES = {"operator-job", "scheduled-job"}
 VALID_TRIGGERS = {"manual", "schedule"}
+BOUNDED_DEPENDENCY_KINDS = {
+    "dns-provider",
+    "external-api",
+    "external-database",
+    "identity-provider",
+    "partner-system",
+    "saas-api",
+}
+BOUNDED_DEPENDENCY_DIRECTIONS = {"inbound", "outbound", "bidirectional"}
+BOUNDED_DEPENDENCY_KEYS = {
+    "name",
+    "kind",
+    "purpose",
+    "direction",
+    "owner",
+    "config",
+    "evidence",
+}
+BOUNDED_DEPENDENCY_CONFIG_KEYS = {"env", "secrets"}
 
 KEBAB_CASE = re.compile(r"^[a-z0-9]+(?:-[a-z0-9]+)*$")
 ENV_NAME = re.compile(r"^[A-Z][A-Z0-9_]*$")
@@ -51,6 +70,8 @@ FORBIDDEN_KEY_PARTS = {
     "ci",
     "ci_pipeline",
     "cluster",
+    "client_id",
+    "client_secret",
     "database_host",
     "database_url",
     "datadog",
@@ -89,6 +110,8 @@ FORBIDDEN_KEY_PARTS = {
     "subnet",
     "target_group",
     "task_definition",
+    "tenant",
+    "tenant_id",
     "topic_arn",
     "topic_url",
     "terraform",
@@ -143,6 +166,7 @@ KEEP_AS_WORKLOAD_CONTRACT = (
     "database semantics",
     "Prometheus metric identity",
     "structured workload events",
+    "bounded dependency config/secrets",
 )
 
 
@@ -189,6 +213,10 @@ def _is_non_empty_string(value: Any) -> bool:
 
 def _is_string_list(value: Any) -> bool:
     return isinstance(value, list) and all(isinstance(item, str) for item in value)
+
+
+def _is_bounded_dependency_path(path: str) -> bool:
+    return path.startswith("bounded_dependencies[")
 
 
 def _stable_center_fields(candidate: dict[str, Any]) -> FitResult:
@@ -339,6 +367,127 @@ def _runtime_scope(candidate: dict[str, Any]) -> FitResult:
     return _ok("runtime_scope", "runtime support and admission use known targets")
 
 
+def _bounded_dependencies_contract(candidate: dict[str, Any]) -> FitResult:
+    dependencies = candidate.get("bounded_dependencies")
+    if dependencies is None:
+        return _ok(
+            "bounded_dependencies",
+            "candidate does not declare bounded dependency access",
+        )
+    if not isinstance(dependencies, list):
+        return _fail("bounded_dependencies", "bounded_dependencies must be an array")
+
+    workload_env_value = _get_path(candidate, "config.env")
+    workload_secret_value = _get_path(candidate, "config.secrets")
+    workload_env = set(
+        workload_env_value if _is_string_list(workload_env_value) else []
+    )
+    workload_secrets = set(
+        workload_secret_value if _is_string_list(workload_secret_value) else []
+    )
+    failures: list[str] = []
+    remove_paths: list[str] = []
+
+    for index, dependency in enumerate(dependencies):
+        path = f"bounded_dependencies[{index}]"
+        if not isinstance(dependency, dict):
+            failures.append(f"{path} must be an object")
+            continue
+
+        extra_keys = sorted(set(dependency) - BOUNDED_DEPENDENCY_KEYS)
+        if extra_keys:
+            failures.append(
+                f"{path} must only contain "
+                + ", ".join(sorted(BOUNDED_DEPENDENCY_KEYS))
+                + "; extra keys: "
+                + ", ".join(extra_keys)
+            )
+            remove_paths.extend(f"{path}.{key}" for key in extra_keys)
+
+        for key in ["name", "kind", "purpose", "direction", "owner"]:
+            if not _is_non_empty_string(dependency.get(key)):
+                failures.append(f"{path}.{key} must be a non-empty string")
+
+        name = dependency.get("name")
+        if isinstance(name, str) and not re.fullmatch(r"[a-z0-9_]+", name):
+            failures.append(f"{path}.name must use lowercase snake_case")
+
+        kind = dependency.get("kind")
+        if isinstance(kind, str) and kind not in BOUNDED_DEPENDENCY_KINDS:
+            failures.append(
+                f"{path}.kind must be one of "
+                + ", ".join(sorted(BOUNDED_DEPENDENCY_KINDS))
+            )
+
+        direction = dependency.get("direction")
+        if (
+            isinstance(direction, str)
+            and direction not in BOUNDED_DEPENDENCY_DIRECTIONS
+        ):
+            failures.append(
+                f"{path}.direction must be one of "
+                + ", ".join(sorted(BOUNDED_DEPENDENCY_DIRECTIONS))
+            )
+
+        owner = dependency.get("owner")
+        if isinstance(owner, str) and not KEBAB_CASE.fullmatch(owner):
+            failures.append(f"{path}.owner must use lowercase kebab-case")
+
+        config = dependency.get("config")
+        if not isinstance(config, dict):
+            failures.append(f"{path}.config must declare env and secrets arrays")
+        else:
+            extra_config_keys = sorted(set(config) - BOUNDED_DEPENDENCY_CONFIG_KEYS)
+            if extra_config_keys:
+                failures.append(
+                    f"{path}.config must only contain env and secrets; extra keys: "
+                    + ", ".join(extra_config_keys)
+                )
+                remove_paths.extend(f"{path}.config.{key}" for key in extra_config_keys)
+            for key, declared in [
+                ("env", workload_env),
+                ("secrets", workload_secrets),
+            ]:
+                values = config.get(key)
+                if not isinstance(values, list) or not all(
+                    isinstance(value, str) for value in values
+                ):
+                    failures.append(f"{path}.config.{key} must be a string array")
+                    continue
+                dependency_names = values
+                bad_names = [
+                    value for value in dependency_names if not ENV_NAME.fullmatch(value)
+                ]
+                if bad_names:
+                    failures.append(
+                        f"{path}.config.{key} entries must look like environment "
+                        "variable names: " + ", ".join(bad_names)
+                    )
+                undeclared = sorted(set(dependency_names) - declared)
+                if undeclared:
+                    failures.append(
+                        f"{path}.config.{key} must reference workload-declared "
+                        f"config.{key}: " + ", ".join(undeclared)
+                    )
+
+        evidence = dependency.get("evidence")
+        if not _is_string_list(evidence) or not evidence:
+            failures.append(f"{path}.evidence must be a non-empty string array")
+
+    if failures:
+        return _fail(
+            "bounded_dependencies",
+            "; ".join(failures),
+            details={"remove_from_stable_center": sorted(remove_paths)}
+            if remove_paths
+            else None,
+        )
+    return _ok(
+        "bounded_dependencies",
+        "bounded dependencies use declared config and secrets only",
+    )
+
+
 def _key_leaks(candidate: dict[str, Any]) -> list[EdgeLeak]:
     leaks: list[EdgeLeak] = []
     for path, value in _walk(candidate):
@@ -401,7 +550,9 @@ def _value_leaks(candidate: dict[str, Any]) -> list[EdgeLeak]:
             if pattern.search(value):
                 leaks.append(EdgeLeak(path=path, reason=f"contains {label}"))
                 break
-        if any(name in lower_value for name in RUNTIME_TOOL_NAMES):
+        if not _is_bounded_dependency_path(path) and any(
+            name in lower_value for name in RUNTIME_TOOL_NAMES
+        ):
             leaks.append(
                 EdgeLeak(
                     path=path,
@@ -553,6 +704,7 @@ def evaluate_candidate(candidate: dict[str, Any]) -> list[FitResult]:
         _stable_center_fields(candidate),
         _service_or_job_shape(candidate),
         _runtime_scope(candidate),
+        _bounded_dependencies_contract(candidate),
         _capability_profile_fit(candidate),
         _platform_edge_boundary(candidate),
         _database_intent(candidate),
