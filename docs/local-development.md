@@ -105,6 +105,11 @@ Set `CONTAINER_SCAN_IMAGE=<image:tag>` to enable built-image Trivy scanning and
 `DEEPFENCE_IMAGE_NAME=<image:tag>` to enable Deepfence image secret scanning;
 both are skipped when no image tag is supplied.
 
+The shift-left text hygiene hooks use local OSS tools when present:
+`typos` for spelling-like mistakes and `markdownlint-cli2` or `markdownlint`
+for Markdown style. If those CLIs are not installed, the hooks print an install
+hint and continue.
+
 ## Standard Local Flow
 
 ```bash

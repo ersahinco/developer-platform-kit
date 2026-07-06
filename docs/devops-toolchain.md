@@ -13,6 +13,8 @@ Use [Deployment](deployment.md) for rollout flow and
 | Python workspace | `uv` |
 | tests | pytest |
 | lint and format | Ruff |
+| typo linting | typos |
+| Markdown style linting | markdownlint |
 | type checking | Pyright |
 | database migrations | Liquibase |
 | infrastructure as code | Terraform |
@@ -21,6 +23,7 @@ Use [Deployment](deployment.md) for rollout flow and
 | Dockerfile linting | hadolint |
 | docs link checking | lychee |
 | Git hook runner | `prek` |
+| commit message linting | Conventional Commit lint |
 | policy as code | OPA / Conftest |
 | IaC scanning | Checkov |
 | policy scanning | OPA / Conftest |
@@ -40,6 +43,7 @@ Use [Deployment](deployment.md) for rollout flow and
 | runtime conformance | `make runtime-conformance` |
 | workflows | `make lint-workflows` |
 | docs | `make lint-docs` |
+| text hygiene | `make lint-text` |
 | policy | `make lint-policy` |
 | Dockerfiles | `make lint-dockerfiles` |
 | secrets | `make secret-scan` |
@@ -57,6 +61,9 @@ Rules:
 - build before deploy
 - plan before apply
 - cloud-changing workflows emit release evidence
+- use OSS/local-first scanners for required gates; paid SaaS tools such as
+  hosted Sonar or Palo Alto/Prisma surfaces may complement this toolkit but
+  are not required delivery dependencies
 
 ## GitHub Gate Matrix
 

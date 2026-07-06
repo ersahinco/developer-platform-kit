@@ -55,6 +55,7 @@ CONTAINER_SCAN_IMAGE   ?=
 DEEPFENCE_IMAGE_NAME   ?= $(CONTAINER_SCAN_IMAGE)
 DEEPFENCE_SECRET_SCANNER_IMAGE ?= quay.io/deepfenceio/deepfence_secret_scanner_ce:2.5.8
 OWASP_DEPENDENCY_CHECK_IMAGE ?= owasp/dependency-check:12.1.0
+COMMIT_MSG_FILE        ?= .git/COMMIT_EDITMSG
 
 define local_kubernetes_build_images
 	@set -e; \
@@ -373,7 +374,7 @@ local-kubernetes-contracts: ## Run static local Kubernetes contract checks
 # ── Lint & format ─────────────────────────────────────────────────────────────
 
 .PHONY: lint
-lint: secret-scan dependency-audit lint-app lint-scripts lint-docs lint-workflows lint-dockerfiles lint-policy workload-readiness-check lint-infra ## Run all linters
+lint: secret-scan dependency-audit lint-app lint-scripts lint-docs lint-text lint-workflows lint-dockerfiles lint-policy workload-readiness-check lint-infra ## Run all linters
 
 .PHONY: lint-app
 lint-app: ## Lint and type-check Python
@@ -394,6 +395,27 @@ lint-docs: ## Check Markdown links
 			-w /repo \
 			lycheeverse/lychee:latest@sha256:64bdc8e45d47634ca6a40f29ae48f1916fb7901ffe0eb929e1229590aba27668 \
 			README.md 'docs/**/*.md'; \
+	fi
+
+.PHONY: lint-text
+lint-text: lint-typos lint-markdown ## Run text-oriented local checks
+
+.PHONY: lint-typos
+lint-typos: ## Check text for common typos when typos is installed
+	@if command -v typos >/dev/null 2>&1; then \
+		typos; \
+	else \
+		echo "typos not installed; install crate-ci typos to enable this check."; \
+	fi
+
+.PHONY: lint-markdown
+lint-markdown: ## Lint Markdown when markdownlint is installed
+	@if command -v markdownlint-cli2 >/dev/null 2>&1; then \
+		markdownlint-cli2 README.md 'docs/**/*.md' 'apps/**/*.md' 'packages/**/*.md' 'platform/**/*.md' 'infra/**/*.md' '*.md'; \
+	elif command -v markdownlint >/dev/null 2>&1; then \
+		markdownlint README.md docs apps packages platform infra *.md; \
+	else \
+		echo "markdownlint not installed; install markdownlint-cli2 to enable this check."; \
 	fi
 
 .PHONY: lint-workflows
@@ -583,6 +605,10 @@ policy-scan: lint-policy ## Alias for policy scanning
 .PHONY: infra-validate-local
 infra-validate-local: ## Validate Terraform syntax locally without backend or cloud mutation
 	python3 scripts/ci/terraform_readiness.py
+
+.PHONY: commitlint
+commitlint: ## Lint a commit message file with Conventional Commit rules
+	python3 scripts/ci/commitlint.py "$(COMMIT_MSG_FILE)"
 
 .PHONY: fmt
 fmt: ## Auto-format Python and Terraform
