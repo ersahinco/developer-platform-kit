@@ -12,6 +12,21 @@ repos:
       - id: check-yaml
         args: [--allow-multiple-documents]
         stages: [pre-commit]
+      - id: check-json
+        stages: [pre-commit]
+      - id: check-toml
+        stages: [pre-commit]
+      - id: check-case-conflict
+        stages: [pre-commit]
+      - id: check-symlinks
+        stages: [pre-commit]
+      - id: check-added-large-files
+        stages: [pre-commit]
+      - id: detect-private-key
+        stages: [pre-commit]
+      - id: mixed-line-ending
+        args: [--fix=lf]
+        stages: [pre-commit]
       - id: check-merge-conflict
         stages: [pre-commit]
 
@@ -48,6 +63,13 @@ repos:
         files: ^scripts/.*\.sh$
         stages: [pre-commit]
 
+      - id: shellcheck
+        name: shellcheck
+        entry: shellcheck
+        language: system
+        files: ^scripts/.*\.sh$
+        stages: [pre-commit]
+
       - id: docs-links
         name: docs local links
         entry: lychee README.md docs/**/*.md
@@ -75,6 +97,94 @@ repos:
         language: system
         pass_filenames: false
         stages: [pre-commit]
+
+      - id: terraform-validate
+        name: Terraform validate
+        entry: make infra-validate-local
+        language: system
+        pass_filenames: false
+        files: ^infra/.*\.tf$
+        stages: [pre-push]
+
+      - id: tflint
+        name: TFLint
+        entry: make lint-tflint
+        language: system
+        pass_filenames: false
+        files: ^infra/.*\.tf$
+        stages: [pre-push]
+
+      - id: checkov
+        name: Checkov IaC scan
+        entry: make lint-checkov
+        language: system
+        pass_filenames: false
+        files: ^infra/.*(\.tf|\.checkov\.yaml)$
+        stages: [pre-push]
+
+      - id: dependency-audit
+        name: dependency audit
+        entry: make dependency-audit
+        language: system
+        pass_filenames: false
+        files: ^(pyproject\.toml|uv\.lock|apps/.*/pyproject\.toml|packages/.*/pyproject\.toml)$
+        stages: [pre-push]
+
+      - id: dependency-audit-owasp
+        name: OWASP dependency audit
+        entry: make dependency-audit-owasp
+        language: system
+        pass_filenames: false
+        files: ^(pyproject\.toml|uv\.lock|apps/.*/pyproject\.toml|packages/.*/pyproject\.toml)$
+        stages: [pre-push]
+
+      - id: container-config-scan
+        name: Trivy container and config scan
+        entry: make container-config-scan
+        language: system
+        pass_filenames: false
+        files: ^(Dockerfile|docker-compose\.ya?ml|db/Dockerfile|db/pgbouncer/Dockerfile|platform/workload\.Dockerfile|infra/|platform/concerns/|\.github/workflows/)
+        stages: [pre-push]
+
+      - id: container-image-scan
+        name: Trivy container image scan
+        entry: make container-image-scan
+        language: system
+        pass_filenames: false
+        files: ^(Dockerfile|docker-compose\.ya?ml|db/Dockerfile|db/pgbouncer/Dockerfile|platform/workload\.Dockerfile|platform/workloads\.json)
+        stages: [pre-push]
+
+      - id: deepfence-secret-scan
+        name: Deepfence image secret scan
+        entry: make secret-scan-deepfence
+        language: system
+        pass_filenames: false
+        files: ^(Dockerfile|docker-compose\.ya?ml|db/Dockerfile|db/pgbouncer/Dockerfile|platform/workload\.Dockerfile|platform/workloads\.json)
+        stages: [pre-push]
+
+      - id: policy
+        name: OPA Conftest policy scan
+        entry: make lint-policy
+        language: system
+        pass_filenames: false
+        files: ^(\.github/workflows/.*\.yml|platform/(workloads|runtime-conformance|platform-inventory|runtime-defaults)\.json|platform/concerns/policy/)
+        stages: [pre-push]
+
+      - id: workload-readiness
+        name: workload readiness
+        entry: make workload-readiness-check
+        language: system
+        pass_filenames: false
+        files: ^(platform/workloads\.json|apps/|packages/|platform/workload\.Dockerfile)
+        stages: [pre-push]
+
+      - id: workflow-dry-run
+        name: workflow dry-run validation
+        entry: make workflow-dry-run-validate
+        language: system
+        pass_filenames: false
+        files: ^(\.github/workflows/|scripts/ci/|scripts/release/|scripts/platform/)
+        stages: [pre-push]
 
       - id: python-lint-push
         name: python lint on push

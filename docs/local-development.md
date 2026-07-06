@@ -89,15 +89,21 @@ works, and evidence is captured. If a command fails before reaching Kubernetes,
 fix the toolchain first; if it fails inside the cluster, inspect the workload
 evidence.
 
-Git hooks are active for commit and push. Install them from the repo-managed
-toolchain, not from a global Python:
+Git hooks are active for commit and push. Install them with the repo-managed
+`prek` runner, not from a global Python:
 
 ```bash
-uv run pre-commit install
+uv run prek install -f
 ```
 
-Use `make pre-commit` when you want to install hooks and run the full hook set
-against the current tree.
+Use `make pre-commit` when you want to install hooks and run the commit-stage
+hook set against the current tree. Use `make pre-push` for the heavier
+push-stage gates before sharing a branch.
+
+The extended security gates are available through `make security-readiness-deep`.
+Set `CONTAINER_SCAN_IMAGE=<image:tag>` to enable built-image Trivy scanning and
+`DEEPFENCE_IMAGE_NAME=<image:tag>` to enable Deepfence image secret scanning;
+both are skipped when no image tag is supplied.
 
 ## Standard Local Flow
 

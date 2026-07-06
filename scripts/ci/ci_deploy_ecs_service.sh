@@ -88,10 +88,11 @@ if [[ "${ECS_DEPLOY_WAIT_FOR_STABLE:-true}" == "true" ]]; then
         --output text 2>/dev/null || true
     )
     if [[ -n "$stopped_tasks" && "$stopped_tasks" != "None" ]]; then
+      read -r -a stopped_task_args <<< "$stopped_tasks"
       echo "Recent stopped tasks for ${SERVICE}:" >&2
       aws ecs describe-tasks \
         --cluster "$CLUSTER" \
-        --tasks $stopped_tasks \
+        --tasks "${stopped_task_args[@]}" \
         --output json | jq '
           {
             tasks: [
@@ -129,10 +130,14 @@ if [[ "${ECS_DEPLOY_WAIT_FOR_STABLE:-true}" == "true" ]]; then
       ' 2>/dev/null || true
     )
     if [[ -n "$recent_started_task_ids" ]]; then
+      recent_started_task_args=()
+      while IFS= read -r task_id; do
+        [[ -n "$task_id" ]] && recent_started_task_args+=("$task_id")
+      done <<< "$recent_started_task_ids"
       echo "Recent started tasks for ${SERVICE} from service events:" >&2
       aws ecs describe-tasks \
         --cluster "$CLUSTER" \
-        --tasks $recent_started_task_ids \
+        --tasks "${recent_started_task_args[@]}" \
         --output json | jq '
           {
             tasks: [

@@ -40,6 +40,8 @@ TASK_ARN=$(aws ecs list-tasks \
   || { echo "ERROR: no running task in $CLUSTER/$SERVICE"; exit 1; }
 
 echo "→ exec into task $TASK_ARN"
+# Expand DATABASE_URL inside the ECS task, not in the local shell.
+# shellcheck disable=SC2016
 aws ecs execute-command \
   --cluster "$CLUSTER" \
   --task "$TASK_ARN" \

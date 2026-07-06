@@ -49,6 +49,12 @@ LOCAL_KUBERNETES_TAG ?= local-kubernetes
 LOCAL_KUBERNETES_ROLLOUT_TAG ?= local-kubernetes-rollout
 LOCAL_KUBERNETES_EVIDENCE_DIR ?= /tmp/aws-sdlc-containers-local-kubernetes-evidence
 LOCAL_KUBERNETES_IMAGE_MATRIX := uv run python -m scripts.platform.workload_metadata local-kubernetes-image-matrix
+SECURITY_REPORT_DIR    ?= /tmp/aws-sdlc-containers-security
+TRIVY_SEVERITY         ?= HIGH,CRITICAL
+CONTAINER_SCAN_IMAGE   ?=
+DEEPFENCE_IMAGE_NAME   ?= $(CONTAINER_SCAN_IMAGE)
+DEEPFENCE_SECRET_SCANNER_IMAGE ?= quay.io/deepfenceio/deepfence_secret_scanner_ce:2.5.8
+OWASP_DEPENDENCY_CHECK_IMAGE ?= owasp/dependency-check:12.1.0
 
 define local_kubernetes_build_images
 	@set -e; \
@@ -426,7 +432,10 @@ lint-policy: ## Check repo policy with OPA/Conftest
 	fi
 
 .PHONY: secret-scan
-secret-scan: ## Scan repository for committed secrets
+secret-scan: secret-scan-gitleaks ## Scan repository for committed secrets
+
+.PHONY: secret-scan-gitleaks
+secret-scan-gitleaks: ## Scan repository for committed secrets with Gitleaks
 	@if command -v gitleaks >/dev/null 2>&1; then \
 		gitleaks dir . --redact --no-banner; \
 	else \
@@ -436,6 +445,19 @@ secret-scan: ## Scan repository for committed secrets
 			dir /repo --redact --no-banner; \
 	fi
 
+.PHONY: secret-scan-deepfence
+secret-scan-deepfence: ## Scan a built container image for secrets with Deepfence SecretScanner
+	@if [ -z "$(DEEPFENCE_IMAGE_NAME)" ]; then \
+		echo "Set DEEPFENCE_IMAGE_NAME or CONTAINER_SCAN_IMAGE to scan image secrets with Deepfence SecretScanner."; \
+	else \
+		mkdir -p "$(SECURITY_REPORT_DIR)"; \
+		docker run -i --rm --name deepfence-secretscanner \
+			-v /var/run/docker.sock:/var/run/docker.sock \
+			$(DEEPFENCE_SECRET_SCANNER_IMAGE) \
+			--image-name "$(DEEPFENCE_IMAGE_NAME)" \
+			--output json > "$(SECURITY_REPORT_DIR)/deepfence-secrets.json"; \
+	fi
+
 .PHONY: dependency-audit
 dependency-audit: ## Audit uv-locked Python dependencies for known vulnerabilities
 	@tmpfile=$$(mktemp); \
@@ -443,17 +465,120 @@ dependency-audit: ## Audit uv-locked Python dependencies for known vulnerabiliti
 	uv --quiet export --format requirements.txt --all-packages --all-groups --no-emit-project --no-emit-workspace --frozen --output-file "$$tmpfile"; \
 	uv run pip-audit -r "$$tmpfile" --disable-pip --require-hashes --progress-spinner off --desc off --aliases off
 
+.PHONY: dependency-audit-owasp
+dependency-audit-owasp: ## Audit dependency manifests with OWASP Dependency-Check
+	@mkdir -p "$(SECURITY_REPORT_DIR)/dependency-check"
+	@if command -v dependency-check.sh >/dev/null 2>&1; then \
+		dependency-check.sh \
+			--project "$(STACK_NAME)" \
+			--scan "$(CURDIR)" \
+			--out "$(SECURITY_REPORT_DIR)/dependency-check" \
+			--format HTML \
+			--format JSON \
+			--failOnCVSS 7 \
+			--exclude "**/.git/**" \
+			--exclude "**/.venv/**"; \
+	else \
+		docker run --rm \
+			-v "$(CURDIR):/src" \
+			-v "$(SECURITY_REPORT_DIR)/dependency-check:/report" \
+			$(OWASP_DEPENDENCY_CHECK_IMAGE) \
+			--project "$(STACK_NAME)" \
+			--scan /src \
+			--out /report \
+			--format HTML \
+			--format JSON \
+			--failOnCVSS 7 \
+			--exclude "**/.git/**" \
+			--exclude "**/.venv/**"; \
+	fi
+
+.PHONY: container-config-scan
+container-config-scan: ## Scan repository container/IaC config with Trivy
+	@if command -v trivy >/dev/null 2>&1; then \
+		trivy fs \
+			--scanners vuln,secret,misconfig \
+			--severity "$(TRIVY_SEVERITY)" \
+			--exit-code 1 \
+			--ignore-unfixed \
+			--skip-dirs .git \
+			--skip-dirs .venv \
+			.; \
+	else \
+		docker run --rm \
+			-v "$(CURDIR):/repo" \
+			-v "$$HOME/.cache/trivy:/root/.cache/trivy" \
+			ghcr.io/aquasecurity/trivy:0.70.0@sha256:be1190afcb28352bfddc4ddeb71470835d16462af68d310f9f4bca710961a41e \
+			fs \
+			--scanners vuln,secret,misconfig \
+			--severity "$(TRIVY_SEVERITY)" \
+			--exit-code 1 \
+			--ignore-unfixed \
+			--skip-dirs .git \
+			--skip-dirs .venv \
+			/repo; \
+	fi
+
+.PHONY: container-image-scan
+container-image-scan: ## Scan a built container image with Trivy
+	@if [ -z "$(CONTAINER_SCAN_IMAGE)" ]; then \
+		echo "Set CONTAINER_SCAN_IMAGE to scan a built image with Trivy."; \
+	elif command -v trivy >/dev/null 2>&1; then \
+		trivy image \
+			--severity "$(TRIVY_SEVERITY)" \
+			--exit-code 1 \
+			--ignore-unfixed \
+			"$(CONTAINER_SCAN_IMAGE)"; \
+	else \
+		docker run --rm \
+			-v /var/run/docker.sock:/var/run/docker.sock \
+			-v "$$HOME/.cache/trivy:/root/.cache/trivy" \
+			ghcr.io/aquasecurity/trivy:0.70.0@sha256:be1190afcb28352bfddc4ddeb71470835d16462af68d310f9f4bca710961a41e \
+			image \
+			--severity "$(TRIVY_SEVERITY)" \
+			--exit-code 1 \
+			--ignore-unfixed \
+			"$(CONTAINER_SCAN_IMAGE)"; \
+	fi
+
+.PHONY: container-scan
+container-scan: container-config-scan container-image-scan ## Scan container config and optional built image
+
 .PHONY: security-readiness
 security-readiness: ## Run local security checks before cloud mutation
 	@$(MAKE) secret-scan
 	@$(MAKE) dependency-audit
 
+.PHONY: security-readiness-deep
+security-readiness-deep: ## Run extended security scanners before sharing or release
+	@$(MAKE) secret-scan
+	@$(MAKE) secret-scan-deepfence
+	@$(MAKE) dependency-audit
+	@$(MAKE) dependency-audit-owasp
+	@$(MAKE) container-scan
+	@$(MAKE) lint-checkov
+	@$(MAKE) lint-policy
+
 .PHONY: lint-infra
 lint-infra: ## Lint Terraform (fmt check + tflint + checkov)
 	terraform fmt -check -recursive infra/
+	@$(MAKE) lint-tflint
+	@$(MAKE) lint-checkov
+
+.PHONY: lint-tflint
+lint-tflint: ## Run TFLint for Terraform roots
 	cd infra/platform && tflint --init && tflint --format compact
 	cd infra/app && tflint --init && tflint --format compact
+
+.PHONY: lint-checkov
+lint-checkov: ## Scan Terraform with Checkov
 	checkov -d infra --framework terraform --config-file infra/.checkov.yaml
+
+.PHONY: iac-scan
+iac-scan: lint-checkov ## Alias for IaC scanning
+
+.PHONY: policy-scan
+policy-scan: lint-policy ## Alias for policy scanning
 
 .PHONY: infra-validate-local
 infra-validate-local: ## Validate Terraform syntax locally without backend or cloud mutation
@@ -465,9 +590,14 @@ fmt: ## Auto-format Python and Terraform
 	terraform fmt -recursive infra/
 
 .PHONY: pre-commit
-pre-commit: ## Install and run pre-commit hooks
-	uv run pre-commit install
-	uv run pre-commit run --all-files
+pre-commit: ## Install and run prek-managed commit hooks
+	uv run prek install -f
+	uv run prek run --all-files --stage pre-commit
+
+.PHONY: pre-push
+pre-push: ## Install and run prek-managed push hooks
+	uv run prek install -f
+	uv run prek run --all-files --stage pre-push
 
 # ── Cloud readiness proof ────────────────────────────────────────────────────
 

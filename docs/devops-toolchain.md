@@ -16,12 +16,16 @@ Use [Deployment](deployment.md) for rollout flow and
 | type checking | Pyright |
 | database migrations | Liquibase |
 | infrastructure as code | Terraform |
+| Terraform version updates | `tfupdate` |
 | workflow linting | actionlint |
 | Dockerfile linting | hadolint |
 | docs link checking | lychee |
+| Git hook runner | `prek` |
 | policy as code | OPA / Conftest |
-| secret scanning | Gitleaks |
-| dependency audit | `pip-audit` |
+| IaC scanning | Checkov |
+| policy scanning | OPA / Conftest |
+| secret scanning | Gitleaks, Deepfence SecretScanner for images |
+| dependency audit | `pip-audit`, OWASP Dependency-Check |
 | SAST | Semgrep CE |
 | image scanning | Trivy |
 | CI/CD | GitHub Actions |
@@ -40,6 +44,10 @@ Use [Deployment](deployment.md) for rollout flow and
 | Dockerfiles | `make lint-dockerfiles` |
 | secrets | `make secret-scan` |
 | dependencies | `make dependency-audit` |
+| containers | `make container-scan` |
+| IaC | `make iac-scan` |
+| policy | `make policy-scan` |
+| extended security | `make security-readiness-deep` |
 | cloud security readiness | `make security-readiness` |
 | Terraform | `terraform fmt`, `terraform validate`, TFLint, Checkov, reviewed plan, separate apply |
 
