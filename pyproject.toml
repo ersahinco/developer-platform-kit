@@ -10,7 +10,7 @@ dev = [
     "pip-audit>=2.7.0",
     "prek>=0.4.8",
     "pyright>=1.1.410",
-    "ruff>=0.15.15",
+    "ruff>=0.15.20",
 ]
 scripts = [
     "httpx>=0.27.0",
