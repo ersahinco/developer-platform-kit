@@ -3,6 +3,7 @@ from __future__ import annotations
 import datetime
 from typing import Any
 
+from application.event_processing import run_event_relay
 from application.outbox import (
     OutboxMessage,
     dispatch_pending_outbox_messages,
@@ -114,3 +115,42 @@ def test_dispatch_pending_outbox_messages_leaves_failed_publish_retryable() -> N
     assert outbox.failed[0]["message_id"] == 1
     assert outbox.failed[0]["error"] == "sqs unavailable"
     assert outbox.failed[0]["next_attempt_at"] > _NOW
+
+
+def test_event_relay_reports_one_dispatch_and_stops() -> None:
+    results = []
+
+    run_event_relay(
+        outbox=_OutboxRepo([_message()]),
+        publisher=_Publisher(),
+        limit=10,
+        stop_requested=lambda: False,
+        wait_for_retry=lambda _timeout: None,
+        idle_sleep_seconds=1.5,
+        run_once=True,
+        on_result=results.append,
+    )
+
+    assert [(result.published, result.failed) for result in results] == [(1, 0)]
+
+
+def test_event_relay_waits_once_when_idle() -> None:
+    stopped = False
+    waits: list[float] = []
+
+    def wait_for_retry(timeout: float) -> None:
+        nonlocal stopped
+        waits.append(timeout)
+        stopped = True
+
+    run_event_relay(
+        outbox=_OutboxRepo([]),
+        publisher=_Publisher(),
+        limit=10,
+        stop_requested=lambda: stopped,
+        wait_for_retry=wait_for_retry,
+        idle_sleep_seconds=1.5,
+        run_once=False,
+    )
+
+    assert waits == [1.5]

@@ -14,6 +14,7 @@ def test_canonical_docs_delegate_live_workload_inventory_to_contract() -> None:
     platform_contract = _read("docs/platform-contract.md")
     architecture = _read("docs/architecture.md")
     local_development = _read("docs/local-development.md")
+    roadmaps = _read("docs/roadmaps.md")
 
     assert "The current workload inventory lives in `platform/workloads.json`" in (
         platform_contract
@@ -26,3 +27,6 @@ def test_canonical_docs_delegate_live_workload_inventory_to_contract() -> None:
     assert "Reference workloads:" not in local_development
     assert "make workload-readiness" in local_development
     assert "scripts/platform/workload_readiness.py --view addition" in local_development
+    assert "Use `make workload-readiness` for the current local-first inventory" in (
+        roadmaps
+    )

@@ -21,7 +21,7 @@ Examples:
 - `apps/data_export_job/` -> runnable host
 - `apps/operational_snapshot_job/` -> read-only operational readiness snapshot
 - `apps/integration_check_job/` -> configured HTTP integration check job
-- `apps/lake_orders_ingest_job/` -> local-first Parquet/DuckDB/dbt data job
+- `apps/lake_orders_ingest_job/` -> local-first Parquet/DuckDB data job
 - `apps/churn_prediction_api/` -> local-first internal model inference app host
 - `apps/support_triage_llm/` -> local-first internal LLM triage app host
 

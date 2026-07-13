@@ -241,15 +241,22 @@ def test_open_dataset_pipeline_event_includes_workload_identity(
         open_dataset_main.settings, "open_dataset_run_id", "dataset-run"
     )
     monkeypatch.setattr(open_dataset_main.settings, "open_dataset_date", "2026-01-01")
-    monkeypatch.setattr(open_dataset_main, "OpenDatasetLoader", lambda: object())
-    monkeypatch.setattr(
-        open_dataset_main, "DuckDBOpenDatasetStore", lambda **_kwargs: object()
-    )
-    monkeypatch.setattr(
-        open_dataset_main,
-        "run_open_dataset_pipeline",
-        lambda **_kwargs: {"run_id": "dataset-run", "status": "succeeded"},
-    )
+
+    class _Loader:
+        def load_bytes(self, source_url: str) -> bytes:
+            assert source_url == "https://example.test/data.csv"
+            return b"example"
+
+    class _Store:
+        def __init__(self, **_kwargs: object) -> None:
+            pass
+
+        def persist(self, **kwargs: object) -> dict[str, object]:
+            assert kwargs["raw_bytes"] == b"example"
+            return {"run_id": "dataset-run", "status": "succeeded"}
+
+    monkeypatch.setattr(open_dataset_main, "OpenDatasetLoader", _Loader)
+    monkeypatch.setattr(open_dataset_main, "DuckDBOpenDatasetStore", _Store)
 
     open_dataset_main.run_pipeline()
     event = json.loads(capsys.readouterr().out)
@@ -287,11 +294,6 @@ def test_lake_orders_ingest_event_includes_run_evidence(
     )
     monkeypatch.setattr(
         lake_orders_ingest_main,
-        "DbtDuckDBRunner",
-        lambda **_kwargs: object(),
-    )
-    monkeypatch.setattr(
-        lake_orders_ingest_main,
         "run_lake_orders_ingest",
         lambda **_kwargs: {
             "dataset": "lake_orders",
@@ -300,8 +302,6 @@ def test_lake_orders_ingest_event_includes_run_evidence(
             "row_count": 4,
             "late_arrival_count": 1,
             "parquet_object_count": 2,
-            "transform_tool": "dbt-duckdb",
-            "transform_execution": "duckdb_sql_fallback",
             "evidence_paths": [
                 "raw/lake_orders/dt=2026-05-13/lake-run.parquet",
                 "curated/lake_orders/dt=2026-05-13/lake-run.parquet",
@@ -320,8 +320,6 @@ def test_lake_orders_ingest_event_includes_run_evidence(
     assert event["row_count"] == 4
     assert event["late_arrival_count"] == 1
     assert event["parquet_object_count"] == 2
-    assert event["transform_tool"] == "dbt-duckdb"
-    assert event["transform_execution"] == "duckdb_sql_fallback"
     assert event["evidence_paths"]
     assert "timestamp" in event
 

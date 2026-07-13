@@ -290,3 +290,9 @@ def test_runtime_defaults_are_documented() -> None:
     assert "candidate capability rows" not in platform_contract
     assert "platform/runtime-defaults.json" in security_concern
     assert "platform/runtime-defaults.json" in networking_concern
+
+
+def test_runtime_defaults_use_runtime_target_vocabulary() -> None:
+    runtime_defaults = read_text("platform/runtime-defaults.json").lower()
+
+    assert "cloud provider" not in runtime_defaults

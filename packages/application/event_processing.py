@@ -14,19 +14,6 @@ from application.outbox import (
 )
 
 
-def dispatch_outbox_once(
-    *,
-    outbox: OutboxRepository,
-    publisher: OutboxPublisher,
-    limit: int,
-) -> OutboxDispatchResult:
-    return dispatch_pending_outbox_messages(
-        outbox=outbox,
-        publisher=publisher,
-        limit=limit,
-    )
-
-
 def run_event_relay(
     *,
     outbox: OutboxRepository,
@@ -39,7 +26,7 @@ def run_event_relay(
     on_result: Callable[[OutboxDispatchResult], None] | None = None,
 ) -> None:
     while not stop_requested():
-        result = dispatch_outbox_once(
+        result = dispatch_pending_outbox_messages(
             outbox=outbox,
             publisher=publisher,
             limit=limit,

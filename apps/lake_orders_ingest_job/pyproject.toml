@@ -4,7 +4,6 @@ version = "0.1.0"
 requires-python = ">=3.14"
 dependencies = [
     "aws-sdlc-containers-infrastructure",
-    "dbt-duckdb>=1.9.3",
     "duckdb>=1.4.2",
 ]
 

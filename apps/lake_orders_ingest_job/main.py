@@ -6,7 +6,6 @@ from pathlib import Path
 from typing import Any
 
 from lake_orders_ingest_job.config import settings
-from lake_orders_ingest_job.dbt_runner import DbtDuckDBRunner
 from lake_orders_ingest_job.pipeline import LakeOrdersIngestRequest
 from lake_orders_ingest_job.pipeline import run_lake_orders_ingest
 
@@ -29,9 +28,9 @@ def run_ingest() -> dict[str, Any]:
     )
     manifest = run_lake_orders_ingest(
         request=request,
-        dbt_runner=DbtDuckDBRunner(
-            project_dir=Path(__file__).resolve().parent / "dbt_project"
-        ),
+        model_path=Path(__file__).resolve().parent
+        / "models"
+        / "curated_lake_orders.sql",
     )
     print(
         json.dumps(

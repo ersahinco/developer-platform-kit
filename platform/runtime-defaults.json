@@ -8,7 +8,7 @@
       "role": "local-development",
       "maturity": "active-local-proof",
       "implementation": "Docker Compose + local Postgres/PgBouncer + Redis-backed Dapr + OSS observability",
-      "purpose": "Fast local iteration and workload contract proof without cloud provider dependencies.",
+      "purpose": "Fast local iteration and workload contract proof without production runtime dependencies.",
       "defaults": {
         "authn": {
           "capability": "edge_auth",

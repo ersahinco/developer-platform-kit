@@ -29,7 +29,7 @@ Support paths:
 Liquibase task -> Postgres direct connection
 Backfill worker -> Postgres direct connection -> checkpointed copy
 Data export job -> Postgres direct connection -> raw CSV -> manifest -> optional S3 upload
-Lake orders ingest job -> checked-in order batches -> Parquet -> DuckDB/dbt transform -> manifest
+Lake orders ingest job -> checked-in order batches -> Parquet -> DuckDB transform -> manifest
 ```
 
 Liquibase and jobs connect directly because DDL and batch work need stable
@@ -85,8 +85,8 @@ Do not add another object store only to prove portability.
 
 `apps/lake_orders_ingest_job` is a local-first operator job that proves data
 engineering behavior without adding a data platform contract. It reads checked-in
-order batches, writes raw and curated Parquet, runs the checked-in dbt model
-through DuckDB, and emits structured run evidence.
+order batches, writes raw and curated Parquet, executes a checked-in DuckDB SQL
+model with uniqueness and not-null checks, and emits structured run evidence.
 
 Stable layout:
 
@@ -95,15 +95,7 @@ Stable layout:
 - `manifests/lake_orders/dt=<date>/<run-id>.json`
 
 Evidence includes `run_id`, `row_count`, `late_arrival_count`,
-`parquet_object_count`, `transform_tool`, `transform_execution`, and artifact
-paths. `transform_tool` remains workload evidence; it is not a platform
-metadata field. The current Python 3.14 runtime may use
-`duckdb_sql_fallback` when the dbt CLI cannot start, while still executing the
-workload-local dbt model SQL and model checks.
-
-DuckLake is deferred. It is a reasonable future experiment for this workload,
-but it should remain a workload implementation detail unless a real runtime
-target need appears.
+`parquet_object_count`, and artifact paths.
 
 ## Churn Model Workloads
 
