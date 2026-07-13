@@ -241,15 +241,22 @@ def test_open_dataset_pipeline_event_includes_workload_identity(
         open_dataset_main.settings, "open_dataset_run_id", "dataset-run"
     )
     monkeypatch.setattr(open_dataset_main.settings, "open_dataset_date", "2026-01-01")
-    monkeypatch.setattr(open_dataset_main, "OpenDatasetLoader", lambda: object())
-    monkeypatch.setattr(
-        open_dataset_main, "DuckDBOpenDatasetStore", lambda **_kwargs: object()
-    )
-    monkeypatch.setattr(
-        open_dataset_main,
-        "run_open_dataset_pipeline",
-        lambda **_kwargs: {"run_id": "dataset-run", "status": "succeeded"},
-    )
+
+    class _Loader:
+        def load_bytes(self, source_url: str) -> bytes:
+            assert source_url == "https://example.test/data.csv"
+            return b"example"
+
+    class _Store:
+        def __init__(self, **_kwargs: object) -> None:
+            pass
+
+        def persist(self, **kwargs: object) -> dict[str, object]:
+            assert kwargs["raw_bytes"] == b"example"
+            return {"run_id": "dataset-run", "status": "succeeded"}
+
+    monkeypatch.setattr(open_dataset_main, "OpenDatasetLoader", _Loader)
+    monkeypatch.setattr(open_dataset_main, "DuckDBOpenDatasetStore", _Store)
 
     open_dataset_main.run_pipeline()
     event = json.loads(capsys.readouterr().out)

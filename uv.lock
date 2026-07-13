@@ -331,11 +331,15 @@ name = "aws-sdlc-containers-open-dataset-pipeline"
 version = "0.1.0"
 source = { editable = "apps/open_dataset_pipeline" }
 dependencies = [
+    { name = "aws-sdlc-containers-infrastructure" },
     { name = "duckdb" },
 ]
 
 [package.metadata]
-requires-dist = [{ name = "duckdb", specifier = ">=1.4.2" }]
+requires-dist = [
+    { name = "aws-sdlc-containers-infrastructure", editable = "packages/infrastructure" },
+    { name = "duckdb", specifier = ">=1.4.2" },
+]
 
 [[package]]
 name = "aws-sdlc-containers-operational-snapshot-job"

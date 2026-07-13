@@ -7,10 +7,7 @@ from typing import Any
 from open_dataset_pipeline.duckdb_store import (
     DuckDBOpenDatasetStore,
     OpenDatasetLoader,
-)
-from open_dataset_pipeline.pipeline import (
     OpenDatasetRequest,
-    run_open_dataset_pipeline,
 )
 from open_dataset_pipeline.config import settings
 
@@ -31,10 +28,11 @@ def run_pipeline() -> dict[str, Any]:
         run_id=settings.open_dataset_run_id or exported_at.strftime("%Y%m%dT%H%M%SZ"),
         exported_at=exported_at,
     )
-    manifest = run_open_dataset_pipeline(
+    loader = OpenDatasetLoader()
+    store = DuckDBOpenDatasetStore(output_dir=settings.open_dataset_output_dir)
+    manifest = store.persist(
         request=request,
-        loader=OpenDatasetLoader(),
-        store=DuckDBOpenDatasetStore(output_dir=settings.open_dataset_output_dir),
+        raw_bytes=loader.load_bytes(request.source_url),
     )
     print(
         json.dumps(

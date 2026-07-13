@@ -48,17 +48,12 @@ future agents keep the toolkit lean.
 
 ## Current Promotion Decision
 
-The data, churn, and support-triage LLM workloads are local-first only:
-
-- `lake_orders_ingest_job`
-- `churn_model_train_job`
-- `churn_prediction_api`
-- `support_triage_llm`
-
-Do not admit these workloads to `aws-ecs` until a concrete runtime owner accepts
-artifact storage, release workflow, operator evidence, and incident response
-responsibilities. Local proof is complete enough to exercise the delivery
-toolkit; cloud admission is a separate runtime-edge decision.
+Use `make workload-readiness` for the current local-first inventory and AWS
+admission state. Do not admit a local-first workload to `aws-ecs` until a
+concrete runtime owner accepts artifact storage, release workflow, operator
+evidence, and incident response responsibilities. Local proof is enough to
+exercise the delivery toolkit; cloud admission is a separate runtime-edge
+decision.
 
 ## Maturity Direction
 

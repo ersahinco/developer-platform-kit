@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+from dataclasses import dataclass
+import datetime
 import json
 from pathlib import Path
 import re
@@ -7,8 +9,6 @@ from urllib.parse import unquote, urlparse
 from urllib.request import urlopen
 
 import duckdb
-
-from open_dataset_pipeline.pipeline import OpenDatasetRequest
 
 
 def _dataset_slug(value: str) -> str:
@@ -18,6 +18,15 @@ def _dataset_slug(value: str) -> str:
 
 def _table_name(dataset_name: str) -> str:
     return f"{_dataset_slug(dataset_name).replace('-', '_')}_rows"
+
+
+@dataclass(frozen=True)
+class OpenDatasetRequest:
+    dataset_name: str
+    source_url: str
+    export_date: str
+    run_id: str
+    exported_at: datetime.datetime
 
 
 class OpenDatasetLoader:
