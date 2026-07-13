@@ -2,7 +2,7 @@ apiVersion: backstage.io/v1alpha1
 kind: Component
 metadata:
   name: lake_orders_ingest_job
-  description: Operator-job workload host for local order lake ingestion, Parquet output, and DuckDB/dbt transforms.
+  description: Operator-job workload host for local order lake ingestion, Parquet output, and DuckDB transforms.
   tags:
     - dataset-ingest
     - local-analytics

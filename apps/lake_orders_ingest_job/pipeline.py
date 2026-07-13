@@ -6,7 +6,7 @@ import json
 import os
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Any, Protocol
+from typing import Any
 
 import duckdb
 
@@ -22,21 +22,10 @@ class LakeOrdersIngestRequest:
     ingested_at: datetime.datetime
 
 
-class DbtRunner(Protocol):
-    def build(
-        self,
-        *,
-        run_dir: Path,
-        warehouse_path: Path,
-        raw_parquet_path: Path,
-        ingest_date: str,
-    ) -> Any: ...
-
-
 def run_lake_orders_ingest(
     *,
     request: LakeOrdersIngestRequest,
-    dbt_runner: DbtRunner,
+    model_path: Path,
 ) -> dict[str, Any]:
     batch_files = _source_batch_files(request.source_dir)
     keys = _object_keys(request)
@@ -54,8 +43,8 @@ def run_lake_orders_ingest(
         batch_files=batch_files,
         output_path=paths["raw"],
     )
-    transform_result = dbt_runner.build(
-        run_dir=run_dir,
+    _build_model(
+        model_path=model_path,
         warehouse_path=warehouse_path,
         raw_parquet_path=paths["raw"],
         ingest_date=request.ingest_date,
@@ -72,8 +61,6 @@ def run_lake_orders_ingest(
         raw_stats=raw_stats,
         curated_stats=curated_stats,
         warehouse_path=warehouse_path,
-        transform_tool=str(transform_result.transform_tool),
-        transform_execution=str(transform_result.transform_execution),
     )
     _write_json_atomic(paths["manifest"], manifest)
     return manifest
@@ -147,6 +134,52 @@ def _write_raw_parquet(
     }
 
 
+def _build_model(
+    *,
+    model_path: Path,
+    warehouse_path: Path,
+    raw_parquet_path: Path,
+    ingest_date: str,
+) -> None:
+    model_sql = model_path.read_text(encoding="utf-8")
+    warehouse_path.parent.mkdir(parents=True, exist_ok=True)
+    connection = duckdb.connect(str(warehouse_path))
+    try:
+        connection.execute(
+            f"CREATE OR REPLACE TABLE curated_lake_orders AS {model_sql}",
+            [str(raw_parquet_path), ingest_date],
+        )
+        _assert_model(connection)
+    finally:
+        connection.close()
+
+
+def _assert_model(connection: duckdb.DuckDBPyConnection) -> None:
+    duplicate = connection.execute(
+        """
+        SELECT order_id
+        FROM curated_lake_orders
+        GROUP BY order_id
+        HAVING COUNT(*) > 1
+        LIMIT 1
+        """
+    ).fetchone()
+    if duplicate is not None:
+        raise ValueError(f"curated_lake_orders order_id is not unique: {duplicate[0]}")
+
+    nulls = connection.execute(
+        """
+        SELECT COUNT(*)
+        FROM curated_lake_orders
+        WHERE order_id IS NULL
+           OR customer_id IS NULL
+           OR customer_order_sequence IS NULL
+        """
+    ).fetchone()
+    if nulls is None or int(nulls[0]) != 0:
+        raise ValueError("curated_lake_orders failed not-null model checks")
+
+
 def _write_curated_parquet(
     *,
     warehouse_path: Path,
@@ -198,8 +231,6 @@ def _success_manifest(
     raw_stats: dict[str, Any],
     curated_stats: dict[str, Any],
     warehouse_path: Path,
-    transform_tool: str,
-    transform_execution: str,
 ) -> dict[str, Any]:
     evidence_paths = [
         keys["raw"],
@@ -218,8 +249,6 @@ def _success_manifest(
         "row_count": curated_stats["row_count"],
         "late_arrival_count": curated_stats["late_arrival_count"],
         "parquet_object_count": 2,
-        "transform_tool": transform_tool,
-        "transform_execution": transform_execution,
         "raw_byte_count": raw_stats["byte_count"],
         "raw_sha256": raw_stats["sha256"],
         "curated_byte_count": curated_stats["byte_count"],

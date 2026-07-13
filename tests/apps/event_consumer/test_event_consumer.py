@@ -15,7 +15,6 @@ from event_consumer.config import settings  # noqa: E402
 from event_consumer import main as consumer_main  # noqa: E402
 from event_consumer.main import app  # noqa: E402
 from event_consumer.main import consume_event_payload  # noqa: E402
-from event_consumer.main import relay_outbox_once  # noqa: E402
 
 
 class _Publisher:
@@ -164,37 +163,15 @@ def test_consumer_records_first_delivery(committed_db_session):
     assert row.duplicate_count == 0
 
 
-def test_relay_outbox_suppresses_empty_result_log(
-    committed_db_session, monkeypatch, capsys
-):
-    def dispatch_empty(**kwargs: object) -> OutboxDispatchResult:
-        return OutboxDispatchResult(published=0, failed=0)
+def test_relay_result_suppresses_empty_log(capsys) -> None:
+    consumer_main._log_relay_result(OutboxDispatchResult(published=0, failed=0))
 
-    monkeypatch.setattr(consumer_main, "dispatch_outbox_once", dispatch_empty)
-
-    result = relay_outbox_once(
-        committed_db_session,
-        publisher=_Publisher(),
-        limit=10,
-    )
-
-    assert result == 0
     assert capsys.readouterr().out == ""
 
 
-def test_relay_outbox_logs_non_empty_result(committed_db_session, monkeypatch, capsys):
-    def dispatch_published(**kwargs: object) -> OutboxDispatchResult:
-        return OutboxDispatchResult(published=1, failed=0)
+def test_relay_result_logs_non_empty_result(capsys) -> None:
+    consumer_main._log_relay_result(OutboxDispatchResult(published=1, failed=0))
 
-    monkeypatch.setattr(consumer_main, "dispatch_outbox_once", dispatch_published)
-
-    result = relay_outbox_once(
-        committed_db_session,
-        publisher=_Publisher(),
-        limit=10,
-    )
-
-    assert result == 1
     assert json.loads(capsys.readouterr().out) == {
         "event": "outbox_relay",
         "status": "succeeded",

@@ -101,8 +101,6 @@
         "row_count",
         "late_arrival_count",
         "parquet_object_count",
-        "transform_tool",
-        "transform_execution",
         "evidence_paths"
       ]
     },

@@ -12,12 +12,11 @@ from starlette.responses import JSONResponse, Response
 import uvicorn
 
 from application.event_processing import (
-    dispatch_outbox_once,
     record_event_receipt,
     run_event_relay,
 )
 from application.event_receipts import EventReceiptResult
-from application.outbox import OutboxMessage
+from application.outbox import OutboxPublisher
 from infrastructure.db.repository import (
     SQLAlchemyEventReceiptRepository,
     SQLAlchemyOutboxRepository,
@@ -53,42 +52,10 @@ REQUEST_LATENCY = Histogram(
 ensure_workload_info_metric(workload=WORKLOAD_NAME, workload_class=WORKLOAD_CLASS)
 
 
-class EventPublisher(Protocol):
-    def publish(self, message: OutboxMessage) -> None: ...
-
-
 class StopSignal(Protocol):
     def is_set(self) -> bool: ...
 
     def wait(self, timeout: float | None = None) -> bool: ...
-
-
-def relay_outbox_once(
-    session: Any,
-    *,
-    publisher: EventPublisher,
-    limit: int,
-) -> int:
-    result = dispatch_outbox_once(
-        outbox=SQLAlchemyOutboxRepository(session),
-        publisher=publisher,
-        limit=limit,
-    )
-    if result.published > 0 or result.failed > 0:
-        print(
-            json.dumps(
-                {
-                    "workload": WORKLOAD_NAME,
-                    "event": "outbox_relay",
-                    "status": "failed" if result.failed else "succeeded",
-                    "published": result.published,
-                    "failed": result.failed,
-                },
-                sort_keys=True,
-            ),
-            flush=True,
-        )
-    return result.published + result.failed
 
 
 def consume_event_payload(
@@ -139,7 +106,7 @@ def _log_relay_result(result: object) -> None:
 def relay_forever(
     SessionLocal: Any,
     *,
-    publisher: EventPublisher,
+    publisher: OutboxPublisher,
     stop: StopSignal,
 ) -> None:
     while not stop.is_set():
@@ -295,7 +262,7 @@ async def handle_event(request: Request) -> dict[str, str]:
     return {"status": "SUCCESS"}
 
 
-def run_worker(publisher: EventPublisher | None = None) -> None:
+def run_worker(publisher: OutboxPublisher | None = None) -> None:
     engine, SessionLocal = _engine_and_session_factory()
     stop = threading.Event()
     try:

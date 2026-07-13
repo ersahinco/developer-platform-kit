@@ -7,7 +7,7 @@ WITH raw_orders AS (
     CAST(status AS VARCHAR) AS status,
     CAST(amount AS DOUBLE) AS amount,
     CAST(source_file AS VARCHAR) AS source_file
-  FROM read_parquet('{{ var("raw_parquet_path") }}')
+  FROM read_parquet(?)
 ),
 deduplicated AS (
   SELECT
@@ -50,6 +50,5 @@ SELECT
     PARTITION BY customer_id
     ORDER BY order_ts, order_id
   ) AS previous_order_ts,
-  CAST(order_ts AS DATE) < CAST('{{ var("ingest_date") }}' AS DATE)
-    AS is_late_arrival
+  CAST(order_ts AS DATE) < CAST(? AS DATE) AS is_late_arrival
 FROM deduplicated

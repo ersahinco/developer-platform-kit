@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import datetime
 import json
 import os
 from pathlib import Path
@@ -7,6 +8,10 @@ import subprocess
 from typing import Any
 
 import duckdb
+import pytest
+
+from lake_orders_ingest_job.pipeline import LakeOrdersIngestRequest
+from lake_orders_ingest_job.pipeline import run_lake_orders_ingest
 
 ROOT = Path(__file__).resolve().parents[3]
 
@@ -43,7 +48,7 @@ def _run_ingest(output_dir: Path, *, run_id: str, ingest_date: str) -> dict[str,
     return event
 
 
-def test_run_ingest_writes_parquet_dbt_transform_and_manifest(
+def test_run_ingest_writes_parquet_transform_and_manifest(
     tmp_path,
 ) -> None:
     event = _run_ingest(tmp_path, run_id="test-run", ingest_date="2026-05-13")
@@ -55,8 +60,6 @@ def test_run_ingest_writes_parquet_dbt_transform_and_manifest(
     assert event["row_count"] == 4
     assert event["late_arrival_count"] == 1
     assert event["parquet_object_count"] == 2
-    assert event["transform_tool"] == "dbt-duckdb"
-    assert event["transform_execution"] in {"dbt_cli", "duckdb_sql_fallback"}
     assert event["evidence_paths"] == [
         event["objects"]["raw"],
         event["objects"]["curated"],
@@ -76,8 +79,6 @@ def test_run_ingest_writes_parquet_dbt_transform_and_manifest(
     assert on_disk["input_row_count"] == 5
     assert on_disk["row_count"] == 4
     assert on_disk["late_arrival_count"] == 1
-    assert on_disk["transform_tool"] == event["transform_tool"]
-    assert on_disk["transform_execution"] == event["transform_execution"]
 
     connection = duckdb.connect(":memory:")
     try:
@@ -157,3 +158,21 @@ def test_run_ingest_is_idempotent_for_same_run_id(tmp_path) -> None:
         connection.close()
 
     assert row == (4, 4)
+
+
+def test_run_ingest_does_not_write_manifest_when_model_fails(tmp_path) -> None:
+    model_path = tmp_path / "invalid.sql"
+    model_path.write_text("SELECT FROM", encoding="utf-8")
+    request = LakeOrdersIngestRequest(
+        source_dir=Path(_sample_source_dir()),
+        output_dir=tmp_path,
+        ingest_date="2026-05-13",
+        run_id="invalid-model",
+        ingested_at=datetime.datetime(2026, 5, 13, tzinfo=datetime.UTC),
+    )
+
+    with pytest.raises(duckdb.Error):
+        run_lake_orders_ingest(request=request, model_path=model_path)
+
+    manifest_path = tmp_path / "manifests/lake_orders/dt=2026-05-13/invalid-model.json"
+    assert not manifest_path.exists()

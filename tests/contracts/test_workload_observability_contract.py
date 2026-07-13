@@ -294,11 +294,6 @@ def test_lake_orders_ingest_event_includes_run_evidence(
     )
     monkeypatch.setattr(
         lake_orders_ingest_main,
-        "DbtDuckDBRunner",
-        lambda **_kwargs: object(),
-    )
-    monkeypatch.setattr(
-        lake_orders_ingest_main,
         "run_lake_orders_ingest",
         lambda **_kwargs: {
             "dataset": "lake_orders",
@@ -307,8 +302,6 @@ def test_lake_orders_ingest_event_includes_run_evidence(
             "row_count": 4,
             "late_arrival_count": 1,
             "parquet_object_count": 2,
-            "transform_tool": "dbt-duckdb",
-            "transform_execution": "duckdb_sql_fallback",
             "evidence_paths": [
                 "raw/lake_orders/dt=2026-05-13/lake-run.parquet",
                 "curated/lake_orders/dt=2026-05-13/lake-run.parquet",
@@ -327,8 +320,6 @@ def test_lake_orders_ingest_event_includes_run_evidence(
     assert event["row_count"] == 4
     assert event["late_arrival_count"] == 1
     assert event["parquet_object_count"] == 2
-    assert event["transform_tool"] == "dbt-duckdb"
-    assert event["transform_execution"] == "duckdb_sql_fallback"
     assert event["evidence_paths"]
     assert "timestamp" in event
 
