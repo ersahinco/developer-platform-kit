@@ -50,8 +50,6 @@ def test_training_emits_lineage_evaluation_and_promotion_evidence(
     event = _run_training(tmp_path, run_id="train-run")
 
     assert event["event"] == "churn_model_train_succeeded"
-    assert event["maturity"] == "experimental"
-    assert event["pattern"] == "mlops-lineage-and-promotion"
     assert event["model_schema_version"] == 1
     assert event["training_row_count"] == 8
     assert len(event["training_data_sha256"]) == 64
@@ -65,6 +63,18 @@ def test_training_emits_lineage_evaluation_and_promotion_evidence(
     assert model["model_version"] == event["model_version"]
     assert model["training_data"]["sha256"] == event["training_data_sha256"]
     assert manifest["model_sha256"] == event["model_sha256"]
+
+
+def test_serving_sample_is_generated_by_training_contract(tmp_path: Path) -> None:
+    event = _run_training(tmp_path, run_id="sample-model")
+    generated = json.loads((tmp_path / event["objects"]["model"]).read_text())
+    checked_in = json.loads(
+        (
+            ROOT / "apps" / "churn_prediction_api" / "sample_model" / "churn_model.json"
+        ).read_text()
+    )
+
+    assert checked_in == generated
 
 
 def test_training_replay_keeps_model_identity_and_bytes_stable(tmp_path: Path) -> None:

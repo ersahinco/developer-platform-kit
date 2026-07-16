@@ -54,8 +54,6 @@ def run_lake_orders_ingest(
     )
     manifest = {
         "contract_version": 1,
-        "maturity": "experimental",
-        "pattern": "late-arrival-deduplication",
         "dataset": DATASET,
         "run_id": request.run_id,
         "ingest_date": request.ingest_date,

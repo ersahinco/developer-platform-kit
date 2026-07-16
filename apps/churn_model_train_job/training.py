@@ -65,7 +65,6 @@ def train_churn_model(request: ChurnTrainingRequest) -> dict[str, Any]:
     data_sha256 = _file_sha256(request.training_data_path)
     model_payload = {
         "schema_version": MODEL_SCHEMA_VERSION,
-        "maturity": "experimental",
         "model_name": MODEL_NAME,
         "algorithm": ALGORITHM,
         "run_id": request.run_id,
@@ -93,8 +92,6 @@ def train_churn_model(request: ChurnTrainingRequest) -> dict[str, Any]:
     _write_json_atomic(paths["model"], model_payload)
     manifest = {
         "contract_version": 1,
-        "maturity": "experimental",
-        "pattern": "mlops-lineage-and-promotion",
         "dataset": DATASET,
         "model_name": MODEL_NAME,
         "model_schema_version": MODEL_SCHEMA_VERSION,

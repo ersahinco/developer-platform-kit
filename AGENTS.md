@@ -116,11 +116,12 @@ Rules:
 
 ## Dapr Application Boundary
 
-Dapr is a core app-facing distributed-systems boundary. Prefer Dapr APIs for
-service invocation, pub/sub, workflow, state, jobs, configuration, secrets,
-and other distributed capabilities when an owned workload proof adopts the
-building block. App teams consume stable APIs; platform owners choose and
-govern component implementations, resiliency, security, and telemetry.
+Dapr is a core app-facing distributed-systems boundary. The current proven APIs
+are service invocation and pub/sub. App teams consume stable APIs; platform
+owners choose and govern component implementations, resiliency, security, and
+telemetry. Additional building blocks may incubate before broad demand only
+through an owned workload proof with a contract, component mapping,
+conformance, evidence, failure mode, and operational owner.
 
 The current production proof uses pub/sub with CloudEvents and a durable
 database outbox; application code must not know whether the runtime uses

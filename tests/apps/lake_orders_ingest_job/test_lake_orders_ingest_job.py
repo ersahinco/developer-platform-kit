@@ -56,8 +56,6 @@ def test_ingest_rebuilds_projection_with_late_and_duplicate_evidence(
     event = _run_ingest(tmp_path, run_id="test-run")
 
     assert event["event"] == "lake_orders_ingest_succeeded"
-    assert event["maturity"] == "experimental"
-    assert event["pattern"] == "late-arrival-deduplication"
     assert event["input_row_count"] == 5
     assert event["row_count"] == 4
     assert event["deduplicated_record_count"] == 1

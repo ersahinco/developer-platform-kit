@@ -34,7 +34,10 @@ def test_health_ready_metrics_and_prediction_include_model_lineage(capsys) -> No
     assert ready.json()["model_schema_version"] == 1
     assert prediction.status_code == 200
     body = prediction.json()
-    assert body["model_version"] == "sample-v2"
+    assert (
+        body["model_version"]
+        == load_model(Path(churn_main.settings.churn_model_path))["model_version"]
+    )
     assert len(body["training_data_sha256"]) == 64
     assert 0 <= body["churn_probability"] <= 1
     assert metrics.status_code == 200

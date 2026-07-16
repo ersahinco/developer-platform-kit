@@ -61,17 +61,17 @@ stable center with Helm, CRDs, or a platform control plane.
 Use these families to talk about runtime options without making them active
 targets prematurely:
 
-| Family | Status in this repo | Examples | Useful for |
-|---|---|---|---|
-| Local proof runtimes | `local-compose` and `local-kubernetes` active | Docker Compose, kind | fast developer proof; richer local network, storage, compute, probes, jobs, sidecars, and policy checks when Compose is too small |
-| Managed app runtimes | `aws-ecs` active production target; others are future options | ECS/Fargate, Lambda, Azure Functions, Cloud Run, Azure Container Apps, App Runner | teams that want to deploy workloads into owned managed runtimes without building a substrate platform |
-| Owned substrate runtimes | not active | EC2 or VM fleets, on-prem servers, self-managed Kubernetes, managed Kubernetes | cases where the platform team owns ingress, node/runtime posture, storage classes, identity mapping, policy, observability, upgrades, and runbooks |
+| Family | Status in this repo | Useful for |
+|---|---|---|
+| Local proof runtimes | `local-compose` and `local-kubernetes` active | fast developer proof; richer local network, storage, compute, probes, jobs, sidecars, and policy checks when Compose is too small |
+| Managed app runtimes | `aws-ecs` is the active production target | workloads that need an owned managed runtime without a substrate platform |
+| Owned substrate runtimes | not active | workloads that require the platform team to own ingress, node/runtime posture, storage, identity, policy, observability, upgrades, and runbooks |
 
-Managed Kubernetes sits in the owned-substrate family for this toolkit. EKS,
-AKS, or GKE may manage the control plane, but the platform still owns much of
-the runtime surface: ingress, storage classes, IAM or workload identity mapping,
-network policy, observability routing, node/runtime posture, admission policy,
-upgrade rhythm, failure modes, and runbooks.
+Managed Kubernetes sits in the owned-substrate family for this toolkit. A
+managed control plane reduces control-plane operations, but the platform still
+owns ingress, storage classes, workload identity mapping, network policy,
+observability routing, node/runtime posture, admission policy, upgrades,
+failure modes, and runbooks.
 
 ## Runtime Must Provide
 
@@ -110,9 +110,8 @@ Scheduler, IAM, and CloudWatch.
 Runtime defaults are intentionally opinionated. Local Compose uses local
 identity, local secret injection, and the OSS observability stack. AWS/ECS uses
 ECS task roles, GitHub OIDC for delivery, Secrets Manager or SSM injection, and
-runtime-edge observability routing. Future enterprise choices such as Okta,
-Kong, OPA, Splunk, or Datadog belong in a runtime profile or runtime catalog,
-not in per-workload metadata.
+runtime-edge observability routing. Alternate identity, gateway, policy, and
+observability products stay at the platform edge and out of workload metadata.
 
 A provider-edge integration can incubate before broad adoption through a
 bounded candidate and catalog entry. It should not appear as an active runtime
@@ -255,8 +254,9 @@ For this repo today:
 - AWS-managed resource metrics still rely on CloudWatch at the platform edge
 - no additional production runtime target is implemented yet
 - local Kubernetes covers the API, event consumer, operator proof jobs, and
-  runtime evidence jobs that declare `local-kubernetes`; local-only sample
-  analytics and LLM workloads remain Compose-only until they need richer proof
+  runtime evidence jobs that declare `local-kubernetes`; local-only enterprise
+  pattern experiments remain Compose-only until they need Kubernetes-specific
+  proof
 - live kind validation is local/manual; CI currently protects static
   local-kubernetes contracts and capability evidence
 - infra rollback remains reviewed plan/apply; the repeatable drill is local

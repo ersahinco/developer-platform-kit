@@ -30,20 +30,20 @@ the `monorepo-capability-profile-<run-id>` validation artifact.
 
 ## Capability Maturity
 
-Capability maturity is explicit on each runtime capability row in
+Capability maturity is explicit on each active runtime capability row in
 `platform/platform-inventory.json`. Runtime-target maturity lives with the
-active runtime defaults in `platform/runtime-defaults.json`. Allowed values:
+active runtime defaults in `platform/runtime-defaults.json`. Those active
+inventories allow only:
 
 | Maturity | Meaning |
 |---|---|
-| `candidate` | Known possible capability or runtime; not active until owner, config surface, conformance, evidence, failure mode, and runbook exist |
 | `active-local-proof` | Active local proof capability or runtime; useful for developer validation without production admission |
 | `active-production-runtime` | Reviewed production runtime capability with owner, delivery path, evidence, failure mode, and runbook |
-| `deprecated` | Retired or being removed; kept only while workloads migrate away |
 
 Current local runtime targets are `active-local-proof`. `aws-ecs` is the
-current `active-production-runtime`. Enterprise tools and future runtime
-targets stay `candidate` until they pass the admission rule below.
+current `active-production-runtime`. Incubating capabilities stay in bounded
+admission candidates, catalog entries, and documentation until they pass the
+admission rule below; they do not become rows in the active inventories.
 
 Default auth, identity, secrets, observability, network, policy, and CI/CD
 capabilities live in `platform/runtime-defaults.json`. `platform/platform-inventory.json`
@@ -131,8 +131,9 @@ resource wiring into workload identity.
 Dapr sits at the core of distributed application building in this toolkit.
 App teams use stable building-block APIs while platform engineering owns
 component implementation, scoping, resiliency, security policy, telemetry,
-and runtime delivery. This follows Dapr's platform-engineering model: expose
-simple application interfaces while keeping infrastructure choices and
+and runtime delivery. This follows
+[Dapr's platform-engineering model](https://dapr.io/platform-engineering/):
+expose simple application interfaces while keeping infrastructure choices and
 governance at the platform edge.
 
 Current proofs:
@@ -142,10 +143,10 @@ Current proofs:
 - service invocation: the local booking workload is invoked through its Dapr
   app identity with scoped timeout, retry, and circuit-breaker policy
 
-Good next experimental proofs include workflow orchestration for MLOps,
-stateful coordination, jobs, configuration, secrets, bindings, actors, locks,
-cryptography, and conversation APIs. Add each through an owned workload with a
-component mapping, contract, conformance, evidence, failure mode, and runbook.
+Choose the next Dapr experiment from a concrete failure mode in an existing
+workload, such as orchestration and recovery across churn training, evaluation,
+and promotion. Add only the building block that proof needs, with a component
+mapping, contract, conformance, evidence, failure mode, and runbook.
 Dapr coordinates distributed behavior; domain policy, durable outbox handoff,
 and database consistency invariants remain explicit in the application and
 data model.
@@ -158,24 +159,10 @@ Future provider-edge options may have bounded admission and catalog proofs
 before broad adoption. They remain outside active runtime defaults until a
 concrete proof workload and runtime ownership are clear.
 
-Runtime families:
-
-- local proof runtimes: `local-compose` for fastest feedback; `local-kubernetes`
-  for richer local network, storage, compute, probes, jobs, sidecars, service
-  identity, or policy proof
-- managed app runtimes: `aws-ecs` today; future ECS/Fargate variants, Lambda,
-  Azure Functions, Cloud Run, Azure Container Apps, or similar managed hosts
-  when they preserve the workload contract and evidence
-- owned substrate runtimes: EC2 or VM fleets, on-prem servers, self-managed
-  Kubernetes, and managed Kubernetes when the platform owns ingress,
-  node/runtime posture, storage classes, identity mapping, policy,
-  observability, upgrades, and runbooks
-
-Local Kubernetes is an active proof runtime. Managed or self-managed production
-Kubernetes remains a future runtime realization for app-host, batch, GPU, Spark,
-ML/AI, or data-science workloads only when those needs are real and owned. It
-must realize the same workload contract at the platform edge; do not add Helm,
-CRD, or control-plane machinery just to prove portability.
+The runtime-family vocabulary and ownership implications live in
+[Runtime Toolkit](runtime-toolkit.md). This capability inventory names only
+active targets and bounded incubation paths; it does not maintain a catalog of
+possible runtime products.
 
 Rule:
 

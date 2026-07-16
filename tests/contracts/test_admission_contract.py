@@ -73,6 +73,18 @@ def test_admission_schema_accepts_dapr_service_invocation_scope() -> None:
     assert list(Draft202012Validator(schema).iter_errors(candidate)) == []
 
 
+def test_admission_schema_rejects_runtime_and_dependency_wiring() -> None:
+    candidate = _load_json(SAMPLE_PATH)
+    candidate["runtime"]["ecs_task_definition"] = "payments-task"
+    candidate["bounded_dependencies"][0]["issuer_url"] = "https://id.example"
+    validator = Draft202012Validator(_load_json(SCHEMA_PATH))
+
+    messages = {error.message for error in validator.iter_errors(candidate)}
+
+    assert any("ecs_task_definition" in message for message in messages)
+    assert any("issuer_url" in message for message in messages)
+
+
 def test_admission_rejects_undeclared_bounded_dependency_config(
     tmp_path: Path,
 ) -> None:
