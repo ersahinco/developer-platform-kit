@@ -9,8 +9,10 @@
 | `infra/catalog/` | Reusable runtime-target catalog building blocks |
 
 Use `infra/catalog/<runtime-target>/` for catalog growth. The current catalog
-surface is `infra/catalog/aws/`. Add another runtime-target branch only when a
-real workload needs it and the runtime owner is clear.
+surface is `infra/catalog/aws/`. An incubating runtime-target branch may
+precede broad demand when it has a concrete proof, contract, tests, evidence
+path, honest maturity, and a clear runtime owner. Do not make it active by
+adding runtime defaults or deploy roots until reviewed realization exists.
 
 Companion docs:
 

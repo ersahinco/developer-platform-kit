@@ -97,7 +97,7 @@ entries:
       - infra/app/messaging.tf
       - packages/infrastructure/dapr
     adoption_steps:
-      - declare Dapr only when a real async boundary exists
+      - declare pub/sub when the workload has an owned asynchronous boundary
       - keep application code on Dapr pub/sub names and CloudEvents
       - keep SNS, SQS, Redis, or other broker choices at the runtime edge
 

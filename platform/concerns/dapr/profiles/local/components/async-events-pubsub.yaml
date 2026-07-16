@@ -2,6 +2,8 @@ apiVersion: dapr.io/v1alpha1
 kind: Component
 metadata:
   name: async-events-pubsub
+scopes:
+  - event-consumer
 spec:
   type: pubsub.redis
   version: v1

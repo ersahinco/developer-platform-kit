@@ -64,7 +64,6 @@ locals {
   async_eventing_runtime_files = {
     "components/async-events-pubsub.yaml" = aws_s3_object.async_eventing_dapr_component.key
     "components/resiliency.yaml"          = aws_s3_object.async_eventing_dapr_resiliency.key
-    "config/config.yaml"                  = aws_s3_object.async_eventing_dapr_config.key
   }
 
   async_eventing_dapr_config_volume_name = "dapr-config"
@@ -91,7 +90,7 @@ locals {
     " && ",
     concat(
       [
-        "mkdir -p ${local.async_eventing_dapr_mount_path}/components ${local.async_eventing_dapr_mount_path}/config"
+        "mkdir -p ${local.async_eventing_dapr_mount_path}/components"
       ],
       [
         for target_path, source_key in local.async_eventing_runtime_files :
@@ -112,8 +111,6 @@ locals {
     "3500",
     "--resources-path",
     "${local.async_eventing_dapr_mount_path}/components",
-    "--config",
-    "${local.async_eventing_dapr_mount_path}/config/config.yaml",
   ]
 
   primary_async_eventing_port_mappings = [

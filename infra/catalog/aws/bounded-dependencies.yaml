@@ -62,7 +62,7 @@ entries:
     implementation:
       - infra/app/workload_inventory.tf
       - packages/infrastructure
-      - scripts/platform/workload_fit_check.py
+      - scripts/platform/admission_check.py
     adoption_steps:
       - keep endpoint URLs and credential values in operator-owned configuration
       - keep SDK calls in infrastructure adapters when code needs them
@@ -102,7 +102,7 @@ entries:
     implementation:
       - infra/app/workload_inventory.tf
       - packages/infrastructure
-      - scripts/platform/workload_fit_check.py
+      - scripts/platform/admission_check.py
     adoption_steps:
       - keep partner endpoints and credentials in operator-owned configuration
       - keep partner protocol adapters outside domain and application packages

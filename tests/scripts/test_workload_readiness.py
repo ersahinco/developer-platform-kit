@@ -12,6 +12,7 @@ from scripts.platform.workload_readiness import _catalog_targets
 from scripts.platform.workload_readiness import _compose_service_names
 from scripts.platform.workload_readiness import _evidence
 from scripts.platform.workload_readiness import _policy_delivery_gate
+from scripts.platform.workload_readiness import _proof_command
 
 
 ROOT = Path(__file__).resolve().parents[2]
@@ -32,17 +33,17 @@ def test_workload_addition_report_shows_current_wiring_surfaces() -> None:
 
     assert rows["api"]["app_files"] == "ok"
     assert rows["api"]["app_tests"] == "yes"
-    assert rows["support_triage_llm"]["compose_service"] == "yes"
-    assert rows["support_triage_llm"]["catalog_component"] == "yes"
-    assert rows["support_triage_llm"]["runtime_conformance"] == "yes"
+    assert rows["integration_check_job"]["compose_service"] == "yes"
+    assert rows["integration_check_job"]["catalog_component"] == "yes"
+    assert rows["integration_check_job"]["runtime_conformance"] == "yes"
 
 
 def test_workload_addition_report_reads_compose_and_catalog_shapes() -> None:
     compose_services = _compose_service_names(ROOT / "compose.yaml")
     catalog_targets = _catalog_targets(ROOT / "catalog-info.yaml")
 
-    assert "support-triage-llm" in compose_services
-    assert "catalog/support-triage-llm-component.yaml" in catalog_targets
+    assert "integration-check-job" in compose_services
+    assert "catalog/integration-check-job-component.yaml" in catalog_targets
 
 
 def test_workload_addition_report_reads_yaml_shapes(tmp_path) -> None:
@@ -114,6 +115,7 @@ def test_workload_readiness_shows_paved_road_surfaces() -> None:
     assert rows["event_consumer"]["eventing_contract"] == (
         "async-events-pubsub:async-events-v1.fifo"
     )
+    assert "dapr-smoke" in rows["event_consumer"]["proof_surface"]
     assert "DAPR_TOPIC" in rows["event_consumer"]["config_env"].split(",")
     assert rows["event_consumer"]["config_realization"] == (
         "local-compose,local-kubernetes,aws-ecs"
@@ -152,10 +154,8 @@ def test_workload_readiness_shows_paved_road_surfaces() -> None:
     assert rows["integration_check_job"]["job_terminal_event"] == (
         "integration_check_succeeded"
     )
-    assert rows["open_dataset_pipeline"]["run_workflow"] == "not-aws-admitted"
-    assert rows["foreign_inventory_sync"]["run_workflow"] == "not-aws-admitted"
-    assert rows["foreign_inventory_sync"]["evidence"] == "n/a"
-    assert rows["foreign_inventory_sync"]["rollback_proof"] == "not-aws-admitted"
+    assert "dapr-smoke" in rows["booking_api"]["proof_surface"]
+    assert _proof_command(rows["booking_api"]) == "make dapr-up dapr-smoke"
 
 
 def test_workload_readiness_counts_only_runtime_evidence_for_services() -> None:

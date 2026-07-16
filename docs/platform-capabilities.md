@@ -15,7 +15,6 @@ Start with these operator views:
 make monorepo-capability-profile
 make monorepo-capability-profile-md
 make monorepo-capability-profile-check
-make workload-admission-check
 make workload-readiness
 make capability-implementation-matrix
 make runtime-defaults
@@ -57,7 +56,7 @@ proof, database, eventing, jobs, object storage, tracing, and release evidence.
 |---|---|---|
 | HTTP service edge | `/health`, `/ready`, `/metrics`, structured logs, immutable image rollout | `apps/api`, `platform/workloads.json`, `infra/app/edge.tf`, workflows |
 | Internal async service | long-running internal service shape, direct DB access, Dapr-backed event handling | `apps/event_consumer`, `platform/workloads.json`, `infra/app/workload_jobs.tf`, `infra/app/messaging.tf` |
-| Dapr pub/sub | app id, pub/sub name, topic, resiliency semantics | `platform/concerns/dapr/`, `platform/workloads.json`, `packages/infrastructure/dapr` |
+| Dapr application APIs | app identity, service invocation, pub/sub, CloudEvents, component scoping, resiliency, and runtime-owned implementation | `platform/concerns/dapr/`, `platform/workloads.json`, `packages/infrastructure/dapr` |
 | Operator job execution | one-off job shape, rerun expectation, structured completion events, payload artifacts | `apps/backfill_worker`, `apps/operational_snapshot_job`, `apps/integration_check_job`, workflows, `infra/app/workload_jobs.tf` |
 | Scheduled job execution | recurring job shape, scheduler-driven run, export success expectations | `apps/data_export_job`, `infra/app/workload_jobs.tf`, `infra/app/object_storage.tf` |
 | Database rollout safety | read/write mode switches, backfill, contract migration flow | `db/`, `apps/api`, `packages/application`, runbooks |
@@ -67,6 +66,9 @@ proof, database, eventing, jobs, object storage, tracing, and release evidence.
 | Incident evidence | portable bundle with ECS, alarms, release context, query hints | `scripts/observability/incident_evidence_bundle.py` |
 | Operational snapshot | read-only job that emits runtime mode and data posture for release or incident context | `apps/operational_snapshot_job`, `operational-snapshot.yml`, `make operational-snapshot`, `make operational-snapshot-cloud` |
 | Integration checks | configured HTTP checks that emit a local operator evidence payload | `apps/integration_check_job`, `make integration-check` |
+| Booking consistency proof | database-enforced slot uniqueness with a concurrent one-winner integration test | `apps/booking_api`, `packages/application/booking.py`, `packages/infrastructure/db/bookings.py` |
+| Late-event projection proof | deterministic deduplication, late-arrival classification, projection rebuild, and artifact hashes | `apps/lake_orders_ingest_job` |
+| MLOps artifact proof | training-data lineage, bounded evaluation, drift summary, promotion decision, artifact compatibility, and model identity at inference | `apps/churn_model_train_job`, `apps/churn_prediction_api` |
 | Runtime conformance | external proof that workloads satisfy the declared contract | `platform/runtime-conformance.json`, `tests/runtime/`, `make runtime-conformance` |
 | Network connectivity | declared ports, local service names, public edge ingress, private placement, private dependency connectivity | `compose.yaml`, `platform/runtime-conformance.json`, `infra/platform/network.tf`, `infra/app/edge.tf`, `infra/app/compute_ecs.tf` |
 | Local Kubernetes rollout proof | API Deployment rollout, probe verification, rollback, and local evidence without production Kubernetes machinery | `infra/local-kubernetes/`, `scripts/platform/local_kubernetes_proof.py`, `make local-kubernetes-rollout-proof` |
@@ -89,13 +91,6 @@ Admission is approved only after the request is translated into a
 contract-governed workload or bounded capability that the platform catalog can
 realize at the platform edge.
 
-External systems such as Entra ID, DNS providers, SaaS APIs, or external
-databases follow the same rule. Model them as bounded dependencies when the
-workload needs access: name the purpose, owner, direction, declared config
-names, declared secret names, and evidence. Tenant IDs, client IDs, DNS zone
-IDs, URLs, ARNs, subnet IDs, and provider resource names stay in runtime
-realization or operator-owned secret/config systems.
-
 For separate application repositories, app teams own application code and their
 copy of the CI lane. This platform repo owns the workload contract shape,
 runtime realization, catalog entries, policy checks, and evidence expectations.
@@ -107,28 +102,6 @@ Good admission requests:
 - subscribe or publish through the Dapr pub/sub boundary for a real async need
 - schedule a declared job or add one-off operator execution
 - promote a local workload to `aws-ecs` after local proof
-- grant bounded dependency access through declared config and secret names
-
-Bounded dependency candidate shape:
-
-```json
-{
-  "bounded_dependencies": [
-    {
-      "name": "workforce_identity",
-      "kind": "identity-provider",
-      "purpose": "Authenticate inbound users through Entra ID at the platform edge.",
-      "direction": "inbound",
-      "owner": "identity-platform",
-      "config": {
-        "env": ["IDENTITY_ISSUER"],
-        "secrets": ["IDENTITY_CLIENT_SECRET"]
-      },
-      "evidence": ["token validation smoke check"]
-    }
-  ]
-}
-```
 
 Non-goals:
 
@@ -137,52 +110,53 @@ Non-goals:
 - raw ECS, IAM, subnet, queue, rule, bucket, or database product fields in
   `platform/workloads.json`
 - a portal, generator, control plane, Helm/CRD layer, or provider-neutral
-  infrastructure module before repeated workload need proves it
+  infrastructure module without a bounded capability outcome and proof path
 
 Use the GitHub issue form `Workload or capability admission` as the intake
 surface and `workload-capability-admission.md` as the matching implementation
-PR template. Use `make workload-readiness`, `make workload-readiness-check`,
-`make workload-admission-check`, and `make workload-fit-check` for candidate
-review before adding runtime realization. The admission check validates
-repo-owned samples in `platform/admission/candidates/` against
-`platform/admission/workload-candidate.schema.json` and the same fit-check
-rules used for one-off candidates. The fit check derives the candidate's
-requested capabilities and compares them with the current monorepo capability
-profile, so admission review stays tied to implemented delivery, app-contract,
-and runtime surfaces.
+PR template. Use `make workload-readiness` and `make workload-readiness-check`
+for current workloads. Validate a draft before adding it with
+`WORKLOAD_CANDIDATE=/path/to/workload.json make workload-admission-check`.
 
-## Dapr Boundary
+Capabilities may incubate before demand reaches scale. Keep that work bounded:
+name an owner, validate a concrete candidate, add contract and catalog tests,
+identify the implementation and evidence path, and label it non-production
+until runtime admission is reviewed. The bounded dependency candidate under
+`platform/admission/candidates/` is the reference shape for identity, DNS,
+external API, database, SaaS, or partner-system access without leaking provider
+resource wiring into workload identity.
 
-Dapr is useful when an app interacts with multiple systems that run at
-different cadences. Treat Dapr building blocks as app-facing boundary
-vocabulary, not as a platform shopping list.
+## Dapr Application Boundary
 
-Current adopted block:
+Dapr sits at the core of distributed application building in this toolkit.
+App teams use stable building-block APIs while platform engineering owns
+component implementation, scoping, resiliency, security policy, telemetry,
+and runtime delivery. This follows Dapr's platform-engineering model: expose
+simple application interfaces while keeping infrastructure choices and
+governance at the platform edge.
 
-- pub/sub: app-facing eventing boundary with CloudEvents and durable database
-  outbox; current production backing is SNS/SQS.
+Current proofs:
 
-Good future candidates when real workloads need them:
+- pub/sub: CloudEvents and durable database outbox, backed locally by Redis and
+  in the reviewed production runtime by SNS/SQS
+- service invocation: the local booking workload is invoked through its Dapr
+  app identity with scoped timeout, retry, and circuit-breaker policy
 
-- service invocation for service-to-service calls with consistent identity,
-  resiliency, and telemetry expectations
-- secrets and configuration as portable boundary vocabulary, even when the
-  runtime realization is ECS, Kubernetes, or another secret/config provider
-- resiliency policies for retries, timeouts, and circuit breaking across
-  cross-system calls
-- jobs, workflows, state, bindings, actors, locks, cryptography, or
-  conversation only when a workload has a concrete need and owner
-
-Adopt a new Dapr block only with owner, config surface, conformance, evidence,
-failure mode, and runbook. Keep business behavior in the app and runtime
-realization at the platform edge.
+Good next experimental proofs include workflow orchestration for MLOps,
+stateful coordination, jobs, configuration, secrets, bindings, actors, locks,
+cryptography, and conversation APIs. Add each through an owned workload with a
+component mapping, contract, conformance, evidence, failure mode, and runbook.
+Dapr coordinates distributed behavior; domain policy, durable outbox handoff,
+and database consistency invariants remain explicit in the application and
+data model.
 
 ## Runtime Targets
 
 Current local runtime targets: `local-compose`, `local-kubernetes`.
 Current reviewed production runtime target: `aws-ecs`.
-Future provider-edge options stay horizon guidance only until a real workload
-needs them and runtime ownership is clear.
+Future provider-edge options may have bounded admission and catalog proofs
+before broad adoption. They remain outside active runtime defaults until a
+concrete proof workload and runtime ownership are clear.
 
 Runtime families:
 
@@ -219,9 +193,9 @@ executable views.
 Use `make workload-readiness` and `make workload-readiness-cloud` to inspect
 declared workload proof surfaces. Use `make local-compose-live-proof` only
 when you need the isolated live Compose drill for token auth, health,
-readiness, metrics, logs, and local observability. Candidate enterprise
-capabilities remain candidate-only in `platform/runtime-defaults.json` until
-the runtime owner, conformance, evidence, failure mode, and runbook exist.
+readiness, metrics, logs, and local observability. New runtime capabilities stay
+out of machine defaults until the owner, conformance, evidence, failure mode,
+and runbook exist.
 
 ## Adapter Seams
 
@@ -258,16 +232,19 @@ Workload placement rule:
 
 ## Admission Rule
 
-- standardize a new capability only when a real workload needs it
-- admit a capability only when it has contract shape, local proof, runtime realization, delivery path, and owner
+- incubate a capability before broad demand only with an owner, concrete proof, contract, tests, evidence path, and honest maturity
+- promote a capability to an active runtime only when it has local proof, runtime realization, delivery path, and owner
 - decide first: portable contract, current capability inventory, or AWS runtime only
 - do not add provider-neutral abstraction layers speculatively
 
 ## Not Yet Platform Capabilities
 
-- Dapr state store, bindings, workflows, actors, or secrets
-- analytics orchestration or data transformation stacks
-- open-source data load / DuckDB / dbt stacks as automatic AWS-admitted platform workloads
+- unowned Dapr building blocks without component mapping, workload proof,
+  conformance, and operational evidence
+- generic analytics orchestration or transformation platforms
+- generic open-source data-tool stacks presented as shared platform defaults;
+  specialized tools may stay inside an owned experimental workload that proves
+  a named behavior
 - hosted Grafana/Loki/Tempo/Prometheus runtime modules
 - a runtime target added without a concrete workload need and owner
 - generic provider-neutral infrastructure modules

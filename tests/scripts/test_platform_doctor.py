@@ -51,8 +51,8 @@ def _compose_api_on_alternate_port_runner(
 
 
 def _candidate_fail_runner(command: list[str]) -> subprocess.CompletedProcess[str]:
-    if "scripts/platform/workload_fit_check.py" in command:
-        return subprocess.CompletedProcess(command, 1, "fit: no", "")
+    if "scripts/platform/admission_check.py" in command:
+        return subprocess.CompletedProcess(command, 1, "candidate invalid", "")
     return _runner(command)
 
 
@@ -140,42 +140,42 @@ def test_platform_doctor_requires_github_auth_for_cloud_path(monkeypatch) -> Non
     assert by_name["github auth"].status == "fail"
 
 
-def test_platform_doctor_skips_candidate_fit_when_unset(monkeypatch) -> None:
+def test_platform_doctor_skips_candidate_schema_when_unset(monkeypatch) -> None:
     monkeypatch.delenv("WORKLOAD_CANDIDATE", raising=False)
     monkeypatch.setattr("scripts.platform.doctor._tool_exists", lambda _name: True)
 
     results = doctor_results(cloud=False, runner=_runner)
 
-    assert "workload candidate fit" not in {result.name for result in results}
+    assert "workload candidate schema" not in {result.name for result in results}
 
 
-def test_platform_doctor_checks_candidate_fit_when_set(monkeypatch) -> None:
+def test_platform_doctor_checks_candidate_schema_when_set(monkeypatch) -> None:
     monkeypatch.setenv(
         "WORKLOAD_CANDIDATE",
-        "tests/fixtures/workloads/foreign_internal_service_good.json",
+        "tests/fixtures/workloads/internal_service_good.json",
     )
     monkeypatch.setattr("scripts.platform.doctor._tool_exists", lambda _name: True)
 
     results = doctor_results(cloud=False, runner=_runner)
     by_name = {result.name: result for result in results}
 
-    assert by_name["workload candidate fit"].status == "ok"
+    assert by_name["workload candidate schema"].status == "ok"
 
 
-def test_platform_doctor_fails_when_candidate_fit_fails(monkeypatch) -> None:
+def test_platform_doctor_fails_when_candidate_schema_fails(monkeypatch) -> None:
     monkeypatch.setenv(
         "WORKLOAD_CANDIDATE",
-        "tests/fixtures/workloads/foreign_internal_service_bad.json",
+        "tests/fixtures/workloads/internal_service_bad.json",
     )
     monkeypatch.setattr("scripts.platform.doctor._tool_exists", lambda _name: True)
 
     results = doctor_results(cloud=False, runner=_candidate_fail_runner)
     by_name = {result.name: result for result in results}
 
-    assert by_name["workload candidate fit"].status == "fail"
+    assert by_name["workload candidate schema"].status == "fail"
     assert (
-        by_name["workload candidate fit"].hint
-        == "run WORKLOAD_CANDIDATE=<path> make workload-fit-check: fit: no"
+        by_name["workload candidate schema"].hint
+        == "run WORKLOAD_CANDIDATE=<path> make workload-admission-check: candidate invalid"
     )
 
 

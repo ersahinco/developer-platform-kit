@@ -21,8 +21,22 @@ Examples:
 - `apps/data_export_job/` -> runnable host
 - `apps/operational_snapshot_job/` -> read-only operational readiness snapshot
 - `apps/integration_check_job/` -> configured HTTP integration check job
-- `apps/lake_orders_ingest_job/` -> local-first Parquet/DuckDB data job
-- `apps/churn_prediction_api/` -> local-first internal model inference app host
-- `apps/support_triage_llm/` -> local-first internal LLM triage app host
+
+## Enterprise Pattern Experiments
+
+Experimental workloads may precede broad product demand when they prove a
+named engineering problem with an owner, workload contract, executable tests,
+and inspectable evidence. They remain local-only until runtime admission is
+reviewed.
+
+| Workload | Proof |
+|---|---|
+| `booking_api` | Dapr service invocation reaches a workload whose PostgreSQL uniqueness invariant allows exactly one winner for concurrent attempts on the same resource and time slot |
+| `lake_orders_ingest_job` | replayable projection rebuild deduplicates updates, flags late arrivals, and records source/model/output hashes |
+| `churn_model_train_job` | versioned artifact records training-data lineage, evaluation scope, drift summary, and promotion decision |
+| `churn_prediction_api` | inference rejects incompatible or unpromoted artifacts and reports the model identity used for each prediction |
+
+Run the application and data pattern tests with `make enterprise-pattern-proofs`.
+Run `make dapr-up dapr-smoke` for the live Dapr service-invocation path.
 
 Use `make workload-readiness` for the current complete workload inventory.

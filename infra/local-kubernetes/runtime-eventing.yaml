@@ -95,9 +95,20 @@ spec:
         runtime.target: local-kubernetes
         workload: redis
     spec:
+      securityContext:
+        fsGroup: 999
+        seccompProfile:
+          type: RuntimeDefault
       containers:
         - name: redis
           image: redis:8.2.1
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop: ["ALL"]
+            readOnlyRootFilesystem: true
+            runAsNonRoot: true
+            runAsUser: 999
           ports:
             - name: redis
               containerPort: 6379
@@ -111,6 +122,16 @@ spec:
               command: ["redis-cli", "ping"]
             periodSeconds: 10
             timeoutSeconds: 3
+          volumeMounts:
+            - name: redis-data
+              mountPath: /data
+            - name: redis-tmp
+              mountPath: /tmp
+      volumes:
+        - name: redis-data
+          emptyDir: {}
+        - name: redis-tmp
+          emptyDir: {}
 ---
 apiVersion: v1
 kind: Service

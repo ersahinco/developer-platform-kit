@@ -110,24 +110,6 @@ class S3DataExportPublisher:
             )
 
 
-def publish_s3_outputs(
-    *,
-    raw_path: Path,
-    manifest_path: Path,
-    bucket: str,
-    raw_key: str,
-    manifest_key: str,
-    s3_client: Any,
-) -> None:
-    _upload_s3_object(raw_path, bucket=bucket, key=raw_key, s3_client=s3_client)
-    _upload_s3_object(
-        manifest_path,
-        bucket=bucket,
-        key=manifest_key,
-        s3_client=s3_client,
-    )
-
-
 def _serialize(value: Any) -> str | int | float | None:
     if value is None:
         return None

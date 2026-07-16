@@ -7,7 +7,7 @@
       "owner": "platform-toolkit",
       "role": "local-development",
       "maturity": "active-local-proof",
-      "implementation": "Docker Compose + local Postgres/PgBouncer + Redis-backed Dapr + OSS observability",
+      "implementation": "Docker Compose + local Postgres/PgBouncer + Dapr service invocation and Redis-backed pub/sub + OSS observability",
       "purpose": "Fast local iteration and workload contract proof without production runtime dependencies.",
       "defaults": {
         "authn": {
@@ -25,8 +25,8 @@
         "service_identity": {
           "capability": "service_identity",
           "default": "compose-service-identity",
-          "realization": "Docker Compose service name and network membership identify local workload hosts.",
-          "evidence": ["compose_service_name", "container_name"]
+          "realization": "Docker Compose service name and network membership identify local workload hosts; Dapr-enabled workloads also use a stable Dapr app identity.",
+          "evidence": ["compose_service_name", "container_name", "dapr_app_id_when_declared"]
         },
         "secrets": {
           "capability": "secrets_injection",
@@ -176,72 +176,5 @@
         }
       }
     }
-  },
-  "candidate_runtime_profiles": {
-    "enterprise-runtime-candidate": {
-      "status": "candidate",
-      "owner": "future-runtime-owner-required",
-      "defaults": {
-        "authn": {
-          "capability": "edge_auth",
-          "default": "enterprise-idp-at-edge",
-          "realization": "Enterprise IdP through a runtime-owned gateway or managed edge, such as Okta, Entra ID, Auth0, Kong, Envoy, or a managed API gateway.",
-          "evidence": ["subject", "issuer_class", "request_id", "decision"]
-        },
-        "authz": {
-          "capability": "authz_policy",
-          "default": "app-local-unless-platform-policy-owned",
-          "realization": "OPA, Cedar, or another policy engine is a runtime default only when policy distribution and operations ownership are explicit.",
-          "evidence": ["decision", "reason", "policy_version"]
-        },
-        "observability": {
-          "capability": "observability_routing",
-          "default": "standard-signals-runtime-routed",
-          "realization": "Workloads emit standard metrics/logs/traces; the runtime may route to Datadog, Splunk, New Relic, Elastic, Grafana, or another owned backend.",
-          "evidence": ["workload_id", "run_id", "image_tag", "timestamp", "status"]
-        },
-        "network": {
-          "capability": "network_connectivity",
-          "default": "private-connectivity-and-controlled-egress",
-          "realization": "Private ingress, private egress, proxy, firewall, egress identity, VPN, Direct Connect, or PrivateLink are runtime-edge realizations.",
-          "evidence": ["runtime_identifiers", "connectivity_check", "egress_identity_when_required"]
-        },
-        "ci_cd": {
-          "capability": "ci_cd_delivery",
-          "default": "enterprise-reviewed-delivery",
-          "realization": "Enterprise CI/CD may use GitHub Actions, GitLab, Jenkins, Azure DevOps, or another owned system only when it preserves delivery identity, separation, image tag, and release evidence.",
-          "evidence": ["workflow_run_id", "delivery_identity", "image_tag", "release_event"]
-        }
-      }
-    }
-  },
-  "decision_rules": {
-    "runtime_tool_choice_allowed_when": [
-      "multiple workloads share the need",
-      "an operations or platform runtime owner exists",
-      "the tool reduces app team burden",
-      "the tool emits standard evidence",
-      "the behavior can be tested by conformance"
-    ],
-    "workload_tool_choice_allowed_when": [
-      "the app business behavior genuinely depends on the tool",
-      "the dependency is tested locally",
-      "failure modes are documented",
-      "vendor or product mechanics do not leak into domain or application code"
-    ]
-  },
-  "forbidden_workload_tool_fields": [
-    "auth0_domain",
-    "cedar_policy_store",
-    "datadog_index",
-    "elastic_index",
-    "entra_tenant_id",
-    "jwt_provider",
-    "kong_plugin",
-    "newrelic_account",
-    "oidc_provider",
-    "okta_domain",
-    "opa_bundle_url",
-    "splunk_index"
-  ]
+  }
 }

@@ -2,6 +2,7 @@ from dataclasses import dataclass
 from dataclasses import field
 from pathlib import Path
 
+from infrastructure.config import env_int
 from infrastructure.config import env_str
 from infrastructure.config import load_env_file
 from infrastructure.config import require_value
@@ -16,7 +17,7 @@ _DEFAULT_MODEL_PATH = str(
 
 @dataclass
 class Settings:
-    service_port = 8082
+    service_port: int = field(default_factory=lambda: env_int("SERVICE_PORT", 8082))
     churn_model_path: str = field(
         default_factory=lambda: require_value(
             env_str("CHURN_MODEL_PATH", _DEFAULT_MODEL_PATH),

@@ -41,7 +41,7 @@ conformance path, evidence artifact, failure-mode handling, and runbook exist.
 | ECS/Fargate compute plus AWS-managed dependencies | High | Medium | One AWS operations boundary, private RDS/SNS/SQS/S3, IAM, CloudWatch rollback/evidence | Team needs Supabase-specific product surface or existing DB must remain outside AWS | Recommended default |
 | ECS/Fargate compute plus Supabase DB | Medium | Medium/High | Product team wants Supabase-managed Postgres, same-region AWS VPC, clear DB owner, PrivateLink or stable allowlist exists | Chatty low-latency SQL, strict single-control-plane ops, no owned pool/connection policy, no IPv4/IPv6 plan | Candidate platform-edge DB realization, not default |
 | Compute elsewhere plus Supabase or AWS-managed dependencies | Low | Medium | Existing compute platform is owned and already emits equivalent image, secret, rollback, and evidence signals | Repo would need to bless another production runtime only to prove portability | Brownfield/candidate only |
-| Brownfield app plus external systems/DB stay outside AWS | Low/Medium | High | Migration risk is in data ownership and network edges; workload can be wrapped by contract first | Attempting to centralize everything before proving behavior | Use workload-fit path; do not force migration |
+| Brownfield app plus external systems/DB stay outside AWS | Low/Medium | High | Migration risk is in data ownership and network edges; workload can be wrapped by contract first | Attempting to centralize everything before proving behavior | Validate the workload contract first; do not force migration |
 | Scattered landscape across public internet, SaaS, AWS VPCs, and managed DBs | Medium | High | Use explicit edges: public TLS, allowlists, PrivateLink, VPN/DX/TGW, API gateway, async outbox | Shared hidden network assumptions, direct cross-system writes everywhere | Model as platform-edge connectivity patterns |
 
 ## Capability Impact
@@ -70,9 +70,10 @@ Capability status:
   `platform/platform-inventory.json`.
 - Candidate guidance: Supabase database realization, enterprise connectivity,
   compute elsewhere, external gateways, and brownfield databases.
-- Out of scope until real need: new runtime targets, provider-neutral
-  infrastructure modules, Helm/CRD machinery, portals, or per-workload provider
-  fields.
+- Outside active defaults until reviewed proof: new runtime targets,
+  provider-neutral infrastructure modules, Helm/CRD machinery, portals, or
+  per-workload provider fields. A bounded candidate may still incubate the
+  capability without claiming production readiness.
 
 If a deployment option cannot answer the hybrid or brownfield realization
 question for every capability the workload uses, keep it as a candidate and

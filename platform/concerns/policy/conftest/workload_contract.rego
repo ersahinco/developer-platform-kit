@@ -258,6 +258,7 @@ deny contains msg if {
   some workload in input.workloads
   workload.operational.class == "internal-service"
   is_object(workload.dapr)
+  workload.dapr.scope == "pubsub"
   not workload.dapr.pubsub_name
   msg := sprintf("internal-service workload %q with Dapr must declare dapr.pubsub_name", [workload.name])
 }
@@ -267,8 +268,25 @@ deny contains msg if {
   some workload in input.workloads
   workload.operational.class == "internal-service"
   is_object(workload.dapr)
+  workload.dapr.scope == "pubsub"
   not workload.dapr.topic
   msg := sprintf("internal-service workload %q with Dapr must declare dapr.topic", [workload.name])
+}
+
+deny contains msg if {
+  data.conftest.file.name == "workloads.json"
+  some workload in input.workloads
+  is_object(workload.dapr)
+  not workload.dapr.scope in {"pubsub", "service-invocation"}
+  msg := sprintf("workload %q has unsupported dapr.scope %q", [workload.name, workload.dapr.scope])
+}
+
+deny contains msg if {
+  data.conftest.file.name == "workloads.json"
+  some workload in input.workloads
+  workload.dapr.scope == "pubsub"
+  not workload.dapr.subscription_route
+  msg := sprintf("pub/sub workload %q must declare dapr.subscription_route", [workload.name])
 }
 
 deny contains msg if {

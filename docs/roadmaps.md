@@ -18,6 +18,7 @@ lives in canonical docs:
 | Workload metadata | `platform/workloads.json` owns intent; `infra/app/workload_inventory.tf` fulfills it |
 | Delivery | app build, app deploy, infra plan, infra apply, security, and semgrep stay split |
 | Runtime safety | runtime conformance, contract tests, and architecture tests are normal gates |
+| Pattern experiments | Dapr invocation plus booking consistency, late-event projection repair, and MLOps artifact lineage are local-only, contract-backed workloads |
 | Observability | local OSS telemetry and AWS-native runtime signals stay separate |
 | Docs | core docs are canonical, denser, and less duplicated |
 
@@ -28,7 +29,8 @@ lives in canonical docs:
 | First-run clarity | keep `make help-*`, readiness views, and first-run docs aligned | a target is added, renamed, or promoted into the newcomer path |
 | Runbook quality | keep operator docs parameterized with outputs, placeholders, and runtime-owned commands | any runbook still assumes a demo stack name or fixed region |
 | Workflow guardrails | expand tests around workflow ownership and approved cloud-changing paths | a workflow picks up a new responsibility |
-| Workload onboarding | keep workload classes and copy-from examples current in docs and tests | a real workload introduces a new class or concern |
+| Workload onboarding | keep workload classes and copy-from examples current in docs and tests | a workload or incubating capability introduces a new class or concern |
+| Enterprise pattern depth | extend experiments through real failure modes and evidence, not product-name breadth | a consistency, event-time, ML, MLOps, or Dapr challenge needs a reproducible proof |
 | Platform catalog shape | keep reusable modules, concerns, and templates recognizable as one catalog surface | catalog logic starts fragmenting across unrelated folders or scripts |
 | Observability inventory | derive alarm, log-group, and evidence defaults from workload metadata where practical | a workload or signal path adds handwritten inventory |
 | Runtime target ergonomics | prefer Terraform outputs, runtime inventory, and small scripts over repeated shell literals | examples or scripts duplicate target-specific naming rules |
@@ -71,15 +73,15 @@ Rule: predictable extension over maximal abstraction.
 
 | Topic | Why deferred |
 |---|---|
-| Runtime target expansion | add only with a concrete workload need, owner, and realization plan |
-| Broader Dapr scope | pub/sub is the only current need |
+| Runtime target activation | promote only with a concrete proof workload, owner, and realization plan |
+| Broader Dapr scope | adopt building blocks through owned pattern proofs; pub/sub is production-proven and service invocation is local-proven |
 | Analytics platform additions | should arrive with a real analytics requirement |
 | Provider-neutral infra abstraction | direct Terraform plus explicit AWS ownership is cleaner |
 | CloudWatch replacement | AWS-native alarms still back ECS rollback and managed-resource protection |
 
 ## Decision Rules
 
-- standardize new platform behavior only after a real workload needs it
+- incubate capabilities before broad demand only with an owner, concrete proof, contract, tests, evidence path, and honest maturity
 - prefer metadata plus tests over wrappers and generation
 - keep contract growth portable and runtime implementation explicit
 - add shared abstractions only after repeated pain is proven
@@ -89,8 +91,9 @@ Rule: predictable extension over maximal abstraction.
 
 | Date | Decision |
 |---|---|
+| 2026-07-16 | Keep Dapr at the core application boundary; retain the consolidated component source, prove pub/sub and local service invocation, and grow other building blocks through owned experiments. |
+| 2026-07-16 | Keep pattern-rich experimental workloads before broad adoption when they prove a concrete failure mode with ownership, contracts, tests, evidence, and honest maturity; remove hollow showcases and generic product laundry. |
 | 2026-06-14 | Keep lean delivery toolkit follow-up as small slices: command clarity, first-run proof, runtime guardrails, and readiness evidence; do not add portals, generators, provider abstractions, Helm/CRD surfaces, or new runtime targets. |
-| 2026-06-02 | Keep the new data, churn, and support-triage LLM workloads local-first until runtime ownership and cloud evidence paths are reviewed. |
 | 2026-05-21 | Treat the workload contract and platform catalog as the stable center; runtime targets are pluggable realizations. |
 | 2026-05-19 | Harden one workload intent source and one AWS runtime realization layer. |
 | 2026-05-19 | Reframe runbooks and drills around outputs, placeholders, and operator-owned action. |

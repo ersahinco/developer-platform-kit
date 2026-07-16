@@ -29,40 +29,14 @@ Those are valid future runtime choices, not workload metadata.
 ## Live Local Drill
 
 Static runtime default proof lives in `tests/contracts/test_runtime_defaults_contract.py`
-and the inventory views above. Candidate enterprise tools stay candidate-only;
-the contract checks point at real files, tests, workflows, and evidence seams
-instead of promoting a product choice.
+and the inventory views above. The contract checks point at real files, tests,
+workflows, and evidence seams.
 
 `make local-compose-live-proof` runs a dedicated temporary Compose project
 with token auth enabled, proves live health, readiness, metrics, auth 401/200,
 structured logs, Prometheus, Loki, Tempo, and Grafana, then tears the stack down
 by default. Use `--keep-stack` on `scripts/platform/local_compose_live_proof.py`
 only when you want to inspect the drill stack manually.
-
-## Enterprise Candidate
-
-`enterprise-runtime-candidate` is guidance, not an active runtime target. It
-exists so enterprise teams see the intended standardization path before the
-first adopter improvises one.
-
-Allowed runtime-edge choices include:
-
-- enterprise IdP at the edge, such as Okta, Entra ID, Auth0, or a managed IdP
-- gateway or managed edge, such as Kong, Envoy, API Gateway, or equivalent
-- runtime-owned policy engines, such as OPA or Cedar, only when policy
-  distribution and ownership are explicit
-- backend routing to Datadog, Splunk, New Relic, Elastic, Grafana, or another
-  owned observability backend
-- private connectivity, controlled egress, proxy, firewall, VPN, Direct Connect,
-  PrivateLink, or an enterprise network equivalent
-
-These tools must stay out of workload metadata unless the workload business
-behavior genuinely depends on them.
-
-Before promoting any candidate enterprise capability, update
-`platform/runtime-defaults.json` and the runtime default contract tests. A
-candidate runtime capability becomes active only when it has owner, config
-surface, conformance test, evidence artifact, failure mode, and runbook.
 
 ## Decision Rules
 

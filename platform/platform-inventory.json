@@ -7,6 +7,14 @@
   },
   "runtime_capabilities": [
     {
+      "capability": "local_dapr_application_proof",
+      "contract_surface": "Dapr app identity, service invocation, pub/sub, CloudEvents, component scoping, and resiliency evidence",
+      "runtime_target": "local-compose",
+      "maturity": "active-local-proof",
+      "implementation": "Booking service invocation plus Redis-backed event-consumer pub/sub through scoped daprd sidecars",
+      "replacement_seam": "compose.yaml + platform/concerns/dapr + scripts/platform/local_dapr_smoke.py + platform/workloads.json"
+    },
+    {
       "capability": "local_runtime",
       "contract_surface": "workload contract, runtime conformance, local config names",
       "runtime_target": "local-compose",

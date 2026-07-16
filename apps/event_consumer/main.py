@@ -17,10 +17,8 @@ from application.event_processing import (
 )
 from application.event_receipts import EventReceiptResult
 from application.outbox import OutboxPublisher
-from infrastructure.db.repository import (
-    SQLAlchemyEventReceiptRepository,
-    SQLAlchemyOutboxRepository,
-)
+from infrastructure.db.event_receipts import SQLAlchemyEventReceiptRepository
+from infrastructure.db.outbox import SQLAlchemyOutboxRepository
 from infrastructure.db.session import engine_and_session_factory, ping_database
 from infrastructure.dapr.pubsub import (
     DaprEventPublisher,
@@ -260,15 +258,6 @@ async def handle_event(request: Request) -> dict[str, str]:
         )
         raise
     return {"status": "SUCCESS"}
-
-
-def run_worker(publisher: OutboxPublisher | None = None) -> None:
-    engine, SessionLocal = _engine_and_session_factory()
-    stop = threading.Event()
-    try:
-        relay_forever(SessionLocal, publisher=publisher or _publisher(), stop=stop)
-    finally:
-        engine.dispose()
 
 
 def main() -> None:

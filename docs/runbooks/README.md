@@ -13,5 +13,4 @@ capability truth live in the canonical docs under [../README.md](../README.md).
 | RDS CPU, storage, or connection pressure | [RDS Pressure](rds-pressure.md) |
 | Event relay, consumer, or DLQ failure | [Event Consumer Queue Failure](event-consumer-queue-failure.md) |
 | Scheduled export missing or failed | [Data Export Job Failure](data-export-job-failure.md) |
-| Support triage LLM failed run or eval drift | [Support Triage LLM Evidence](support-triage-llm.md) |
 | Terraform/app ownership drift | [App And Infra Ownership Boundary](app-infra-ownership.md) |

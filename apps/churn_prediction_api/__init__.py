@@ -1,1 +1,1 @@
-"""Churn prediction internal service."""
+"""Experimental churn model inference workload."""

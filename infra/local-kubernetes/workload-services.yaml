@@ -24,14 +24,31 @@ spec:
         workload: api
     spec:
       serviceAccountName: workload-runtime
+      securityContext:
+        seccompProfile:
+          type: RuntimeDefault
       initContainers:
         - name: wait-for-pgbouncer
           image: postgres:18.3
           command: ["sh", "-c", "until pg_isready -h pgbouncer -U postgres -d aws_sdlc_containers; do sleep 2; done"]
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop: ["ALL"]
+            readOnlyRootFilesystem: true
+            runAsNonRoot: true
+            runAsUser: 999
       containers:
         - name: api
           image: aws-sdlc-containers-api:local-kubernetes
           imagePullPolicy: IfNotPresent
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop: ["ALL"]
+            readOnlyRootFilesystem: true
+            runAsNonRoot: true
+            runAsUser: 1000
           ports:
             - name: http
               containerPort: 8000
@@ -148,17 +165,41 @@ spec:
         workload: event_consumer
     spec:
       serviceAccountName: workload-runtime
+      securityContext:
+        seccompProfile:
+          type: RuntimeDefault
       initContainers:
         - name: wait-for-db
           image: postgres:18.3
           command: ["sh", "-c", "until pg_isready -h db -U postgres -d aws_sdlc_containers; do sleep 2; done"]
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop: ["ALL"]
+            readOnlyRootFilesystem: true
+            runAsNonRoot: true
+            runAsUser: 999
         - name: wait-for-redis
           image: redis:8.2.1
           command: ["sh", "-c", "until redis-cli -h redis ping | grep -q PONG; do sleep 2; done"]
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop: ["ALL"]
+            readOnlyRootFilesystem: true
+            runAsNonRoot: true
+            runAsUser: 999
       containers:
         - name: event-consumer
           image: aws-sdlc-containers-event-consumer:local-kubernetes
           imagePullPolicy: IfNotPresent
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop: ["ALL"]
+            readOnlyRootFilesystem: true
+            runAsNonRoot: true
+            runAsUser: 1000
           ports:
             - name: http
               containerPort: 8081
@@ -250,6 +291,13 @@ spec:
           image: daprio/daprd:1.17.0
           imagePullPolicy: IfNotPresent
           command: ["./daprd"]
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop: ["ALL"]
+            readOnlyRootFilesystem: true
+            runAsNonRoot: true
+            runAsUser: 65532
           args:
             - --app-id
             - event-consumer

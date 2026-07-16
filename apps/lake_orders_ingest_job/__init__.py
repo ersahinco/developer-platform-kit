@@ -1,1 +1,1 @@
-"""Lake orders ingest operator job."""
+"""Late-arriving order projection experiment."""

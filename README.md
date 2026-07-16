@@ -14,8 +14,9 @@ and evidence without hiding standard tools behind private machinery. Runtime
 targets are pluggable implementations at the platform edge. Local Compose is
 the fastest feedback runtime; local Kubernetes is the richer local proof
 runtime; AWS/ECS is the current reviewed production realization. Enterprise
-runtime choices stay candidate-only until a real organizational requirement has
-an owner, conformance path, evidence artifact, failure mode, and runbook.
+runtime choices can incubate as bounded candidates before demand reaches scale;
+they stay out of active defaults until a concrete proof, owner, conformance
+path, evidence artifact, failure mode, and runbook exist.
 The repo also ships a conventional Backstage descriptor in `catalog-info.yaml`
 so a portal or software catalog can ingest the monorepo without custom glue.
 
@@ -26,8 +27,14 @@ jobs, and scheduler realization; and an app development contract that brings
 portable concerns such as Dapr, observability, config, secrets, and evidence
 into the app host from the start.
 
-App size is not the fit test. A tiny container, a long-running app host, a
-scheduled job, or a larger data/ML workload fits when its ports,
+Dapr is the core distributed-application boundary: app teams use stable APIs
+for building blocks while platform engineering owns component implementations,
+scoping, resiliency, security, telemetry, and runtime delivery. Pub/sub is
+production-proven; local service invocation is exercised by the booking
+consistency workload; further building blocks grow through owned experiments.
+
+App size is not the fit test. A tiny container, a long-running app host, or a
+scheduled job fits when its ports,
 health/readiness, config, secrets, network, storage, auth, logs/metrics,
 ownership, and evidence needs are explicit.
 
@@ -35,8 +42,7 @@ ownership, and evidence needs are explicit.
 
 Use this repo when you want:
 
-- a repeatable path for app hosts, jobs, data workloads, ML workloads, and LLM
-  workloads
+- a repeatable path for app hosts and jobs
 - local proof before cloud changes
 - local Kubernetes proof when Compose is too small for network, storage, probes,
   jobs, or service identity
@@ -56,14 +62,14 @@ Do not use it as:
 - a place to hide platform magic behind generated per-app behavior
 - a place for each app team to pick random delivery, auth, observability, or
   policy tools when shared runtime capabilities should own those choices
-- a place to install enterprise tools before a real workload and runtime owner need them
+- a place to install enterprise tools without a bounded capability outcome, concrete proof, and owner
 
 ## What This Repo Standardizes
 
 - Platform center: workload contract plus reusable catalog and concern definitions
 - Workload contract: `platform/workloads.json`; local/CI proof in `platform/runtime-conformance.json`
 - Boundaries: thin `apps/*` hosts, reusable `packages/*`, pluggable runtime targets realized at the edge in `infra/*`, workflows, and Compose
-- Capabilities: network, database, object storage, messaging, jobs, scheduling, Dapr, observability, secrets, and evidence selected by workload need
+- Capabilities: network, database, object storage, messaging, jobs, scheduling, Dapr, observability, secrets, and evidence selected by workload need or an owned pre-scale proof
 - Ownership: each workload declares a portable owner before cloud runtime admission
 - DevEx: repeatable app-host conventions, local proof, checks, and evidence before runtime-specific work
 - Delivery: build before deploy, plan before apply, immutable image tags, release evidence
@@ -197,14 +203,16 @@ use [docs/local-development.md](docs/local-development.md) and
 ## Keep It Useful
 
 The repo already has enough capability to absorb real workloads. Prefer use and
-small corrections over new machinery:
+small corrections, and extend it through bounded proofs rather than new
+machinery:
 
 - add scripts only when they answer an operator question directly
 - keep `platform/workloads.json` as workload identity, not deployment choreography
 - keep live capability proof narrow; full local validation belongs to
   `make platform-toolkit-validate-local`
-- keep enterprise integrations candidate-only until a runtime owner, evidence,
-  conformance, failure mode, and runbook exist
+- let enterprise integrations incubate as contract-backed candidates, but keep
+  them out of active defaults until a runtime owner, evidence, conformance,
+  failure mode, and runbook exist
 
 Useful inventory commands when you need them:
 

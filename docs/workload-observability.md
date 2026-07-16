@@ -46,19 +46,9 @@ Examples:
 - `backfill_complete`
 - `data_export_succeeded`
 - `integration_check_succeeded`
-- `open_dataset_pipeline_succeeded`
 - `operational_snapshot_succeeded`
-
-LLM app hosts must preserve the same service baseline and add prompt/run
-correlation in structured workload logs:
-
-- `prompt_version`
-- `run_id`
-- token evidence
-- estimated cost
-- latency
-- evaluation evidence when an eval run is requested
-- operator payload path for failed runs
+- `lake_orders_ingest_succeeded`
+- `churn_model_train_succeeded`
 
 Use:
 
@@ -66,7 +56,7 @@ Use:
 make operational-snapshot
 make integration-check
 make data-export
-make open-dataset-pipeline
+make enterprise-pattern-proofs
 ```
 
 ## Operator Payloads

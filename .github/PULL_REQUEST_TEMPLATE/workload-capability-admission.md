@@ -19,7 +19,7 @@ realization layer.
   - [ ] Add operator job execution
   - [ ] Add scheduled job execution
   - [ ] Add Dapr pub/sub boundary
-  - [ ] Grant bounded dependency access
+  - [ ] Add bounded external dependency access
 
 ## Contract
 

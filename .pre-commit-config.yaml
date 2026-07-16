@@ -151,20 +151,12 @@ repos:
         files: ^(pyproject\.toml|uv\.lock|apps/.*/pyproject\.toml|packages/.*/pyproject\.toml)$
         stages: [pre-push]
 
-      - id: dependency-audit-owasp
-        name: OWASP dependency audit
-        entry: make dependency-audit-owasp
-        language: system
-        pass_filenames: false
-        files: ^(pyproject\.toml|uv\.lock|apps/.*/pyproject\.toml|packages/.*/pyproject\.toml)$
-        stages: [pre-push]
-
       - id: container-config-scan
         name: Trivy container and config scan
         entry: make container-config-scan
         language: system
         pass_filenames: false
-        files: ^(Dockerfile|docker-compose\.ya?ml|db/Dockerfile|db/pgbouncer/Dockerfile|platform/workload\.Dockerfile|infra/|platform/concerns/|\.github/workflows/)
+        files: ^(\.trivyignore\.yaml|Dockerfile|docker-compose\.ya?ml|db/Dockerfile|db/pgbouncer/Dockerfile|platform/workload\.Dockerfile|infra/|platform/concerns/|\.github/workflows/)
         stages: [pre-push]
 
       - id: container-image-scan

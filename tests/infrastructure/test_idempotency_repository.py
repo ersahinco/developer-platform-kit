@@ -3,9 +3,11 @@ from __future__ import annotations
 import datetime
 import uuid
 
+import pytest
 from sqlalchemy import text
+from sqlalchemy.exc import DBAPIError
 
-from infrastructure.db.repository import SQLAlchemyIdempotencyRepository
+from infrastructure.db.idempotency import SQLAlchemyIdempotencyRepository
 from application.idempotency import IdempotencyBeginResult
 
 
@@ -114,6 +116,25 @@ def test_fail_persists_error(committed_db_session) -> None:
     assert row is not None
     assert row.status == "failed"
     assert row.last_error == "downstream service unavailable"
+
+
+def test_fail_recovers_from_failed_business_transaction(committed_db_session) -> None:
+    key = uuid.uuid4().hex
+    repo = SQLAlchemyIdempotencyRepository(committed_db_session)
+    repo.begin(key=key, request_hash="hash-failed-transaction")
+
+    with pytest.raises(DBAPIError):
+        committed_db_session.execute(text("SELECT * FROM missing_test_table"))
+
+    repo.fail(key=key, error="order write failed")
+
+    row = committed_db_session.execute(
+        text("SELECT status, last_error FROM idempotency_keys WHERE key=:k"),
+        {"k": key},
+    ).fetchone()
+    assert row is not None
+    assert row.status == "failed"
+    assert row.last_error == "order write failed"
 
 
 def test_expired_processing_lock_resets_and_returns_started(

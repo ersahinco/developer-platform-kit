@@ -37,8 +37,9 @@ split by concern so ownership stays visible:
   a manifest, injected declared config/secrets, and passing admission output.
 - Keep workload identity in `platform/workloads.json`; manifests realize it but
   do not redefine it.
-- Keep Dapr/eventing local to the existing pub/sub proof path until async
-  workloads create another concrete need.
+- The current Kubernetes Dapr proof covers pub/sub. Add another building block
+  when its workload declares `local-kubernetes` support and the drill captures
+  its failure mode and evidence.
 - Keep evidence capture as an on-demand local artifact, not a scheduler or
   permanent drill workflow.
 

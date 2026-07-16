@@ -66,6 +66,65 @@
       }
     },
     {
+      "name": "booking_api",
+      "kind": "service",
+      "use_cases": [
+        "booking",
+        "concurrency-control",
+        "consistency-proof",
+        "service-to-service"
+      ],
+      "owner": "platform-engineering",
+      "app_path": "apps/booking_api",
+      "runtime": {
+        "supported": ["local-compose"],
+        "admitted": []
+      },
+      "operational": {
+        "class": "internal-service",
+        "exposure": "internal"
+      },
+      "service": {
+        "port": 8084
+      },
+      "image": {
+        "repository": "booking-api",
+        "package": "aws-sdlc-containers-booking-api",
+        "command": "python -m booking_api.main"
+      },
+      "metrics": {
+        "format": "prometheus",
+        "required_names": [
+          "workload_info",
+          "booking_api_http_requests_total",
+          "booking_api_http_request_duration_seconds",
+          "booking_attempts_total"
+        ]
+      },
+      "traces": {
+        "supported": false
+      },
+      "database": {
+        "semantics": "postgresql",
+        "pooling": "transaction_pool"
+      },
+      "dapr": {
+        "app_id": "booking-api",
+        "scope": "service-invocation"
+      },
+      "config": {
+        "env": [
+          "DATABASE_URL",
+          "DB_HOST",
+          "DB_PORT",
+          "DB_USER",
+          "DB_NAME",
+          "SERVICE_PORT"
+        ],
+        "secrets": ["DB_PASSWORD"]
+      }
+    },
+    {
       "name": "event_consumer",
       "kind": "service",
       "use_cases": ["event-consumer", "integration"],
@@ -173,48 +232,6 @@
       }
     },
     {
-      "name": "foreign_inventory_sync",
-      "kind": "service",
-      "use_cases": ["internal-api", "connector"],
-      "owner": "supply-chain-platform",
-      "app_path": "apps/foreign_inventory_sync",
-      "runtime": {
-        "supported": ["local-compose"],
-        "admitted": []
-      },
-      "operational": {
-        "class": "internal-service",
-        "exposure": "internal"
-      },
-      "service": {
-        "port": 8080
-      },
-      "image": {
-        "repository": "foreign-inventory-sync",
-        "package": "foreign-inventory-sync",
-        "command": "python -m foreign_inventory_sync.main"
-      },
-      "metrics": {
-        "format": "prometheus",
-        "required_names": [
-          "workload_info",
-          "foreign_inventory_sync_http_requests_total",
-          "foreign_inventory_sync_http_request_duration_seconds"
-        ]
-      },
-      "traces": {
-        "supported": false
-      },
-      "database": {
-        "semantics": "postgresql",
-        "pooling": "direct"
-      },
-      "config": {
-        "env": ["DATABASE_URL", "DB_HOST", "DB_PORT", "DB_USER", "DB_NAME"],
-        "secrets": ["DB_PASSWORD"]
-      }
-    },
-    {
       "name": "data_export_job",
       "kind": "job",
       "use_cases": ["data-export", "scheduled-pipeline"],
@@ -259,9 +276,48 @@
       }
     },
     {
+      "name": "lake_orders_ingest_job",
+      "kind": "job",
+      "use_cases": [
+        "data-quality",
+        "late-arriving-events",
+        "projection-rebuild"
+      ],
+      "owner": "platform-engineering",
+      "app_path": "apps/lake_orders_ingest_job",
+      "runtime": {
+        "supported": ["local-compose"],
+        "admitted": []
+      },
+      "operational": {
+        "class": "operator-job",
+        "trigger": "manual"
+      },
+      "image": {
+        "repository": "lake-orders-ingest-job",
+        "package": "aws-sdlc-containers-lake-orders-ingest-job",
+        "command": "python -m lake_orders_ingest_job.main"
+      },
+      "traces": {
+        "supported": false
+      },
+      "config": {
+        "env": [
+          "LAKE_ORDERS_SOURCE_DIR",
+          "LAKE_ORDERS_OUTPUT_DIR",
+          "LAKE_ORDERS_RUN_ID",
+          "LAKE_ORDERS_INGEST_DATE"
+        ],
+        "secrets": []
+      },
+      "job": {
+        "idempotency": "run_id"
+      }
+    },
+    {
       "name": "churn_model_train_job",
       "kind": "job",
-      "use_cases": ["model-training", "operator-task"],
+      "use_cases": ["mlops-evidence", "model-training", "operator-task"],
       "owner": "platform-engineering",
       "app_path": "apps/churn_model_train_job",
       "runtime": {
@@ -296,7 +352,7 @@
     {
       "name": "churn_prediction_api",
       "kind": "service",
-      "use_cases": ["model-inference", "internal-api"],
+      "use_cases": ["internal-api", "mlops-serving", "model-inference"],
       "owner": "platform-engineering",
       "app_path": "apps/churn_prediction_api",
       "runtime": {
@@ -329,125 +385,8 @@
         "supported": false
       },
       "config": {
-        "env": ["CHURN_MODEL_PATH"],
+        "env": ["CHURN_MODEL_PATH", "SERVICE_PORT"],
         "secrets": []
-      }
-    },
-    {
-      "name": "support_triage_llm",
-      "kind": "service",
-      "use_cases": ["llm-triage", "internal-api", "operator-evidence"],
-      "owner": "platform-engineering",
-      "app_path": "apps/support_triage_llm",
-      "runtime": {
-        "supported": ["local-compose"],
-        "admitted": []
-      },
-      "operational": {
-        "class": "internal-service",
-        "exposure": "internal"
-      },
-      "service": {
-        "port": 8083
-      },
-      "image": {
-        "repository": "support-triage-llm",
-        "package": "aws-sdlc-containers-support-triage-llm",
-        "command": "python -m support_triage_llm.main"
-      },
-      "metrics": {
-        "format": "prometheus",
-        "required_names": [
-          "workload_info",
-          "support_triage_llm_http_requests_total",
-          "support_triage_llm_http_request_duration_seconds",
-          "support_triage_llm_requests_total",
-          "support_triage_llm_latency_seconds",
-          "support_triage_llm_tokens_total",
-          "support_triage_llm_cost_usd_total"
-        ]
-      },
-      "traces": {
-        "supported": false
-      },
-      "config": {
-        "env": [
-          "SUPPORT_TRIAGE_PROMPT_PATH",
-          "SUPPORT_TRIAGE_EVAL_CASES_PATH",
-          "SUPPORT_TRIAGE_OUTPUT_DIR"
-        ],
-        "secrets": []
-      }
-    },
-    {
-      "name": "open_dataset_pipeline",
-      "kind": "job",
-      "use_cases": ["dataset-ingest", "local-analytics"],
-      "owner": "platform-engineering",
-      "app_path": "apps/open_dataset_pipeline",
-      "runtime": {
-        "supported": ["local-compose"],
-        "admitted": []
-      },
-      "operational": {
-        "class": "operator-job",
-        "trigger": "manual"
-      },
-      "image": {
-        "repository": "open-dataset-pipeline",
-        "package": "aws-sdlc-containers-open-dataset-pipeline",
-        "command": "python -m open_dataset_pipeline.main"
-      },
-      "traces": {
-        "supported": false
-      },
-      "config": {
-        "env": [
-          "OPEN_DATASET_URL",
-          "OPEN_DATASET_NAME",
-          "OPEN_DATASET_OUTPUT_DIR",
-          "OPEN_DATASET_RUN_ID",
-          "OPEN_DATASET_DATE"
-        ],
-        "secrets": []
-      },
-      "job": {
-        "idempotency": "run_id"
-      }
-    },
-    {
-      "name": "lake_orders_ingest_job",
-      "kind": "job",
-      "use_cases": ["dataset-ingest", "local-analytics", "operator-task"],
-      "owner": "platform-engineering",
-      "app_path": "apps/lake_orders_ingest_job",
-      "runtime": {
-        "supported": ["local-compose"],
-        "admitted": []
-      },
-      "operational": {
-        "class": "operator-job",
-        "trigger": "manual"
-      },
-      "image": {
-        "repository": "lake-orders-ingest-job",
-        "package": "aws-sdlc-containers-lake-orders-ingest-job",
-        "command": "python -m lake_orders_ingest_job.main"
-      },
-      "traces": {
-        "supported": false
-      },
-      "config": {
-        "env": [
-          "LAKE_ORDERS_SOURCE_DIR",
-          "LAKE_ORDERS_OUTPUT_DIR",
-          "LAKE_ORDERS_RUN_ID",
-          "LAKE_ORDERS_INGEST_DATE"
-        ],
-        "secrets": []
-      },
-      "job": {
-        "idempotency": "run_id"
       }
     },
     {

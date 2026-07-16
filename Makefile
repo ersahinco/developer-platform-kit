@@ -50,6 +50,7 @@ LOCAL_KUBERNETES_ROLLOUT_TAG ?= local-kubernetes-rollout
 LOCAL_KUBERNETES_EVIDENCE_DIR ?= /tmp/aws-sdlc-containers-local-kubernetes-evidence
 LOCAL_KUBERNETES_IMAGE_MATRIX := uv run python -m scripts.platform.workload_metadata local-kubernetes-image-matrix
 SECURITY_REPORT_DIR    ?= /tmp/aws-sdlc-containers-security
+OWASP_DEPENDENCY_CHECK_DATA_DIR ?= $(HOME)/.cache/dependency-check
 TRIVY_SEVERITY         ?= HIGH,CRITICAL
 CONTAINER_SCAN_IMAGE   ?=
 DEEPFENCE_IMAGE_NAME   ?= $(CONTAINER_SCAN_IMAGE)
@@ -80,7 +81,7 @@ endef
 # ── Help ──────────────────────────────────────────────────────────────────────
 
 HELP_LOCAL_TARGETS := platform-doctor workload-readiness workload-readiness-local dev migrate seed local-app-up local-up api-smoke dapr-up dapr-smoke platform-toolkit-smoke-local platform-toolkit-validate-local local-down local-reset
-HELP_PROOF_TARGETS := monorepo-capability-profile monorepo-capability-profile-md monorepo-capability-profile-check workload-admission-check workload-readiness workload-readiness-local workload-readiness-cloud workload-readiness-check runtime-conformance local-compose-live-proof local-kubernetes-contracts local-kubernetes-admission-report local-kubernetes-evidence-drill local-kubernetes-rollout-proof workflow-dry-run-validate
+HELP_PROOF_TARGETS := monorepo-capability-profile monorepo-capability-profile-md monorepo-capability-profile-check workload-admission-check workload-readiness workload-readiness-local workload-readiness-cloud workload-readiness-check enterprise-pattern-proofs runtime-conformance local-compose-live-proof local-kubernetes-contracts local-kubernetes-admission-report local-kubernetes-evidence-drill local-kubernetes-rollout-proof workflow-dry-run-validate
 HELP_CLOUD_TARGETS := platform-doctor-cloud platform-toolkit-validate-cloud security-readiness infra-validate-local workflow-dry-run-validate workflow-dry-run-commands workflow-dry-run-validate-gh infra-platform-plan infra-app-plan app-deploy post-deploy-verify release-evidence-runs operational-snapshot-cloud
 HELP_OPERATOR_TARGETS := release-evidence-runs release-evidence-download operator-payload-download operational-snapshot operational-snapshot-dry-run operational-snapshot-cloud incident-evidence db-tunnel db-exec db-seed api-get-order observability-delivery-verify release-event-delivery-verify integration-check data-artifacts-list
 
@@ -138,13 +139,13 @@ local-app-up: ## Build/start local API without the observability stack
 	docker compose ps db pgbouncer api
 
 .PHONY: dapr-up
-dapr-up: ## Build/start local Dapr event consumer runtime with Redis pub/sub
-	docker compose build event-consumer
-	docker compose --profile dapr up -d --remove-orphans db redis event-consumer event-consumer-dapr
-	docker compose --profile dapr ps db redis event-consumer event-consumer-dapr
+dapr-up: ## Build/start local Dapr pub/sub and service-invocation proofs
+	docker compose build event-consumer booking-api
+	docker compose --profile dapr --profile experiments up -d --remove-orphans db pgbouncer redis event-consumer event-consumer-dapr booking-api booking-api-dapr
+	docker compose --profile dapr --profile experiments ps db pgbouncer redis event-consumer event-consumer-dapr booking-api booking-api-dapr
 
 .PHONY: dapr-smoke
-dapr-smoke: ## Publish a local Dapr event and verify the consumer records it
+dapr-smoke: ## Prove local Dapr pub/sub and service invocation
 	uv run python scripts/platform/local_dapr_smoke.py
 
 .PHONY: api-smoke
@@ -160,18 +161,13 @@ api-smoke: ## Verify local API health, readiness, and Prometheus metrics
 		printf "%s" "$$metrics" | grep -q 'workload_info{workload="api"'
 	@printf "ok\n"
 
-.PHONY: open-dataset-pipeline
-open-dataset-pipeline: ## Run the local-only open dataset workload pipeline
-	docker compose build open-dataset-pipeline
-	docker compose --profile data run --rm --remove-orphans open-dataset-pipeline
-
 .PHONY: local-down
 local-down: ## Stop local API and observability services without deleting volumes
-	docker compose --profile observability --profile dapr --profile data --profile ops stop api prometheus loki tempo promtail grafana event-consumer event-consumer-dapr redis open-dataset-pipeline operational-snapshot-job integration-check-job
+	docker compose --profile observability --profile dapr --profile data --profile experiments --profile ops stop api booking-api booking-api-dapr churn-prediction-api prometheus loki tempo promtail grafana event-consumer event-consumer-dapr redis operational-snapshot-job integration-check-job
 
 .PHONY: local-reset
 local-reset: ## Stop all local services and delete Compose volumes
-	docker compose --profile observability --profile tools --profile migration --profile data --profile dapr --profile ops down -v --remove-orphans
+	docker compose --profile observability --profile tools --profile migration --profile data --profile experiments --profile dapr --profile ops down -v --remove-orphans
 
 .PHONY: observability-stop
 observability-stop: ## Stop local observability services
@@ -204,16 +200,16 @@ backfill-once: ## Run one bounded local backfill batch
 	docker compose run --rm --remove-orphans -e BACKFILL_MAX_BATCHES=$(BACKFILL_MAX_BATCHES) backfill-worker
 
 .PHONY: data-artifacts-list
-data-artifacts-list: ## List local data-export and open-dataset artifacts
-	docker compose --profile data run --rm --remove-orphans --entrypoint sh open-dataset-pipeline -c 'find /exports -mindepth 1 -maxdepth 6 -type f -print | sort || true'
+data-artifacts-list: ## List local data artifacts
+	docker compose --profile data run --rm --remove-orphans --entrypoint sh data-export-job -c 'find /exports -mindepth 1 -maxdepth 6 -type f -print | sort || true'
 
 .PHONY: data-artifacts-shell
 data-artifacts-shell: ## Open a shell with the local data artifact volume mounted
-	docker compose --profile data run --rm --remove-orphans --entrypoint sh open-dataset-pipeline
+	docker compose --profile data run --rm --remove-orphans --entrypoint sh data-export-job
 
 .PHONY: data-artifacts-clean
 data-artifacts-clean: ## Delete files from the local data_exports Docker volume
-	docker compose --profile data run --rm --remove-orphans --entrypoint sh open-dataset-pipeline -c 'find /exports -mindepth 1 -delete'
+	docker compose --profile data run --rm --remove-orphans --entrypoint sh data-export-job -c 'find /exports -mindepth 1 -delete'
 
 .PHONY: test
 test: ## Run test suite (requires local services and app running)
@@ -222,6 +218,16 @@ test: ## Run test suite (requires local services and app running)
 .PHONY: runtime-conformance
 runtime-conformance: ## Static proof ladder: build/run workloads against the portable contract
 	uv run pytest tests/runtime -v --run-runtime-conformance
+
+.PHONY: enterprise-pattern-proofs
+enterprise-pattern-proofs: dev migrate ## Prove booking consistency, late-event repair, and MLOps artifact contracts
+	uv run pytest \
+		tests/application/test_booking.py \
+		tests/infrastructure/test_booking_repository.py \
+		tests/apps/booking_api \
+		tests/apps/lake_orders_ingest_job \
+		tests/apps/churn_model_train_job \
+		tests/apps/churn_prediction_api -v
 
 .PHONY: platform-doctor
 platform-doctor: ## Check local workstation readiness for the delivery toolkit
@@ -253,8 +259,6 @@ platform-toolkit-validate-local: ## Local Compose proof ladder: validate API, Da
 	@$(MAKE) operational-snapshot
 	@printf "\n==> Running local integration check job\n"
 	@INTEGRATION_CHECK_TARGETS="api=http://api:8000/health" $(MAKE) integration-check
-	@printf "\n==> Running local open dataset pipeline\n"
-	@$(MAKE) open-dataset-pipeline
 	@printf "\n==> Running portable runtime conformance\n"
 	@$(MAKE) runtime-conformance
 
@@ -489,7 +493,7 @@ dependency-audit: ## Audit uv-locked Python dependencies for known vulnerabiliti
 
 .PHONY: dependency-audit-owasp
 dependency-audit-owasp: ## Audit dependency manifests with OWASP Dependency-Check
-	@mkdir -p "$(SECURITY_REPORT_DIR)/dependency-check"
+	@mkdir -p "$(SECURITY_REPORT_DIR)/dependency-check" "$(OWASP_DEPENDENCY_CHECK_DATA_DIR)"
 	@if command -v dependency-check.sh >/dev/null 2>&1; then \
 		dependency-check.sh \
 			--project "$(STACK_NAME)" \
@@ -504,6 +508,7 @@ dependency-audit-owasp: ## Audit dependency manifests with OWASP Dependency-Chec
 		docker run --rm \
 			-v "$(CURDIR):/src" \
 			-v "$(SECURITY_REPORT_DIR)/dependency-check:/report" \
+			-v "$(OWASP_DEPENDENCY_CHECK_DATA_DIR):/usr/share/dependency-check/data" \
 			$(OWASP_DEPENDENCY_CHECK_IMAGE) \
 			--project "$(STACK_NAME)" \
 			--scan /src \
@@ -522,6 +527,7 @@ container-config-scan: ## Scan repository container/IaC config with Trivy
 			--scanners vuln,secret,misconfig \
 			--severity "$(TRIVY_SEVERITY)" \
 			--exit-code 1 \
+			--ignorefile .trivyignore.yaml \
 			--ignore-unfixed \
 			--skip-dirs .git \
 			--skip-dirs .venv \
@@ -535,6 +541,7 @@ container-config-scan: ## Scan repository container/IaC config with Trivy
 			--scanners vuln,secret,misconfig \
 			--severity "$(TRIVY_SEVERITY)" \
 			--exit-code 1 \
+			--ignorefile /repo/.trivyignore.yaml \
 			--ignore-unfixed \
 			--skip-dirs .git \
 			--skip-dirs .venv \
@@ -842,17 +849,13 @@ workload-readiness-cloud: ## AWS ECS proof ladder: show cloud admission, workflo
 workload-readiness-check: ## Fail when declared workloads lack paved-road readiness
 	@uv run python scripts/platform/workload_readiness.py --view summary --check
 
-.PHONY: workload-fit-check
-workload-fit-check: ## Evaluate a draft externally operated workload before admission
-	@[ -n "$(WORKLOAD_CANDIDATE)" ] || (echo "Set WORKLOAD_CANDIDATE=/path/to/workload.json" >&2; exit 1)
-	python3 scripts/platform/workload_fit_check.py --candidate "$(WORKLOAD_CANDIDATE)"
-
 .PHONY: workload-admission-check
-workload-admission-check: ## Validate repo-owned admission candidate samples
+workload-admission-check: ## Validate a draft workload against the admission schema
+	@[ -n "$(WORKLOAD_CANDIDATE)" ] || (echo "Set WORKLOAD_CANDIDATE=/path/to/workload.json" >&2; exit 1)
 	@if [ -x .venv/bin/python ]; then \
-		.venv/bin/python scripts/platform/admission_check.py; \
+		.venv/bin/python scripts/platform/admission_check.py --candidate "$(WORKLOAD_CANDIDATE)"; \
 	else \
-		uv run python scripts/platform/admission_check.py; \
+		uv run python scripts/platform/admission_check.py --candidate "$(WORKLOAD_CANDIDATE)"; \
 	fi
 
 .PHONY: capability-implementation-matrix

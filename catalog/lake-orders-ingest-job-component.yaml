@@ -2,11 +2,11 @@ apiVersion: backstage.io/v1alpha1
 kind: Component
 metadata:
   name: lake_orders_ingest_job
-  description: Operator-job workload host for local order lake ingestion, Parquet output, and DuckDB transforms.
+  description: Experimental projection rebuild proving late-arrival detection, deduplication, and artifact lineage.
   tags:
-    - dataset-ingest
-    - local-analytics
-    - operator-task
+    - data-quality
+    - late-arriving-events
+    - projection-rebuild
 spec:
   type: job
   lifecycle: experimental

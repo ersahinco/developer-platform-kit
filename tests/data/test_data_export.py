@@ -176,13 +176,26 @@ def test_s3_publish_uploads_raw_before_manifest(monkeypatch, tmp_path):
     manifest_path.write_text('{"status":"succeeded"}\n', encoding="utf-8")
     s3_client = RecordingS3Client()
 
-    export_main.publish_s3_outputs(
-        raw_path=raw_path,
-        manifest_path=manifest_path,
-        bucket="data-hub",
-        raw_key="raw/order_contact_email/dt=2026-04-29/test-run.csv",
-        manifest_key="manifests/order_contact_email/dt=2026-04-29/test-run.json",
-        s3_client=s3_client,
+    raw_key = "raw/order_contact_email/dt=2026-04-29/test-run.csv"
+    manifest_key = "manifests/order_contact_email/dt=2026-04-29/test-run.json"
+    publisher = export_main.S3DataExportPublisher(
+        bucket="data-hub", s3_client=s3_client
+    )
+    publisher.publish(
+        [
+            export_main.ExportedObject(
+                key=raw_key,
+                byte_count=raw_path.stat().st_size,
+                sha256="unused",
+                local_path=str(raw_path),
+            ),
+            export_main.ExportedObject(
+                key=manifest_key,
+                byte_count=manifest_path.stat().st_size,
+                sha256="unused",
+                local_path=str(manifest_path),
+            ),
+        ]
     )
 
     assert s3_client.uploads == [
@@ -206,13 +219,24 @@ def test_s3_publish_skips_manifest_when_raw_upload_fails(monkeypatch, tmp_path):
     s3_client = RecordingS3Client(fail_on_key=raw_key)
 
     with pytest.raises(RuntimeError, match="failed upload"):
-        export_main.publish_s3_outputs(
-            raw_path=raw_path,
-            manifest_path=manifest_path,
-            bucket="data-hub",
-            raw_key=raw_key,
-            manifest_key="manifests/order_contact_email/dt=2026-04-29/test-run.json",
-            s3_client=s3_client,
+        publisher = export_main.S3DataExportPublisher(
+            bucket="data-hub", s3_client=s3_client
+        )
+        publisher.publish(
+            [
+                export_main.ExportedObject(
+                    key=raw_key,
+                    byte_count=raw_path.stat().st_size,
+                    sha256="unused",
+                    local_path=str(raw_path),
+                ),
+                export_main.ExportedObject(
+                    key="manifests/order_contact_email/dt=2026-04-29/test-run.json",
+                    byte_count=manifest_path.stat().st_size,
+                    sha256="unused",
+                    local_path=str(manifest_path),
+                ),
+            ]
         )
 
     assert s3_client.uploads == [("data-hub", raw_key)]

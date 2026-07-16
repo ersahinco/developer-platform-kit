@@ -237,6 +237,7 @@ def _rollback_proof(
 def _proof_surface(
     *,
     local_compose: bool,
+    dapr_enabled: bool,
     local_kubernetes: bool,
     local_kubernetes_admission: str,
     aws_ecs_admitted: bool,
@@ -245,6 +246,8 @@ def _proof_surface(
     surfaces = []
     if local_compose:
         surfaces.append("runtime-conformance")
+        if dapr_enabled:
+            surfaces.append("dapr-smoke")
     if local_kubernetes:
         surfaces.append(
             "local-kubernetes-evidence-drill"
@@ -330,14 +333,12 @@ def _metrics_contract(workload: dict[str, Any]) -> str:
 
 def _eventing_contract(workload: dict[str, Any]) -> str:
     dapr = workload.get("dapr")
-    if not isinstance(dapr, dict):
+    if not isinstance(dapr, dict) or dapr.get("scope") != "pubsub":
         return "n/a"
     required_fields = ["app_id", "scope", "pubsub_name", "topic", "subscription_route"]
     if not all(
         isinstance(dapr.get(field), str) and dapr[field] for field in required_fields
     ):
-        return "missing"
-    if dapr.get("scope") != "pubsub":
         return "missing"
     return f"{dapr['pubsub_name']}:{dapr['topic']}"
 
@@ -679,6 +680,7 @@ def readiness_rows() -> list[dict[str, str]]:
                 "local_kubernetes_admission": local_kubernetes_admission,
                 "proof_surface": _proof_surface(
                     local_compose=local_compose,
+                    dapr_enabled=isinstance(workload.get("dapr"), dict),
                     local_kubernetes=local_kubernetes,
                     local_kubernetes_admission=local_kubernetes_admission,
                     aws_ecs_admitted=aws_admitted,
@@ -954,6 +956,8 @@ def _proof_command(row: dict[str, str]) -> str:
             return "make local-kubernetes-evidence-drill"
         return "make local-kubernetes-admission-report"
     if row["local_compose"] == "yes":
+        if "dapr-smoke" in row["proof_surface"].split(","):
+            return "make dapr-up dapr-smoke"
         return "make runtime-conformance"
     return "missing"
 

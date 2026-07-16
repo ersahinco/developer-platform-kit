@@ -1,13 +1,15 @@
 apiVersion: backstage.io/v1alpha1
 kind: Component
 metadata:
-  name: open_dataset_pipeline
-  description: Operator-job workload host for local dataset ingestion and DuckDB materialization.
+  name: booking_api
+  description: Experimental booking workload proving database-enforced slot uniqueness under concurrency.
   tags:
-    - dataset-ingest
-    - local-analytics
+    - booking
+    - concurrency-control
+    - consistency-proof
+    - service-to-service
 spec:
-  type: job
+  type: service
   lifecycle: experimental
   owner: group:default/platform-engineering
   system: aws-sdlc-containers

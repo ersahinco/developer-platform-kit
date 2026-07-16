@@ -14,14 +14,12 @@ spec:
     - ./catalog/runtime-target-aws-ecs.yaml
     - ./catalog/platform-monorepo-component.yaml
     - ./catalog/api-component.yaml
-    - ./catalog/event-consumer-component.yaml
-    - ./catalog/foreign-inventory-sync-component.yaml
-    - ./catalog/backfill-worker-component.yaml
+    - ./catalog/booking-api-component.yaml
     - ./catalog/churn-model-train-job-component.yaml
     - ./catalog/churn-prediction-api-component.yaml
+    - ./catalog/event-consumer-component.yaml
+    - ./catalog/backfill-worker-component.yaml
     - ./catalog/data-export-job-component.yaml
-    - ./catalog/open-dataset-pipeline-component.yaml
-    - ./catalog/lake-orders-ingest-job-component.yaml
     - ./catalog/operational-snapshot-job-component.yaml
     - ./catalog/integration-check-job-component.yaml
-    - ./catalog/support-triage-llm-component.yaml
+    - ./catalog/lake-orders-ingest-job-component.yaml

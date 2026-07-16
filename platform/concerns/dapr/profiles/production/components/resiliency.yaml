@@ -5,8 +5,7 @@ metadata:
 scopes:
   - event-consumer
 spec:
-  # Production-tuned policies — higher timeouts and retry budget than local dev.
-  # The authoritative rendered version is infra/app/templates/dapr/resiliency.yaml.tftpl.
+  # Production-tuned policies use higher timeouts and retry budget than local dev.
   policies:
     timeouts:
       asyncEventsPubsub: 30s

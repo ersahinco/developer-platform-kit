@@ -1,12 +1,17 @@
 from __future__ import annotations
 
+import json
+from pathlib import Path
+
 from fastapi.testclient import TestClient
+import pytest
 
 from churn_prediction_api import main as churn_main
 from churn_prediction_api.main import app
+from churn_prediction_api.model import load_model
 
 
-def test_health_ready_metrics_and_predict(capsys) -> None:
+def test_health_ready_metrics_and_prediction_include_model_lineage(capsys) -> None:
     with TestClient(app) as client:
         health = client.get("/health")
         ready = client.get("/ready")
@@ -24,41 +29,44 @@ def test_health_ready_metrics_and_predict(capsys) -> None:
         metrics = client.get("/metrics")
 
     assert health.status_code == 200
-    assert health.json()["status"] == "ok"
     assert ready.status_code == 200
-    assert ready.json()["checks"]["model"] == "ok"
-    assert ready.json()["model_version"] == "sample-v1"
+    assert ready.json()["checks"]["model"] == "promoted"
+    assert ready.json()["model_schema_version"] == 1
     assert prediction.status_code == 200
     body = prediction.json()
-    assert body["status"] == "succeeded"
-    assert body["model_version"] == "sample-v1"
-    assert body["run_id"] == "sample-model"
+    assert body["model_version"] == "sample-v2"
+    assert len(body["training_data_sha256"]) == 64
     assert 0 <= body["churn_probability"] <= 1
     assert metrics.status_code == 200
     assert "churn_prediction_requests_total" in metrics.text
-    assert "churn_prediction_latency_seconds" in metrics.text
-
-    logs = capsys.readouterr().out
-    assert '"event": "churn_prediction"' in logs
-    assert '"model_version": "sample-v1"' in logs
-    assert '"run_id": "sample-model"' in logs
+    assert '"event": "churn_prediction"' in capsys.readouterr().out
 
 
-def test_ready_reports_model_load_failure(tmp_path, monkeypatch) -> None:
-    monkeypatch.setattr(
-        churn_main.settings, "churn_model_path", str(tmp_path / "missing.json")
-    )
+def test_ready_reports_model_contract_failure(tmp_path: Path, monkeypatch) -> None:
+    bad_model = tmp_path / "model.json"
+    bad_model.write_text('{"schema_version": 99}', encoding="utf-8")
+    monkeypatch.setattr(churn_main.settings, "churn_model_path", str(bad_model))
 
     with TestClient(app) as client:
         response = client.get("/ready")
 
     assert response.status_code == 503
-    assert response.json()["status"] == "not_ready"
-    assert "model" in response.json()["checks"]
+    assert "missing fields" in response.json()["checks"]["model"]
 
 
-def test_score_churn_uses_model_weights() -> None:
-    model = churn_main.load_model(churn_main.Path(churn_main.settings.churn_model_path))
+def test_model_loader_rejects_unpromoted_artifact(tmp_path: Path) -> None:
+    source = Path(churn_main.settings.churn_model_path)
+    model = json.loads(source.read_text(encoding="utf-8"))
+    model["promotion"]["decision"] = "reject"
+    path = tmp_path / "rejected.json"
+    path.write_text(json.dumps(model), encoding="utf-8")
+
+    with pytest.raises(RuntimeError, match="promotion gate"):
+        load_model(path)
+
+
+def test_score_churn_uses_standardized_model_contract() -> None:
+    model = load_model(Path(churn_main.settings.churn_model_path))
     low_risk = churn_main.score_churn(
         model=model,
         features={

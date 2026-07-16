@@ -17,9 +17,11 @@ Keep:
 - Terraform/OpenTofu as the default provisioning engine
 - GitHub Actions as the default delivery engine
 
-Allow future provider-edge integrations or additional runtime targets only when
-real workloads need them, without turning the platform into a speculative
-multi-runtime control plane.
+Allow future provider-edge integrations or additional runtime targets to
+incubate before broad demand through bounded candidates, catalog entries, and
+tests. Promote them into active defaults only with a concrete proof workload,
+owner, conformance, evidence, and delivery path, without turning the platform
+into a speculative multi-runtime control plane.
 
 ## Why
 
@@ -38,8 +40,9 @@ multi-runtime control plane.
   sources of workload meaning.
 - Future runtime-target catalog modules belong under
   `infra/catalog/<runtime-target>/`.
-- New runtime-target catalog branches appear only when a real workload needs
-  them and the runtime owner is clear.
+- New runtime-target catalog branches may incubate with a concrete proof,
+  contract input, tests, evidence path, honest maturity, and clear owner;
+  runtime defaults and deploy roots require reviewed realization.
 - `platform/runtime-conformance.json` remains fixture data only; it must not
   become a second workload specification.
 - Backstage remains optional as a portal and catalog UX layer over the stable

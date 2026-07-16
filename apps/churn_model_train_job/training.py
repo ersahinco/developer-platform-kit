@@ -6,19 +6,23 @@ import hashlib
 import json
 import math
 import os
+import re
+import statistics
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
 
-DATASET_CHURN_TRAINING = "customer_churn"
+DATASET = "customer_churn"
 MODEL_NAME = "churn_prediction"
-FEATURES = [
+MODEL_SCHEMA_VERSION = 1
+ALGORITHM = "standardized-mean-difference-v1"
+FEATURES = (
     "tenure_months",
     "monthly_charges",
     "support_tickets_90d",
     "late_payments_12m",
     "usage_drop_pct",
-]
+)
 REFERENCE_MEANS = {
     "tenure_months": 20.0,
     "monthly_charges": 78.0,
@@ -26,6 +30,8 @@ REFERENCE_MEANS = {
     "late_payments_12m": 0.7,
     "usage_drop_pct": 18.0,
 }
+PROMOTION_MIN_ACCURACY = 0.75
+_RUN_ID = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._-]{0,127}$")
 
 
 @dataclass(frozen=True)
@@ -38,46 +44,73 @@ class ChurnTrainingRequest:
 
 
 def train_churn_model(request: ChurnTrainingRequest) -> dict[str, Any]:
+    _validate_request(request)
     rows = _load_rows(request.training_data_path)
-    feature_summary = _feature_summary(rows)
-    model = _build_model(rows=rows, feature_summary=feature_summary)
-    metrics = _evaluate(rows=rows, model=model)
-    drift_summary = _drift_summary(feature_summary)
+    summary = _feature_summary(rows)
+    model = _build_model(rows, summary)
+    metrics = _evaluate(rows, model)
+    drift = _drift_summary(summary)
+    promotion = {
+        "decision": (
+            "promote"
+            if metrics["accuracy"] >= PROMOTION_MIN_ACCURACY
+            and drift["status"] != "blocked"
+            else "reject"
+        ),
+        "criteria": {
+            "minimum_training_fixture_accuracy": PROMOTION_MIN_ACCURACY,
+            "drift_status_must_not_be": "blocked",
+        },
+    }
+    data_sha256 = _file_sha256(request.training_data_path)
     model_payload = {
+        "schema_version": MODEL_SCHEMA_VERSION,
+        "maturity": "experimental",
         "model_name": MODEL_NAME,
+        "algorithm": ALGORITHM,
         "run_id": request.run_id,
         "train_date": request.train_date,
-        "trained_at": request.trained_at.isoformat(),
-        "features": FEATURES,
-        "feature_summary": feature_summary,
-        "weights": model["weights"],
+        "feature_order": list(FEATURES),
+        "normalization": model["normalization"],
+        "coefficients": model["coefficients"],
         "intercept": model["intercept"],
         "threshold": model["threshold"],
-        "metrics": metrics,
-        "drift_summary": drift_summary,
+        "training_data": {
+            "sha256": data_sha256,
+            "row_count": len(rows),
+        },
+        "evaluation": {
+            "scope": "training-fixture",
+            "metrics": metrics,
+        },
+        "drift_summary": drift,
+        "promotion": promotion,
     }
-    model_version = _model_version(model_payload)
-    model_payload["model_version"] = model_version
+    model_payload["model_version"] = _model_version(model_payload)
 
     keys = _object_keys(request)
     paths = {name: request.output_dir / key for name, key in keys.items()}
     _write_json_atomic(paths["model"], model_payload)
-    model_sha256 = _file_sha256(paths["model"])
     manifest = {
-        "dataset": DATASET_CHURN_TRAINING,
+        "contract_version": 1,
+        "maturity": "experimental",
+        "pattern": "mlops-lineage-and-promotion",
+        "dataset": DATASET,
         "model_name": MODEL_NAME,
+        "model_schema_version": MODEL_SCHEMA_VERSION,
+        "model_version": model_payload["model_version"],
         "run_id": request.run_id,
-        "model_version": model_version,
         "train_date": request.train_date,
         "trained_at": request.trained_at.isoformat(),
         "status": "succeeded",
         "mode": "run_id",
         "training_row_count": len(rows),
-        "feature_summary": feature_summary,
+        "training_data_sha256": data_sha256,
+        "evaluation_scope": "training-fixture",
         "metrics": metrics,
-        "drift_summary": drift_summary,
-        "model_byte_count": paths["model"].stat().st_size,
-        "model_sha256": model_sha256,
+        "drift_summary": drift,
+        "promotion": promotion,
+        "model_sha256": _file_sha256(paths["model"]),
         "objects": keys,
         "evidence_paths": [keys["model"], keys["manifest"]],
         "artifact_paths": {name: str(path) for name, path in paths.items()},
@@ -86,19 +119,39 @@ def train_churn_model(request: ChurnTrainingRequest) -> dict[str, Any]:
     return manifest
 
 
+def _validate_request(request: ChurnTrainingRequest) -> None:
+    if not _RUN_ID.fullmatch(request.run_id):
+        raise ValueError("CHURN_MODEL_RUN_ID must be a safe 1-128 character id")
+    try:
+        datetime.date.fromisoformat(request.train_date)
+    except ValueError as exc:
+        raise ValueError("CHURN_MODEL_TRAIN_DATE must use YYYY-MM-DD") from exc
+
+
 def _load_rows(path: Path) -> list[dict[str, float]]:
     if not path.is_file():
         raise RuntimeError(f"CHURN_TRAINING_DATA_PATH is not a file: {path}")
     with path.open(encoding="utf-8", newline="") as handle:
+        reader = csv.DictReader(handle)
+        required = {*FEATURES, "churned"}
+        missing = sorted(required - set(reader.fieldnames or []))
+        if missing:
+            raise ValueError(f"training data is missing columns: {', '.join(missing)}")
         rows = [
             {
                 **{feature: float(raw[feature]) for feature in FEATURES},
                 "churned": float(raw["churned"]),
             }
-            for raw in csv.DictReader(handle)
+            for raw in reader
         ]
     if not rows:
         raise RuntimeError(f"no churn training rows found in {path}")
+    if any(not math.isfinite(value) for row in rows for value in row.values()) or {
+        row["churned"] for row in rows
+    } - {0.0, 1.0}:
+        raise ValueError("training values must be finite and churned must be 0 or 1")
+    if {row["churned"] for row in rows} != {0.0, 1.0}:
+        raise ValueError("training data must contain both outcome classes")
     return rows
 
 
@@ -107,89 +160,94 @@ def _feature_summary(rows: list[dict[str, float]]) -> dict[str, dict[str, float]
         feature: {
             "min": min(row[feature] for row in rows),
             "max": max(row[feature] for row in rows),
-            "mean": round(_mean(row[feature] for row in rows), 6),
+            "mean": round(statistics.fmean(row[feature] for row in rows), 6),
+            "scale": round(
+                max(statistics.pstdev(row[feature] for row in rows), 1e-9), 6
+            ),
         }
         for feature in FEATURES
     }
 
 
 def _build_model(
-    *,
-    rows: list[dict[str, float]],
-    feature_summary: dict[str, dict[str, float]],
+    rows: list[dict[str, float]], summary: dict[str, dict[str, float]]
 ) -> dict[str, Any]:
-    churned_rows = [row for row in rows if row["churned"] == 1.0]
-    retained_rows = [row for row in rows if row["churned"] == 0.0]
-    base_rate = sum(row["churned"] for row in rows) / len(rows)
-    bounded_rate = min(max(base_rate, 0.01), 0.99)
-    weights = {}
-    for feature in FEATURES:
-        span = max(
-            feature_summary[feature]["max"] - feature_summary[feature]["min"],
-            1.0,
-        )
-        churn_mean = _mean(row[feature] for row in churned_rows)
-        retained_mean = _mean(row[feature] for row in retained_rows)
-        weights[feature] = round((churn_mean - retained_mean) / span, 6)
+    positives = [row for row in rows if row["churned"] == 1.0]
+    negatives = [row for row in rows if row["churned"] == 0.0]
+    positive_rate = len(positives) / len(rows)
     return {
-        "intercept": round(math.log(bounded_rate / (1 - bounded_rate)), 6),
-        "weights": weights,
+        "intercept": round(math.log(positive_rate / (1 - positive_rate)), 6),
+        "coefficients": {
+            feature: round(
+                (
+                    statistics.fmean(row[feature] for row in positives)
+                    - statistics.fmean(row[feature] for row in negatives)
+                )
+                / summary[feature]["scale"],
+                6,
+            )
+            for feature in FEATURES
+        },
+        "normalization": {
+            feature: {
+                "mean": summary[feature]["mean"],
+                "scale": summary[feature]["scale"],
+            }
+            for feature in FEATURES
+        },
         "threshold": 0.5,
     }
 
 
-def _evaluate(
-    *,
-    rows: list[dict[str, float]],
-    model: dict[str, Any],
-) -> dict[str, float]:
+def _evaluate(rows: list[dict[str, float]], model: dict[str, Any]) -> dict[str, float]:
     true_positive = true_negative = false_positive = false_negative = 0
     for row in rows:
-        score = _score(row=row, model=model)
-        predicted = 1.0 if score >= model["threshold"] else 0.0
-        actual = row["churned"]
-        if predicted == 1.0 and actual == 1.0:
-            true_positive += 1
-        elif predicted == 0.0 and actual == 0.0:
-            true_negative += 1
-        elif predicted == 1.0:
-            false_positive += 1
-        else:
-            false_negative += 1
-    total = len(rows)
+        predicted = _score(row, model) >= model["threshold"]
+        actual = row["churned"] == 1.0
+        true_positive += int(predicted and actual)
+        true_negative += int(not predicted and not actual)
+        false_positive += int(predicted and not actual)
+        false_negative += int(not predicted and actual)
     precision = true_positive / max(true_positive + false_positive, 1)
     recall = true_positive / max(true_positive + false_negative, 1)
     return {
-        "accuracy": round((true_positive + true_negative) / total, 6),
+        "accuracy": round((true_positive + true_negative) / len(rows), 6),
         "precision": round(precision, 6),
         "recall": round(recall, 6),
-        "training_positive_rate": round(
-            sum(row["churned"] for row in rows) / total,
-            6,
-        ),
+        "positive_rate": round(statistics.fmean(row["churned"] for row in rows), 6),
     }
 
 
-def _score(*, row: dict[str, float], model: dict[str, Any]) -> float:
-    z = float(model["intercept"])
-    for feature, weight in model["weights"].items():
-        z += float(weight) * float(row[feature])
-    return 1 / (1 + math.exp(-z))
+def _score(row: dict[str, float], model: dict[str, Any]) -> float:
+    value = float(model["intercept"])
+    for feature in FEATURES:
+        normalized = (row[feature] - model["normalization"][feature]["mean"]) / model[
+            "normalization"
+        ][feature]["scale"]
+        value += model["coefficients"][feature] * normalized
+    if value >= 0:
+        return 1 / (1 + math.exp(-value))
+    exp_value = math.exp(value)
+    return exp_value / (1 + exp_value)
 
 
 def _drift_summary(
-    feature_summary: dict[str, dict[str, float]],
+    summary: dict[str, dict[str, float]],
 ) -> dict[str, Any]:
-    deltas = {
-        feature: round(feature_summary[feature]["mean"] - REFERENCE_MEANS[feature], 6)
+    standardized_deltas = {
+        feature: round(
+            (summary[feature]["mean"] - REFERENCE_MEANS[feature])
+            / summary[feature]["scale"],
+            6,
+        )
         for feature in FEATURES
     }
-    max_abs_delta = max(abs(delta) for delta in deltas.values())
+    maximum = max(abs(delta) for delta in standardized_deltas.values())
     return {
-        "reference": "checked_in_baseline_v1",
-        "mean_deltas": deltas,
-        "max_abs_mean_delta": round(max_abs_delta, 6),
-        "status": "warning" if max_abs_delta > 20 else "ok",
+        "reference": "checked-in-baseline-v1",
+        "standardized_mean_deltas": standardized_deltas,
+        "maximum_absolute_delta": round(maximum, 6),
+        "status": "blocked" if maximum > 3 else "warning" if maximum > 2 else "ok",
     }
 
 
@@ -207,8 +265,9 @@ def _model_version(payload: dict[str, Any]) -> str:
         for key, value in payload.items()
         if key not in {"trained_at", "run_id", "model_version"}
     }
-    digest = hashlib.sha256(json.dumps(stable, sort_keys=True).encode()).hexdigest()
-    return digest[:12]
+    return hashlib.sha256(
+        json.dumps(stable, sort_keys=True).encode("utf-8")
+    ).hexdigest()[:12]
 
 
 def _write_json_atomic(path: Path, payload: dict[str, Any]) -> None:
@@ -226,8 +285,3 @@ def _file_sha256(path: Path) -> str:
         for chunk in iter(lambda: handle.read(1024 * 1024), b""):
             digest.update(chunk)
     return digest.hexdigest()
-
-
-def _mean(values: Any) -> float:
-    items = list(values)
-    return sum(items) / len(items) if items else 0.0

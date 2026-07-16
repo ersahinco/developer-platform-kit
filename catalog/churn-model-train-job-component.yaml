@@ -2,8 +2,9 @@ apiVersion: backstage.io/v1alpha1
 kind: Component
 metadata:
   name: churn_model_train_job
-  description: Operator-job workload host for local churn model training and model evidence.
+  description: Experimental MLOps job producing versioned model, lineage, evaluation, drift, and promotion evidence.
   tags:
+    - mlops-evidence
     - model-training
     - operator-task
 spec:

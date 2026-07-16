@@ -43,6 +43,12 @@ from infrastructure.http_health import (
 from application.ports import ConfigStore, CustomerRepository, OrderRepository
 from infrastructure.http_observability import request_observability_middleware
 from infrastructure.workload_observability import ensure_workload_info_metric
+from infrastructure.db.config_store import SQLAlchemyConfigStore
+from infrastructure.db.idempotency import SQLAlchemyIdempotencyRepository
+from infrastructure.db.orders import (
+    SQLAlchemyCustomerRepository,
+    SQLAlchemyOrderRepository,
+)
 from api.config import settings
 
 
@@ -79,7 +85,14 @@ class _SuppressLowValueAccessLogs(logging.Filter):
 logging.getLogger("uvicorn.access").addFilter(_SuppressLowValueAccessLogs())
 
 app = FastAPI(title="aws-sdlc-containers")
-configure_tracing(app=app, engine=engine)
+configure_tracing(
+    app=app,
+    engine=engine,
+    enabled=settings.otel_traces_enabled,
+    endpoint=settings.otel_exporter_otlp_traces_endpoint,
+    service_name=settings.otel_service_name,
+    environment=settings.otel_deployment_environment,
+)
 
 WORKLOAD_NAME = "api"
 WORKLOAD_CLASS = "edge-service"
@@ -167,29 +180,18 @@ app.middleware("http")(
 
 
 def get_order_repo(db: DbDep) -> OrderRepository:
-    # Import here, not at module level — keeps the API adapter decoupled from
-    # the DB adapter at import time. The port is the compile-time contract;
-    # the concrete implementation is wired only at request time.
-    from infrastructure.db.repository import SQLAlchemyOrderRepository
-
     return SQLAlchemyOrderRepository(session=db)
 
 
 def get_customer_repo(db: DbDep) -> CustomerRepository:
-    from infrastructure.db.repository import SQLAlchemyCustomerRepository
-
     return SQLAlchemyCustomerRepository(session=db)
 
 
 def get_idempotency_repo(db: DbDep) -> IdempotencyRepository:
-    from infrastructure.db.repository import SQLAlchemyIdempotencyRepository
-
     return SQLAlchemyIdempotencyRepository(session=db)
 
 
 def get_config_store(db: DbDep) -> ConfigStore:
-    from infrastructure.db.repository import SQLAlchemyConfigStore
-
     return SQLAlchemyConfigStore(session=db)
 
 
@@ -304,6 +306,10 @@ def create_order(
                 content=payload,
             )
         raise HTTPException(status_code=422, detail=str(exc)) from exc
+    except Exception as exc:
+        if idempotency_key is not None:
+            idempotency.fail(key=idempotency_key, error=str(exc))
+        raise
 
     response = OrderResponse(
         id=order.id,

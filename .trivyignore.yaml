@@ -1,0 +1,27 @@
+misconfigurations:
+  - id: AWS-0053
+    paths:
+      - edge.tf
+      - infra/app/edge.tf
+    statement: The primary edge is intentionally public HTTPS behind AWS WAF.
+    expired_at: 2027-01-16
+  - id: AWS-0104
+    paths:
+      - edge.tf
+      - infra/app/edge.tf
+    statement: The ALB path is bounded by task ingress; workload egress is limited to HTTPS/RDS and IAM as documented in edge.tf.
+    expired_at: 2027-01-16
+  - id: AWS-0132
+    paths:
+      - edge_access_logs.tf
+      - infra/app/edge_access_logs.tf
+    statement: ALB access-log delivery supports S3-managed encryption, not SSE-KMS.
+    expired_at: 2027-01-16
+  - id: AWS-0132
+    paths:
+      - messaging.tf
+      - infra/app/messaging.tf
+      - object_storage.tf
+      - infra/app/object_storage.tf
+    statement: S3-managed encryption is the development contract until a workload owns CMK lifecycle and recovery.
+    expired_at: 2027-01-16

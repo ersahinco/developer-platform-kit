@@ -3,7 +3,6 @@
 `platform/` owns shared platform-facing artifacts:
 
 - `workloads.json`: canonical workload contract
-- `workload-patterns.json`: supported workload classification shapes
 - `platform-inventory.json`: static inventory for non-default runtime capability evidence
 - `runtime-defaults.json`: active runtime targets and blessed runtime defaults
 - `runtime-conformance.json`: local/CI fixture data only
@@ -11,8 +10,7 @@
 - `concerns/`: shared runtime capabilities
 
 Rule: `platform/` is part of the stable center of the repo. `workloads.json`
-defines workload intent. `workload-patterns.json` names shared workload
-classification shapes for docs and examples. `concerns/` defines reusable shared
+defines workload intent and classification. `concerns/` defines reusable shared
 capabilities. `infra/`,
 workflows, and scripts define runtime-target realization, delivery
 choreography, and provider wiring. Do not turn `workloads.json` into a

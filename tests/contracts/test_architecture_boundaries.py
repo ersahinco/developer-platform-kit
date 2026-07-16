@@ -96,29 +96,3 @@ def test_dapr_pubsub_boundary_keeps_provider_brokers_at_runtime_edge() -> None:
     assert "/v1.0/publish/" in dapr_adapter
     assert "pubsub.redis" in local_profile
     assert "snssqs" in production_profile
-
-
-def test_alternate_dapr_component_can_satisfy_same_pubsub_contract() -> None:
-    import yaml
-
-    current = yaml.safe_load(
-        (
-            ROOT
-            / "platform"
-            / "concerns"
-            / "dapr"
-            / "profiles"
-            / "local"
-            / "components"
-            / "async-events-pubsub.yaml"
-        ).read_text()
-    )
-    alternate = yaml.safe_load(
-        (
-            ROOT / "tests" / "fixtures" / "dapr" / "alternate-async-events-pubsub.yaml"
-        ).read_text()
-    )
-
-    assert current["metadata"]["name"] == "async-events-pubsub"
-    assert alternate["metadata"]["name"] == current["metadata"]["name"]
-    assert alternate["spec"]["type"].startswith("pubsub.")

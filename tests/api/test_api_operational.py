@@ -9,6 +9,8 @@ from collections.abc import Iterator
 from decimal import Decimal
 from typing import Any
 
+import pytest
+
 os.environ.setdefault(
     "DATABASE_URL", "postgresql://postgres:postgres@localhost:5432/aws_sdlc_containers"
 )
@@ -116,6 +118,41 @@ class _IdempotencyRepo:
 
     def fail(self, *, key: str, error: str) -> None:
         raise AssertionError("not used without an Idempotency-Key header")
+
+
+class _StartedIdempotencyRepo:
+    def __init__(self) -> None:
+        self.failures: list[tuple[str, str]] = []
+
+    def begin(self, *, key: str, request_hash: str) -> object:
+        from application.idempotency import IdempotencyBeginResult
+
+        return IdempotencyBeginResult(status="started")
+
+    def complete(
+        self,
+        *,
+        key: str,
+        response_status_code: int,
+        response_payload: dict[str, object],
+    ) -> None:
+        raise AssertionError("failed requests must not complete")
+
+    def fail(self, *, key: str, error: str) -> None:
+        self.failures.append((key, error))
+
+
+class _FailingOrderRepo:
+    def create_order(
+        self,
+        customer_id: int,
+        total_amount: Decimal,
+        billing_email: str | None,
+    ) -> Order:
+        raise RuntimeError("write failed")
+
+    def get_order(self, order_id: int) -> Order | None:
+        return None
 
 
 def _override_db(session: object) -> None:
@@ -388,6 +425,29 @@ def test_create_order_rejects_malformed_billing_email() -> None:
     assert response.status_code == 422
 
 
+def test_create_order_marks_idempotency_key_failed_on_unexpected_error() -> None:
+    idempotency = _StartedIdempotencyRepo()
+    _override_order_repo(_FailingOrderRepo())
+    _override_customer_repo(_CustomerRepo())
+    _override_idempotency_repo(idempotency)
+    try:
+        with TestClient(app) as client:
+            with pytest.raises(RuntimeError, match="write failed"):
+                client.post(
+                    "/orders",
+                    json={
+                        "customer_id": 7,
+                        "total_amount": "19.99",
+                        "billing_email": "customer@example.com",
+                    },
+                    headers={"Idempotency-Key": "failed-write"},
+                )
+    finally:
+        app.dependency_overrides.clear()
+
+    assert idempotency.failures == [("failed-write", "write failed")]
+
+
 def test_configure_tracing_excludes_low_value_probe_urls_by_default(
     monkeypatch,
 ) -> None:
@@ -418,9 +478,6 @@ def test_configure_tracing_excludes_low_value_probe_urls_by_default(
         def instrument(self, **kwargs: object) -> None:
             calls["sqlalchemy_kwargs"] = kwargs
 
-    monkeypatch.setenv("OTEL_TRACES_ENABLED", "true")
-    monkeypatch.setenv("OTEL_EXPORTER_OTLP_TRACES_ENDPOINT", "http://tempo/v1/traces")
-    monkeypatch.delenv("OTEL_PYTHON_FASTAPI_EXCLUDED_URLS", raising=False)
     monkeypatch.setattr(telemetry, "TracerProvider", _FakeProvider)
     monkeypatch.setattr(telemetry, "OTLPSpanExporter", _FakeExporter)
     monkeypatch.setattr(telemetry, "BatchSpanProcessor", _FakeSpanProcessor)
@@ -432,7 +489,14 @@ def test_configure_tracing_excludes_low_value_probe_urls_by_default(
 
     traced_app = FastAPI()
     engine = object()
-    telemetry.configure_tracing(app=traced_app, engine=engine)  # type: ignore[arg-type]
+    telemetry.configure_tracing(
+        app=traced_app,
+        engine=engine,  # type: ignore[arg-type]
+        enabled=True,
+        endpoint="http://tempo/v1/traces",
+        service_name="api-test",
+        environment="test",
+    )
 
     assert calls["endpoint"] == "http://tempo/v1/traces"
     assert calls["app"] is traced_app

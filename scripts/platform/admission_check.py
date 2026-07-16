@@ -4,22 +4,15 @@ from __future__ import annotations
 import argparse
 import json
 from pathlib import Path
-import sys
 from typing import Any
 
 from jsonschema import Draft202012Validator
 
 
 ROOT = Path(__file__).resolve().parents[2]
-if str(ROOT) not in sys.path:
-    sys.path.insert(0, str(ROOT))
-
-from scripts.platform.workload_fit_check import evaluate_candidate  # noqa: E402
-
-
 ADMISSION_ROOT = ROOT / "platform" / "admission"
 SCHEMA_PATH = ADMISSION_ROOT / "workload-candidate.schema.json"
-CANDIDATES_ROOT = ADMISSION_ROOT / "candidates"
+RUNTIME_DEFAULTS_PATH = ROOT / "platform" / "runtime-defaults.json"
 
 
 def _load_json(path: Path) -> dict[str, Any]:
@@ -32,12 +25,6 @@ def _load_json(path: Path) -> dict[str, Any]:
     return document
 
 
-def _candidate_paths(candidate: str | None) -> list[Path]:
-    if candidate:
-        return [Path(candidate)]
-    return sorted(CANDIDATES_ROOT.glob("*.json"))
-
-
 def _format_json_path(path: tuple[Any, ...]) -> str:
     if not path:
         return "$"
@@ -47,28 +34,65 @@ def _format_json_path(path: tuple[Any, ...]) -> str:
     return value
 
 
+def _semantic_errors(candidate: dict[str, Any]) -> list[str]:
+    runtime_defaults = _load_json(RUNTIME_DEFAULTS_PATH)
+    known_targets = set(runtime_defaults["runtime_targets"])
+    supported = set(candidate["runtime"]["supported"])
+    admitted = set(candidate["runtime"]["admitted"])
+    errors: list[str] = []
+
+    for field, targets in (("supported", supported), ("admitted", admitted)):
+        unknown = sorted(targets - known_targets)
+        if unknown:
+            errors.append(
+                f"semantic $.runtime.{field}: unknown runtime targets: "
+                + ", ".join(unknown)
+            )
+
+    unsupported = sorted(admitted - supported)
+    if unsupported:
+        errors.append(
+            "semantic $.runtime.admitted: targets must also be supported: "
+            + ", ".join(unsupported)
+        )
+
+    declared_config = {key: set(candidate["config"][key]) for key in ("env", "secrets")}
+    dependency_names: set[str] = set()
+    for index, dependency in enumerate(candidate.get("bounded_dependencies", [])):
+        name = dependency["name"]
+        if name in dependency_names:
+            errors.append(
+                f"semantic $.bounded_dependencies[{index}].name: duplicate name {name}"
+            )
+        dependency_names.add(name)
+        for key in ("env", "secrets"):
+            undeclared = sorted(set(dependency["config"][key]) - declared_config[key])
+            if undeclared:
+                errors.append(
+                    f"semantic $.bounded_dependencies[{index}].config.{key}: "
+                    f"not declared in $.config.{key}: " + ", ".join(undeclared)
+                )
+
+    return errors
+
+
 def validate_candidate(path: Path, validator: Draft202012Validator) -> list[str]:
     candidate = _load_json(path)
     errors = [
         f"schema {_format_json_path(tuple(error.path))}: {error.message}"
         for error in sorted(validator.iter_errors(candidate), key=str)
     ]
-    fit_results = evaluate_candidate(candidate)
-    errors.extend(
-        f"fit {result.area}: {result.message}"
-        for result in fit_results
-        if result.status == "fail"
-    )
-    return errors
+    return errors or _semantic_errors(candidate)
 
 
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(
-        description="Validate repo-owned workload admission candidates."
+        description="Validate workload candidates against admission contracts."
     )
     parser.add_argument(
         "--candidate",
-        help="Validate one candidate path instead of platform/admission/candidates/*.json.",
+        required=True,
+        help="Path to a draft workload JSON object.",
     )
     parser.add_argument("--format", choices=["table", "json"], default="table")
     args = parser.parse_args(argv)
@@ -77,9 +101,12 @@ def main(argv: list[str] | None = None) -> int:
     Draft202012Validator.check_schema(schema)
     validator = Draft202012Validator(schema)
 
+    candidate_path = Path(args.candidate)
     rows = [
-        {"candidate": str(path), "errors": validate_candidate(path, validator)}
-        for path in _candidate_paths(args.candidate)
+        {
+            "candidate": str(candidate_path),
+            "errors": validate_candidate(candidate_path, validator),
+        }
     ]
 
     if args.format == "json":

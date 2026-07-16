@@ -158,25 +158,18 @@ resource "aws_s3_object" "async_eventing_dapr_component" {
   bucket       = aws_s3_bucket.runtime_config.id
   key          = "${local.primary_async_eventing_dapr_config_prefix}/components/async-events-pubsub.yaml"
   content_type = "text/yaml"
-  content = templatefile("${path.module}/templates/dapr/async-events-pubsub.yaml.tftpl", {
+  content = templatefile("${path.module}/../../platform/concerns/dapr/profiles/production/components/async-events-pubsub.yaml", {
     aws_region            = local.region
     dlq_name              = aws_sqs_queue.async_eventing_dlq.name
     subscriber_queue_name = aws_sqs_queue.async_eventing.name
   })
 }
 
-resource "aws_s3_object" "async_eventing_dapr_config" {
-  bucket       = aws_s3_bucket.runtime_config.id
-  key          = "${local.primary_async_eventing_dapr_config_prefix}/config/config.yaml"
-  content_type = "text/yaml"
-  content      = templatefile("${path.module}/templates/dapr/config.yaml.tftpl", {})
-}
-
 resource "aws_s3_object" "async_eventing_dapr_resiliency" {
   bucket       = aws_s3_bucket.runtime_config.id
   key          = "${local.primary_async_eventing_dapr_config_prefix}/components/resiliency.yaml"
   content_type = "text/yaml"
-  content      = templatefile("${path.module}/templates/dapr/resiliency.yaml.tftpl", {})
+  content      = file("${path.module}/../../platform/concerns/dapr/profiles/production/components/resiliency.yaml")
 }
 
 resource "aws_cloudwatch_metric_alarm" "async_eventing_dlq_visible" {

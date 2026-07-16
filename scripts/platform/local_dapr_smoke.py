@@ -20,6 +20,7 @@ DEFAULT_PUBSUB_NAME = "async-events-pubsub"
 DEFAULT_TOPIC = "async-events-v1.fifo"
 DEFAULT_ROUTE = "/internal/events/consume"
 DEFAULT_APP_ID = "event-consumer"
+DEFAULT_BOOKING_APP_ID = "booking-api"
 DEFAULT_METADATA_TIMEOUT_SECONDS = 20.0
 DEFAULT_METADATA_POLL_INTERVAL_SECONDS = 0.5
 DEFAULT_APP_READY_TIMEOUT_SECONDS = 30.0
@@ -260,6 +261,7 @@ def run() -> int:
     topic = os.environ.get("DAPR_TOPIC", DEFAULT_TOPIC)
     route = os.environ.get("DAPR_SUBSCRIPTION_ROUTE", DEFAULT_ROUTE)
     app_id = os.environ.get("DAPR_APP_ID", DEFAULT_APP_ID)
+    booking_app_id = os.environ.get("BOOKING_DAPR_APP_ID", DEFAULT_BOOKING_APP_ID)
     metadata_timeout_seconds = float(
         os.environ.get(
             "DAPR_METADATA_TIMEOUT_SECONDS",
@@ -300,7 +302,14 @@ def run() -> int:
             timeout_seconds=app_ready_timeout_seconds,
             poll_interval_seconds=app_ready_poll_interval_seconds,
         )
-    except RuntimeError:
+        booking_readiness = wait_for_app_readiness(
+            endpoint,
+            app_id=booking_app_id,
+            timeout_seconds=app_ready_timeout_seconds,
+            poll_interval_seconds=app_ready_poll_interval_seconds,
+        )
+    except RuntimeError as exc:
+        print(str(exc), file=sys.stderr)
         return 1
 
     occurred_at = datetime.datetime.now(tz=datetime.UTC).isoformat()
@@ -324,6 +333,11 @@ def run() -> int:
                 "pubsub": pubsub_name,
                 "topic": topic,
                 "route": route,
+                "service_invocation": {
+                    "caller_app_id": app_id,
+                    "target_app_id": booking_app_id,
+                    "status": booking_readiness["status"],
+                },
             },
             sort_keys=True,
         )

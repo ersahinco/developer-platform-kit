@@ -14,4 +14,5 @@ Growth rule:
 - Use catalog YAML to describe reusable building blocks that examples and workloads can consume locally or in a runtime target
 - Describe, check, or explain boundaries only; do not create app code, redefine workload identity, own deployment choreography, or become a hidden framework
 - Keep use-case-specific names, datasets, business events, and schema semantics out of catalog metadata
-- Add a new runtime-target catalog branch only when a real workload needs it and the owner is clear
+- Incubate a new runtime-target catalog branch before broad demand only with a concrete proof, owner, contract input, tests, evidence path, and honest maturity
+- Add active runtime defaults and deploy roots only after reviewed realization

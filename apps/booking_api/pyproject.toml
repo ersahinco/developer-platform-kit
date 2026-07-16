@@ -1,8 +1,9 @@
 [project]
-name = "aws-sdlc-containers-support-triage-llm"
+name = "aws-sdlc-containers-booking-api"
 version = "0.1.0"
 requires-python = ">=3.14"
 dependencies = [
+    "aws-sdlc-containers-application",
     "aws-sdlc-containers-infrastructure",
     "fastapi>=0.136.3,<0.136.4",
     "prometheus-client>=0.20.0",
@@ -14,5 +15,5 @@ requires = ["setuptools>=69"]
 build-backend = "setuptools.build_meta"
 
 [tool.setuptools]
-packages = ["support_triage_llm"]
-package-dir = { support_triage_llm = "." }
+packages = ["booking_api"]
+package-dir = { booking_api = "." }

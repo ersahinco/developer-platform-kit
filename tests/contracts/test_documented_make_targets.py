@@ -132,7 +132,7 @@ def test_proof_ladder_commands_stay_discoverable() -> None:
     assert "Workload metadata, owner, ports, config, secrets, class, or use cases" in (
         proof_ladder
     )
-    assert "Dapr pub/sub, outbox, CloudEvents" in proof_ladder
+    assert "Dapr service invocation, pub/sub, outbox, CloudEvents" in proof_ladder
     assert "Isolated live Compose evidence is needed" in proof_ladder
     assert "make local-compose-live-proof" in proof_ladder
     assert "GitHub workflow inputs, dry-run commands" in proof_ladder

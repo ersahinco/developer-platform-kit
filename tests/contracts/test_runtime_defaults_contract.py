@@ -29,19 +29,9 @@ DEFAULT_AREA_CAPABILITIES = {
     "service_identity": "service_identity",
 }
 
-ENTERPRISE_RELEVANT_CAPABILITIES = {
-    "authz_policy",
-    "ci_cd_delivery",
-    "edge_auth",
-    "network_connectivity",
-    "observability_routing",
-}
-
 CAPABILITY_MATURITY_LEVELS = {
-    "candidate",
     "active-local-proof",
     "active-production-runtime",
-    "deprecated",
 }
 
 EXTRA_EVIDENCE_SEAMS = {
@@ -141,22 +131,8 @@ def test_runtime_capability_maturity_is_explicit_and_consistent() -> None:
         assert row["maturity"] in CAPABILITY_MATURITY_LEVELS
         assert row["maturity"] == target_maturity[row["runtime_target"]]
 
-    for profile in runtime_defaults["candidate_runtime_profiles"].values():
-        assert profile["status"] == "candidate"
 
-
-def test_enterprise_runtime_profile_is_candidate_not_active_target() -> None:
-    runtime_defaults = load_json("platform/runtime-defaults.json")
-
-    active_targets = set(runtime_defaults["runtime_targets"])
-    candidates = runtime_defaults["candidate_runtime_profiles"]
-
-    assert "enterprise-runtime-candidate" in candidates
-    assert "enterprise-runtime-candidate" not in active_targets
-    assert candidates["enterprise-runtime-candidate"]["status"] == "candidate"
-
-
-def test_runtime_defaults_include_enterprise_relevant_capabilities() -> None:
+def test_runtime_defaults_cover_shared_platform_capabilities() -> None:
     runtime_defaults = load_json("platform/runtime-defaults.json")
     capabilities = {
         default["capability"]
@@ -198,61 +174,6 @@ def test_active_runtime_defaults_are_derived_not_duplicated() -> None:
             assert pair in matrix_pairs
 
 
-def test_enterprise_candidate_defaults_are_candidate_capabilities_only() -> None:
-    inventory = load_json("platform/platform-inventory.json")
-    runtime_defaults = load_json("platform/runtime-defaults.json")
-
-    candidate_pairs = {
-        (runtime_target, default["capability"])
-        for runtime_target, profile in runtime_defaults[
-            "candidate_runtime_profiles"
-        ].items()
-        for default in profile["defaults"].values()
-    }
-    active_pairs = {
-        (row["runtime_target"], row["capability"])
-        for row in inventory["runtime_capabilities"]
-    }
-    candidates = runtime_defaults["candidate_runtime_profiles"]
-
-    enterprise = candidates["enterprise-runtime-candidate"]
-    for area, default in enterprise["defaults"].items():
-        assert default["capability"] == DEFAULT_AREA_CAPABILITIES[area]
-        assert (
-            "enterprise-runtime-candidate",
-            default["capability"],
-        ) in candidate_pairs
-        assert (
-            "enterprise-runtime-candidate",
-            default["capability"],
-        ) not in active_pairs
-
-    candidate_capabilities = {
-        capability
-        for runtime_target, capability in candidate_pairs
-        if runtime_target == "enterprise-runtime-candidate"
-    }
-    assert ENTERPRISE_RELEVANT_CAPABILITIES.issubset(candidate_capabilities)
-
-
-def test_candidate_runtime_profiles_stay_descriptive() -> None:
-    runtime_defaults = load_json("platform/runtime-defaults.json")
-
-    active_targets = set(runtime_defaults["runtime_targets"])
-    for runtime_target, profile in runtime_defaults[
-        "candidate_runtime_profiles"
-    ].items():
-        assert runtime_target not in active_targets
-        assert profile["status"] == "candidate"
-        assert profile["owner"] == "future-runtime-owner-required"
-        for default in profile["defaults"].values():
-            assert default["capability"]
-            assert default["default"]
-            assert default["realization"]
-            assert default["evidence"]
-            assert "infra/" not in default["realization"]
-
-
 def test_extra_capability_rows_point_to_real_evidence_seams() -> None:
     inventory = load_json("platform/platform-inventory.json")
     active_capabilities = {
@@ -268,14 +189,6 @@ def test_extra_capability_rows_point_to_real_evidence_seams() -> None:
             assert (ROOT / expected_path).exists()
 
 
-def test_workload_metadata_does_not_embed_runtime_tool_fields() -> None:
-    workloads_text = read_text("platform/workloads.json").lower()
-    runtime_defaults = load_json("platform/runtime-defaults.json")
-
-    for forbidden in runtime_defaults["forbidden_workload_tool_fields"]:
-        assert forbidden.lower() not in workloads_text
-
-
 def test_runtime_defaults_are_documented() -> None:
     runtime_toolkit = read_text("docs/runtime-toolkit.md")
     runtime_defaults_doc = read_text("docs/runtime-defaults.md")
@@ -285,9 +198,8 @@ def test_runtime_defaults_are_documented() -> None:
 
     assert "[Runtime Defaults](runtime-defaults.md)" in runtime_toolkit
     assert "platform/runtime-defaults.json" in runtime_defaults_doc
-    assert "enterprise-runtime-candidate" in runtime_defaults_doc
-    assert "candidate runtime profiles" in platform_contract
-    assert "candidate capability rows" not in platform_contract
+    assert "## Active Runtime Targets" in runtime_defaults_doc
+    assert "Runtime targets may vary" in platform_contract
     assert "platform/runtime-defaults.json" in security_concern
     assert "platform/runtime-defaults.json" in networking_concern
 

@@ -94,8 +94,9 @@ It must also preserve workload classes:
 ## Current Runtime Targets
 
 `local-compose` is the local-first runtime for fast iteration. It uses Docker
-Compose, local Postgres/PgBouncer, Redis-backed Dapr pub/sub, and the OSS
-observability stack to prove the workload contract before cloud deployment.
+Compose, local Postgres/PgBouncer, Dapr service invocation and Redis-backed
+pub/sub, and the OSS observability stack to prove the workload contract before
+cloud deployment.
 
 `local-kubernetes` is the richer local proof runtime. It uses kind, kubectl,
 static Kubernetes manifests, Services, probes, ConfigMaps, Secrets, Jobs, and
@@ -113,18 +114,20 @@ runtime-edge observability routing. Future enterprise choices such as Okta,
 Kong, OPA, Splunk, or Datadog belong in a runtime profile or runtime catalog,
 not in per-workload metadata.
 
-A provider-edge integration can still be documented as a future option, but it
-should not appear as an active runtime target until there is a real workload,
-reviewed ownership, and delivery path.
+A provider-edge integration can incubate before broad adoption through a
+bounded candidate and catalog entry. It should not appear as an active runtime
+target until there is a concrete proof workload, reviewed ownership, and
+delivery path.
 
 A workload can still be real and live under `apps/` before it is admitted to a
 cloud runtime. Local support through `local-compose` is a valid first runtime
 target, not a reason to demote the host into `examples/`.
 
-Future production runtimes become active only when they have a real workload
-need, an owner, a config surface, conformance, evidence, failure modes, and a
-runbook. Until then, keep them as taxonomy or candidate guidance rather than
-adding runtime inventory, workload admission, or catalog branches.
+Future production runtimes become active only when they have a concrete proof
+workload, an owner, a config surface, conformance, evidence, failure modes, and
+a runbook. Before activation, contract-backed candidates and catalog entries
+may prove the capability without claiming production readiness or changing
+runtime defaults.
 
 ## Foreign Workload Evaluation
 
@@ -137,7 +140,7 @@ without forcing the stable center to absorb platform-edge details.
 Draft one workload JSON object outside the repo, then run:
 
 ```bash
-WORKLOAD_CANDIDATE=/tmp/payments-gateway.json make workload-fit-check
+WORKLOAD_CANDIDATE=/tmp/payments-gateway.json make workload-admission-check
 ```
 
 Keep only workload identity and intent in the candidate:

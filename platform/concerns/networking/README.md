@@ -18,6 +18,5 @@ Current network defaults live in `platform/runtime-defaults.json` under
   groups in `infra/platform/network.tf`, `infra/app/edge.tf`,
   `infra/app/compute_ecs.tf`, and `infra/app/workload_jobs.tf`
 
-Future enterprise connectivity such as VPN, Direct Connect, PrivateLink,
-egress proxy, firewall policy, or service mesh remains a candidate runtime
-choice until an owner and conformance path exist.
+Add another connectivity mechanism only when a workload has a concrete need,
+an owner, and a conformance path.

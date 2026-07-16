@@ -253,16 +253,16 @@ def doctor_results(*, cloud: bool, runner: Runner = _run) -> list[CheckResult]:
     if workload_candidate:
         results.append(
             _command_check(
-                "workload candidate fit",
+                "workload candidate schema",
                 [
                     sys.executable,
-                    "scripts/platform/workload_fit_check.py",
+                    "scripts/platform/admission_check.py",
                     "--candidate",
                     workload_candidate,
                 ],
                 runner=runner,
                 required=True,
-                hint="run WORKLOAD_CANDIDATE=<path> make workload-fit-check",
+                hint="run WORKLOAD_CANDIDATE=<path> make workload-admission-check",
             )
         )
 

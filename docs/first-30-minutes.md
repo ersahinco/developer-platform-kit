@@ -81,19 +81,18 @@ make dapr-smoke
 ```
 
 Use `api-smoke` for `/health`, `/ready`, and `/metrics`. Use `dapr-smoke` to
-publish a CloudEvent through the local Dapr sidecar and confirm the event
-consumer records it.
+publish a CloudEvent through Dapr and confirm the event consumer records it,
+then invoke booking readiness through its Dapr app identity.
 
 ## 6. Inspect Local Data Artifacts
 
 ```bash
 make data-export
-make open-dataset-pipeline
 make data-artifacts-list
 ```
 
-The data export job and open dataset pipeline write raw, manifest, and DuckDB
-artifacts into the local `data_exports` Docker volume.
+The data export job writes raw CSV and manifest artifacts into the local
+`data_exports` Docker volume.
 
 ## 7. Use Local Kubernetes When Compose Is Too Small
 

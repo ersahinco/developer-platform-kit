@@ -126,8 +126,7 @@ def _container_defaults() -> dict[str, Any]:
 
 
 def _merge_container(overrides: dict[str, Any]) -> dict[str, Any]:
-    merged = {**_container_defaults(), **overrides}
-    return merged
+    return {**_container_defaults(), **overrides}
 
 
 def _parse_bool(value: str | None, *, default: bool) -> bool:
@@ -343,7 +342,6 @@ def _runtime_values_for_workload(
     workload: dict[str, Any],
     *,
     stack_name: str,
-    region: str,
     db_address: str,
     db_port: int,
     data_hub_bucket_name: str,
@@ -406,7 +404,6 @@ def _runtime_values_for_workload(
 
 
 def _runtime_secrets_for_workload(
-    workload: dict[str, Any],
     *,
     db_secret_arn: str,
     primary_edge_auth_secret_arn: str | None,
@@ -465,7 +462,6 @@ def _render_primary_edge(
         _runtime_values_for_workload(
             workload,
             stack_name=stack_name,
-            region=region,
             db_address=db_address,
             db_port=db_port,
             data_hub_bucket_name=f"{stack_name}-data-hub-{account_id}",
@@ -475,7 +471,6 @@ def _render_primary_edge(
     declared_secrets = _declared_secrets(
         workload,
         _runtime_secrets_for_workload(
-            workload,
             db_secret_arn=db_secret_arn,
             primary_edge_auth_secret_arn=primary_edge_auth_secret_arn,
         ),
@@ -627,7 +622,6 @@ def _render_support_job(
     runtime_values = _runtime_values_for_workload(
         workload,
         stack_name=stack_name,
-        region=region,
         db_address=db_address,
         db_port=db_port,
         data_hub_bucket_name=f"{stack_name}-data-hub-{account_id}",
@@ -642,7 +636,6 @@ def _render_support_job(
             "secrets": _declared_secrets(
                 workload,
                 _runtime_secrets_for_workload(
-                    workload,
                     db_secret_arn=db_secret_arn,
                     primary_edge_auth_secret_arn=None,
                 ),
@@ -707,7 +700,6 @@ def _render_internal_async_service(
     runtime_values = _runtime_values_for_workload(
         workload,
         stack_name=stack_name,
-        region=region,
         db_address=db_address,
         db_port=db_port,
         data_hub_bucket_name=f"{stack_name}-data-hub-{account_id}",
@@ -811,7 +803,6 @@ def _render_internal_async_service(
                     "secrets": _declared_secrets(
                         workload,
                         _runtime_secrets_for_workload(
-                            workload,
                             db_secret_arn=db_secret_arn,
                             primary_edge_auth_secret_arn=None,
                         ),

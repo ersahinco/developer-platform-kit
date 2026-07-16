@@ -111,9 +111,20 @@ spec:
         runtime.target: local-kubernetes
         workload: db
     spec:
+      securityContext:
+        fsGroup: 999
+        seccompProfile:
+          type: RuntimeDefault
       containers:
         - name: postgres
           image: postgres:18.3
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop: ["ALL"]
+            readOnlyRootFilesystem: true
+            runAsNonRoot: true
+            runAsUser: 999
           ports:
             - name: postgres
               containerPort: 5432
@@ -146,10 +157,18 @@ spec:
           volumeMounts:
             - name: postgres-data
               mountPath: /var/lib/postgresql
+            - name: postgres-run
+              mountPath: /var/run/postgresql
+            - name: postgres-tmp
+              mountPath: /tmp
       volumes:
         - name: postgres-data
           persistentVolumeClaim:
             claimName: postgres-data
+        - name: postgres-run
+          emptyDir: {}
+        - name: postgres-tmp
+          emptyDir: {}
 ---
 apiVersion: v1
 kind: Service
@@ -190,9 +209,20 @@ spec:
         runtime.target: local-kubernetes
         workload: pgbouncer
     spec:
+      securityContext:
+        fsGroup: 70
+        seccompProfile:
+          type: RuntimeDefault
       containers:
         - name: pgbouncer
           image: edoburu/pgbouncer:v1.25.1-p0
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop: ["ALL"]
+            readOnlyRootFilesystem: true
+            runAsNonRoot: true
+            runAsUser: 70
           ports:
             - name: postgres
               containerPort: 5432
@@ -234,6 +264,16 @@ spec:
             tcpSocket:
               port: postgres
             periodSeconds: 10
+          volumeMounts:
+            - name: pgbouncer-config
+              mountPath: /etc/pgbouncer
+            - name: pgbouncer-tmp
+              mountPath: /tmp
+      volumes:
+        - name: pgbouncer-config
+          emptyDir: {}
+        - name: pgbouncer-tmp
+          emptyDir: {}
 ---
 apiVersion: v1
 kind: Service
@@ -272,14 +312,32 @@ spec:
         workload: liquibase
     spec:
       restartPolicy: Never
+      securityContext:
+        fsGroup: 1001
+        seccompProfile:
+          type: RuntimeDefault
       initContainers:
         - name: wait-for-db
           image: postgres:18.3
           command: ["sh", "-c", "until pg_isready -h db -U postgres -d aws_sdlc_containers; do sleep 2; done"]
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop: ["ALL"]
+            readOnlyRootFilesystem: true
+            runAsNonRoot: true
+            runAsUser: 999
       containers:
         - name: liquibase
           image: aws-sdlc-containers-liquibase:local-kubernetes
           imagePullPolicy: IfNotPresent
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop: ["ALL"]
+            readOnlyRootFilesystem: true
+            runAsNonRoot: true
+            runAsUser: 1001
           env:
             - name: LIQUIBASE_COMMAND_CHANGELOG_FILE
               value: changelog/db.changelog-master.yaml
@@ -297,3 +355,9 @@ spec:
                 secretKeyRef:
                   name: workload-secrets
                   key: DB_PASSWORD
+          volumeMounts:
+            - name: liquibase-tmp
+              mountPath: /tmp
+      volumes:
+        - name: liquibase-tmp
+          emptyDir: {}

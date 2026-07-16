@@ -139,6 +139,7 @@ Rules:
 | Order write model | `customers`, `orders`, `order_contact_email` | API and backfill worker |
 | Runtime configuration | `app_runtime_config` | API admin endpoints and Liquibase seed data |
 | Outbox and receipts | `outbox_messages`, `event_receipts`, `idempotency_keys` | API and event consumer |
+| Booking consistency proof | `booking_reservations` | Booking API |
 | Migration and backfill control | `backfill_progress`, `DATABASECHANGELOG`, `DATABASECHANGELOGLOCK` | Liquibase and backfill worker |
 | Export outputs | S3 data hub objects | data export job |
 
@@ -161,7 +162,8 @@ environment-promotion demo.
 - Mixed-version rolling-deploy coordination during dual-write windows
 - PgBouncer exhaustion mitigation beyond current pool sizing
 - Snapshot/restore automation before destructive contract migrations
-- Broader Dapr capabilities beyond pub/sub
+- Dapr building blocks not yet backed by an owned workload, component mapping,
+  conformance, and evidence
 - A runtime target without a concrete workload need and clear owner
 
 When one becomes real, decide whether it changes the portable contract, the

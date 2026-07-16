@@ -29,10 +29,8 @@ runtime_default_capabilities := {
 }
 
 allowed_maturity_levels := {
-  "candidate",
   "active-local-proof",
   "active-production-runtime",
-  "deprecated",
 }
 
 deny contains msg if {
@@ -111,7 +109,7 @@ deny contains msg if {
 deny contains msg if {
   data.conftest.file.name == "platform-inventory.json"
   object.get(input, "candidate_runtime_capabilities", null) != null
-  msg := "platform/platform-inventory.json must not own candidate_runtime_capabilities; use platform/runtime-defaults.json"
+  msg := "platform/platform-inventory.json must not own candidate_runtime_capabilities"
 }
 
 deny contains msg if {

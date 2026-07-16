@@ -1,5 +1,4 @@
 import logging
-import os
 
 from fastapi import FastAPI
 from opentelemetry import trace
@@ -16,22 +15,23 @@ logger = logging.getLogger(__name__)
 DEFAULT_EXCLUDED_TRACE_URLS = "/health,/metrics"
 
 
-def _enabled(value: str | None) -> bool:
-    return value is not None and value.strip().lower() in {"1", "true", "yes", "on"}
-
-
-def configure_tracing(*, app: FastAPI, engine: Engine) -> None:
+def configure_tracing(
+    *,
+    app: FastAPI,
+    engine: Engine,
+    enabled: bool,
+    endpoint: str | None,
+    service_name: str,
+    environment: str,
+) -> None:
     """Enable OTLP traces only when explicitly configured."""
-    if not _enabled(os.getenv("OTEL_TRACES_ENABLED")):
+    if not enabled:
         return
 
-    endpoint = os.getenv("OTEL_EXPORTER_OTLP_TRACES_ENDPOINT")
     if not endpoint:
         logger.warning("OTEL_TRACES_ENABLED is true but no OTLP traces endpoint is set")
         return
 
-    service_name = os.getenv("OTEL_SERVICE_NAME", "aws-sdlc-containers-api")
-    environment = os.getenv("OTEL_DEPLOYMENT_ENVIRONMENT", "local")
     resource = Resource.create(
         {
             "service.name": service_name,
@@ -44,13 +44,9 @@ def configure_tracing(*, app: FastAPI, engine: Engine) -> None:
     provider.add_span_processor(BatchSpanProcessor(OTLPSpanExporter(endpoint=endpoint)))
     trace.set_tracer_provider(provider)
 
-    excluded_urls = os.getenv("OTEL_PYTHON_FASTAPI_EXCLUDED_URLS")
-    if excluded_urls is None:
-        excluded_urls = DEFAULT_EXCLUDED_TRACE_URLS
-
     FastAPIInstrumentor.instrument_app(
         app,
         tracer_provider=provider,
-        excluded_urls=excluded_urls,
+        excluded_urls=DEFAULT_EXCLUDED_TRACE_URLS,
     )
     SQLAlchemyInstrumentor().instrument(engine=engine, tracer_provider=provider)

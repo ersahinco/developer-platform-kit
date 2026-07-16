@@ -72,6 +72,27 @@ class CustomerModel(Base):
     )
 
 
+class BookingModel(Base):
+    __tablename__ = "booking_reservations"
+    __table_args__ = (
+        UniqueConstraint(
+            "resource_id",
+            "starts_at",
+            name="uq_booking_reservations_resource_slot",
+        ),
+    )
+
+    booking_id: Mapped[str] = mapped_column(String(36), primary_key=True)
+    resource_id: Mapped[str] = mapped_column(String(200), nullable=False)
+    starts_at: Mapped[datetime.datetime] = mapped_column(
+        TIMESTAMP(timezone=True), nullable=False
+    )
+    customer_id: Mapped[str] = mapped_column(String(200), nullable=False)
+    created_at: Mapped[datetime.datetime] = mapped_column(
+        TIMESTAMP(timezone=True), nullable=False
+    )
+
+
 class OutboxMessageModel(Base):
     __tablename__ = "outbox_messages"
     __table_args__ = (

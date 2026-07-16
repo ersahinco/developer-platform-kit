@@ -51,7 +51,7 @@ request should name the desired outcome in contract language:
 - schedule this job
 - run this one-off operator job
 - subscribe or publish through the Dapr pub/sub boundary
-- grant bounded dependency access
+- add a bounded external dependency
 
 AWS-shaped asks such as ECS, IAM, subnets, buckets, queues, or schedulers are
 valid discovery context, but they are not the admission surface. Translate them
@@ -60,25 +60,16 @@ S3 bucket names, queue URLs, and EventBridge rules remain runtime realization
 choices after the workload contract fits. For brownfield or early discovery,
 draft the candidate workload JSON outside the repo and run:
 
-For external systems such as Entra ID, DNS providers, SaaS APIs, or external
-databases, use `bounded_dependencies` in the candidate JSON. Keep it lean:
-`name`, `kind`, `purpose`, `direction`, `owner`, declared `config.env`,
-declared `config.secrets`, and `evidence`. Do not put tenant IDs, client IDs,
-URLs, DNS zone IDs, ARNs, subnet IDs, or provider resource names in the
-workload contract. Keep repo-owned examples under `platform/admission/candidates/`
-and validate them with:
-
 ```bash
-make workload-admission-check
+WORKLOAD_CANDIDATE=/tmp/<workload>.json make workload-admission-check
 ```
 
-```bash
-WORKLOAD_CANDIDATE=/tmp/<workload>.json make workload-fit-check
-```
-
-The fit check compares the candidate's requested capabilities with the current
-`monorepo-capability-profile`, so unsupported asks are visible before metadata
-or runtime realization changes land.
+The admission check validates schema shape plus cross-field rules for runtime
+targets and bounded dependency config. A candidate may declare
+`bounded_dependencies` with purpose, direction, owner, config and secret names,
+and expected evidence. Keep provider IDs, URLs, resource names, and credential
+values at the platform edge. After admission, the normal workload contract and
+readiness tests own proof.
 
 Then use the normal proof path before asking for runtime admission:
 
@@ -195,7 +186,8 @@ Add the workload to `platform/workloads.json` with:
 - `database` only when the workload actually needs relational data
 - `service` for HTTP workloads
 - `job` for jobs
-- `dapr` only when a real Dapr capability is needed
+- `dapr` app identity and building-block scope when the workload uses or proves
+  a Dapr application API
 - `edge.auth_mode` and `verification` when the workload is the primary edge
 
 Do not add:
@@ -223,18 +215,23 @@ match the new workload and finish the contract directly.
 | internal Dapr-backed service | operational class `internal-service`, host `apps/event_consumer` |
 | operator-triggered job | operational class `operator-job`, host `apps/backfill_worker` |
 | scheduled export job | operational class `scheduled-job`, host `apps/data_export_job` |
+| Dapr service-invocation and consistency experiment | internal service `apps/booking_api` |
+| late-arriving event experiment | operator job `apps/lake_orders_ingest_job` |
+| MLOps artifact experiment | `apps/churn_model_train_job` plus `apps/churn_prediction_api` |
 
 Reuse `platform/workload.Dockerfile` unless there is a concrete reason not to.
 If a workload needs a different container shape, declare `image.dockerfile`
 and `image.context` in `platform/workloads.json` instead of hardcoding build
 logic elsewhere.
 
-If you are exploring open-source data tooling such as file loaders, DuckDB, or
-dbt-style transformations, keep teaching samples in `examples/`. If the code is
-a real workload host with a contract, tests, local proof, and owner, keep it in
-`apps/` and declare `runtime.supported: ["local-compose"]`. Add `aws-ecs` to
-`runtime.admitted` only after reviewed infra realization and delivery ownership
-exist.
+Keep teaching-only uses of file loaders, DuckDB, dbt-style transformations, or
+ML tools in `examples/`. A named engineering-pattern experiment may live in
+`apps/` before broad demand when it has an owner, a concrete failure mode,
+workload metadata, executable proof, inspectable evidence, and explicit
+non-production maturity. Keep specialized dependencies inside that workload;
+do not turn them into a generic platform stack. Add `aws-ecs` to
+`runtime.admitted` only after reviewed infrastructure realization and delivery
+ownership exist.
 
 ## Promote Local To AWS
 
@@ -268,8 +265,8 @@ second workload specification.
 Managed provider-edge note:
 
 - keep workload identity in `platform/workloads.json`; do not turn provider-edge wiring into a second workload contract
-- do not add a new runtime-target catalog branch until a repeated workload need and clear runtime ownership exist
-- keep provider-edge options as documented horizon guidance until they become reviewed runtime work
+- an incubating runtime-target catalog branch may precede broad demand when it has a concrete proof, owner, contract, tests, evidence path, and honest maturity
+- keep provider-edge options out of active runtime defaults until they become reviewed runtime work
 
 ## Verify
 

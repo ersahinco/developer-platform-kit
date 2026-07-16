@@ -18,6 +18,5 @@ Current defaults live in `platform/runtime-defaults.json`:
 - `service_identity`: local uses Compose service identity; AWS uses ECS task
   roles and GitHub OIDC delivery identity.
 
-Future tools such as Okta, Kong, Entra, OPA bundles, Cedar, or service-mesh
-policy are runtime choices only when they are shared, owned, evidence-producing,
-and conformance-testable.
+Add another runtime security tool only for a shared, owned, evidence-producing,
+and conformance-tested workload need.

@@ -31,34 +31,34 @@ WORKLOAD_CLASS = "internal-service"
 
 REQUEST_COUNT = Counter(
     "churn_prediction_api_http_requests_total",
-    "Churn prediction API HTTP requests by method, route, and status code.",
+    "Churn prediction API requests by method, route, and status code.",
     ["method", "route", "status_code"],
 )
 REQUEST_LATENCY = Histogram(
     "churn_prediction_api_http_request_duration_seconds",
-    "Churn prediction API HTTP request latency by method and route.",
+    "Churn prediction API request latency by method and route.",
     ["method", "route"],
 )
 PREDICTION_COUNT = Counter(
     "churn_prediction_requests_total",
-    "Churn prediction requests by model version and status.",
+    "Predictions by model version and status.",
     ["model_version", "status"],
 )
 PREDICTION_LATENCY = Histogram(
     "churn_prediction_latency_seconds",
-    "Churn prediction latency by model version.",
+    "Prediction latency by model version.",
     ["model_version"],
 )
 ensure_workload_info_metric(workload=WORKLOAD_NAME, workload_class=WORKLOAD_CLASS)
 
 
 class PredictionRequest(BaseModel):
-    customer_id: str = Field(min_length=1)
-    tenure_months: float
-    monthly_charges: float
-    support_tickets_90d: float
-    late_payments_12m: float
-    usage_drop_pct: float
+    customer_id: str = Field(min_length=1, max_length=128)
+    tenure_months: float = Field(ge=0, le=1200)
+    monthly_charges: float = Field(ge=0, le=1_000_000)
+    support_tickets_90d: float = Field(ge=0, le=10_000)
+    late_payments_12m: float = Field(ge=0, le=10_000)
+    usage_drop_pct: float = Field(ge=0, le=100)
 
 
 @asynccontextmanager
@@ -66,7 +66,7 @@ async def lifespan(app: FastAPI):
     try:
         app.state.churn_model = load_model(Path(settings.churn_model_path))
         app.state.model_error = None
-    except Exception as exc:  # noqa: BLE001
+    except Exception as exc:
         app.state.churn_model = None
         app.state.model_error = str(exc)
     yield
@@ -122,7 +122,8 @@ def ready(request: Request) -> dict[str, object] | JSONResponse:
     model = cast(dict[str, Any], request.app.state.churn_model)
     return {
         "status": "ready",
-        "checks": {"model": "ok"},
+        "checks": {"model": "promoted"},
+        "model_schema_version": model["schema_version"],
         "model_version": model["model_version"],
         "run_id": model["run_id"],
     }
@@ -144,25 +145,23 @@ def predict(
     started = time.perf_counter()
     probability = score_churn(model=model, features=payload.model_dump())
     elapsed = time.perf_counter() - started
-    status = "succeeded"
     model_version = str(model["model_version"])
-    PREDICTION_COUNT.labels(model_version=model_version, status=status).inc()
+    PREDICTION_COUNT.labels(model_version=model_version, status="succeeded").inc()
     PREDICTION_LATENCY.labels(model_version=model_version).observe(elapsed)
     event = {
         "workload": WORKLOAD_NAME,
         "event": "churn_prediction",
-        "status": status,
+        "status": "succeeded",
         "customer_id": payload.customer_id,
+        "model_schema_version": model["schema_version"],
         "model_version": model_version,
         "run_id": model["run_id"],
+        "training_data_sha256": model["training_data"]["sha256"],
         "duration_ms": round(elapsed * 1000, 3),
     }
     print(json.dumps(event, sort_keys=True), flush=True)
     return {
-        "status": status,
-        "customer_id": payload.customer_id,
-        "model_version": model_version,
-        "run_id": model["run_id"],
+        **event,
         "churn_probability": round(probability, 6),
         "prediction": "churn_risk" if probability >= model["threshold"] else "retain",
     }

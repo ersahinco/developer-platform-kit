@@ -219,3 +219,22 @@ def test_local_kubernetes_runtime_proves_identity_network_and_storage() -> None:
         labels = metadata.get("labels", {}) if isinstance(metadata, dict) else {}
         if labels:
             assert labels.get("runtime.target") == "local-kubernetes"
+
+
+def test_local_kubernetes_pods_have_explicit_non_root_security() -> None:
+    for document in _documents():
+        if document.get("kind") not in {"Deployment", "Job"}:
+            continue
+
+        pod_spec = document["spec"]["template"]["spec"]
+        assert pod_spec["securityContext"]["seccompProfile"] == {
+            "type": "RuntimeDefault"
+        }
+        for field in ["initContainers", "containers"]:
+            for container in pod_spec.get(field, []):
+                security_context = container["securityContext"]
+                assert security_context["allowPrivilegeEscalation"] is False
+                assert security_context["capabilities"]["drop"] == ["ALL"]
+                assert security_context["readOnlyRootFilesystem"] is True
+                assert security_context["runAsNonRoot"] is True
+                assert security_context["runAsUser"] > 0

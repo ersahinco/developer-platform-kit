@@ -35,13 +35,15 @@ FORBIDDEN_TOKENS = {
 
 def _tracked_paths() -> list[Path]:
     completed = subprocess.run(
-        ["git", "ls-files"],
+        ["git", "ls-files", "--cached", "--others", "--exclude-standard"],
         check=True,
         capture_output=True,
         text=True,
         cwd=ROOT,
     )
-    return [Path(line) for line in completed.stdout.splitlines()]
+    return [
+        Path(line) for line in completed.stdout.splitlines() if (ROOT / line).exists()
+    ]
 
 
 def _product_paths() -> list[Path]:

@@ -1,8 +1,8 @@
 {
-  "name": "foreign_inventory_sync",
+  "name": "payments_gateway",
   "kind": "service",
   "use_cases": ["internal-api", "connector"],
-  "owner": "supply-chain-platform",
+  "owner": "payments-platform",
   "runtime": {
     "supported": ["local-compose"],
     "admitted": []
@@ -15,9 +15,9 @@
     "port": 8080
   },
   "image": {
-    "repository": "foreign-inventory-sync",
-    "package": "foreign-inventory-sync",
-    "command": "python -m foreign_inventory_sync.main"
+    "repository": "payments-gateway",
+    "package": "payments-gateway",
+    "command": "python -m payments_gateway.main"
   },
   "metrics": {
     "format": "prometheus",

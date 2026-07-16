@@ -1,44 +1,27 @@
 {
+  "algorithm": "standardized-mean-difference-v1",
+  "coefficients": {
+    "late_payments_12m": 1.597242,
+    "monthly_charges": 1.796227,
+    "support_tickets_90d": 1.773185,
+    "tenure_months": -1.768727,
+    "usage_drop_pct": 1.733486
+  },
   "drift_summary": {
-    "max_abs_mean_delta": 0.0,
-    "mean_deltas": {
-      "late_payments_12m": 0.0,
-      "monthly_charges": 0.0,
-      "support_tickets_90d": 0.0,
-      "tenure_months": 0.0,
-      "usage_drop_pct": 0.0
-    },
-    "reference": "checked_in_baseline_v1",
+    "maximum_absolute_delta": 0.304211,
+    "reference": "checked-in-baseline-v1",
     "status": "ok"
   },
-  "feature_summary": {
-    "late_payments_12m": {
-      "max": 4.0,
-      "mean": 1.25,
-      "min": 0.0
+  "evaluation": {
+    "metrics": {
+      "accuracy": 1.0,
+      "positive_rate": 0.5,
+      "precision": 1.0,
+      "recall": 1.0
     },
-    "monthly_charges": {
-      "max": 119.9,
-      "mean": 85.9375,
-      "min": 59.4
-    },
-    "support_tickets_90d": {
-      "max": 5.0,
-      "mean": 1.875,
-      "min": 0.0
-    },
-    "tenure_months": {
-      "max": 55.0,
-      "mean": 24.25,
-      "min": 4.0
-    },
-    "usage_drop_pct": {
-      "max": 61.0,
-      "mean": 23.875,
-      "min": 3.0
-    }
+    "scope": "training-fixture"
   },
-  "features": [
+  "feature_order": [
     "tenure_months",
     "monthly_charges",
     "support_tickets_90d",
@@ -46,23 +29,30 @@
     "usage_drop_pct"
   ],
   "intercept": 0.0,
-  "metrics": {
-    "accuracy": 0.875,
-    "precision": 0.8,
-    "recall": 1.0,
-    "training_positive_rate": 0.5
-  },
+  "maturity": "experimental",
   "model_name": "churn_prediction",
-  "model_version": "sample-v1",
+  "model_version": "sample-v2",
+  "normalization": {
+    "late_payments_12m": {"mean": 1.375, "scale": 1.408678},
+    "monthly_charges": {"mean": 83.6, "scale": 20.431716},
+    "support_tickets_90d": {"mean": 1.875, "scale": 1.83286},
+    "tenure_months": {"mean": 25.25, "scale": 16.961353},
+    "usage_drop_pct": {"mean": 24.625, "scale": 21.776923}
+  },
+  "promotion": {
+    "criteria": {
+      "drift_status_must_not_be": "blocked",
+      "minimum_training_fixture_accuracy": 0.75
+    },
+    "decision": "promote"
+  },
   "run_id": "sample-model",
+  "schema_version": 1,
   "threshold": 0.5,
   "train_date": "2026-05-13",
   "trained_at": "2026-05-13T00:00:00+00:00",
-  "weights": {
-    "late_payments_12m": 0.75,
-    "monthly_charges": 0.012,
-    "support_tickets_90d": 0.55,
-    "tenure_months": -0.05,
-    "usage_drop_pct": 0.04
+  "training_data": {
+    "row_count": 8,
+    "sha256": "d11bc2f86283451120182941fb2abc72d2054e87c3b6efe3864536fea43b6a82"
   }
 }

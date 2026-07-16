@@ -28,6 +28,7 @@ reference-only samples.
 | check a cold workstation | `make platform-doctor`, `make workload-readiness` |
 | inspect local proof maturity | `make workload-readiness-local`, `make local-kubernetes-admission-report` |
 | prove contracts fast | `make workload-readiness`, `make runtime-conformance`, `make local-kubernetes-contracts` |
+| prove enterprise engineering experiments | `make enterprise-pattern-proofs` |
 | run the default local app host path | `make dev`, `make migrate`, `make seed`, `make local-app-up` |
 | run the API with local observability | `make local-up` |
 | prove the isolated local Compose runtime boundary | `make local-compose-live-proof` |
@@ -190,8 +191,7 @@ the project down by default.
 
 `platform-toolkit-validate-local` is the full local Compose proof. It also runs
 the data export job, emits an operational snapshot, runs configured integration
-checks, runs the `open_dataset_pipeline` workload, and finishes with
-`make runtime-conformance`.
+checks, and finishes with `make runtime-conformance`.
 
 The target prints section headers before each slice. Docker and pytest still
 show their native output so failures stay close to the tool that produced them.
@@ -204,39 +204,25 @@ when you also want to remove local volumes.
 
 ## Local Data Artifacts
 
-The data export and open dataset workloads write to the `data_exports` Docker
-volume. Use these helpers to inspect or reset the local artifact surface:
+The data export workload writes to the `data_exports` Docker volume. Use these
+helpers to inspect or reset the local artifact surface:
 
 ```bash
 make data-export
 make operational-snapshot
 INTEGRATION_CHECK_TARGETS=api=http://api:8000/health make integration-check
-make open-dataset-pipeline
 make data-artifacts-list
 make data-artifacts-shell
 make data-artifacts-clean
 ```
 
-The local-first workload tracks also use the same artifact volume:
-
-- `lake_orders_ingest_job` writes raw/curated Parquet and a manifest.
-- `churn_model_train_job` writes a model artifact and manifest.
-- `support_triage_llm` writes triage run evidence, evaluation evidence, and
-  failed-run operator payloads.
-
-Run the LLM host locally with:
+The `experiments` Compose profile exposes the local-only booking, late-event,
+and MLOps workloads. `make dapr-up && make dapr-smoke` proves both Dapr pub/sub
+and service invocation. The focused pattern target applies migrations and runs
+the application, adapter, host, and concurrency proofs:
 
 ```bash
-docker compose --profile llm up support-triage-llm
-curl --fail --show-error http://127.0.0.1:8083/ready
-curl --fail --show-error \
-  -H "Content-Type: application/json" \
-  --data '{"ticket_id":"T-local","subject":"Production API is down","body":"Checkout is unavailable","customer_tier":"enterprise","run_id":"local-triage"}' \
-  http://127.0.0.1:8083/triage
-curl --fail --show-error \
-  -H "Content-Type: application/json" \
-  --data '{"run_id":"local-eval"}' \
-  http://127.0.0.1:8083/evaluate
+make enterprise-pattern-proofs
 ```
 
 ## Migration Rollout Walkthrough
@@ -289,7 +275,6 @@ make dapr-up
 make data-export
 make operational-snapshot
 INTEGRATION_CHECK_TARGETS=api=http://api:8000/health make integration-check
-make open-dataset-pipeline
 ```
 
 ## Current Target Inventory

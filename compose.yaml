@@ -24,6 +24,8 @@ x-event-consumer-app-id: &event_consumer_app_id event-consumer
 x-event-consumer-app-port: &event_consumer_app_port "8081"
 x-event-consumer-pubsub-name: &event_consumer_pubsub_name async-events-pubsub
 x-event-consumer-topic: &event_consumer_topic async-events-v1.fifo
+x-booking-app-id: &booking_app_id booking-api
+x-booking-app-port: &booking_app_port "8084"
 
 services:
 
@@ -157,24 +159,6 @@ services:
     profiles:
       - data
 
-  open-dataset-pipeline:
-    build:
-      <<: *workload_build
-      args:
-        APP_PATH: apps/open_dataset_pipeline
-        UV_PACKAGE: aws-sdlc-containers-open-dataset-pipeline
-        WORKLOAD_CMD: python -m open_dataset_pipeline.main
-    environment:
-      OPEN_DATASET_URL: ${OPEN_DATASET_URL:-file:///app/apps/open_dataset_pipeline/sample_data/iris.csv}
-      OPEN_DATASET_NAME: ${OPEN_DATASET_NAME:-iris}
-      OPEN_DATASET_OUTPUT_DIR: ${OPEN_DATASET_OUTPUT_DIR:-/exports}
-      OPEN_DATASET_RUN_ID: ${OPEN_DATASET_RUN_ID:-}
-      OPEN_DATASET_DATE: ${OPEN_DATASET_DATE:-}
-    volumes:
-      - data_exports:/exports
-    profiles:
-      - data
-
   lake-orders-ingest-job:
     build:
       <<: *workload_build
@@ -183,14 +167,14 @@ services:
         UV_PACKAGE: aws-sdlc-containers-lake-orders-ingest-job
         WORKLOAD_CMD: python -m lake_orders_ingest_job.main
     environment:
-      LAKE_ORDERS_SOURCE_DIR: ${LAKE_ORDERS_SOURCE_DIR:-/app/apps/lake_orders_ingest_job/sample_data}
-      LAKE_ORDERS_OUTPUT_DIR: ${LAKE_ORDERS_OUTPUT_DIR:-/exports}
-      LAKE_ORDERS_RUN_ID: ${LAKE_ORDERS_RUN_ID:-}
-      LAKE_ORDERS_INGEST_DATE: ${LAKE_ORDERS_INGEST_DATE:-}
+      LAKE_ORDERS_SOURCE_DIR: /app/apps/lake_orders_ingest_job/sample_data
+      LAKE_ORDERS_OUTPUT_DIR: /exports/lake-orders
+      LAKE_ORDERS_RUN_ID: ${LAKE_ORDERS_RUN_ID:-local}
+      LAKE_ORDERS_INGEST_DATE: ${LAKE_ORDERS_INGEST_DATE:-2026-05-13}
     volumes:
       - data_exports:/exports
     profiles:
-      - data
+      - experiments
 
   churn-model-train-job:
     build:
@@ -200,14 +184,14 @@ services:
         UV_PACKAGE: aws-sdlc-containers-churn-model-train-job
         WORKLOAD_CMD: python -m churn_model_train_job.main
     environment:
-      CHURN_TRAINING_DATA_PATH: ${CHURN_TRAINING_DATA_PATH:-/app/apps/churn_model_train_job/sample_data/churn_training.csv}
-      CHURN_MODEL_OUTPUT_DIR: ${CHURN_MODEL_OUTPUT_DIR:-/exports}
-      CHURN_MODEL_RUN_ID: ${CHURN_MODEL_RUN_ID:-}
-      CHURN_MODEL_TRAIN_DATE: ${CHURN_MODEL_TRAIN_DATE:-}
+      CHURN_TRAINING_DATA_PATH: /app/apps/churn_model_train_job/sample_data/churn_training.csv
+      CHURN_MODEL_OUTPUT_DIR: /exports/churn-models
+      CHURN_MODEL_RUN_ID: ${CHURN_MODEL_RUN_ID:-local}
+      CHURN_MODEL_TRAIN_DATE: ${CHURN_MODEL_TRAIN_DATE:-2026-05-13}
     volumes:
       - data_exports:/exports
     profiles:
-      - data
+      - experiments
 
   churn-prediction-api:
     build:
@@ -217,29 +201,58 @@ services:
         UV_PACKAGE: aws-sdlc-containers-churn-prediction-api
         WORKLOAD_CMD: python -m churn_prediction_api.main
     environment:
-      CHURN_MODEL_PATH: ${CHURN_MODEL_PATH:-/app/apps/churn_prediction_api/sample_model/churn_model.json}
+      CHURN_MODEL_PATH: /app/apps/churn_prediction_api/sample_model/churn_model.json
+      SERVICE_PORT: 8082
     ports:
-      - "${CHURN_PREDICTION_API_PORT:-8082}:8082"
+      - "${CHURN_PREDICTION_PORT:-8082}:8082"
     profiles:
-      - data
+      - experiments
 
-  support-triage-llm:
+  booking-api:
     build:
       <<: *workload_build
       args:
-        APP_PATH: apps/support_triage_llm
-        UV_PACKAGE: aws-sdlc-containers-support-triage-llm
-        WORKLOAD_CMD: python -m support_triage_llm.main
+        APP_PATH: apps/booking_api
+        UV_PACKAGE: aws-sdlc-containers-booking-api
+        WORKLOAD_CMD: python -m booking_api.main
     environment:
-      SUPPORT_TRIAGE_PROMPT_PATH: ${SUPPORT_TRIAGE_PROMPT_PATH:-/app/apps/support_triage_llm/prompts/support_triage_v1.md}
-      SUPPORT_TRIAGE_EVAL_CASES_PATH: ${SUPPORT_TRIAGE_EVAL_CASES_PATH:-/app/apps/support_triage_llm/sample_data/evaluation_cases.json}
-      SUPPORT_TRIAGE_OUTPUT_DIR: ${SUPPORT_TRIAGE_OUTPUT_DIR:-/exports}
+      <<: *pooled_db_env
+      DATABASE_URL: *pooled_database_url
+      SERVICE_PORT: 8084
     ports:
-      - "${SUPPORT_TRIAGE_LLM_PORT:-8083}:8083"
-    volumes:
-      - data_exports:/exports
+      - "${BOOKING_API_PORT:-8084}:8084"
+    depends_on:
+      db:
+        condition: service_healthy
+      pgbouncer:
+        condition: service_healthy
     profiles:
-      - llm
+      - experiments
+
+  booking-api-dapr:
+    image: daprio/daprd:1.17.0
+    command:
+      - ./daprd
+      - --app-id
+      - *booking_app_id
+      - --app-port
+      - *booking_app_port
+      - --app-channel-address
+      - *booking_app_id
+      - --dapr-http-port
+      - "3500"
+      - --resources-path
+      - /components
+      - --config
+      - /config/config.yaml
+    volumes:
+      - ./platform/concerns/dapr/profiles/local/components:/components:ro
+      - ./platform/concerns/dapr/profiles/local/config.yaml:/config/config.yaml:ro
+    depends_on:
+      booking-api:
+        condition: service_started
+    profiles:
+      - dapr
 
   operational-snapshot-job:
     build:
@@ -303,20 +316,6 @@ services:
         condition: service_started
     profiles:
       - dapr
-
-  foreign-inventory-sync:
-    build:
-      <<: *workload_build
-      args:
-        APP_PATH: apps/foreign_inventory_sync
-        UV_PACKAGE: foreign-inventory-sync
-        WORKLOAD_CMD: python -m foreign_inventory_sync.main
-    environment:
-      <<: *direct_db_env
-      DATABASE_URL: *direct_database_url
-    depends_on:
-      db:
-        condition: service_healthy
 
   event-consumer-dapr:
     image: daprio/daprd:1.17.0

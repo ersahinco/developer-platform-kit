@@ -97,7 +97,6 @@ GH_RUN_ID=<workflow-run-id> LOOKBACK_MINUTES=60 make incident-evidence
 
 ```bash
 make data-export
-make open-dataset-pipeline
 make data-artifacts-list
 make data-artifacts-shell
 ```

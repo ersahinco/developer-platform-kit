@@ -44,13 +44,15 @@
           "items": {
             "type": "string"
           },
-          "minItems": 1
+          "minItems": 1,
+          "uniqueItems": true
         },
         "admitted": {
           "type": "array",
           "items": {
             "type": "string"
-          }
+          },
+          "uniqueItems": true
         }
       },
       "additionalProperties": false
@@ -147,7 +149,11 @@
           "items": {
             "type": "string"
           },
-          "minItems": 1
+          "contains": {
+            "const": "workload_info"
+          },
+          "minItems": 1,
+          "uniqueItems": true
         }
       },
       "additionalProperties": false
@@ -178,31 +184,54 @@
       "additionalProperties": false
     },
     "dapr": {
-      "type": "object",
-      "required": ["app_id", "scope", "pubsub_name", "topic", "subscription_route"],
-      "properties": {
-        "app_id": {
-          "type": "string",
-          "minLength": 1
+      "oneOf": [
+        {
+          "type": "object",
+          "required": [
+            "app_id",
+            "scope",
+            "pubsub_name",
+            "topic",
+            "subscription_route"
+          ],
+          "properties": {
+            "app_id": {
+              "type": "string",
+              "minLength": 1
+            },
+            "scope": {
+              "const": "pubsub"
+            },
+            "pubsub_name": {
+              "type": "string",
+              "minLength": 1
+            },
+            "topic": {
+              "type": "string",
+              "minLength": 1
+            },
+            "subscription_route": {
+              "type": "string",
+              "minLength": 1
+            }
+          },
+          "additionalProperties": false
         },
-        "scope": {
-          "type": "string",
-          "enum": ["pubsub"]
-        },
-        "pubsub_name": {
-          "type": "string",
-          "minLength": 1
-        },
-        "topic": {
-          "type": "string",
-          "minLength": 1
-        },
-        "subscription_route": {
-          "type": "string",
-          "minLength": 1
+        {
+          "type": "object",
+          "required": ["app_id", "scope"],
+          "properties": {
+            "app_id": {
+              "type": "string",
+              "minLength": 1
+            },
+            "scope": {
+              "const": "service-invocation"
+            }
+          },
+          "additionalProperties": false
         }
-      },
-      "additionalProperties": false
+      ]
     },
     "config": {
       "type": "object",
@@ -213,14 +242,16 @@
           "items": {
             "type": "string",
             "pattern": "^[A-Z][A-Z0-9_]*$"
-          }
+          },
+          "uniqueItems": true
         },
         "secrets": {
           "type": "array",
           "items": {
             "type": "string",
             "pattern": "^[A-Z][A-Z0-9_]*$"
-          }
+          },
+          "uniqueItems": true
         }
       },
       "additionalProperties": false
@@ -267,14 +298,16 @@
                 "items": {
                   "type": "string",
                   "pattern": "^[A-Z][A-Z0-9_]*$"
-                }
+                },
+                "uniqueItems": true
               },
               "secrets": {
                 "type": "array",
                 "items": {
                   "type": "string",
                   "pattern": "^[A-Z][A-Z0-9_]*$"
-                }
+                },
+                "uniqueItems": true
               }
             },
             "additionalProperties": false
@@ -292,5 +325,138 @@
       }
     }
   },
+  "allOf": [
+    {
+      "if": {
+        "properties": {
+          "kind": {
+            "const": "service"
+          }
+        },
+        "required": ["kind"]
+      },
+      "then": {
+        "required": ["service", "metrics"],
+        "properties": {
+          "operational": {
+            "properties": {
+              "class": {
+                "enum": ["edge-service", "internal-service"]
+              }
+            }
+          }
+        },
+        "not": {
+          "required": ["job"]
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "kind": {
+            "const": "service"
+          },
+          "operational": {
+            "properties": {
+              "class": {
+                "const": "edge-service"
+              }
+            },
+            "required": ["class"]
+          }
+        },
+        "required": ["kind", "operational"]
+      },
+      "then": {
+        "required": ["edge"]
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "kind": {
+            "const": "job"
+          }
+        },
+        "required": ["kind"]
+      },
+      "then": {
+        "required": ["job"],
+        "properties": {
+          "operational": {
+            "required": ["trigger"],
+            "properties": {
+              "class": {
+                "enum": ["operator-job", "scheduled-job"]
+              }
+            }
+          }
+        },
+        "not": {
+          "anyOf": [
+            {
+              "required": ["service"]
+            },
+            {
+              "required": ["edge"]
+            }
+          ]
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "operational": {
+            "properties": {
+              "class": {
+                "const": "operator-job"
+              }
+            },
+            "required": ["class"]
+          }
+        },
+        "required": ["operational"]
+      },
+      "then": {
+        "properties": {
+          "operational": {
+            "properties": {
+              "trigger": {
+                "const": "manual"
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "operational": {
+            "properties": {
+              "class": {
+                "const": "scheduled-job"
+              }
+            },
+            "required": ["class"]
+          }
+        },
+        "required": ["operational"]
+      },
+      "then": {
+        "properties": {
+          "operational": {
+            "properties": {
+              "trigger": {
+                "const": "schedule"
+              }
+            }
+          }
+        }
+      }
+    }
+  ],
   "additionalProperties": false
 }

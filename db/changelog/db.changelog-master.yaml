@@ -33,3 +33,7 @@ databaseChangeLog:
   # 007 — Event consumer contract: rename consumed event receipts to generic event receipts.
   - include:
       file: changelog/007-event-receipts-contract.yaml
+
+  # 008 — Booking proof: database-enforced single winner per resource and slot.
+  - include:
+      file: changelog/008-booking-reservations.yaml

@@ -1,0 +1,27 @@
+databaseChangeLog:
+  - changeSet:
+      id: 2026-07-16-platform-booking-reservations
+      author: aws-sdlc-containers
+      comment: "Add the experimental booking invariant enforced by PostgreSQL."
+      changes:
+        - sql:
+            sql: |
+              CREATE TABLE booking_reservations (
+                booking_id VARCHAR(36) PRIMARY KEY,
+                resource_id VARCHAR(200) NOT NULL,
+                starts_at TIMESTAMPTZ NOT NULL,
+                customer_id VARCHAR(200) NOT NULL,
+                created_at TIMESTAMPTZ NOT NULL,
+                CONSTRAINT uq_booking_reservations_resource_slot
+                  UNIQUE (resource_id, starts_at),
+                CONSTRAINT chk_booking_reservations_resource_nonempty
+                  CHECK (BTRIM(resource_id) <> ''),
+                CONSTRAINT chk_booking_reservations_customer_nonempty
+                  CHECK (BTRIM(customer_id) <> '')
+              );
+            splitStatements: false
+      rollback:
+        - sql:
+            sql: |
+              DROP TABLE IF EXISTS booking_reservations;
+            splitStatements: false

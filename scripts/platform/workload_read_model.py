@@ -236,6 +236,7 @@ def workload_capabilities(workload: dict[str, Any]) -> dict[str, Any]:
     operational = operational_value if isinstance(operational_value, dict) else {}
     database = workload_database(workload)
     traces = workload.get("traces", {})
+    dapr = workload.get("dapr")
 
     return {
         "edge_exposure": operational.get("exposure"),
@@ -247,7 +248,7 @@ def workload_capabilities(workload: dict[str, Any]) -> dict[str, Any]:
         and operational.get("class") == "scheduled-job",
         "operator_execution": workload.get("kind") == "job"
         and operational.get("class") == "operator-job",
-        "async_eventing": isinstance(workload.get("dapr"), dict),
+        "async_eventing": isinstance(dapr, dict) and dapr.get("scope") == "pubsub",
         "pooled_database": isinstance(database, dict)
         and database.get("pooling") == "transaction_pool",
         "direct_database": isinstance(database, dict)
@@ -716,23 +717,6 @@ def operator_job_workloads() -> list[dict[str, Any]]:
         if workload_capabilities(workload)["operator_execution"]
         and workload_admitted_to_runtime(workload, "aws-ecs")
     ]
-
-
-def async_eventing_workloads() -> list[dict[str, Any]]:
-    return [
-        workload
-        for workload in workloads()
-        if workload_capabilities(workload)["async_eventing"]
-    ]
-
-
-def primary_async_eventing_workload() -> dict[str, Any]:
-    matches = async_eventing_workloads()
-    if len(matches) != 1:
-        raise ValueError(
-            f"expected exactly one async-eventing workload, found {len(matches)}"
-        )
-    return matches[0]
 
 
 def primary_edge_service_workload() -> dict[str, Any]:

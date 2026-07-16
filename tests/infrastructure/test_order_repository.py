@@ -5,7 +5,7 @@ from decimal import Decimal
 from sqlalchemy import text
 from sqlalchemy.orm import Session
 
-from infrastructure.db.repository import SQLAlchemyOrderRepository
+from infrastructure.db.orders import SQLAlchemyOrderRepository
 from tests.fixtures import make_customer
 
 
@@ -20,7 +20,7 @@ def _set_modes(session: Session, *, write: str, read: str) -> None:
             {"k": key, "v": val},
         )
     session.commit()
-    from infrastructure.db.repository import _read_mode_cache, _write_mode_cache
+    from infrastructure.db.config_store import _read_mode_cache, _write_mode_cache
 
     _read_mode_cache.invalidate()
     _write_mode_cache.invalidate()

@@ -1,1 +1,1 @@
-"""Churn model training operator job."""
+"""Experimental churn model training workload."""

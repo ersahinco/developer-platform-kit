@@ -8,8 +8,6 @@ details into app code. Use standard tools directly and keep provider details at
 the platform edge.
 
 `platform/workloads.json` is the machine-readable workload contract.
-`platform/workload-patterns.json` is the machine-readable list of supported
-workload classification shapes.
 `platform/runtime-defaults.json` is the machine-readable list of blessed
 runtime defaults for auth, identity, secrets, observability, policy, CI/CD, and
 network behavior.
@@ -35,7 +33,8 @@ requirements:
 - supported runtime targets and admitted runtime targets
 - operational class
 - service port declarations
-- optional capability declarations such as database or Dapr when the workload actually needs them
+- capability declarations such as database and the Dapr application APIs used
+  or proven by the workload
 - Dapr app identity and component mappings
 - shared image package and command metadata
 - portable health, metrics, traces, and idempotency expectations
@@ -52,29 +51,11 @@ Candidate helpers and catalog artifacts may describe, check, or explain workload
 boundaries. They must not create app code, redefine workload identity, own
 deployment choreography, or become a hidden framework.
 
-Use this rule for workload-fit candidates, catalog building blocks, examples,
-and candidate runtime profiles. These artifacts can point back to
+Use this rule for workload candidates, catalog building blocks, and examples.
+These artifacts can point back to
 `platform/workloads.json`, runtime defaults, and standard tool commands, but the
 workload contract remains the only source of workload identity and runtime
 targets remain responsible for realization.
-
-`platform/workload-patterns.json` owns:
-
-- reusable workload shape names such as `edge-service`, `internal-async-service`, `scheduled-job`, and `export-job`
-- the kind and operational-class alignment for those shapes
-- a small shared vocabulary for examples and self-service discovery
-
-It does not own:
-
-- required workload fields; those belong in the workload contract and its policy checks
-- real workload classification; use `operational.class` and `use_cases` in `platform/workloads.json`
-- provider and runtime resource names
-- runtime product choices such as Okta, Kong, OPA, Datadog, Splunk, or an
-  enterprise gateway
-- AWS queue, topic, bucket, ALB, ECS, IAM, or RDS details for the current target
-- Dapr component backing implementations for an environment profile
-- Terraform composition or GitHub Actions deployment choreography
-- `platform/runtime-conformance.json` fixture values
 
 ## Metadata Ownership
 
@@ -200,26 +181,38 @@ Object storage and file-output expectations follow the same rule: declare
 portable config and secret names plus operator-visible evidence, then let the
 runtime target choose S3, local volumes, or another owned implementation.
 
-External dependencies follow the same boundary. A candidate workload may ask
-for bounded dependency access to systems such as Entra ID, an external DNS
-provider, a SaaS API, or an externally owned database. The contract-level shape
-is purpose, owner, direction, declared config names, declared secret names, and
-evidence. Provider tenant IDs, client IDs, DNS zone IDs, URLs, ARNs, subnet IDs,
-and product resource names belong at the platform edge or in operator-owned
-secret/config systems.
+External systems follow a bounded dependency contract during admission. A
+candidate records the dependency kind, purpose, direction, owner, declared
+config and secret names, and evidence expectation. Provider resource IDs,
+endpoints, credential values, and provisioning choreography remain at the
+platform edge. This contract and its catalog entry may incubate before broad
+adoption, but active runtime admission still requires reviewed realization and
+operator ownership.
 
-## Eventing
+## Dapr Application APIs
 
-Dapr is the app-facing eventing boundary.
+Dapr is the core app-facing distributed-systems boundary. A workload declares
+its Dapr app identity and the building-block scope it uses. Application teams
+consume Dapr APIs; the platform owns component implementation, scoping,
+resiliency, security, telemetry, and runtime delivery.
 
-- Application code may know Dapr pub/sub names, topics, CloudEvents, and outbox semantics.
-- The application specification may declare Dapr app identity and component mappings.
-- Application code must not know whether runtime transport is SNS/SQS, Redis, Kafka, Azure Service Bus, GCP Pub/Sub, or another broker.
-- The durable application handoff remains the database outbox.
-- Retry, dead-letter, and idempotency behavior must stay explicit.
+Current proven scopes:
 
-Do not broaden Dapr into unrelated capabilities until a real workload needs
-them.
+- `service-invocation`: local booking service identity and invocation with
+  scoped timeout, retry, and circuit breaker
+- `pubsub`: CloudEvents and durable outbox handoff, backed locally by Redis and
+  in the reviewed AWS runtime by SNS/SQS
+
+Application code may know Dapr app ids, API contracts, pub/sub names, topics,
+CloudEvents, and outbox semantics. It must not know whether runtime transport
+is SNS/SQS, Redis, Kafka, Azure Service Bus, GCP Pub/Sub, or another component.
+The database outbox remains the durable event handoff, and database constraints
+remain the source of truth for transactional invariants. Retry, dead-letter,
+idempotency, and failure behavior stay explicit.
+
+Additional Dapr building blocks may incubate before scale through an owned
+workload proof with component mapping, conformance, evidence, failure mode, and
+operational ownership.
 
 ## Auth And Policy
 

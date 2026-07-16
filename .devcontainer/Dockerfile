@@ -45,3 +45,5 @@ ARG TYPESCRIPT_VERSION=6.0.3
 COPY install-tools.sh /tmp/install-tools.sh
 RUN bash /tmp/install-tools.sh \
     && rm /tmp/install-tools.sh
+
+USER vscode

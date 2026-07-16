@@ -2,10 +2,11 @@ apiVersion: backstage.io/v1alpha1
 kind: Component
 metadata:
   name: churn_prediction_api
-  description: Internal service workload host for serving local churn model predictions.
+  description: Experimental inference workload that serves only compatible, promoted model artifacts.
   tags:
-    - model-inference
     - internal-api
+    - mlops-serving
+    - model-inference
 spec:
   type: service
   lifecycle: experimental

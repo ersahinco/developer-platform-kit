@@ -9,7 +9,6 @@ from ._helpers import ROOT, load_json
 
 
 CATALOG_ROOT = ROOT / "infra" / "catalog"
-EXAMPLES_ROOT = ROOT / "examples"
 
 CATALOG_MANIFEST_KEYS = {
     "schema_version",
@@ -71,22 +70,6 @@ def _catalog_manifests() -> list[tuple[Path, dict[str, Any]]]:
     return [(path, _load_yaml(path)) for path in sorted(CATALOG_ROOT.glob("**/*.yaml"))]
 
 
-def _example_manifests() -> list[tuple[Path, dict[str, Any]]]:
-    return [
-        (path, _load_yaml(path))
-        for path in sorted(EXAMPLES_ROOT.glob("*/example.yaml"))
-    ]
-
-
-def _catalog_entry_refs() -> set[str]:
-    refs: set[str] = set()
-    for path, manifest in _catalog_manifests():
-        rel_path = path.relative_to(ROOT).as_posix()
-        for entry in manifest["entries"]:
-            refs.add(f"{rel_path}#{entry['id']}")
-    return refs
-
-
 def _walk_keys(value: Any) -> list[str]:
     if isinstance(value, dict):
         keys: list[str] = []
@@ -140,32 +123,9 @@ def test_catalog_manifests_describe_reusable_runtime_building_blocks() -> None:
                     entry["id"],
                     list_field,
                 )
-
-
-def test_examples_consume_platform_patterns_and_catalog_entries() -> None:
-    workload_patterns = {
-        pattern["name"]
-        for pattern in load_json("platform/workload-patterns.json")["patterns"]
-    }
-    runtime_targets = set(
-        load_json("platform/runtime-defaults.json")["runtime_targets"]
-    )
-    catalog_refs = _catalog_entry_refs()
-
-    for _path, manifest in _example_manifests():
-        platform_usage = manifest["platform_usage"]
-        assert set(platform_usage["workload_patterns"]).issubset(workload_patterns)
-        assert set(platform_usage["runtime_targets"]).issubset(runtime_targets)
-        assert set(platform_usage["catalog_entries"]).issubset(catalog_refs)
-        assert platform_usage["proof"]["tests"]
-        assert platform_usage["proof"]["commands"]
-
-
-def test_examples_do_not_overlap_real_workloads() -> None:
-    workload_names = {
-        workload["name"]
-        for workload in load_json("platform/workloads.json")["workloads"]
-    }
-
-    for _path, manifest in _example_manifests():
-        assert manifest["name"] not in workload_names
+            for implementation in entry["implementation"]:
+                assert (ROOT / implementation).exists(), (
+                    path,
+                    entry["id"],
+                    implementation,
+                )

@@ -6,7 +6,7 @@ import uuid
 from sqlalchemy import text
 from sqlalchemy.orm import Session
 
-from infrastructure.db.repository import SQLAlchemyOutboxRepository
+from infrastructure.db.outbox import SQLAlchemyOutboxRepository
 from domain.order_events import EventMessage
 
 

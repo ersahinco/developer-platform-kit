@@ -27,7 +27,9 @@ def test_deployment_options_document_runtime_choice_without_new_runtime_target()
     assert "Capability status:" in doc
     assert "Active: `local-compose`, `local-kubernetes`, and `aws-ecs`" in doc
     assert "Candidate guidance: Supabase database realization" in doc
-    assert "Out of scope until real need" in doc
+    assert "Outside active defaults until reviewed proof" in doc
+    assert "bounded candidate" in doc
+    assert "without claiming production readiness" in doc
     assert "## Decision Workflow" in doc
     assert "Promote anything to an active runtime target only after owner" in doc
     assert "fit before migration" in doc

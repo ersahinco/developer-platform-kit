@@ -32,9 +32,9 @@ catalog.
 
 - The workload contract defines what a workload is, what it needs, and what guarantees it must satisfy.
 - The platform catalog provides reusable building blocks, templates, modules, policies, and delivery paths that realize those needs.
-- A runtime target is a pluggable implementation choice at the platform edge, such as local Compose, local Kubernetes proof, AWS ECS, jobs, or a future provider-edge integration backed by a real workload need.
+- A runtime target is a pluggable implementation choice at the platform edge, such as local Compose, local Kubernetes proof, AWS ECS, jobs, or a future provider-edge integration backed by a concrete proof workload.
 - Runtime targets must realize the contract, not redefine workload identity, portability rules, or shared delivery policy.
-- The active local proof runtime targets are `local-compose` and `local-kubernetes`. The current reviewed production runtime target is AWS/ECS. Additional runtime targets need a real workload reason and clear ownership.
+- The active local proof runtime targets are `local-compose` and `local-kubernetes`. The current reviewed production runtime target is AWS/ECS. Additional active runtime targets need a concrete proof workload and clear ownership; incubating catalog capabilities may precede broad adoption when they have an owner, contract, tests, evidence path, and honest maturity.
 
 ## Layer Map
 
@@ -114,12 +114,20 @@ Rules:
 - Use target-neutral `use_cases` to classify workload intent for catalog, templates, and self-service discovery.
 - Add future runtime targets as parallel realization layers, not by rewriting the stable center.
 
-## Eventing Boundary
+## Dapr Application Boundary
 
-Dapr is the app-facing eventing boundary. Application code may know Dapr
-pub/sub names, topics, CloudEvents, and outbox semantics. Application code
-must not know whether the runtime uses SNS/SQS, Redis, Kafka, or another
-broker. The durable handoff is the database outbox.
+Dapr is a core app-facing distributed-systems boundary. Prefer Dapr APIs for
+service invocation, pub/sub, workflow, state, jobs, configuration, secrets,
+and other distributed capabilities when an owned workload proof adopts the
+building block. App teams consume stable APIs; platform owners choose and
+govern component implementations, resiliency, security, and telemetry.
+
+The current production proof uses pub/sub with CloudEvents and a durable
+database outbox; application code must not know whether the runtime uses
+SNS/SQS, Redis, Kafka, or another broker. Local service invocation is also
+proven through the booking workload. Dapr coordinates distributed behavior;
+domain rules and database invariants remain in the application core and data
+model.
 
 ## Delivery Rules
 
@@ -137,6 +145,7 @@ broker. The durable handoff is the database outbox.
 - Remove duplication, hidden coupling, and unclear ownership first.
 - Keep the repo conventional: standard tools directly, small helpers only.
 - Do not add speculative abstractions, internal frameworks, or extra layers.
+- Capabilities may incubate before demand reaches scale when they have a concrete proof, owner, contract, tests, evidence path, and explicit non-production maturity.
 - Preserve explicit platform boundaries, metadata ownership, and reviewed delivery.
 
 ## Checklists
@@ -173,10 +182,13 @@ plan, separate apply.
 
 ## Intentionally Not Here
 
-Do not add without a real workload need:
+Do not promote into the active contract or runtime defaults without concrete
+proof and ownership:
 
-- Dapr state store, bindings, workflows, actors, or secrets
-- open-source data load / DuckDB / dbt example stacks in the deployable workload contract
+- unowned Dapr building blocks without a workload proof, component mapping,
+  conformance, evidence, failure mode, and operational owner
+- generic open-source data-tool stacks presented as platform defaults; an owned
+  experimental workload may use a specialized tool to prove a named behavior
 - Self-managed Kubernetes control planes, Helm/Kustomize packaging, or Crossplane
 - A runtime target added only to prove portability
 - Generic provider-neutral infrastructure modules

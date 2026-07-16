@@ -29,7 +29,10 @@ Support paths:
 Liquibase task -> Postgres direct connection
 Backfill worker -> Postgres direct connection -> checkpointed copy
 Data export job -> Postgres direct connection -> raw CSV -> manifest -> optional S3 upload
-Lake orders ingest job -> checked-in order batches -> Parquet -> DuckDB transform -> manifest
+Booking API -> PgBouncer -> Postgres unique slot constraint -> reserved or conflict
+Lake orders job -> CSV batches -> raw Parquet -> deduplicated projection -> manifest
+Churn training job -> fixture -> versioned model + lineage/promotion manifest
+Churn prediction API -> compatible promoted model -> prediction + model identity
 ```
 
 Liquibase and jobs connect directly because DDL and batch work need stable
@@ -81,39 +84,29 @@ Stable layout:
 
 Do not add another object store only to prove portability.
 
-## Lake Orders Ingest Workload
+## Enterprise Pattern Proofs
 
-`apps/lake_orders_ingest_job` is a local-first operator job that proves data
-engineering behavior without adding a data platform contract. It reads checked-in
-order batches, writes raw and curated Parquet, executes a checked-in DuckDB SQL
-model with uniqueness and not-null checks, and emits structured run evidence.
+The local-only experimental workloads exercise failure modes that matter at
+enterprise scale without claiming production admission:
 
-Stable layout:
+- `booking_api` is reached through Dapr service invocation while the
+  double-booking invariant stays in PostgreSQL as a unique
+  `(resource_id, starts_at)` constraint. The concurrency test uses independent
+  sessions and proves exactly one committed reservation.
+- `lake_orders_ingest_job` rebuilds a projection from source batches, selects
+  the latest update per order, flags records older than the ingest watermark,
+  and publishes a manifest only after raw and curated artifacts succeed.
+- `churn_model_train_job` produces a deterministic model identity, input hash,
+  bounded evaluation, drift summary, and promotion decision.
+- `churn_prediction_api` loads only schema-compatible promoted artifacts and
+  includes model version, run id, and training-data hash in prediction events.
 
-- `raw/lake_orders/dt=<date>/<run-id>.parquet`
-- `curated/lake_orders/dt=<date>/<run-id>.parquet`
-- `manifests/lake_orders/dt=<date>/<run-id>.json`
+These are intentionally small pattern proofs, not generic analytics or MLOps
+platforms. Run them with:
 
-Evidence includes `run_id`, `row_count`, `late_arrival_count`,
-`parquet_object_count`, and artifact paths.
-
-## Churn Model Workloads
-
-`apps/churn_model_train_job` and `apps/churn_prediction_api` prove the model
-training plus inference shape as concrete workloads. The training job reads a
-checked-in fixture dataset, writes a model artifact and manifest, and emits
-evidence with `run_id`, `model_version`, training row count, metrics, and drift
-summary. The prediction API loads a model artifact and exposes `/health`,
-`/ready`, `/metrics`, and `/predict`.
-
-Stable training layout:
-
-- `models/churn_prediction/dt=<date>/<run-id>.json`
-- `manifests/churn_prediction/dt=<date>/<run-id>.json`
-
-Model metrics and drift summaries are workload evidence. They do not add MLOps
-fields to the workload contract. The runtime edge still decides where logs and
-Prometheus-compatible metrics go.
+```bash
+make enterprise-pattern-proofs
+```
 
 ## AWS Runtime
 
@@ -138,5 +131,5 @@ No placeholder objects. The task creates objects only when it runs.
 - cross-account sharing
 - Glue or Athena layers
 - Lake Formation permissions
-- data quality frameworks
+- generic data quality frameworks
 - multi-step orchestration

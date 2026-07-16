@@ -89,6 +89,7 @@ class SQLAlchemyIdempotencyRepository:
         self._session.commit()
 
     def fail(self, *, key: str, error: str) -> None:
+        self._session.rollback()
         row = self._session.get(IdempotencyKeyModel, key)
         if row is None:
             return

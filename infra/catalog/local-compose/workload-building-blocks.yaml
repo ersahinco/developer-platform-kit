@@ -61,6 +61,26 @@ entries:
       - keep SQL migrations in db/
       - keep provider-specific database choices at the runtime edge
 
+  - id: local-dapr-application-apis
+    type: distributed-application-runtime
+    provides:
+      - Dapr app identity and service invocation
+      - Redis-backed pub/sub with CloudEvents
+      - scoped timeout, retry, and circuit-breaker policy
+    consumes_contract:
+      - Dapr app id and building-block scope
+      - service port or pub/sub names and routes
+      - structured application evidence
+    implementation:
+      - compose.yaml
+      - platform/concerns/dapr
+      - packages/infrastructure/dapr
+      - scripts/platform/local_dapr_smoke.py
+    adoption_steps:
+      - declare the Dapr building-block scope in the workload contract
+      - keep component implementation and resiliency in the Dapr concern
+      - prove the app-facing API through make dapr-smoke
+
   - id: local-artifact-output
     type: storage-runtime
     provides:
@@ -73,7 +93,8 @@ entries:
       - idempotent output behavior
     implementation:
       - compose.yaml
-      - apps/*/sample_data
+      - apps/data_export_job
+      - packages/infrastructure/data_export.py
     adoption_steps:
       - write artifacts under a configurable local output directory
       - emit a manifest or structured success event

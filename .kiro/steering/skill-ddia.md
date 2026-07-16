@@ -32,7 +32,7 @@ effects were local, ordered, fresh, and exactly once.
 - schema changes follow expand, dual-write, backfill, switch, contract
 - export manifests are the source of truth for export state
 - event payloads are versioned
-- `order_event_receipts` and `idempotency_keys` exist for duplicate and replay
+- `event_receipts` and `idempotency_keys` exist for duplicate and replay
   safety
 
 ## Triggers

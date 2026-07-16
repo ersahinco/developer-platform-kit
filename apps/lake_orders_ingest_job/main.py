@@ -9,12 +9,12 @@ from lake_orders_ingest_job.config import settings
 from lake_orders_ingest_job.pipeline import LakeOrdersIngestRequest
 from lake_orders_ingest_job.pipeline import run_lake_orders_ingest
 
-LAKE_ORDERS_INGEST_JOB_NAME = "lake_orders_ingest"
+JOB_NAME = "lake_orders_ingest"
 WORKLOAD_NAME = "lake_orders_ingest_job"
 
 
 def _utc_now() -> datetime.datetime:
-    return datetime.datetime.now(tz=datetime.timezone.utc)
+    return datetime.datetime.now(tz=datetime.UTC)
 
 
 def run_ingest() -> dict[str, Any]:
@@ -37,7 +37,7 @@ def run_ingest() -> dict[str, Any]:
             {
                 "workload": WORKLOAD_NAME,
                 "event": "lake_orders_ingest_succeeded",
-                "job_name": LAKE_ORDERS_INGEST_JOB_NAME,
+                "job_name": JOB_NAME,
                 "timestamp": ingested_at.isoformat(),
                 **manifest,
             },
@@ -49,7 +49,25 @@ def run_ingest() -> dict[str, Any]:
 
 
 def main() -> None:
-    run_ingest()
+    try:
+        run_ingest()
+    except Exception as exc:
+        print(
+            json.dumps(
+                {
+                    "workload": WORKLOAD_NAME,
+                    "event": "lake_orders_ingest_failed",
+                    "job_name": JOB_NAME,
+                    "status": "failed",
+                    "error_type": type(exc).__name__,
+                    "error": str(exc),
+                    "timestamp": _utc_now().isoformat(),
+                },
+                sort_keys=True,
+            ),
+            flush=True,
+        )
+        raise
 
 
 if __name__ == "__main__":

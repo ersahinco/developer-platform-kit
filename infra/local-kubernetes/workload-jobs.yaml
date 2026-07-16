@@ -20,16 +20,34 @@ spec:
     spec:
       restartPolicy: Never
       serviceAccountName: workload-runtime
+      securityContext:
+        fsGroup: 1000
+        seccompProfile:
+          type: RuntimeDefault
       initContainers:
         - name: wait-for-pgbouncer
           image: postgres:18.3
           command: ["sh", "-c", "until pg_isready -h pgbouncer -U postgres -d aws_sdlc_containers; do sleep 2; done"]
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop: ["ALL"]
+            readOnlyRootFilesystem: true
+            runAsNonRoot: true
+            runAsUser: 999
         - name: wait-for-schema
           image: postgres:18.3
           command:
             - sh
             - -c
             - until psql -h pgbouncer -U postgres -d aws_sdlc_containers -tAc "SELECT to_regclass('public.order_contact_email')" | grep -q order_contact_email; do sleep 2; done
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop: ["ALL"]
+            readOnlyRootFilesystem: true
+            runAsNonRoot: true
+            runAsUser: 999
           env:
             - name: PGPASSWORD
               valueFrom:
@@ -40,6 +58,13 @@ spec:
         - name: data-export-job
           image: aws-sdlc-containers-data-export-job:local-kubernetes
           imagePullPolicy: IfNotPresent
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop: ["ALL"]
+            readOnlyRootFilesystem: true
+            runAsNonRoot: true
+            runAsUser: 1000
           envFrom:
             - configMapRef:
                 name: workload-config
@@ -74,6 +99,9 @@ spec:
     spec:
       restartPolicy: Never
       serviceAccountName: workload-runtime
+      securityContext:
+        seccompProfile:
+          type: RuntimeDefault
       initContainers:
         - name: wait-for-schema
           image: postgres:18.3
@@ -81,6 +109,13 @@ spec:
             - sh
             - -c
             - until psql -h db -U postgres -d aws_sdlc_containers -tAc "SELECT to_regclass('public.order_contact_email')" | grep -q order_contact_email; do sleep 2; done
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop: ["ALL"]
+            readOnlyRootFilesystem: true
+            runAsNonRoot: true
+            runAsUser: 999
           env:
             - name: PGPASSWORD
               valueFrom:
@@ -91,6 +126,13 @@ spec:
         - name: backfill-worker
           image: aws-sdlc-containers-backfill-worker:local-kubernetes
           imagePullPolicy: IfNotPresent
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop: ["ALL"]
+            readOnlyRootFilesystem: true
+            runAsNonRoot: true
+            runAsUser: 1000
           env:
             - name: DATABASE_URL
               value: postgresql://postgres:postgres@db:5432/aws_sdlc_containers
@@ -153,6 +195,9 @@ spec:
     spec:
       restartPolicy: Never
       serviceAccountName: workload-runtime
+      securityContext:
+        seccompProfile:
+          type: RuntimeDefault
       initContainers:
         - name: wait-for-schema
           image: postgres:18.3
@@ -160,6 +205,13 @@ spec:
             - sh
             - -c
             - until psql -h db -U postgres -d aws_sdlc_containers -tAc "SELECT to_regclass('public.outbox_messages')" | grep -q outbox_messages; do sleep 2; done
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop: ["ALL"]
+            readOnlyRootFilesystem: true
+            runAsNonRoot: true
+            runAsUser: 999
           env:
             - name: PGPASSWORD
               valueFrom:
@@ -170,6 +222,13 @@ spec:
         - name: operational-snapshot-job
           image: aws-sdlc-containers-operational-snapshot-job:local-kubernetes
           imagePullPolicy: IfNotPresent
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop: ["ALL"]
+            readOnlyRootFilesystem: true
+            runAsNonRoot: true
+            runAsUser: 1000
           env:
             - name: DATABASE_URL
               value: postgresql://postgres:postgres@db:5432/aws_sdlc_containers
@@ -222,14 +281,32 @@ spec:
     spec:
       restartPolicy: Never
       serviceAccountName: workload-runtime
+      securityContext:
+        fsGroup: 1000
+        seccompProfile:
+          type: RuntimeDefault
       initContainers:
         - name: wait-for-api
           image: curlimages/curl:8.17.0
           command: ["sh", "-c", "until curl --fail --silent http://api:8000/health; do sleep 2; done"]
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop: ["ALL"]
+            readOnlyRootFilesystem: true
+            runAsNonRoot: true
+            runAsUser: 100
       containers:
         - name: integration-check-job
           image: aws-sdlc-containers-integration-check-job:local-kubernetes
           imagePullPolicy: IfNotPresent
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop: ["ALL"]
+            readOnlyRootFilesystem: true
+            runAsNonRoot: true
+            runAsUser: 1000
           env:
             - name: INTEGRATION_CHECK_TARGETS
               valueFrom:

@@ -2,18 +2,17 @@ apiVersion: dapr.io/v1alpha1
 kind: Component
 metadata:
   name: async-events-pubsub
+scopes:
+  - event-consumer
 spec:
   type: pubsub.aws.snssqs
   version: v1
   metadata:
-    # SNS topic and SQS queue names are injected at deploy time from Terraform
-    # outputs via the S3 runtime config bucket (infra/app/messaging.tf).
-    # This file is a reference template — the authoritative rendered version
-    # is infra/app/templates/dapr/async-events-pubsub.yaml.tftpl.
+    # Terraform injects runtime-owned SNS/SQS names before publishing this file.
     - name: region
       value: "${aws_region}"
     - name: consumerID
-      value: "${consumer_id}"
+      value: "${subscriber_queue_name}"
     - name: fifo
       value: "true"
     - name: fifoMessageGroupID
@@ -24,4 +23,6 @@ spec:
       value: "5"
     - name: sqsDeadLettersQueueName
       value: "${dlq_name}"
+    - name: disableEntityManagement
+      value: "true"
     # Credentials are provided via ECS task IAM role — no static keys.

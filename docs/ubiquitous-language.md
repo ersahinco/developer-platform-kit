@@ -24,9 +24,11 @@ Short form: standardize the delivery workflow, do not replace the tools.
 | infrastructure package | SQL, Dapr, storage, and runtime adapters in `packages/infrastructure` |
 | platform catalog | reusable building blocks, templates, modules, policies, concerns, and delivery paths that realize workload needs |
 | platform edge | Terraform, Dapr components, GitHub Actions, runtime-facing scripts, and infrastructure adapters |
+| Dapr application boundary | stable distributed-application APIs consumed by app teams, with components, resiliency, security, telemetry, and runtime mapping owned by the platform |
 | workload contract | canonical workload intent: image, config, secrets, health, telemetry, rollback, evidence, and tests |
-| bounded dependency | external system access described by purpose, owner, direction, declared config names, secret names, and evidence; provider wiring stays at the platform edge |
+| bounded dependency | owned external-system intent expressed by purpose, direction, config/secret names, and evidence without provider resource wiring |
 | runtime target | hosting implementation such as `local-compose`, `local-kubernetes`, `aws-ecs`, managed provider edges, jobs, or future data runtimes |
+| incubating capability | contract-and-test-backed capability with concrete proof and explicit non-production maturity before broad adoption |
 | portability by boundary | app contract and evidence shape travel; provider implementation stays isolated |
 | conformance | executable proof that an implementation satisfies a contract |
 | release evidence | Markdown, JSON, and JSONL records describing change, revision, verification, and alarms |
@@ -48,7 +50,6 @@ Short form: standardize the delivery workflow, do not replace the tools.
 | delivery toolkit | custom framework |
 | runtime target | cloud abstraction |
 | portable by boundary | cloud-neutral |
-| bounded dependency | raw provider integration |
 
 ## Placement Rules
 

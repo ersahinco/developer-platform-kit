@@ -163,24 +163,23 @@ def test_compose_build_args_and_ports_align_with_workload_spec() -> None:
             if declared_ports:
                 assert any(str(port) in declared for declared in declared_ports)
 
-    order_consumer = next(
-        workload
-        for workload in contract["workloads"]
-        if workload["name"] == "event_consumer"
-    )
-    dapr = order_consumer["dapr"]
-    dapr_service = services["event-consumer-dapr"]
-    workload_service = services["event-consumer"]
-    command = dapr_service["command"]
-    env = workload_service["environment"]
+    for workload in contract["workloads"]:
+        dapr = workload.get("dapr")
+        if dapr is None or not _supports_local_runtime(workload):
+            continue
+        compose_name = _compose_service_name(workload)
+        dapr_service = services[f"{compose_name}-dapr"]
+        command = dapr_service["command"]
+        assert command[command.index("--app-id") + 1] == dapr["app_id"]
+        assert command[command.index("--app-port") + 1] == str(
+            workload["service"]["port"]
+        )
 
-    assert command[command.index("--app-id") + 1] == dapr["app_id"]
-    assert command[command.index("--app-port") + 1] == str(
-        order_consumer["service"]["port"]
-    )
-    assert env["DAPR_PUBSUB_NAME"] == dapr["pubsub_name"]
-    assert env["DAPR_TOPIC"] == dapr["topic"]
-    assert env["DAPR_SUBSCRIPTION_ROUTE"] == dapr["subscription_route"]
+        if dapr["scope"] == "pubsub":
+            env = services[compose_name]["environment"]
+            assert env["DAPR_PUBSUB_NAME"] == dapr["pubsub_name"]
+            assert env["DAPR_TOPIC"] == dapr["topic"]
+            assert env["DAPR_SUBSCRIPTION_ROUTE"] == dapr["subscription_route"]
 
 
 def test_shared_workload_dockerfile_copies_workspace_pyproject_files() -> None:
@@ -271,15 +270,12 @@ def test_workload_contract_declares_proof_fields_without_runtime_choreography() 
 
         dapr = workload.get("dapr")
         if dapr is not None:
-            assert dapr["scope"] == "pubsub"
-            assert set(dapr) == {
-                "app_id",
-                "scope",
-                "pubsub_name",
-                "topic",
-                "subscription_route",
-            }
-            for field in ["app_id", "pubsub_name", "topic", "subscription_route"]:
+            assert dapr["scope"] in {"pubsub", "service-invocation"}
+            expected_fields = {"app_id", "scope"}
+            if dapr["scope"] == "pubsub":
+                expected_fields |= {"pubsub_name", "topic", "subscription_route"}
+            assert set(dapr) == expected_fields
+            for field in expected_fields:
                 assert isinstance(dapr[field], str) and dapr[field], workload["name"]
 
 
