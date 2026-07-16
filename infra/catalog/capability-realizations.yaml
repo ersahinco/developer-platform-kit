@@ -1,0 +1,220 @@
+schema_version: "1"
+kind: capability-realizations
+description: >
+  Discoverable, provider-explicit capability choices. This inventory selects
+  no resources and performs no deployment; each implementation remains in its
+  provider-owned Terraform root.
+realizations:
+  - id: compute.aws-ecs
+    capability: compute
+    provider: aws
+    owner: platform-runtime
+    maturity: reviewed-production
+    lanes: [enterprise]
+    inputs:
+      - immutable OCI image tag backed by an ECR digest
+      - workload port, health, readiness, and metrics contract
+      - GitHub OIDC delivery identity and ECS task role
+    secret_names: []
+    outputs:
+      - ECS service and task-definition revision
+      - HTTPS workload endpoint
+    failure_modes:
+      - task placement or image-pull failure
+      - unhealthy target rollback
+    evidence:
+      - ECS rollout and post-deploy verification
+      - release event with workload and image correlation
+    operational_limits:
+      - AWS account and reviewed production environment required
+      - provider-native ECS and IAM semantics remain visible
+    implementation:
+      - infra/app/compute_ecs.tf
+      - .github/workflows/app-deploy.yml
+
+  - id: compute.hetzner-compose
+    capability: compute
+    provider: hetzner
+    owner: platform-runtime
+    maturity: reference
+    lanes: [starter]
+    inputs:
+      - digest-pinned OCI image references
+      - SSH public key and restricted administrator CIDRs
+    secret_names: [HCLOUD_TOKEN, REGISTRY_PASSWORD]
+    outputs:
+      - VM IPv4 address
+      - Compose runtime directory
+    failure_modes:
+      - VM loss or replacement
+      - registry authentication or image-pull failure
+    evidence:
+      - origin health, readiness, metrics, logs, and Dapr verification
+      - release event with selected capability realization IDs
+    operational_limits:
+      - single VM with documented maintenance downtime
+      - operator-owned backup and replacement recovery
+    implementation:
+      - infra/hybrid-reference/compute
+      - scripts/platform/hybrid_reference.sh
+
+  - id: dns.aws-route53
+    capability: dns
+    provider: aws
+    owner: platform-runtime
+    maturity: reviewed-production
+    lanes: [enterprise]
+    inputs:
+      - existing public hosted zone
+      - reviewed edge endpoint
+      - GitHub OIDC delivery identity
+    secret_names: []
+    outputs: [public workload record]
+    failure_modes:
+      - delegation mismatch
+      - stale record during rollback
+    evidence: [DNS resolution and HTTPS verification]
+    operational_limits:
+      - record lifecycle is coupled to the AWS platform root
+    implementation:
+      - infra/app/edge.tf
+
+  - id: dns.cloudflare
+    capability: dns
+    provider: cloudflare
+    owner: platform-runtime
+    maturity: reference
+    lanes: [starter]
+    inputs:
+      - existing Cloudflare zone ID
+      - verified origin IPv4 address and hostname
+    secret_names: [CLOUDFLARE_API_TOKEN]
+    outputs: [unproxied A record]
+    failure_modes:
+      - token scope or zone mismatch
+      - propagation delay after switch or rollback
+    evidence: [DNS A-record result and public TLS probe]
+    operational_limits:
+      - proxying is disabled so origin TLS stays provider-compatible
+    implementation:
+      - infra/hybrid-reference/dns
+
+  - id: database.aws-rds-postgresql
+    capability: database
+    provider: aws
+    owner: platform-runtime
+    maturity: reviewed-production
+    lanes: [enterprise]
+    inputs:
+      - PostgreSQL version, sizing, network, and recovery policy
+      - Liquibase changelog
+    secret_names: [DB_PASSWORD]
+    outputs: [PostgreSQL connection boundary]
+    failure_modes:
+      - unavailable database or exhausted connections
+      - failed migration or restore
+    evidence: [readiness, migration, alarm, and backup evidence]
+    operational_limits:
+      - AWS RDS networking and recovery semantics apply
+    implementation:
+      - infra/app/database.tf
+      - db/changelog/db.changelog-master.yaml
+
+  - id: database.supabase-postgresql
+    capability: database
+    provider: supabase
+    owner: data-platform
+    maturity: reference
+    lanes: [starter]
+    inputs:
+      - Supabase organization slug, region, and project sizing
+      - direct migration URL and pooled application URL with TLS
+    secret_names:
+      - SUPABASE_ACCESS_TOKEN
+      - TF_VAR_supabase_database_password
+      - DATABASE_URL
+      - LIQUIBASE_DATABASE_PASSWORD
+    outputs:
+      - Supabase project reference
+      - operator-supplied PostgreSQL connection boundaries
+    failure_modes:
+      - project quota or platform outage
+      - pooler, TLS, migration, or restore failure
+    evidence: [Liquibase migration and workload readiness verification]
+    operational_limits:
+      - restore ownership and availability follow the selected Supabase plan
+      - connection URLs never cross Terraform root outputs
+    implementation:
+      - infra/hybrid-reference/data
+      - db/changelog/db.changelog-master.yaml
+
+  - id: storage.aws-s3
+    capability: storage
+    provider: aws
+    owner: data-platform
+    maturity: reviewed-production
+    lanes: [starter, enterprise]
+    inputs:
+      - bucket region, retention policy, and object-output contract
+    secret_names:
+      - DATA_EXPORT_AWS_ACCESS_KEY_ID
+      - DATA_EXPORT_AWS_SECRET_ACCESS_KEY
+      - DATA_EXPORT_AWS_SESSION_TOKEN
+    outputs:
+      - protected object bucket name and region
+      - export manifest
+    failure_modes:
+      - invalid or expired credentials
+      - partial or failed export
+    evidence: [versioned object and manifest-integrity evidence]
+    operational_limits:
+      - starter credentials are scoped static credentials with explicit rotation ownership
+      - enterprise runtimes use short-lived workload identity
+    implementation:
+      - infra/app/object_storage.tf
+      - infra/hybrid-reference/data
+      - packages/infrastructure/data_export.py
+
+  - id: eventing.dapr-redis
+    capability: eventing
+    provider: redis
+    owner: platform-runtime
+    maturity: reference
+    lanes: [starter]
+    inputs:
+      - Dapr app IDs, pubsub name, topic, route, and resiliency policy
+    secret_names: []
+    outputs:
+      - Dapr service-invocation and CloudEvents pubsub boundary
+    failure_modes:
+      - sidecar or Redis unavailability
+      - duplicate or delayed event delivery
+    evidence: [Dapr metadata, invocation, publish, and duplicate-receipt proof]
+    operational_limits:
+      - single-node Redis is a starter runtime dependency, not an HA broker
+      - VM replacement can lose unconsumed starter-lane messages
+    implementation:
+      - platform/concerns/dapr/profiles/local
+      - infra/hybrid-reference/compute/runtime/compose.yaml
+
+  - id: eventing.dapr-aws-snssqs
+    capability: eventing
+    provider: aws
+    owner: platform-runtime
+    maturity: reviewed-production
+    lanes: [enterprise]
+    inputs:
+      - Dapr app IDs, pubsub name, topic, route, and resiliency policy
+      - ECS task identity for broker access
+    secret_names: []
+    outputs:
+      - Dapr CloudEvents pubsub boundary backed by SNS and SQS
+    failure_modes:
+      - broker delivery or dead-letter accumulation
+      - duplicate or delayed event delivery
+    evidence: [Dapr runtime proof, receipt idempotency, and queue alarms]
+    operational_limits:
+      - AWS broker topology and IAM remain runtime-edge concerns
+    implementation:
+      - platform/concerns/dapr/profiles/production
+      - infra/app/messaging.tf

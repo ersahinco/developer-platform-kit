@@ -10,6 +10,25 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[2]
 
 
+def _runtime_targets(workload_name: str, field: str) -> list[str]:
+    support = json.loads(
+        (ROOT / "platform" / "workload-runtime-support.json").read_text()
+    )
+    return [
+        target
+        for target, profile in support["targets"].items()
+        if workload_name in profile[field]
+    ]
+
+
+def _runtime_supported(workload: dict[str, object]) -> list[str]:
+    return _runtime_targets(str(workload["name"]), "supported_workloads")
+
+
+def _runtime_admitted(workload: dict[str, object]) -> list[str]:
+    return _runtime_targets(str(workload["name"]), "admitted_workloads")
+
+
 def _run_workload_metadata(*args: str) -> subprocess.CompletedProcess[str]:
     return subprocess.run(
         [sys.executable, "-m", "scripts.platform.workload_metadata", *args],
@@ -39,8 +58,8 @@ def test_workload_metadata_capability_matrix_matches_workload_contract() -> None
         assert row["owner"] == workload["owner"]
         assert row["class"] == workload["operational"]["class"]
         assert row["repository"] == workload["image"]["repository"]
-        assert row["runtime_supported"] == ",".join(workload["runtime"]["supported"])
-        assert row["runtime_admitted"] == ",".join(workload["runtime"]["admitted"])
+        assert row["runtime_supported"] == ",".join(_runtime_supported(workload))
+        assert row["runtime_admitted"] == ",".join(_runtime_admitted(workload))
         assert row["use_cases"] == ",".join(workload["use_cases"])
 
 
@@ -74,7 +93,7 @@ def test_workload_metadata_primary_edge_and_workload_groups_are_contract_derived
     expected_support_task_workloads = [
         "\t".join([workload["name"], workload["image"]["repository"]])
         for workload in contract["workloads"]
-        if workload["kind"] == "job" and "aws-ecs" in workload["runtime"]["admitted"]
+        if workload["kind"] == "job" and "aws-ecs" in _runtime_admitted(workload)
     ]
     assert support_task_workloads == expected_support_task_workloads
 
@@ -86,7 +105,7 @@ def test_workload_metadata_primary_edge_and_workload_groups_are_contract_derived
         for workload in contract["workloads"]
         if workload["kind"] == "job"
         and workload["operational"]["class"] == "operator-job"
-        and "aws-ecs" in workload["runtime"]["admitted"]
+        and "aws-ecs" in _runtime_admitted(workload)
     ]
     assert operator_job_workloads == expected_operator_job_workloads
 
@@ -165,6 +184,62 @@ def test_workload_metadata_monorepo_capability_profile_is_derived() -> None:
         for workflow in lane["workflows"]:
             assert (ROOT / ".github" / "workflows" / workflow).is_file()
 
+    action_pairs = {
+        (action["workflow"], action["template"])
+        for lane in lanes.values()
+        for action in lane["backstage_actions"]
+    }
+    assert action_pairs == {
+        ("app-build.yml", "catalog/action-app-build.yaml"),
+        ("app-deploy.yml", "catalog/action-app-deploy.yaml"),
+        ("infra-plan.yml", "catalog/action-infra-plan.yaml"),
+        ("infra-apply.yml", "catalog/action-infra-apply.yaml"),
+        ("data-schema-apply.yml", "catalog/action-data-schema-apply.yaml"),
+        ("data-runtime-switch.yml", "catalog/action-data-runtime-switch.yaml"),
+        ("data-backfill.yml", "catalog/action-data-backfill.yaml"),
+        ("data-support-deploy.yml", "catalog/action-data-support-deploy.yaml"),
+        (
+            "operational-snapshot.yml",
+            "catalog/action-operational-snapshot.yaml",
+        ),
+    }
+    assert all((ROOT / template).is_file() for _, template in action_pairs)
+
+    integration = profile["integration_plane"]
+    assert integration["front_door"] == {
+        "tool": "backstage",
+        "mode": "read-and-dispatch",
+        "catalog_source": "catalog-info.yaml",
+        "provider_credentials": "none",
+    }
+    assert integration["mutation_gateway"]["tool"] == "github-actions"
+    assert integration["mutation_gateway"]["credential_boundary"] == (
+        "GitHub environments and OIDC"
+    )
+    authorities = {row["concern"]: row["owner"] for row in integration["authorities"]}
+    assert authorities["infrastructure and authoritative DNS"] == (
+        "Terraform roots under infra/"
+    )
+    assert authorities["observed deployment and release correlation"] == (
+        "scripts/observability/release_event.py"
+    )
+    edges = {row["tool"]: row for row in integration["platform_edges"]}
+    assert edges["coolify"]["status"] == "bounded-experiment"
+    assert edges["netbird"]["status"] == "bounded-candidate"
+    assert "never authoritative public DNS" in edges["netbird"]["authority"]
+
+    placement = profile["workload_placement"]
+    assert placement["source"] == "platform/workload-runtime-support.json"
+    assert (
+        placement["observed_deployments_source"]
+        == "scripts/observability/release_event.py"
+    )
+    placements = {row["workload"]: row for row in placement["workloads"]}
+    assert placements["api"]["default_runtime_target"] == "aws-ecs"
+    assert placements["api"]["reference_runtime_targets"] == ["hetzner-compose"]
+    assert placements["booking_api"]["default_runtime_target"] is None
+    assert placements["booking_api"]["reference_runtime_targets"] == ["hetzner-compose"]
+
     capability_names = {row["capability"] for row in profile["infra_capabilities"]}
     assert {
         "network_connectivity",
@@ -200,6 +275,7 @@ def test_workload_metadata_monorepo_capability_profile_is_derived() -> None:
     assert profile["lean_controls"] == {
         "metadata_sources": [
             "platform/workloads.json",
+            "platform/workload-runtime-support.json",
             "platform/runtime-defaults.json",
             "platform/platform-inventory.json",
         ],
@@ -238,11 +314,11 @@ def test_workload_metadata_image_matrix_matches_declared_apps() -> None:
     assert set(workload_images) == {
         workload["name"]
         for workload in contract["workloads"]
-        if "aws-ecs" in workload["runtime"]["admitted"]
+        if "aws-ecs" in _runtime_admitted(workload)
     }
 
     for workload in contract["workloads"]:
-        if "aws-ecs" not in workload["runtime"]["admitted"]:
+        if "aws-ecs" not in _runtime_admitted(workload):
             continue
         image = workload_images[workload["name"]]
         assert image["dockerfile"] == workload["image"].get(
@@ -278,7 +354,7 @@ def test_workload_metadata_local_kubernetes_image_matrix_matches_supported_workl
     local_kubernetes_workloads = {
         workload["name"]: workload
         for workload in contract["workloads"]
-        if "local-kubernetes" in workload["runtime"]["supported"]
+        if "local-kubernetes" in _runtime_supported(workload)
     }
     assert set(workload_images) == set(local_kubernetes_workloads)
 
@@ -288,7 +364,7 @@ def test_workload_metadata_local_kubernetes_image_matrix_matches_supported_workl
         if workload["kind"] == "service"
         and workload["operational"]["class"] == "edge-service"
         and workload["operational"]["exposure"] == "public"
-        and "aws-ecs" in workload["runtime"]["admitted"]
+        and "aws-ecs" in _runtime_admitted(workload)
     }
     assert {
         image["name"] for image in workload_images.values() if image["primary_edge"]

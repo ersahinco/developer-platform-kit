@@ -1,0 +1,4 @@
+cloudflare_zone_id = "replace-with-zone-id"
+hostname           = "api.example.com"
+origin_ipv4        = "203.0.113.20"
+ttl                = 60

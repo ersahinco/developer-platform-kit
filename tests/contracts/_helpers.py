@@ -36,6 +36,24 @@ def load_workflow(path: str) -> dict[str, Any]:
     return workflow
 
 
+def runtime_supported(workload_name: str) -> set[str]:
+    targets = load_json("platform/workload-runtime-support.json")["targets"]
+    return {
+        target
+        for target, profile in targets.items()
+        if workload_name in profile["supported_workloads"]
+    }
+
+
+def runtime_admitted(workload_name: str) -> set[str]:
+    targets = load_json("platform/workload-runtime-support.json")["targets"]
+    return {
+        target
+        for target, profile in targets.items()
+        if workload_name in profile["admitted_workloads"]
+    }
+
+
 def workflow_job(workflow: dict[str, Any], job_name: str) -> dict[str, Any]:
     jobs = workflow["jobs"]
     assert isinstance(jobs, dict)

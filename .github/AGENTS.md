@@ -28,6 +28,7 @@ Keep build separate from deploy. Keep plan separate from apply.
 - `app-deploy.yml` follows successful `app-build.yml` for the same SHA.
 - `data-*.yml` workflows follow successful `app-build.yml` for the same SHA when they promote or execute workload images.
 - `infra-apply.yml` follows reviewed `infra-plan.yml`.
+- Terraform is authoritative; OpenTofu validates shared-HCL compatibility only.
 - Use explicit least-privilege `permissions:`.
 - Pin security-sensitive actions by full SHA.
 

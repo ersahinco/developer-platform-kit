@@ -34,7 +34,7 @@ lives in canonical docs:
 | Platform catalog shape | keep reusable modules, concerns, and templates recognizable as one catalog surface | catalog logic starts fragmenting across unrelated folders or scripts |
 | Observability inventory | derive alarm, log-group, and evidence defaults from workload metadata where practical | a workload or signal path adds handwritten inventory |
 | Runtime target ergonomics | prefer Terraform outputs, runtime inventory, and small scripts over repeated shell literals | examples or scripts duplicate target-specific naming rules |
-| Provider horizon clarity | keep managed DB and DNS provider edges documented as future cost or hybrid options, not implied implementations | docs or metadata start blurring horizon intent with reviewed runtime capability |
+| Hybrid reference hardening | exercise the Cloudflare, Hetzner, Supabase, S3, and Dapr composition through real operator evidence | live proof reveals a networking, recovery, or ownership gap |
 
 ## Lean Delivery Toolkit Next Slices
 
@@ -47,6 +47,7 @@ future agents keep the toolkit lean.
 | First-run proof | baseline in place | local diagnostics, local Compose proof, local Kubernetes proof, and AWS readiness are visibly separate | existing README and docs owners, not new process docs |
 | Runtime guardrails | baseline in place | AWS-admitted workload realization fails loudly when the workload contract cannot be fulfilled | contract tests and narrow Terraform checks, not deployment DSL growth |
 | Readiness evidence | baseline in place | workload maturity reports show local and AWS evidence without decoding platform history | report views, not orchestration |
+| Provider composition | reference in place | explicit data, compute, and DNS roots prove a low-cost hybrid lane without a provider abstraction | stable catalog IDs and direct Terraform, not a composer DSL |
 
 ## Current Promotion Decision
 
@@ -91,8 +92,10 @@ Rule: predictable extension over maximal abstraction.
 
 | Date | Decision |
 |---|---|
+| 2026-07-16 | Use standard Backstage entities and native GitHub workflow dispatch as the optional read-and-dispatch front door; keep GitHub Actions, Terraform, and release evidence authoritative, and keep Coolify/NetBird gated platform-edge candidates. |
 | 2026-07-16 | Keep Dapr at the core application boundary; retain the consolidated component source, prove pub/sub and local service invocation, and grow other building blocks through owned experiments. |
 | 2026-07-16 | Keep pattern-rich experimental workloads before broad adoption when they prove a concrete failure mode with ownership, contracts, tests, evidence, and honest maturity; remove hollow showcases and generic product laundry. |
+| 2026-07-16 | Add a provider-composable starter reference with explicit Cloudflare DNS, Hetzner Compose, Supabase PostgreSQL, AWS S3, and Dapr boundaries; Terraform remains canonical and OpenTofu is compatibility-only. |
 | 2026-06-14 | Keep lean delivery toolkit follow-up as small slices: command clarity, first-run proof, runtime guardrails, and readiness evidence; do not add portals, generators, provider abstractions, Helm/CRD surfaces, or new runtime targets. |
 | 2026-05-21 | Treat the workload contract and platform catalog as the stable center; runtime targets are pluggable realizations. |
 | 2026-05-19 | Harden one workload intent source and one AWS runtime realization layer. |

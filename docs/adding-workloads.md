@@ -35,7 +35,7 @@ Declare the smallest truthful set:
 - storage, database, and messaging needs only when the workload actually uses them
 - authn/authz expectation, either app-local or runtime-owned
 - logs, metrics, traces, and evidence the operator must inspect
-- workload owner, supported runtime targets, and admitted runtime targets
+- workload owner, plus separately reviewed runtime support and admission
 
 ## Self-Service Admission
 
@@ -79,19 +79,20 @@ make workload-readiness-check
 uv run python scripts/platform/workload_readiness.py --view addition
 ```
 
-A tiny container app can start as a real `apps/` workload with
-`runtime.supported: ["local-compose"]`, no database, no Dapr, no cloud
-admission, and no extra platform machinery. Add runtime admission only after
-local proof, owner, evidence, and runtime realization exist.
+A tiny container app can start as a real `apps/` workload with local Compose
+support in `platform/workload-runtime-support.json`, no database, no Dapr, no
+cloud admission, and no extra platform machinery. Add runtime admission only
+after local proof, owner, evidence, and runtime realization exist.
 
 ## Tiny App Onboarding
 
 Use this path for the smallest useful app host:
 
 1. Add `apps/<name>/main.py`, `config.py`, and `pyproject.toml`.
-2. Add one workload row in `platform/workloads.json` with owner, image package,
-   command, config names, secret names, and `runtime.supported:
-   ["local-compose"]`.
+2. Add one provider-free workload row in `platform/workloads.json` with owner,
+   image package, command, config names, and secret names. Add local Compose
+   support in `platform/workload-runtime-support.json`. If the workload emits
+   portable objects, declare its `object_output` format and integrity rule.
 3. For an HTTP workload, expose `/health`, `/ready`, and `/metrics`; for a job,
    emit one structured terminal success or failure event.
 4. Run local proof:
@@ -178,8 +179,6 @@ Add the workload to `platform/workloads.json` with:
 - `use_cases`
 - `owner`
 - `app_path`
-- `runtime.supported`
-- `runtime.admitted`
 - `operational`
 - `image`
 - `config`
@@ -229,19 +228,19 @@ ML tools in `examples/`. A named engineering-pattern experiment may live in
 `apps/` before broad demand when it has an owner, a concrete failure mode,
 workload metadata, executable proof, inspectable evidence, and explicit
 non-production maturity. Keep specialized dependencies inside that workload;
-do not turn them into a generic platform stack. Add `aws-ecs` to
-`runtime.admitted` only after reviewed infrastructure realization and delivery
-ownership exist.
+do not turn them into a generic platform stack. Add AWS admission to
+`platform/workload-runtime-support.json` only after reviewed infrastructure
+realization and delivery ownership exist.
 
 ## Promote Local To AWS
 
 Use this order when promoting a local-first workload to `aws-ecs`:
 
-1. Keep `runtime.supported` on `local-compose` while the workload is still proving its contract locally.
+1. Keep only local Compose support while the workload is still proving its contract locally.
 2. Declare a portable `owner` in `platform/workloads.json`.
 3. Add the AWS runtime realization in `infra/app/` and only the needed catalog/runtime wiring.
 4. Confirm the workload is picked up by build, catalog, contract, and runtime-conformance checks.
-5. Add `aws-ecs` to `runtime.admitted` only after the reviewed delivery path and runtime owner exist.
+5. Add the workload to the `aws-ecs` admitted list only after the reviewed delivery path and runtime owner exist.
 
 Rule: local proof comes first, cloud admission comes second.
 

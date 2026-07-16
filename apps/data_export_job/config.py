@@ -25,8 +25,8 @@ class Settings(PostgresRuntimeSettings):
     data_export_date: str | None = field(
         default_factory=lambda: env_str("DATA_EXPORT_DATE")
     )
-    data_export_s3_bucket: str | None = field(
-        default_factory=lambda: env_str("DATA_EXPORT_S3_BUCKET")
+    data_export_bucket: str | None = field(
+        default_factory=lambda: env_str("DATA_EXPORT_BUCKET")
     )
 
     def __post_init__(self) -> None:

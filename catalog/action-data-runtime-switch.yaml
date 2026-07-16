@@ -1,0 +1,56 @@
+apiVersion: scaffolder.backstage.io/v1beta3
+kind: Template
+metadata:
+  name: action-data-runtime-switch
+  title: Switch data runtime modes
+  description: Dispatch one reviewed expand-migrate-contract runtime transition.
+  annotations:
+    github.com/project-slug: ersahinco/aws-sdlc-containers
+    aws-sdlc-containers/workflow-id: data-runtime-switch.yml
+    aws-sdlc-containers/workflow-lane: data
+    aws-sdlc-containers/mutation-gateway: github-actions
+  tags:
+    - delivery
+    - data
+    - runtime-switch
+spec:
+  owner: group:default/platform-engineering
+  type: delivery-action
+  parameters:
+    - title: Select the reviewed transition
+      required:
+        - switch_step
+        - confirm_switch
+      properties:
+        switch_step:
+          title: Runtime transition
+          type: string
+          default: auto-detect
+          enum:
+            - auto-detect
+            - write-legacy-to-dual
+            - read-legacy-to-new
+            - write-dual-to-new
+        confirm_switch:
+          title: Confirmation
+          type: string
+          pattern: ^switch-runtime$
+        dry_run:
+          title: Dry run
+          type: string
+          default: "true"
+          enum:
+            - "true"
+            - "false"
+  steps:
+    - id: dispatchRuntimeSwitch
+      name: Dispatch Data Runtime Switch
+      action: github:actions:dispatch
+      input:
+        repoUrl: ${{ environment.parameters.deliveryRepoUrl }}
+        workflowId: data-runtime-switch.yml
+        branchOrTagName: main
+        workflowInputs:
+          switch_step: ${{ parameters.switch_step }}
+          confirm_switch: ${{ parameters.confirm_switch }}
+          dry_run: ${{ parameters.dry_run }}

@@ -74,6 +74,13 @@ jobs:
           terraform validate
         working-directory: infra/app
 
+      - name: terraform validate hybrid roots
+        run: |
+          for root in data compute dns; do
+            terraform -chdir="infra/hybrid-reference/${root}" init -backend=false
+            terraform -chdir="infra/hybrid-reference/${root}" validate
+          done
+
       - uses: terraform-linters/setup-tflint@b480b8fcdaa6f2c577f8e4fa799e89e756bb7c93 # v6
         with:
           tflint_version: ${{ env.TFLINT_VERSION }}
@@ -90,6 +97,12 @@ jobs:
           tflint --format compact
         working-directory: infra/app
 
+      - name: tflint hybrid roots
+        run: |
+          for root in data compute dns; do
+            (cd "infra/hybrid-reference/${root}" && tflint --init && tflint --format compact)
+          done
+
       - name: checkov
         uses: bridgecrewio/checkov-action@4a1afa9897f7afe297a3762c926e1e800361464f # v12.3111.0
         with:
@@ -97,9 +110,33 @@ jobs:
           framework: terraform
           config_file: infra/.checkov.yaml
 
+  opentofu-compatibility:
+    name: Terraform / OpenTofu Compatibility
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+
+    steps:
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+        with:
+          persist-credentials: false
+
+      - uses: hashicorp/setup-terraform@dfe3c3f87815947d99a8997f908cb6525fc44e9e # v4
+        with:
+          terraform_version: ${{ env.TF_VERSION }}
+          terraform_wrapper: false
+
+      - uses: opentofu/setup-opentofu@a1320f892987e89d278cc92dc5adc984fb93aca4 # v2.0.2
+        with:
+          tofu_version: 1.12.4
+          tofu_wrapper: false
+
+      - name: Compare mocked non-production plans
+        run: make infra-compatibility
+
   plan:
     name: Plan
-    needs: lint-and-validate
+    needs: [lint-and-validate, opentofu-compatibility]
     if: >
       (github.event_name == 'pull_request' &&
       github.actor != 'dependabot[bot]' &&

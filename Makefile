@@ -25,8 +25,17 @@ ROOT_DOMAIN            ?=
 PRIMARY_EDGE_TOKEN_SECRET ?= $(STACK_NAME)/edge-token
 TF_PLATFORM_STATE_KEY  ?= $(STACK_NAME)/platform.tfstate
 TF_APP_STATE_KEY       ?= $(STACK_NAME)/app.tfstate
+TF_HYBRID_DATA_STATE_KEY ?= $(STACK_NAME)/hybrid/data.tfstate
+TF_HYBRID_COMPUTE_STATE_KEY ?= $(STACK_NAME)/hybrid/compute.tfstate
+TF_HYBRID_DNS_STATE_KEY ?= $(STACK_NAME)/hybrid/dns.tfstate
 TF_PLATFORM_VARS_FILE  := stack.tfvars
 TF_APP_VARS_FILE       := stack.tfvars
+HYBRID_DATA_ROOT       := infra/hybrid-reference/data
+HYBRID_COMPUTE_ROOT    := infra/hybrid-reference/compute
+HYBRID_DNS_ROOT        := infra/hybrid-reference/dns
+HYBRID_VARS_FILE       ?= stack.tfvars
+HYBRID_ORIGIN_IPV4     ?= 192.0.2.1
+HYBRID_EVIDENCE_DIR    ?= /tmp/aws-sdlc-containers-hybrid-evidence
 PRIMARY_EDGE_SERVICE   ?= $(shell python3 -m scripts.platform.workload_metadata primary-edge-contract 2>/dev/null | jq -r '.repository')
 PRIMARY_EDGE_HOSTNAME_LABEL ?= $(shell python3 -m scripts.platform.workload_metadata primary-edge-contract 2>/dev/null | jq -r '.hostname_label')
 SERVICE_NAME           ?= $(PRIMARY_EDGE_SERVICE)
@@ -82,7 +91,7 @@ endef
 
 HELP_LOCAL_TARGETS := platform-doctor workload-readiness workload-readiness-local dev migrate seed local-app-up local-up api-smoke dapr-up dapr-smoke platform-toolkit-smoke-local platform-toolkit-validate-local local-down local-reset
 HELP_PROOF_TARGETS := monorepo-capability-profile monorepo-capability-profile-md monorepo-capability-profile-check workload-admission-check workload-readiness workload-readiness-local workload-readiness-cloud workload-readiness-check enterprise-pattern-proofs runtime-conformance local-compose-live-proof local-kubernetes-contracts local-kubernetes-admission-report local-kubernetes-evidence-drill local-kubernetes-rollout-proof workflow-dry-run-validate
-HELP_CLOUD_TARGETS := platform-doctor-cloud platform-toolkit-validate-cloud security-readiness infra-validate-local workflow-dry-run-validate workflow-dry-run-commands workflow-dry-run-validate-gh infra-platform-plan infra-app-plan app-deploy post-deploy-verify release-evidence-runs operational-snapshot-cloud
+HELP_CLOUD_TARGETS := platform-doctor-cloud platform-toolkit-validate-cloud security-readiness infra-validate-local infra-compatibility workflow-dry-run-validate workflow-dry-run-commands workflow-dry-run-validate-gh infra-platform-plan infra-app-plan hybrid-reference-prerequisites hybrid-reference-plan hybrid-reference-apply hybrid-reference-verify hybrid-reference-evidence hybrid-reference-rollback hybrid-reference-destroy app-deploy post-deploy-verify release-evidence-runs operational-snapshot-cloud
 HELP_OPERATOR_TARGETS := release-evidence-runs release-evidence-download operator-payload-download operational-snapshot operational-snapshot-dry-run operational-snapshot-cloud incident-evidence db-tunnel db-exec db-seed api-get-order observability-delivery-verify release-event-delivery-verify integration-check data-artifacts-list
 
 define print_help_targets
@@ -448,13 +457,13 @@ lint-dockerfiles: ## Lint Dockerfiles
 .PHONY: lint-policy
 lint-policy: ## Check repo policy with OPA/Conftest
 	@if command -v conftest >/dev/null 2>&1; then \
-		conftest test --policy platform/concerns/policy/conftest .github/workflows/*.yml platform/workloads.json platform/runtime-conformance.json platform/platform-inventory.json platform/runtime-defaults.json; \
+		conftest test --policy platform/concerns/policy/conftest .github/workflows/*.yml platform/workloads.json platform/workload-runtime-support.json platform/runtime-conformance.json platform/platform-inventory.json platform/runtime-defaults.json; \
 	else \
 		docker run --rm \
 			-v "$(CURDIR):/project" \
 			-w /project \
 			openpolicyagent/conftest:v0.64.0 \
-			test --policy platform/concerns/policy/conftest .github/workflows/*.yml platform/workloads.json platform/runtime-conformance.json platform/platform-inventory.json platform/runtime-defaults.json; \
+			test --policy platform/concerns/policy/conftest .github/workflows/*.yml platform/workloads.json platform/workload-runtime-support.json platform/runtime-conformance.json platform/platform-inventory.json platform/runtime-defaults.json; \
 	fi
 
 .PHONY: secret-scan
@@ -598,6 +607,9 @@ lint-infra: ## Lint Terraform (fmt check + tflint + checkov)
 lint-tflint: ## Run TFLint for Terraform roots
 	cd infra/platform && tflint --init && tflint --format compact
 	cd infra/app && tflint --init && tflint --format compact
+	@for root in $(HYBRID_DATA_ROOT) $(HYBRID_COMPUTE_ROOT) $(HYBRID_DNS_ROOT); do \
+		(cd "$$root" && tflint --init && tflint --format compact); \
+	done
 
 .PHONY: lint-checkov
 lint-checkov: ## Scan Terraform with Checkov
@@ -612,6 +624,10 @@ policy-scan: lint-policy ## Alias for policy scanning
 .PHONY: infra-validate-local
 infra-validate-local: ## Validate Terraform syntax locally without backend or cloud mutation
 	python3 scripts/ci/terraform_readiness.py
+
+.PHONY: infra-compatibility
+infra-compatibility: ## Compare Terraform and OpenTofu mocked plans for shared hybrid roots
+	python3 scripts/ci/iac_compatibility.py
 
 .PHONY: commitlint
 commitlint: ## Lint a commit message file with Conventional Commit rules
@@ -737,6 +753,194 @@ infra-plan: infra-platform-plan infra-app-plan ## Terraform plan — platform th
 
 .PHONY: infra-apply
 infra-apply: infra-platform-apply infra-app-apply ## Terraform apply — platform then app roots
+
+# ── Hybrid starter reference ─────────────────────────────────────────────────
+
+.PHONY: hybrid-reference-prerequisites
+hybrid-reference-prerequisites: ## Check non-mutating hybrid-reference client prerequisites
+	terraform version
+	scripts/platform/hybrid_reference.sh prerequisites
+	@for root in $(HYBRID_DATA_ROOT) $(HYBRID_COMPUTE_ROOT) $(HYBRID_DNS_ROOT); do \
+		test -f "$$root/$(HYBRID_VARS_FILE)" || { echo "Copy $$root/stack.tfvars.example to $$root/$(HYBRID_VARS_FILE) and set reviewed values." >&2; exit 1; }; \
+	done
+
+.PHONY: hybrid-reference-data-init
+hybrid-reference-data-init:
+	terraform -chdir=$(HYBRID_DATA_ROOT) init \
+		-backend-config="bucket=$(TF_STATE_BUCKET)" \
+		-backend-config="key=$(TF_HYBRID_DATA_STATE_KEY)" \
+		-backend-config="region=$(AWS_REGION)" \
+		-reconfigure
+
+.PHONY: hybrid-reference-data-plan
+hybrid-reference-data-plan: hybrid-reference-data-init ## Plan Supabase PostgreSQL and protected S3 output storage
+	terraform -chdir=$(HYBRID_DATA_ROOT) plan -var-file=$(HYBRID_VARS_FILE)
+
+.PHONY: hybrid-reference-data-apply
+hybrid-reference-data-apply: hybrid-reference-data-init ## Apply the isolated hybrid data lifecycle
+	terraform -chdir=$(HYBRID_DATA_ROOT) apply -var-file=$(HYBRID_VARS_FILE)
+
+.PHONY: hybrid-reference-compute-init
+hybrid-reference-compute-init:
+	terraform -chdir=$(HYBRID_COMPUTE_ROOT) init \
+		-backend-config="bucket=$(TF_STATE_BUCKET)" \
+		-backend-config="key=$(TF_HYBRID_COMPUTE_STATE_KEY)" \
+		-backend-config="region=$(AWS_REGION)" \
+		-reconfigure
+
+.PHONY: hybrid-reference-compute-plan
+hybrid-reference-compute-plan: hybrid-reference-compute-init ## Plan the hardened Hetzner Compose VM
+	terraform -chdir=$(HYBRID_COMPUTE_ROOT) plan -var-file=$(HYBRID_VARS_FILE)
+
+.PHONY: hybrid-reference-compute-apply
+hybrid-reference-compute-apply: hybrid-reference-compute-init ## Apply the isolated hybrid compute lifecycle
+	terraform -chdir=$(HYBRID_COMPUTE_ROOT) apply -var-file=$(HYBRID_VARS_FILE)
+
+.PHONY: hybrid-reference-dns-init
+hybrid-reference-dns-init:
+	terraform -chdir=$(HYBRID_DNS_ROOT) init \
+		-backend-config="bucket=$(TF_STATE_BUCKET)" \
+		-backend-config="key=$(TF_HYBRID_DNS_STATE_KEY)" \
+		-backend-config="region=$(AWS_REGION)" \
+		-reconfigure
+
+.PHONY: hybrid-reference-dns-plan
+hybrid-reference-dns-plan: hybrid-reference-dns-init ## Plan Cloudflare DNS without switching traffic
+	terraform -chdir=$(HYBRID_DNS_ROOT) plan -var-file=$(HYBRID_VARS_FILE) -var="origin_ipv4=$(HYBRID_ORIGIN_IPV4)"
+
+.PHONY: hybrid-reference-dns-apply
+hybrid-reference-dns-apply: hybrid-reference-dns-init ## Publish the verified Hetzner origin through Cloudflare DNS
+	@origin_ipv4=$$(terraform -chdir=$(HYBRID_COMPUTE_ROOT) output -raw server_ipv4); \
+	terraform -chdir=$(HYBRID_DNS_ROOT) apply -var-file=$(HYBRID_VARS_FILE) -var="origin_ipv4=$$origin_ipv4"
+
+.PHONY: hybrid-reference-plan
+hybrid-reference-plan: ## Produce non-mutating plans for isolated data, compute, and DNS roots
+	@$(MAKE) hybrid-reference-data-plan
+	@$(MAKE) hybrid-reference-compute-plan
+	@$(MAKE) hybrid-reference-dns-plan
+
+.PHONY: hybrid-reference-deploy
+hybrid-reference-deploy: ## Install secrets at deploy time and start digest-pinned workloads with Dapr
+	@HYBRID_SSH_HOST="$${HYBRID_SSH_HOST:-$$(terraform -chdir=$(HYBRID_COMPUTE_ROOT) output -raw server_ipv4)}" \
+	DATA_EXPORT_BUCKET="$${DATA_EXPORT_BUCKET:-$$(terraform -chdir=$(HYBRID_DATA_ROOT) output -raw export_bucket_name)}" \
+	AWS_REGION="$(AWS_REGION)" \
+	scripts/platform/hybrid_reference.sh deploy
+
+.PHONY: hybrid-reference-migrate
+hybrid-reference-migrate: ## Run Liquibase against the Supabase direct migration boundary
+	@HYBRID_SSH_HOST="$${HYBRID_SSH_HOST:-$$(terraform -chdir=$(HYBRID_COMPUTE_ROOT) output -raw server_ipv4)}" \
+	scripts/platform/hybrid_reference.sh migrate
+
+.PHONY: hybrid-reference-verify-origin
+hybrid-reference-verify-origin: ## Verify origin health, metrics, logs, Dapr invocation/pubsub, and duplicate handling before DNS
+	@HYBRID_SSH_HOST="$${HYBRID_SSH_HOST:-$$(terraform -chdir=$(HYBRID_COMPUTE_ROOT) output -raw server_ipv4)}" \
+	scripts/platform/hybrid_reference.sh verify-origin
+
+.PHONY: hybrid-reference-verify
+hybrid-reference-verify: ## Verify public DNS, origin TLS, health, readiness, and metrics
+	@HYBRID_ORIGIN_IPV4="$${HYBRID_ORIGIN_IPV4:-$$(terraform -chdir=$(HYBRID_COMPUTE_ROOT) output -raw server_ipv4)}" \
+	scripts/platform/hybrid_reference.sh verify-public
+
+.PHONY: hybrid-reference-export
+hybrid-reference-export: ## Run the S3 export and require manifest-integrity evidence
+	@HYBRID_SSH_HOST="$${HYBRID_SSH_HOST:-$$(terraform -chdir=$(HYBRID_COMPUTE_ROOT) output -raw server_ipv4)}" \
+	scripts/platform/hybrid_reference.sh export
+
+.PHONY: hybrid-reference-evidence
+hybrid-reference-evidence: ## Emit the existing release-evidence shape for the hybrid composition
+	@test -n "$${HYBRID_HOSTNAME:-}" || { echo "Set HYBRID_HOSTNAME." >&2; exit 1; }
+	@printf '%s\n' "$${API_IMAGE:-}" | grep -Eq '^[^[:space:]]+@sha256:[0-9a-f]{64}$$' || { echo "Set API_IMAGE to an immutable digest reference." >&2; exit 1; }
+	@image_digest="$${API_IMAGE##*@}"; \
+	deployment_id="$${HYBRID_SSH_HOST:-$$(terraform -chdir=$(HYBRID_COMPUTE_ROOT) output -raw server_ipv4)}"; \
+	DEPLOYMENT_ENVIRONMENT=hybrid-starter RELEASE_RUN_ID="$${HYBRID_RUN_ID:-hybrid-$$(date -u +%Y%m%dT%H%M%SZ)}" python3 -m scripts.observability.release_event \
+		--event-type app_deploy \
+		--status success \
+		--summary "Hybrid reference deployment verified." \
+		--service-name api \
+		--workload-id api \
+		--related-workload-id booking_api \
+		--related-workload-id event_consumer \
+		--related-workload-id data_export_job \
+		--runtime-id hetzner-compose \
+		--deployment-id "$$deployment_id" \
+		--image-digest "$$image_digest" \
+		--rollback-category app_image \
+		--source-workflow local-operator \
+		--capability-realization-id compute.hetzner-compose \
+		--capability-realization-id dns.cloudflare \
+		--capability-realization-id database.supabase-postgresql \
+		--capability-realization-id storage.aws-s3 \
+		--capability-realization-id eventing.dapr-redis \
+		--evidence-link "https://$${HYBRID_HOSTNAME}" \
+		--output-dir "$(HYBRID_EVIDENCE_DIR)"
+
+.PHONY: hybrid-reference-apply
+hybrid-reference-apply: ## Apply data/compute, deploy and verify origin, then switch DNS and emit evidence
+	@$(MAKE) hybrid-reference-data-apply
+	@$(MAKE) hybrid-reference-compute-apply
+	@$(MAKE) hybrid-reference-deploy
+	@$(MAKE) hybrid-reference-migrate
+	@$(MAKE) hybrid-reference-verify-origin
+	@$(MAKE) hybrid-reference-dns-apply
+	@$(MAKE) hybrid-reference-verify
+	@$(MAKE) hybrid-reference-export
+	@$(MAKE) hybrid-reference-evidence
+
+.PHONY: hybrid-reference-rollback
+hybrid-reference-rollback: ## Redeploy explicitly supplied PREVIOUS_* digest references and verify
+	@set -e; \
+	export API_IMAGE="$${PREVIOUS_API_IMAGE:?Set PREVIOUS_API_IMAGE}"; \
+	export BOOKING_API_IMAGE="$${PREVIOUS_BOOKING_API_IMAGE:?Set PREVIOUS_BOOKING_API_IMAGE}"; \
+	export EVENT_CONSUMER_IMAGE="$${PREVIOUS_EVENT_CONSUMER_IMAGE:?Set PREVIOUS_EVENT_CONSUMER_IMAGE}"; \
+	export DATA_EXPORT_IMAGE="$${PREVIOUS_DATA_EXPORT_IMAGE:?Set PREVIOUS_DATA_EXPORT_IMAGE}"; \
+	export LIQUIBASE_IMAGE="$${PREVIOUS_LIQUIBASE_IMAGE:?Set PREVIOUS_LIQUIBASE_IMAGE}"; \
+	$(MAKE) hybrid-reference-deploy; \
+	$(MAKE) hybrid-reference-verify-origin; \
+	$(MAKE) hybrid-reference-verify; \
+	$(MAKE) hybrid-reference-evidence
+
+.PHONY: hybrid-reference-dns-rollback-plan
+hybrid-reference-dns-rollback-plan: hybrid-reference-dns-init ## Plan DNS rollback to PREVIOUS_ORIGIN_IPV4
+	@test -n "$(PREVIOUS_ORIGIN_IPV4)" || { echo "Set PREVIOUS_ORIGIN_IPV4." >&2; exit 1; }
+	terraform -chdir=$(HYBRID_DNS_ROOT) plan -var-file=$(HYBRID_VARS_FILE) -var="origin_ipv4=$(PREVIOUS_ORIGIN_IPV4)"
+
+.PHONY: hybrid-reference-dns-rollback-apply
+hybrid-reference-dns-rollback-apply: hybrid-reference-dns-init ## Apply a reviewed DNS rollback to PREVIOUS_ORIGIN_IPV4
+	@test "$(CONFIRM_DNS_ROLLBACK)" = "rollback-dns" || { echo "Set CONFIRM_DNS_ROLLBACK=rollback-dns." >&2; exit 1; }
+	@test -n "$(PREVIOUS_ORIGIN_IPV4)" || { echo "Set PREVIOUS_ORIGIN_IPV4." >&2; exit 1; }
+	terraform -chdir=$(HYBRID_DNS_ROOT) apply -var-file=$(HYBRID_VARS_FILE) -var="origin_ipv4=$(PREVIOUS_ORIGIN_IPV4)"
+
+.PHONY: hybrid-reference-vm-replacement-plan
+hybrid-reference-vm-replacement-plan: hybrid-reference-compute-init ## Plan a bounded VM replacement drill
+	terraform -chdir=$(HYBRID_COMPUTE_ROOT) plan -var-file=$(HYBRID_VARS_FILE) -replace=hcloud_server.runtime
+
+.PHONY: hybrid-reference-vm-replacement
+hybrid-reference-vm-replacement: hybrid-reference-compute-init ## Replace the starter VM, redeploy, verify, then switch DNS
+	@test "$(CONFIRM_VM_REPLACEMENT)" = "replace-vm" || { echo "Set CONFIRM_VM_REPLACEMENT=replace-vm." >&2; exit 1; }
+	terraform -chdir=$(HYBRID_COMPUTE_ROOT) apply -var-file=$(HYBRID_VARS_FILE) -replace=hcloud_server.runtime
+	@$(MAKE) hybrid-reference-deploy
+	@$(MAKE) hybrid-reference-migrate
+	@$(MAKE) hybrid-reference-verify-origin
+	@$(MAKE) hybrid-reference-dns-apply
+	@$(MAKE) hybrid-reference-verify
+	@$(MAKE) hybrid-reference-evidence
+
+.PHONY: hybrid-reference-drill-database-unavailable
+hybrid-reference-drill-database-unavailable: ## Prove database failure is detected without changing the running service
+	@HYBRID_SSH_HOST="$${HYBRID_SSH_HOST:-$$(terraform -chdir=$(HYBRID_COMPUTE_ROOT) output -raw server_ipv4)}" scripts/platform/hybrid_reference.sh drill-database-unavailable
+
+.PHONY: hybrid-reference-drill-invalid-s3
+hybrid-reference-drill-invalid-s3: ## Prove invalid object-storage credentials fail the export
+	@HYBRID_SSH_HOST="$${HYBRID_SSH_HOST:-$$(terraform -chdir=$(HYBRID_COMPUTE_ROOT) output -raw server_ipv4)}" scripts/platform/hybrid_reference.sh drill-invalid-s3
+
+.PHONY: hybrid-reference-destroy
+hybrid-reference-destroy: ## Destroy only the isolated hybrid DNS, compute, and data roots
+	@test "$(CONFIRM_HYBRID_DESTROY)" = "destroy-hybrid" || { echo "Set CONFIRM_HYBRID_DESTROY=destroy-hybrid." >&2; exit 1; }
+	@$(MAKE) hybrid-reference-dns-init hybrid-reference-compute-init hybrid-reference-data-init
+	@origin_ipv4=$$(terraform -chdir=$(HYBRID_COMPUTE_ROOT) output -raw server_ipv4); \
+	terraform -chdir=$(HYBRID_DNS_ROOT) destroy -var-file=$(HYBRID_VARS_FILE) -var="origin_ipv4=$$origin_ipv4"
+	terraform -chdir=$(HYBRID_COMPUTE_ROOT) destroy -var-file=$(HYBRID_VARS_FILE)
+	terraform -chdir=$(HYBRID_DATA_ROOT) destroy -var-file=$(HYBRID_VARS_FILE)
 
 # ── App — deploy ──────────────────────────────────────────────────────────────
 

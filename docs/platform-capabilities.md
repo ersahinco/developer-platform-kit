@@ -85,6 +85,14 @@ admission on existing infrastructure. Developers request contract-level
 outcomes; platform engineering realizes them through the current runtime target
 and catalog surfaces.
 
+Backstage is the optional read-and-dispatch front door for that product shape.
+Its native Software Templates dispatch the existing GitHub Actions workflows;
+it does not receive provider credentials or become another state authority.
+The generated monorepo capability profile supplies placement policy and action
+metadata. Release evidence, not catalog admission, records observed runtime
+deployment. See [Backstage Integration](backstage-integration.md) and
+[ADR 0004](adr/0004-governed-open-source-integration-plane.md).
+
 Requests may arrive in AWS-shaped language such as ECS, IAM, subnets, buckets,
 queues, or schedulers. Treat those as runtime context, not the product surface.
 Admission is approved only after the request is translated into a
@@ -109,8 +117,9 @@ Non-goals:
 - per-team Terraform surfaces
 - raw ECS, IAM, subnet, queue, rule, bucket, or database product fields in
   `platform/workloads.json`
-- a portal, generator, control plane, Helm/CRD layer, or provider-neutral
-  infrastructure module without a bounded capability outcome and proof path
+- a custom portal, generator, workflow composer, Helm/CRD layer, or
+  provider-neutral infrastructure module beyond the bounded Backstage
+  read-and-dispatch outcome
 
 Use the GitHub issue form `Workload or capability admission` as the intake
 surface and `workload-capability-admission.md` as the matching implementation

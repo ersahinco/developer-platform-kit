@@ -1,0 +1,47 @@
+#cloud-config
+package_update: true
+package_upgrade: true
+packages:
+  - ca-certificates
+  - curl
+  - docker-compose-v2
+  - docker.io
+  - jq
+
+ssh_pwauth: false
+disable_root: true
+
+users:
+  - name: platform
+    groups: [docker]
+    lock_passwd: true
+    shell: /bin/bash
+    ssh_authorized_keys:
+      - ${jsonencode(ssh_public_key)}
+
+write_files:
+  - path: /etc/docker/daemon.json
+    permissions: "0644"
+    content: |
+      {
+        "live-restore": true,
+        "log-driver": "json-file",
+        "log-opts": {
+          "max-file": "5",
+          "max-size": "20m"
+        }
+      }
+  - path: /etc/ssh/sshd_config.d/99-platform-hardening.conf
+    permissions: "0644"
+    content: |
+      PasswordAuthentication no
+      PermitRootLogin no
+      X11Forwarding no
+      AllowUsers platform
+
+runcmd:
+  - [systemctl, enable, --now, docker]
+  - [systemctl, restart, ssh]
+  - [install, -d, -m, "0750", -o, platform, -g, platform, /opt/aws-sdlc-containers]
+
+final_message: "hybrid starter compute ready"

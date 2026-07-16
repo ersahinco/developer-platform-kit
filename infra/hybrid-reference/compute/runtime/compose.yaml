@@ -1,0 +1,167 @@
+name: aws-sdlc-hybrid
+
+x-pooled-database-env: &pooled_database_env
+  DATABASE_URL: ${POOLED_DATABASE_URL:?POOLED_DATABASE_URL is required}
+
+x-direct-database-env: &direct_database_env
+  DATABASE_URL: ${DIRECT_DATABASE_URL:?DIRECT_DATABASE_URL is required}
+
+services:
+  caddy:
+    image: caddy:2.10.2-alpine@sha256:4c6e91c6ed0e2fa03efd5b44747b625fec79bc9cd06ac5235a779726618e530d
+    environment:
+      ACME_EMAIL: ${ACME_EMAIL:?ACME_EMAIL is required}
+      HYBRID_HOSTNAME: ${HYBRID_HOSTNAME:?HYBRID_HOSTNAME is required}
+    ports:
+      - "80:80"
+      - "443:443"
+      - "127.0.0.1:8080:8080"
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy_data:/data
+      - caddy_config:/config
+    depends_on:
+      api:
+        condition: service_healthy
+    restart: unless-stopped
+
+  api:
+    image: ${API_IMAGE:?API_IMAGE must be digest-pinned}
+    environment:
+      <<: *pooled_database_env
+      PRIMARY_EDGE_AUTH_TOKEN: ${PRIMARY_EDGE_AUTH_TOKEN:?PRIMARY_EDGE_AUTH_TOKEN is required}
+      OTEL_TRACES_ENABLED: "false"
+      OTEL_SERVICE_NAME: aws-sdlc-containers-api
+      OTEL_DEPLOYMENT_ENVIRONMENT: hybrid-starter
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8000/health')"]
+      interval: 10s
+      timeout: 3s
+      retries: 6
+      start_period: 15s
+    restart: unless-stopped
+
+  booking-api:
+    image: ${BOOKING_API_IMAGE:?BOOKING_API_IMAGE must be digest-pinned}
+    environment:
+      <<: *pooled_database_env
+      SERVICE_PORT: "8084"
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8084/health')"]
+      interval: 10s
+      timeout: 3s
+      retries: 6
+      start_period: 15s
+    restart: unless-stopped
+
+  booking-api-dapr:
+    image: daprio/daprd:1.17.0@sha256:9e1bb8463b81d4efb0099e746395d64f6837703c42875f1fc18629d5d32e429a
+    command:
+      - ./daprd
+      - --app-id
+      - booking-api
+      - --app-port
+      - "8084"
+      - --app-channel-address
+      - booking-api
+      - --dapr-http-port
+      - "3500"
+      - --resources-path
+      - /components
+      - --config
+      - /config/config.yaml
+    volumes:
+      - ./dapr/components:/components:ro
+      - ./dapr/config.yaml:/config/config.yaml:ro
+    depends_on:
+      booking-api:
+        condition: service_healthy
+    restart: unless-stopped
+
+  redis:
+    image: redis:8.2.1@sha256:5fa2edb1e408fa8235e6db8fab01d1afaaae96c9403ba67b70feceb8661e8621
+    command: ["redis-server", "--appendonly", "yes"]
+    volumes:
+      - redis_data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+    restart: unless-stopped
+
+  event-consumer:
+    image: ${EVENT_CONSUMER_IMAGE:?EVENT_CONSUMER_IMAGE must be digest-pinned}
+    environment:
+      <<: *direct_database_env
+      ASYNC_EVENT_WORKER_MODE: both
+      DAPR_HTTP_ENDPOINT: http://event-consumer-dapr:3500
+      DAPR_PUBSUB_NAME: async-events-pubsub
+      DAPR_TOPIC: async-events-v1.fifo
+      DAPR_SUBSCRIPTION_ROUTE: /internal/events/consume
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8081/health')"]
+      interval: 10s
+      timeout: 3s
+      retries: 6
+      start_period: 15s
+    depends_on:
+      redis:
+        condition: service_healthy
+    restart: unless-stopped
+
+  event-consumer-dapr:
+    image: daprio/daprd:1.17.0@sha256:9e1bb8463b81d4efb0099e746395d64f6837703c42875f1fc18629d5d32e429a
+    command:
+      - ./daprd
+      - --app-id
+      - event-consumer
+      - --app-port
+      - "8081"
+      - --app-channel-address
+      - event-consumer
+      - --dapr-http-port
+      - "3500"
+      - --resources-path
+      - /components
+      - --config
+      - /config/config.yaml
+    ports:
+      - "127.0.0.1:3500:3500"
+    volumes:
+      - ./dapr/components:/components:ro
+      - ./dapr/config.yaml:/config/config.yaml:ro
+    depends_on:
+      event-consumer:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    restart: unless-stopped
+
+  liquibase:
+    image: ${LIQUIBASE_IMAGE:?LIQUIBASE_IMAGE must be digest-pinned}
+    environment:
+      LIQUIBASE_COMMAND_CHANGELOG_FILE: changelog/db.changelog-master.yaml
+      LIQUIBASE_SEARCH_PATH: /liquibase/db
+      LIQUIBASE_COMMAND_URL: ${LIQUIBASE_DATABASE_URL:?LIQUIBASE_DATABASE_URL is required}
+      LIQUIBASE_COMMAND_USERNAME: ${LIQUIBASE_DATABASE_USERNAME:?LIQUIBASE_DATABASE_USERNAME is required}
+      LIQUIBASE_COMMAND_PASSWORD: ${LIQUIBASE_DATABASE_PASSWORD:?LIQUIBASE_DATABASE_PASSWORD is required}
+    profiles: [migration]
+
+  data-export:
+    image: ${DATA_EXPORT_IMAGE:?DATA_EXPORT_IMAGE must be digest-pinned}
+    environment:
+      <<: *direct_database_env
+      DATA_EXPORT_BUCKET: ${DATA_EXPORT_BUCKET:?DATA_EXPORT_BUCKET is required}
+      DATA_EXPORT_OUTPUT_DIR: /tmp/exports
+      AWS_REGION: ${AWS_REGION:?AWS_REGION is required}
+      AWS_DEFAULT_REGION: ${AWS_REGION:?AWS_REGION is required}
+      AWS_ACCESS_KEY_ID: ${AWS_ACCESS_KEY_ID:?AWS_ACCESS_KEY_ID is required}
+      AWS_SECRET_ACCESS_KEY: ${AWS_SECRET_ACCESS_KEY:?AWS_SECRET_ACCESS_KEY is required}
+      AWS_SESSION_TOKEN: ${AWS_SESSION_TOKEN:-}
+    profiles: [operations]
+
+volumes:
+  caddy_config:
+  caddy_data:
+  redis_data:

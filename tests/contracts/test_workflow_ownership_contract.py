@@ -188,6 +188,7 @@ EXPECTED_JOB_PERMISSIONS = {
     },
     "infra-plan.yml": {
         "lint-and-validate": {"contents": "read"},
+        "opentofu-compatibility": {"contents": "read"},
         "plan": {"contents": "read", "id-token": "write", "pull-requests": "write"},
     },
     "infra-apply.yml": {

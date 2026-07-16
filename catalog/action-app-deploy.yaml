@@ -1,0 +1,52 @@
+apiVersion: scaffolder.backstage.io/v1beta3
+kind: Template
+metadata:
+  name: action-app-deploy
+  title: Deploy approved workload images
+  description: Dispatch the existing App Deploy workflow with its immutable-image and dry-run gates.
+  annotations:
+    github.com/project-slug: ersahinco/aws-sdlc-containers
+    aws-sdlc-containers/workflow-id: app-deploy.yml
+    aws-sdlc-containers/workflow-lane: app
+    aws-sdlc-containers/mutation-gateway: github-actions
+  tags:
+    - delivery
+    - deploy
+spec:
+  owner: group:default/platform-engineering
+  type: delivery-action
+  parameters:
+    - title: Choose the approved build
+      required:
+        - image_tag
+        - confirm_deploy
+      properties:
+        image_tag:
+          title: Immutable image tag
+          type: string
+          pattern: ^sha-[0-9a-f]{40}$
+          description: Image tag from the successful App Build run.
+        confirm_deploy:
+          title: Confirmation
+          type: string
+          pattern: ^deploy$
+          description: Type deploy to permit a non-dry-run rollout.
+        dry_run:
+          title: Dry run
+          type: string
+          default: "true"
+          enum:
+            - "true"
+            - "false"
+  steps:
+    - id: dispatchDeploy
+      name: Dispatch App Deploy
+      action: github:actions:dispatch
+      input:
+        repoUrl: ${{ environment.parameters.deliveryRepoUrl }}
+        workflowId: app-deploy.yml
+        branchOrTagName: main
+        workflowInputs:
+          image_tag: ${{ parameters.image_tag }}
+          confirm_deploy: ${{ parameters.confirm_deploy }}
+          dry_run: ${{ parameters.dry_run }}

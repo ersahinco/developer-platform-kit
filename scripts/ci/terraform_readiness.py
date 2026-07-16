@@ -7,7 +7,13 @@ import sys
 
 
 ROOT = Path(__file__).resolve().parents[2]
-INFRA_ROOTS = ("infra/platform", "infra/app")
+INFRA_ROOTS = (
+    "infra/platform",
+    "infra/app",
+    "infra/hybrid-reference/data",
+    "infra/hybrid-reference/compute",
+    "infra/hybrid-reference/dns",
+)
 ACTIONABLE_BLOCKERS = (
     "Failed to query available provider packages",
     "could not connect to registry.terraform.io",
@@ -42,7 +48,7 @@ def run(command: list[str], *, cwd: Path = ROOT, allow_blocker: bool = False) ->
         print(output, file=sys.stderr)
         print(
             "Terraform syntax check reached provider readiness. "
-            "Install/cache providers and use valid AWS credentials to run full "
+            "Install/cache providers to run full "
             "`terraform init -backend=false && terraform validate` locally.",
             file=sys.stderr,
         )
@@ -65,7 +71,7 @@ def main() -> int:
         if not run(["terraform", "validate"], cwd=root_path, allow_blocker=True):
             validated_all = False
     if validated_all:
-        print("Terraform backend-free validation passed for platform and app roots.")
+        print("Terraform backend-free validation passed for all infrastructure roots.")
     else:
         print("Terraform fmt passed; provider readiness blocked full local validate.")
     return 0

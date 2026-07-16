@@ -30,10 +30,10 @@ def run_export(s3_client: Any | None = None) -> dict[str, Any]:
     )
     publisher = (
         S3DataExportPublisher(
-            bucket=settings.data_export_s3_bucket,
+            bucket=settings.data_export_bucket,
             s3_client=s3_client,
         )
-        if settings.data_export_s3_bucket
+        if settings.data_export_bucket
         else None
     )
 

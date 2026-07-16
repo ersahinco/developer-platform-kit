@@ -96,7 +96,7 @@
     },
     {
       "capability": "object_storage",
-      "contract_surface": "workload config names such as DATA_EXPORT_S3_BUCKET",
+      "contract_surface": "provider-free workload config names such as DATA_EXPORT_BUCKET",
       "runtime_target": "aws-ecs",
       "maturity": "active-production-runtime",
       "implementation": "S3 data hub bucket",

@@ -557,6 +557,32 @@ def test_release_event_captures_related_workloads_in_artifact(
     assert "Related workloads: `api`, `event_consumer`" in markdown
 
 
+def test_release_event_captures_capability_realizations() -> None:
+    event = _release_event(
+        capability_realization_ids=[
+            "compute.hetzner-compose",
+            "database.supabase-postgresql",
+        ]
+    )
+
+    assert event["capability_realization_ids"] == [
+        "compute.hetzner-compose",
+        "database.supabase-postgresql",
+    ]
+    assert (
+        event["correlation"]["capability_realization_ids"]
+        == event["capability_realization_ids"]
+    )
+
+
+def test_release_event_accepts_an_operator_run_id() -> None:
+    event = _release_event(env={"RELEASE_RUN_ID": "hybrid-operator-42"})
+
+    assert event["run_id"] == "hybrid-operator-42"
+    assert event["correlation"]["run_id"] == "hybrid-operator-42"
+    assert event["correlation"]["github_run_id"] == TEST_RUN_ID
+
+
 def test_release_event_exposes_required_correlation_keys() -> None:
     task_arn = "arn:aws:ecs:eu-central-1:123456789012:task/cluster/task-id"
     event = _release_event(deployment_id=task_arn)
@@ -574,6 +600,7 @@ def test_release_event_exposes_required_correlation_keys() -> None:
         "runtime_id": "aws-ecs",
         "workload_id": "api",
         "related_workload_ids": [],
+        "capability_realization_ids": [],
         "deployment_id": task_arn,
         "image_digest": None,
         "image_tag": TEST_IMAGE_TAG,

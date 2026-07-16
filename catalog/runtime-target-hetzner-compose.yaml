@@ -1,0 +1,17 @@
+apiVersion: backstage.io/v1alpha1
+kind: Resource
+metadata:
+  name: runtime-target-hetzner-compose
+  description: Direct Terraform and Docker Compose starter reference; not an active runtime default.
+  annotations:
+    aws-sdlc-containers/maturity: reference
+    aws-sdlc-containers/runtime-support-source: platform/workload-runtime-support.json
+    aws-sdlc-containers/decision: docs/adr/0003-retain-direct-hetzner-compose-reference.md
+  tags:
+    - hetzner
+    - docker-compose
+    - reference
+spec:
+  type: runtime-target
+  owner: group:default/platform-engineering
+  system: aws-sdlc-containers

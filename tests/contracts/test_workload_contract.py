@@ -6,7 +6,7 @@ from typing import Any
 
 import yaml
 
-from ._helpers import load_json, read_text
+from ._helpers import load_json, read_text, runtime_admitted, runtime_supported
 
 
 ENV_NAME_PATTERN = re.compile(
@@ -25,11 +25,11 @@ def _declared_owner(workload: dict[str, Any]) -> str:
 
 
 def _runtime_supported(workload: dict[str, Any]) -> set[str]:
-    return set(workload["runtime"]["supported"])
+    return runtime_supported(str(workload["name"]))
 
 
 def _runtime_admitted(workload: dict[str, Any]) -> set[str]:
-    return set(workload["runtime"]["admitted"])
+    return runtime_admitted(str(workload["name"]))
 
 
 def _supports_local_runtime(workload: dict[str, Any]) -> bool:
@@ -203,8 +203,34 @@ def test_workload_spec_config_names_match_app_settings() -> None:
         assert _declared_config_names(workload) == discovered_names
 
 
+def test_object_output_is_declared_without_a_provider_binding() -> None:
+    workloads = {
+        workload["name"]: workload
+        for workload in load_json("platform/workloads.json")["workloads"]
+    }
+
+    assert workloads["data_export_job"]["object_output"] == {
+        "format": "csv-with-json-manifest",
+        "integrity": "sha256",
+    }
+    assert all(
+        "object_output" not in workload
+        for name, workload in workloads.items()
+        if name != "data_export_job"
+    )
+
+
 def test_workload_runtime_support_and_admission_are_explicit() -> None:
     contract = load_json("platform/workloads.json")
+    support = load_json("platform/workload-runtime-support.json")
+    workload_names = {workload["name"] for workload in contract["workloads"]}
+
+    assert support["schema_version"] == "1"
+    for target, profile in support["targets"].items():
+        supported_names = set(profile["supported_workloads"])
+        admitted_names = set(profile["admitted_workloads"])
+        assert supported_names <= workload_names, target
+        assert admitted_names <= supported_names, target
 
     for workload in contract["workloads"]:
         supported = _runtime_supported(workload)
@@ -220,7 +246,7 @@ def test_aws_runtime_realization_is_sourced_from_workload_contract() -> None:
     assert 'jsondecode(file("${path.module}/../../platform/workloads.json"))' in (
         workload_inventory
     )
-    assert 'contains(try(workload.runtime.admitted, []), "aws-ecs")' in (
+    assert 'local.workload_runtime_support.targets["aws-ecs"].admitted_workloads' in (
         workload_inventory
     )
     assert "workloads_by_name" in workload_inventory
@@ -430,7 +456,7 @@ def test_aws_admitted_workload_secrets_have_runtime_mapping_guard() -> None:
     aws_secret_names = {
         secret
         for workload in contract["workloads"]
-        if "aws-ecs" in workload["runtime"]["admitted"]
+        if "aws-ecs" in _runtime_admitted(workload)
         for secret in workload["config"]["secrets"]
     }
 
@@ -448,7 +474,7 @@ def test_aws_admitted_workload_env_has_runtime_realization_guard() -> None:
     aws_env_names = {
         env_name
         for workload in contract["workloads"]
-        if "aws-ecs" in workload["runtime"]["admitted"]
+        if "aws-ecs" in _runtime_admitted(workload)
         for env_name in workload["config"]["env"]
     }
 
@@ -463,7 +489,7 @@ def test_aws_admitted_services_have_runtime_port_guard() -> None:
     workload_inventory = read_text("infra/app/workload_inventory.tf")
 
     for workload in contract["workloads"]:
-        if "aws-ecs" not in workload["runtime"]["admitted"]:
+        if "aws-ecs" not in _runtime_admitted(workload):
             continue
         if workload["kind"] != "service":
             continue

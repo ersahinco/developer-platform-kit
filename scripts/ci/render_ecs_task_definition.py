@@ -381,7 +381,7 @@ def _runtime_values_for_workload(
         values["DAPR_HTTP_PORT"] = "3500"
 
     env_defaults = {
-        "DATA_EXPORT_S3_BUCKET": data_hub_bucket_name,
+        "DATA_EXPORT_BUCKET": data_hub_bucket_name,
     }
     dapr = workload.get("dapr")
     if isinstance(dapr, dict):

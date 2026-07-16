@@ -23,7 +23,7 @@ entries:
       - platform/workload.Dockerfile
       - platform/workloads.json
     adoption_steps:
-      - add the workload to runtime.supported only after a local Kubernetes manifest exists
+      - add local Kubernetes support only after a matching manifest exists
       - use Kubernetes Service and probe names that match the workload contract
       - keep provider-specific ingress, identity, and storage choices out of this local proof runtime
 

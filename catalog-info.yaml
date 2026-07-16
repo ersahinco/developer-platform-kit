@@ -12,7 +12,19 @@ spec:
     - ./catalog/runtime-target-local-compose.yaml
     - ./catalog/runtime-target-local-kubernetes.yaml
     - ./catalog/runtime-target-aws-ecs.yaml
+    - ./catalog/runtime-target-hetzner-compose.yaml
+    - ./catalog/delivery-edge-coolify.yaml
+    - ./catalog/network-edge-netbird.yaml
     - ./catalog/platform-monorepo-component.yaml
+    - ./catalog/action-app-build.yaml
+    - ./catalog/action-app-deploy.yaml
+    - ./catalog/action-infra-plan.yaml
+    - ./catalog/action-infra-apply.yaml
+    - ./catalog/action-data-schema-apply.yaml
+    - ./catalog/action-data-runtime-switch.yaml
+    - ./catalog/action-data-backfill.yaml
+    - ./catalog/action-data-support-deploy.yaml
+    - ./catalog/action-operational-snapshot.yaml
     - ./catalog/api-component.yaml
     - ./catalog/booking-api-component.yaml
     - ./catalog/churn-model-train-job-component.yaml

@@ -19,6 +19,8 @@ on:
       - ".github/workflows/infra-plan.yml"
       - ".github/workflows/operational-snapshot.yml"
       - "apps/**"
+      - "catalog-info.yaml"
+      - "catalog/**"
       - "compose.yaml"
       - "platform/**"
       - "infra/catalog/**"
@@ -41,6 +43,8 @@ on:
       - ".github/workflows/infra-plan.yml"
       - ".github/workflows/operational-snapshot.yml"
       - "apps/**"
+      - "catalog-info.yaml"
+      - "catalog/**"
       - "compose.yaml"
       - "platform/**"
       - "infra/catalog/**"
@@ -314,11 +318,14 @@ jobs:
 
       - name: Publish build summary
         run: |
+          immutable_ref="${{ steps.image.outputs.image }}"
+          immutable_ref="${immutable_ref%:*}@${{ steps.digest.outputs.digest }}"
           {
             echo "### Image ready for deployment approval"
             echo ""
             echo "Commit: ${{ github.sha }}"
             echo "Image: ${{ steps.image.outputs.image }}"
+            echo "Digest reference: ${immutable_ref}"
             echo ""
             echo "Run the App Deploy workflow with image tag sha-${{ github.sha }} after review."
           } >> "$GITHUB_STEP_SUMMARY"

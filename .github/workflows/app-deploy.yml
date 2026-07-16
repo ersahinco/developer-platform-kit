@@ -64,6 +64,7 @@ jobs:
       primary_workload: ${{ steps.primary-service.outputs.workload_name }}
       app_host_workloads: ${{ steps.app-host-workloads.outputs.workloads }}
       task_definition: ${{ steps.deploy-app.outputs.task_def_arn || '' }}
+      image_digest: ${{ steps.primary-image.outputs.digest }}
       rollout_seconds: ${{ steps.deploy-app.outputs.rollout_seconds || '' }}
       verify_seconds: ${{ steps.verify-app.outputs.verify_seconds || steps.verify-current.outputs.verify_seconds }}
 
@@ -144,10 +145,15 @@ jobs:
           echo "workloads=${workloads}" >> "$GITHUB_OUTPUT"
 
       - name: Verify approved primary edge image exists
+        id: primary-image
         run: |
-          aws ecr describe-images \
+          digest=$(aws ecr describe-images \
             --repository-name "${STACK_NAME}/${{ steps.primary-service.outputs.service }}" \
-            --image-ids "imageTag=${IMAGE_TAG}"
+            --image-ids "imageTag=${IMAGE_TAG}" \
+            --query 'imageDetails[0].imageDigest' \
+            --output text)
+          test -n "$digest"
+          echo "digest=${digest}" >> "$GITHUB_OUTPUT"
 
       - name: Verify approved internal service images exist
         run: |
@@ -295,9 +301,15 @@ jobs:
             --service-name "${{ needs.deploy.outputs.primary_service }}" \
             --workload-id "${{ needs.deploy.outputs.primary_workload }}" \
             --image-tag "${{ env.IMAGE_TAG }}" \
+            --image-digest "${{ needs.deploy.outputs.image_digest }}" \
             --task-definition "${{ needs.deploy.outputs.task_definition }}" \
             --rollout-seconds "${{ needs.deploy.outputs.rollout_seconds }}" \
             --rollback-category app_image \
+            --capability-realization-id compute.aws-ecs \
+            --capability-realization-id dns.aws-route53 \
+            --capability-realization-id database.aws-rds-postgresql \
+            --capability-realization-id storage.aws-s3 \
+            --capability-realization-id eventing.dapr-aws-snssqs \
             --verify-seconds "${{ needs.deploy.outputs.verify_seconds }}" \
             --include-alarms \
             --push-loki \

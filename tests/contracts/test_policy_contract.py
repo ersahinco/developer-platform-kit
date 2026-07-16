@@ -87,39 +87,33 @@ def test_current_contract_surfaces_pass_policy_checks() -> None:
         ROOT / "platform" / "runtime-conformance.json",
         ROOT / "platform" / "platform-inventory.json",
         ROOT / "platform" / "runtime-defaults.json",
+        ROOT / "platform" / "workload-runtime-support.json",
     )
 
     assert completed.returncode == 0, completed.stderr or completed.stdout
 
 
-def test_workload_contract_policy_runtime_targets_match_runtime_defaults() -> None:
-    policy_text = (POLICY_DIR / "workload_contract.rego").read_text(encoding="utf-8")
-    runtime_defaults = json.loads(
-        (ROOT / "platform" / "runtime-defaults.json").read_text(encoding="utf-8")
-    )
-
-    assert _rego_string_set(policy_text, "known_runtime_targets") == set(
-        runtime_defaults["runtime_targets"]
-    )
-
-
 def test_workload_contract_policy_rejects_runtime_without_support(
     tmp_path: Path,
 ) -> None:
-    workload_contract = json.loads((ROOT / "platform" / "workloads.json").read_text())
-    invalid = dict(workload_contract)
-    invalid["workloads"] = [dict(workload_contract["workloads"][0])]
-    invalid["workloads"][0]["runtime"] = {
-        "supported": ["local-compose"],
-        "admitted": ["aws-ecs"],
+    support = json.loads(
+        (ROOT / "platform" / "workload-runtime-support.json").read_text()
+    )
+    invalid = dict(support)
+    invalid["targets"] = {
+        "example": {
+            "status": "reference",
+            "supported_workloads": [],
+            "admitted_workloads": ["api"],
+        }
     }
-    fixture = tmp_path / "workloads.json"
+    fixture = tmp_path / "workload-runtime-support.json"
     fixture.write_text(json.dumps(invalid), encoding="utf-8")
 
     completed = _run_conftest(fixture, cwd=tmp_path)
 
     assert completed.returncode != 0
-    assert "admits runtime" in (completed.stderr + completed.stdout)
+    assert "admits workload" in (completed.stderr + completed.stdout)
 
 
 def test_workload_contract_policy_rejects_workload_patterns(

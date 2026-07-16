@@ -1,0 +1,19 @@
+apiVersion: backstage.io/v1alpha1
+kind: Resource
+metadata:
+  name: delivery-edge-coolify
+  description: Compose-native application-delivery candidate gated by the disposable ADR 0003 experiment.
+  annotations:
+    aws-sdlc-containers/status: bounded-experiment
+    aws-sdlc-containers/authority: none-until-admitted
+    aws-sdlc-containers/adoption-gate: docs/adr/0003-retain-direct-hetzner-compose-reference.md
+    aws-sdlc-containers/upstream: https://github.com/coollabsio/coolify
+    aws-sdlc-containers/license: Apache-2.0
+  tags:
+    - coolify
+    - application-delivery
+    - candidate
+spec:
+  type: application-delivery-candidate
+  owner: group:default/platform-engineering
+  system: aws-sdlc-containers

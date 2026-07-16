@@ -14,7 +14,7 @@ def test_load_env_file_uses_shared_dotenv_rules(tmp_path, monkeypatch) -> None:
                 "DATA_EXPORT_OUTPUT_DIR='/tmp/data exports'",
                 'DATA_EXPORT_RUN_ID="from-file"',
                 "DATA_EXPORT_DATE=2026-01-01",
-                "DATA_EXPORT_S3_BUCKET=from-file",
+                "DATA_EXPORT_BUCKET=from-file",
             ]
         )
         + "\n",
@@ -23,14 +23,14 @@ def test_load_env_file_uses_shared_dotenv_rules(tmp_path, monkeypatch) -> None:
     monkeypatch.delenv("DATA_EXPORT_OUTPUT_DIR", raising=False)
     monkeypatch.delenv("DATA_EXPORT_RUN_ID", raising=False)
     monkeypatch.delenv("DATA_EXPORT_DATE", raising=False)
-    monkeypatch.setenv("DATA_EXPORT_S3_BUCKET", "already-set")
+    monkeypatch.setenv("DATA_EXPORT_BUCKET", "already-set")
 
     load_env_file(env_file)
 
     assert os.environ["DATA_EXPORT_OUTPUT_DIR"] == "/tmp/data exports"
     assert os.environ["DATA_EXPORT_RUN_ID"] == "from-file"
     assert os.environ["DATA_EXPORT_DATE"] == "2026-01-01"
-    assert os.environ["DATA_EXPORT_S3_BUCKET"] == "already-set"
+    assert os.environ["DATA_EXPORT_BUCKET"] == "already-set"
 
 
 def test_postgres_runtime_settings_can_compose_url_with_default_host() -> None:

@@ -1,0 +1,58 @@
+apiVersion: scaffolder.backstage.io/v1beta3
+kind: Template
+metadata:
+  name: action-infra-apply
+  title: Apply reviewed infrastructure plans
+  description: Dispatch the existing Infra Apply workflow; GitHub validates the reviewed plan run.
+  annotations:
+    github.com/project-slug: ersahinco/aws-sdlc-containers
+    aws-sdlc-containers/workflow-id: infra-apply.yml
+    aws-sdlc-containers/workflow-lane: infra
+    aws-sdlc-containers/mutation-gateway: github-actions
+  tags:
+    - delivery
+    - terraform
+    - apply
+spec:
+  owner: group:default/platform-engineering
+  type: delivery-action
+  parameters:
+    - title: Select the reviewed plan
+      required:
+        - plan_run_id
+        - confirm_apply
+      properties:
+        plan_run_id:
+          title: Infra Plan run ID
+          type: string
+          pattern: ^[0-9]+$
+        confirm_apply:
+          title: Confirmation
+          type: string
+          pattern: ^apply$
+          description: Type apply to permit a non-dry-run Terraform apply.
+        allow_ecs_task_definition_changes:
+          title: ECS task definition override
+          type: string
+          default: ""
+          description: Leave empty unless the reviewed plan intentionally changes ECS task definitions.
+        dry_run:
+          title: Dry run
+          type: string
+          default: "true"
+          enum:
+            - "true"
+            - "false"
+  steps:
+    - id: dispatchApply
+      name: Dispatch Infra Apply
+      action: github:actions:dispatch
+      input:
+        repoUrl: ${{ environment.parameters.deliveryRepoUrl }}
+        workflowId: infra-apply.yml
+        branchOrTagName: main
+        workflowInputs:
+          plan_run_id: ${{ parameters.plan_run_id }}
+          confirm_apply: ${{ parameters.confirm_apply }}
+          allow_ecs_task_definition_changes: ${{ parameters.allow_ecs_task_definition_changes }}
+          dry_run: ${{ parameters.dry_run }}

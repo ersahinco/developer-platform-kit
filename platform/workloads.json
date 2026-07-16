@@ -1,5 +1,5 @@
 {
-  "schema_version": "8",
+  "schema_version": "9",
   "workloads": [
     {
       "name": "api",
@@ -7,10 +7,6 @@
       "use_cases": ["http-api"],
       "owner": "platform-engineering",
       "app_path": "apps/api",
-      "runtime": {
-        "supported": ["local-compose", "local-kubernetes", "aws-ecs"],
-        "admitted": ["aws-ecs"]
-      },
       "operational": {
         "class": "edge-service",
         "exposure": "public"
@@ -76,10 +72,6 @@
       ],
       "owner": "platform-engineering",
       "app_path": "apps/booking_api",
-      "runtime": {
-        "supported": ["local-compose"],
-        "admitted": []
-      },
       "operational": {
         "class": "internal-service",
         "exposure": "internal"
@@ -130,10 +122,6 @@
       "use_cases": ["event-consumer", "integration"],
       "owner": "platform-engineering",
       "app_path": "apps/event_consumer",
-      "runtime": {
-        "supported": ["local-compose", "local-kubernetes", "aws-ecs"],
-        "admitted": ["aws-ecs"]
-      },
       "operational": {
         "class": "internal-service",
         "exposure": "internal"
@@ -194,10 +182,6 @@
       "use_cases": ["data-maintenance", "operator-task"],
       "owner": "platform-engineering",
       "app_path": "apps/backfill_worker",
-      "runtime": {
-        "supported": ["local-compose", "local-kubernetes", "aws-ecs"],
-        "admitted": ["aws-ecs"]
-      },
       "operational": {
         "class": "operator-job",
         "trigger": "manual"
@@ -237,10 +221,6 @@
       "use_cases": ["data-export", "scheduled-pipeline"],
       "owner": "platform-engineering",
       "app_path": "apps/data_export_job",
-      "runtime": {
-        "supported": ["local-compose", "local-kubernetes", "aws-ecs"],
-        "admitted": ["aws-ecs"]
-      },
       "operational": {
         "class": "scheduled-job",
         "trigger": "schedule"
@@ -257,6 +237,10 @@
         "semantics": "postgresql",
         "pooling": "direct"
       },
+      "object_output": {
+        "format": "csv-with-json-manifest",
+        "integrity": "sha256"
+      },
       "config": {
         "env": [
           "DATABASE_URL",
@@ -267,7 +251,7 @@
           "DATA_EXPORT_OUTPUT_DIR",
           "DATA_EXPORT_RUN_ID",
           "DATA_EXPORT_DATE",
-          "DATA_EXPORT_S3_BUCKET"
+          "DATA_EXPORT_BUCKET"
         ],
         "secrets": ["DB_PASSWORD"]
       },
@@ -285,10 +269,6 @@
       ],
       "owner": "platform-engineering",
       "app_path": "apps/lake_orders_ingest_job",
-      "runtime": {
-        "supported": ["local-compose"],
-        "admitted": []
-      },
       "operational": {
         "class": "operator-job",
         "trigger": "manual"
@@ -320,10 +300,6 @@
       "use_cases": ["mlops-evidence", "model-training", "operator-task"],
       "owner": "platform-engineering",
       "app_path": "apps/churn_model_train_job",
-      "runtime": {
-        "supported": ["local-compose"],
-        "admitted": []
-      },
       "operational": {
         "class": "operator-job",
         "trigger": "manual"
@@ -355,10 +331,6 @@
       "use_cases": ["internal-api", "mlops-serving", "model-inference"],
       "owner": "platform-engineering",
       "app_path": "apps/churn_prediction_api",
-      "runtime": {
-        "supported": ["local-compose"],
-        "admitted": []
-      },
       "operational": {
         "class": "internal-service",
         "exposure": "internal"
@@ -395,10 +367,6 @@
       "use_cases": ["operational-readiness", "operator-task"],
       "owner": "platform-engineering",
       "app_path": "apps/operational_snapshot_job",
-      "runtime": {
-        "supported": ["local-compose", "local-kubernetes", "aws-ecs"],
-        "admitted": ["aws-ecs"]
-      },
       "operational": {
         "class": "operator-job",
         "trigger": "manual"
@@ -436,10 +404,6 @@
       "use_cases": ["integration-check", "operational-readiness", "operator-task"],
       "owner": "platform-engineering",
       "app_path": "apps/integration_check_job",
-      "runtime": {
-        "supported": ["local-compose", "local-kubernetes"],
-        "admitted": []
-      },
       "operational": {
         "class": "operator-job",
         "trigger": "manual"

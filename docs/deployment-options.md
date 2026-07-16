@@ -68,8 +68,11 @@ Capability status:
 
 - Active: `local-compose`, `local-kubernetes`, and `aws-ecs` capability rows in
   `platform/platform-inventory.json`.
-- Candidate guidance: Supabase database realization, enterprise connectivity,
-  compute elsewhere, external gateways, and brownfield databases.
+- Reference implementation: the Cloudflare/Hetzner/Supabase/S3 starter path in
+  [Hybrid Starter Reference](hybrid-reference.md), with honest single-VM and
+  public-boundary limits.
+- Candidate guidance: enterprise connectivity, other compute targets, external
+  gateways, and brownfield databases.
 - Outside active defaults until reviewed proof: new runtime targets,
   provider-neutral infrastructure modules, Helm/CRD machinery, portals, or
   per-workload provider fields. A bounded candidate may still incubate the

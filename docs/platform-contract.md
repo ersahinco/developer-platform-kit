@@ -30,11 +30,10 @@ requirements:
 - target-neutral workload use cases for discovery and templates
 - workload owner
 - host location under `apps/`
-- supported runtime targets and admitted runtime targets
 - operational class
 - service port declarations
-- capability declarations such as database and the Dapr application APIs used
-  or proven by the workload
+- capability declarations such as database, object-output format and integrity,
+  and the Dapr application APIs used or proven by the workload
 - Dapr app identity and component mappings
 - shared image package and command metadata
 - portable health, metrics, traces, and idempotency expectations
@@ -59,11 +58,12 @@ targets remain responsible for realization.
 
 ## Metadata Ownership
 
-Three ownership layers for the current AWS target:
+Four ownership layers for the current AWS target:
 
 1. `platform/workloads.json`: what the workload is
-2. `platform/runtime-conformance.json`: local/CI fixture data only
-3. `infra/app/workload_inventory.tf`: how the current AWS runtime fulfills the contract
+2. `platform/workload-runtime-support.json`: where it has proof and admission
+3. `platform/runtime-conformance.json`: local/CI fixture data only
+4. `infra/app/workload_inventory.tf`: how the current AWS runtime fulfills the contract
 
 Rules:
 
@@ -81,14 +81,12 @@ or `connector` without encoding runtime details. Classification patterns stay
 outside real workload metadata so operational class remains the single workload
 shape axis.
 
-Each workload declares runtime support explicitly:
+Each workload declares a portable owner. Runtime support and admission are
+recorded separately in `platform/workload-runtime-support.json` so provider and
+runtime names do not become workload identity.
 
-- `runtime.supported`: runtime targets the workload host can run on today
-- `runtime.admitted`: runtime targets with reviewed realization and delivery ownership
-- `owner`: the team that owns workload operation and runtime admission decisions
-
-Support and admission are intentionally different. A workload may be a real
-contract-governed app host under `apps/` with only `local-compose` support.
+Support and admission remain intentionally different. A workload may be a real
+contract-governed app host under `apps/` with only local proof support.
 
 Service workloads must provide:
 

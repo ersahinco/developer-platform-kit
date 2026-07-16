@@ -13,12 +13,16 @@ standardize app development, infrastructure ownership, build, test, delivery,
 and evidence without hiding standard tools behind private machinery. Runtime
 targets are pluggable implementations at the platform edge. Local Compose is
 the fastest feedback runtime; local Kubernetes is the richer local proof
-runtime; AWS/ECS is the current reviewed production realization. Enterprise
-runtime choices can incubate as bounded candidates before demand reaches scale;
-they stay out of active defaults until a concrete proof, owner, conformance
-path, evidence artifact, failure mode, and runbook exist.
-The repo also ships a conventional Backstage descriptor in `catalog-info.yaml`
-so a portal or software catalog can ingest the monorepo without custom glue.
+runtime; AWS/ECS is the current reviewed production realization. The explicit
+hybrid starter reference composes Cloudflare, Hetzner, Supabase, S3, and Dapr
+without hiding provider semantics. Further runtime choices can incubate as
+bounded candidates before demand reaches scale; they stay out of active
+defaults until a concrete proof, owner, conformance path, evidence artifact,
+failure mode, and runbook exist.
+The repo also ships conventional Backstage entities and native Software
+Templates in `catalog-info.yaml`. Backstage can ingest the workload and
+runtime read model and dispatch the existing GitHub Actions workflows without
+receiving provider credentials or custom integration code.
 
 The monorepo is capability-rich but deliberately lean. It includes modern
 GitHub Actions lanes for infra, app, and data delivery; infrastructure
@@ -54,7 +58,7 @@ Use this repo when you want:
 
 Do not use it as:
 
-- a generic provider-neutral infrastructure toolkit
+- a lowest-common-denominator provider abstraction
 - a self-service portal or control plane before the workload boundary is clear
 - a runtime platform replacement for ECS, Lambda, Kubernetes, Cloud Run, VMs, or
   on-prem hosts
@@ -62,12 +66,13 @@ Do not use it as:
 - a place to hide platform magic behind generated per-app behavior
 - a place for each app team to pick random delivery, auth, observability, or
   policy tools when shared runtime capabilities should own those choices
-- a place to install enterprise tools without a bounded capability outcome, concrete proof, and owner
+- a place to install enterprise tools without a bounded capability outcome,
+  concrete proof, and owner
 
 ## What This Repo Standardizes
 
 - Platform center: workload contract plus reusable catalog and concern definitions
-- Workload contract: `platform/workloads.json`; local/CI proof in `platform/runtime-conformance.json`
+- Workload contract: provider-free `platform/workloads.json`; runtime-edge support in `platform/workload-runtime-support.json`; local/CI proof in `platform/runtime-conformance.json`
 - Boundaries: thin `apps/*` hosts, reusable `packages/*`, pluggable runtime targets realized at the edge in `infra/*`, workflows, and Compose
 - Capabilities: network, database, object storage, messaging, jobs, scheduling, Dapr, observability, secrets, and evidence selected by workload need or an owned pre-scale proof
 - Ownership: each workload declares a portable owner before cloud runtime admission
@@ -104,6 +109,8 @@ Do not use it as:
 | DevOps gates and reusable pipeline shape | [docs/devops-toolchain.md](docs/devops-toolchain.md), [docs/deployment.md](docs/deployment.md) |
 | AWS delivery and operator flow | [docs/operator-day-2.md](docs/operator-day-2.md), [docs/deployment.md](docs/deployment.md) |
 | Greenfield and brownfield deployment options | [docs/deployment-options.md](docs/deployment-options.md) |
+| Hybrid starter reference | [docs/hybrid-reference.md](docs/hybrid-reference.md) |
+| Backstage catalog and actions | [docs/backstage-integration.md](docs/backstage-integration.md) |
 | Incident response | [docs/runbooks/README.md](docs/runbooks/README.md) |
 | Current work state | [docs/roadmaps.md](docs/roadmaps.md) |
 

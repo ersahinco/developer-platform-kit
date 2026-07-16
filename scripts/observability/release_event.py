@@ -37,6 +37,7 @@ REQUIRED_EVENT_FIELDS = [
     ("run_id",),
     ("runtime_id",),
     ("workload_id",),
+    ("capability_realization_ids",),
     ("deployment_id",),
     ("image_digest",),
     ("rollback_category",),
@@ -187,6 +188,7 @@ def build_event(
     verify_seconds: int | None,
     verify_slo_seconds: int | None,
     rollout_seconds: int | None = None,
+    capability_realization_ids: list[str] | None = None,
     runtime_id: str | None = None,
     workload_id: str | None = None,
     related_workload_ids: list[str] | None = None,
@@ -204,9 +206,11 @@ def build_event(
     stack_name = env.get("STACK_NAME", DEFAULT_STACK_NAME)
     environment = env.get("DEPLOYMENT_ENVIRONMENT", DEFAULT_ENVIRONMENT)
     github = _github_context(env)
+    run_id = env.get("RELEASE_RUN_ID") or github.get("run_id")
     resolved_runtime_id = runtime_id or env.get("RUNTIME_ID", "aws-ecs")
     resolved_workload_id = workload_id or service_name
     resolved_related_workload_ids = _clean_list(related_workload_ids)
+    resolved_capability_realization_ids = _clean_list(capability_realization_ids)
     resolved_source_workflow = source_workflow or github.get("workflow")
     resolved_deployment_id = (
         deployment_id
@@ -226,10 +230,11 @@ def build_event(
         "status": status,
         "summary": summary,
         "timestamp": now.isoformat(),
-        "run_id": github.get("run_id"),
+        "run_id": run_id,
         "runtime_id": resolved_runtime_id,
         "workload_id": resolved_workload_id,
         "related_workload_ids": resolved_related_workload_ids,
+        "capability_realization_ids": resolved_capability_realization_ids,
         "deployment_id": resolved_deployment_id,
         "image_digest": image_digest or env.get("IMAGE_DIGEST"),
         "rollback_category": rollback_category,
@@ -272,12 +277,13 @@ def build_event(
             "runtime_id": resolved_runtime_id,
             "workload_id": resolved_workload_id,
             "related_workload_ids": resolved_related_workload_ids,
+            "capability_realization_ids": resolved_capability_realization_ids,
             "deployment_id": resolved_deployment_id,
             "image_digest": image_digest or env.get("IMAGE_DIGEST"),
             "image_tag": image_tag,
             "task_definition": task_definition,
             "task_arn": _task_arn_from_deployment_id(resolved_deployment_id),
-            "run_id": env.get("GITHUB_RUN_ID"),
+            "run_id": run_id,
             "github_run_id": env.get("GITHUB_RUN_ID"),
         },
     }
@@ -354,6 +360,12 @@ def render_markdown(event: dict[str, Any]) -> str:
             f"`{workload_id}`" for workload_id in event["related_workload_ids"]
         )
         lines.append(f"- Related workloads: {related}")
+    if event.get("capability_realization_ids"):
+        realizations = ", ".join(
+            f"`{realization_id}`"
+            for realization_id in event["capability_realization_ids"]
+        )
+        lines.append(f"- Capability realizations: {realizations}")
     if event.get("image_digest"):
         lines.append(f"- Image digest: `{event['image_digest']}`")
     if event.get("source_workflow"):
@@ -502,6 +514,7 @@ def main() -> int:
     parser.add_argument("--runtime-id")
     parser.add_argument("--workload-id")
     parser.add_argument("--related-workload-id", action="append", default=[])
+    parser.add_argument("--capability-realization-id", action="append", default=[])
     parser.add_argument("--deployment-id")
     parser.add_argument("--image-digest")
     parser.add_argument("--rollback-category")
@@ -566,6 +579,7 @@ def main() -> int:
         runtime_id=_clean_optional(args.runtime_id),
         workload_id=_clean_optional(args.workload_id),
         related_workload_ids=args.related_workload_id,
+        capability_realization_ids=args.capability_realization_id,
         deployment_id=_clean_optional(args.deployment_id),
         image_digest=_clean_optional(args.image_digest),
         rollback_category=_clean_optional(args.rollback_category),

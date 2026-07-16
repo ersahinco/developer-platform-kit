@@ -22,7 +22,7 @@ def _run_export(output_dir: Path, run_id: str, export_date: str):
     env["DATA_EXPORT_OUTPUT_DIR"] = str(output_dir)
     env["DATA_EXPORT_RUN_ID"] = run_id
     env["DATA_EXPORT_DATE"] = export_date
-    env.pop("DATA_EXPORT_S3_BUCKET", None)
+    env.pop("DATA_EXPORT_BUCKET", None)
     return subprocess.run(
         [
             "uv",

@@ -1,0 +1,8 @@
+stack_name                = "aws-sdlc-containers"
+aws_region                = "eu-central-1"
+export_bucket_name        = "replace-with-globally-unique-export-bucket"
+export_writer_user_name   = "existing-hybrid-export-writer"
+supabase_organization_id = "replace-with-organization-slug"
+supabase_project_name     = "aws-sdlc-hybrid-starter"
+supabase_region           = "eu-central-1"
+supabase_instance_size    = "micro"

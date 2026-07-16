@@ -79,6 +79,10 @@ def _free_port() -> int:
 
 def _load_workloads() -> list[dict[str, object]]:
     contract = json.loads((ROOT / "platform" / "workloads.json").read_text())
+    support = json.loads(
+        (ROOT / "platform" / "workload-runtime-support.json").read_text()
+    )
+    local_names = set(support["targets"]["local-compose"]["supported_workloads"])
     conformance = json.loads(
         (ROOT / "platform" / "runtime-conformance.json").read_text()
     )
@@ -87,7 +91,7 @@ def _load_workloads() -> list[dict[str, object]]:
     workloads = [
         workload
         for workload in contract["workloads"]
-        if "local-compose" in workload["runtime"]["supported"]
+        if workload["name"] in local_names
     ]
     merged: list[dict[str, object]] = []
     for workload in workloads:

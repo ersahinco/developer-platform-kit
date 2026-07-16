@@ -9,6 +9,7 @@ import yaml
 
 from scripts.platform.local_kubernetes.constants import LOCAL_KUBERNETES_ROOT
 from scripts.platform.local_kubernetes.constants import ROOT
+from scripts.platform.workload_read_model import workload_runtime_supported
 
 
 @dataclass(frozen=True)
@@ -178,13 +179,13 @@ def admission_rows() -> list[AdmissionRow]:
     rows: list[AdmissionRow] = []
 
     for workload in workloads:
-        supported = "local-kubernetes" in workload["runtime"]["supported"]
+        supported = "local-kubernetes" in workload_runtime_supported(workload)
         manifest = _workload_manifest(workload, manifests)
         checks: list[str] = []
         blockers: list[str] = []
 
         if not supported:
-            blockers.append("runtime.supported does not include local-kubernetes")
+            blockers.append("runtime support does not include local-kubernetes")
         if manifest is None:
             blockers.append("no local Kubernetes Deployment/Job manifest")
             manifest_name = ""

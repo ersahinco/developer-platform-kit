@@ -1,0 +1,6 @@
+stack_name      = "aws-sdlc-containers"
+server_type     = "cx33"
+server_location = "nbg1"
+server_image    = "ubuntu-24.04"
+ssh_public_key  = "ssh-ed25519 replace-with-public-key"
+admin_cidrs     = ["203.0.113.10/32"]

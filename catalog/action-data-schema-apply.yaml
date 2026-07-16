@@ -1,0 +1,65 @@
+apiVersion: scaffolder.backstage.io/v1beta3
+kind: Template
+metadata:
+  name: action-data-schema-apply
+  title: Apply a reviewed schema phase
+  description: Dispatch the existing expand-or-contract schema workflow with its data-safety gates.
+  annotations:
+    github.com/project-slug: ersahinco/aws-sdlc-containers
+    aws-sdlc-containers/workflow-id: data-schema-apply.yml
+    aws-sdlc-containers/workflow-lane: data
+    aws-sdlc-containers/mutation-gateway: github-actions
+  tags:
+    - delivery
+    - data
+    - schema
+spec:
+  owner: group:default/platform-engineering
+  type: delivery-action
+  parameters:
+    - title: Select the schema phase
+      required:
+        - image_tag
+        - schema_phase
+        - confirm_schema_apply
+      properties:
+        image_tag:
+          title: Immutable image tag
+          type: string
+          pattern: ^sha-[0-9a-f]{40}$
+        schema_phase:
+          title: Schema phase
+          type: string
+          enum:
+            - expand
+            - contract
+        confirm_contract_ready:
+          title: Contract readiness confirmation
+          type: string
+          default: ""
+          description: For contract only, type contract-ready after both runtime modes use the new shape.
+        confirm_schema_apply:
+          title: Apply confirmation
+          type: string
+          pattern: ^apply-schema$
+        dry_run:
+          title: Dry run
+          type: string
+          default: "true"
+          enum:
+            - "true"
+            - "false"
+  steps:
+    - id: dispatchSchema
+      name: Dispatch Data Schema Apply
+      action: github:actions:dispatch
+      input:
+        repoUrl: ${{ environment.parameters.deliveryRepoUrl }}
+        workflowId: data-schema-apply.yml
+        branchOrTagName: main
+        workflowInputs:
+          image_tag: ${{ parameters.image_tag }}
+          schema_phase: ${{ parameters.schema_phase }}
+          confirm_contract_ready: ${{ parameters.confirm_contract_ready }}
+          confirm_schema_apply: ${{ parameters.confirm_schema_apply }}
+          dry_run: ${{ parameters.dry_run }}

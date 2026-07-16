@@ -25,3 +25,8 @@ misconfigurations:
       - infra/app/object_storage.tf
     statement: S3-managed encryption is the development contract until a workload owns CMK lifecycle and recovery.
     expired_at: 2027-01-16
+  - id: AWS-0132
+    paths:
+      - infra/hybrid-reference/data/main.tf
+    statement: The starter reference uses S3-managed encryption to avoid an unowned CMK cost, policy, rotation, and recovery lifecycle.
+    expired_at: 2027-01-16

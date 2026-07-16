@@ -26,7 +26,7 @@ def test_run_export_happy_path(committed_db_session, tmp_path, monkeypatch):
     settings, run_export = _load_data_export_job()
     monkeypatch.setattr(settings, "data_export_output_dir", str(tmp_path))
     monkeypatch.setattr(settings, "database_url", os.environ["DATABASE_URL"])
-    monkeypatch.setattr(settings, "data_export_s3_bucket", None)
+    monkeypatch.setattr(settings, "data_export_bucket", None)
 
     manifest = run_export()
 
@@ -63,7 +63,7 @@ def test_run_export_empty_table(committed_db_session, tmp_path, monkeypatch):
         settings, run_export = _load_data_export_job()
         monkeypatch.setattr(settings, "data_export_output_dir", str(tmp_path))
         monkeypatch.setattr(settings, "database_url", os.environ["DATABASE_URL"])
-        monkeypatch.setattr(settings, "data_export_s3_bucket", None)
+        monkeypatch.setattr(settings, "data_export_bucket", None)
 
         manifest = run_export()
 

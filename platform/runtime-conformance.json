@@ -93,7 +93,7 @@
         "DATA_EXPORT_OUTPUT_DIR": "/exports",
         "DATA_EXPORT_RUN_ID": "conformance",
         "DATA_EXPORT_DATE": "2026-05-13",
-        "DATA_EXPORT_S3_BUCKET": ""
+        "DATA_EXPORT_BUCKET": ""
       },
       "expected_success_event": "data_export_succeeded",
       "expected_log_fields": ["event", "job_name", "dataset", "run_id", "status"]

@@ -1,0 +1,26 @@
+apiVersion: scaffolder.backstage.io/v1beta3
+kind: Template
+metadata:
+  name: action-infra-plan
+  title: Plan infrastructure
+  description: Dispatch the existing non-mutating Terraform plan workflow.
+  annotations:
+    github.com/project-slug: ersahinco/aws-sdlc-containers
+    aws-sdlc-containers/workflow-id: infra-plan.yml
+    aws-sdlc-containers/workflow-lane: infra
+    aws-sdlc-containers/mutation-gateway: github-actions
+  tags:
+    - delivery
+    - terraform
+    - plan
+spec:
+  owner: group:default/platform-engineering
+  type: delivery-action
+  steps:
+    - id: dispatchPlan
+      name: Dispatch Infra Plan
+      action: github:actions:dispatch
+      input:
+        repoUrl: ${{ environment.parameters.deliveryRepoUrl }}
+        workflowId: infra-plan.yml
+        branchOrTagName: main

@@ -26,7 +26,8 @@ def test_deployment_options_document_runtime_choice_without_new_runtime_target()
     assert "Hybrid or brownfield realization question" in doc
     assert "Capability status:" in doc
     assert "Active: `local-compose`, `local-kubernetes`, and `aws-ecs`" in doc
-    assert "Candidate guidance: Supabase database realization" in doc
+    assert "Reference implementation: the Cloudflare/Hetzner/Supabase/S3" in doc
+    assert "[Hybrid Starter Reference](hybrid-reference.md)" in doc
     assert "Outside active defaults until reviewed proof" in doc
     assert "bounded candidate" in doc
     assert "without claiming production readiness" in doc

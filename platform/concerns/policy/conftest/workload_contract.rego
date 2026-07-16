@@ -2,8 +2,6 @@ package main
 
 import rego.v1
 
-known_runtime_targets := {"local-compose", "local-kubernetes", "aws-ecs"}
-
 deny contains msg if {
   data.conftest.file.name == "workloads.json"
   not input.schema_version
@@ -12,8 +10,8 @@ deny contains msg if {
 
 deny contains msg if {
   data.conftest.file.name == "workloads.json"
-  input.schema_version != "8"
-  msg := "platform/workloads.json schema_version must be 8"
+  input.schema_version != "9"
+  msg := "platform/workloads.json schema_version must be 9"
 }
 
 deny contains msg if {
@@ -104,54 +102,6 @@ deny contains msg if {
 deny contains msg if {
   data.conftest.file.name == "workloads.json"
   some workload in input.workloads
-  not is_array(workload.runtime.supported)
-  msg := sprintf("workload %q runtime.supported must be an array", [workload.name])
-}
-
-deny contains msg if {
-  data.conftest.file.name == "workloads.json"
-  some workload in input.workloads
-  count(workload.runtime.supported) == 0
-  msg := sprintf("workload %q must declare at least one supported runtime", [workload.name])
-}
-
-deny contains msg if {
-  data.conftest.file.name == "workloads.json"
-  some workload in input.workloads
-  not is_array(workload.runtime.admitted)
-  msg := sprintf("workload %q runtime.admitted must be an array", [workload.name])
-}
-
-deny contains msg if {
-  data.conftest.file.name == "workloads.json"
-  some workload in input.workloads
-  some runtime_target in workload.runtime.supported
-  not runtime_target in known_runtime_targets
-  msg := sprintf("workload %q declares unknown supported runtime %q", [workload.name, runtime_target])
-}
-
-deny contains msg if {
-  data.conftest.file.name == "workloads.json"
-  some workload in input.workloads
-  some runtime_target in workload.runtime.admitted
-  not runtime_target in known_runtime_targets
-  msg := sprintf("workload %q declares unknown admitted runtime %q", [workload.name, runtime_target])
-}
-
-deny contains msg if {
-  data.conftest.file.name == "workloads.json"
-  some workload in input.workloads
-  some runtime_target in workload.runtime.admitted
-  not runtime_target in workload.runtime.supported
-  msg := sprintf(
-    "workload %q admits runtime %q without declaring support",
-    [workload.name, runtime_target],
-  )
-}
-
-deny contains msg if {
-  data.conftest.file.name == "workloads.json"
-  some workload in input.workloads
   not workload.operational.class
   msg := sprintf("workload %q must declare operational.class", [workload.name])
 }
@@ -175,6 +125,30 @@ deny contains msg if {
   some workload in input.workloads
   not workload.image.command
   msg := sprintf("workload %q must declare image.command", [workload.name])
+}
+
+deny contains msg if {
+  data.conftest.file.name == "workloads.json"
+  some workload in input.workloads
+  object.get(workload, "object_output", null) != null
+  not is_object(workload.object_output)
+  msg := sprintf("workload %q object_output must be an object", [workload.name])
+}
+
+deny contains msg if {
+  data.conftest.file.name == "workloads.json"
+  some workload in input.workloads
+  object.get(workload, "object_output", null) != null
+  not is_string(workload.object_output.format)
+  msg := sprintf("workload %q object_output.format must be a string", [workload.name])
+}
+
+deny contains msg if {
+  data.conftest.file.name == "workloads.json"
+  some workload in input.workloads
+  object.get(workload, "object_output", null) != null
+  not is_string(workload.object_output.integrity)
+  msg := sprintf("workload %q object_output.integrity must be a string", [workload.name])
 }
 
 deny contains msg if {
@@ -361,6 +335,7 @@ deny contains msg if {
 
 workload_choreography_key contains "aws"
 workload_choreography_key contains "ecs"
+workload_choreography_key contains "runtime"
 workload_choreography_key contains "terraform"
 workload_choreography_key contains "workflow"
 workload_choreography_key contains "cluster"

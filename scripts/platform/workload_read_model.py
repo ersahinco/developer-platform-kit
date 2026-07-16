@@ -21,6 +21,18 @@ WORKFLOW_LANES = {
     "local-proof": ["local-kubernetes-contracts.yml"],
 }
 
+BACKSTAGE_WORKFLOW_ACTIONS = {
+    "app-build.yml": "catalog/action-app-build.yaml",
+    "app-deploy.yml": "catalog/action-app-deploy.yaml",
+    "infra-plan.yml": "catalog/action-infra-plan.yaml",
+    "infra-apply.yml": "catalog/action-infra-apply.yaml",
+    "data-schema-apply.yml": "catalog/action-data-schema-apply.yaml",
+    "data-runtime-switch.yml": "catalog/action-data-runtime-switch.yaml",
+    "data-backfill.yml": "catalog/action-data-backfill.yaml",
+    "data-support-deploy.yml": "catalog/action-data-support-deploy.yaml",
+    "operational-snapshot.yml": "catalog/action-operational-snapshot.yaml",
+}
+
 REQUIRED_MONOREPO_PROFILE_LANES = {"infra", "app", "data"}
 REQUIRED_MONOREPO_PROFILE_CAPABILITIES = {
     "async_eventing",
@@ -36,6 +48,11 @@ REQUIRED_MONOREPO_PROFILE_CAPABILITIES = {
 @lru_cache(maxsize=1)
 def workload_contract() -> dict[str, Any]:
     return json.loads((ROOT / "platform" / "workloads.json").read_text())
+
+
+@lru_cache(maxsize=1)
+def workload_runtime_support_document() -> dict[str, Any]:
+    return json.loads((ROOT / "platform" / "workload-runtime-support.json").read_text())
 
 
 @lru_cache(maxsize=1)
@@ -105,15 +122,27 @@ def workload_use_cases(workload: dict[str, Any]) -> list[str]:
 
 
 def workload_runtime_supported(workload: dict[str, Any]) -> list[str]:
-    runtime = workload.get("runtime", {})
-    values = runtime.get("supported", []) if isinstance(runtime, dict) else []
-    return [value for value in values if isinstance(value, str)]
+    name = str(workload.get("name", ""))
+    targets = workload_runtime_support_document().get("targets", {})
+    if not isinstance(targets, dict):
+        return []
+    return [
+        str(target)
+        for target, profile in targets.items()
+        if isinstance(profile, dict) and name in profile.get("supported_workloads", [])
+    ]
 
 
 def workload_runtime_admitted(workload: dict[str, Any]) -> list[str]:
-    runtime = workload.get("runtime", {})
-    values = runtime.get("admitted", []) if isinstance(runtime, dict) else []
-    return [value for value in values if isinstance(value, str)]
+    name = str(workload.get("name", ""))
+    targets = workload_runtime_support_document().get("targets", {})
+    if not isinstance(targets, dict):
+        return []
+    return [
+        str(target)
+        for target, profile in targets.items()
+        if isinstance(profile, dict) and name in profile.get("admitted_workloads", [])
+    ]
 
 
 def workload_admitted_to_runtime(workload: dict[str, Any], runtime_target: str) -> bool:
@@ -368,6 +397,14 @@ def _workflow_lanes() -> list[dict[str, Any]]:
                 "lane": lane,
                 "toolkit": "github-actions",
                 "workflows": workflow_names,
+                "backstage_actions": [
+                    {
+                        "workflow": name,
+                        "template": BACKSTAGE_WORKFLOW_ACTIONS[name],
+                    }
+                    for name in workflow_names
+                    if name in BACKSTAGE_WORKFLOW_ACTIONS
+                ],
                 "missing_workflows": [
                     name
                     for name in workflow_names
@@ -376,6 +413,96 @@ def _workflow_lanes() -> list[dict[str, Any]]:
             }
         )
     return lanes
+
+
+def _workload_placement_policy() -> dict[str, Any]:
+    default_runtime = str(runtime_defaults_document().get("current_runtime_target", ""))
+    support_targets = workload_runtime_support_document().get("targets", {})
+    target_status = {
+        str(name): str(profile.get("status", ""))
+        for name, profile in support_targets.items()
+        if isinstance(profile, dict)
+    }
+
+    return {
+        "source": "platform/workload-runtime-support.json",
+        "semantics": "support and admission policy, not live deployment inventory",
+        "observed_deployments_source": "scripts/observability/release_event.py",
+        "workloads": [
+            {
+                "workload": workload["name"],
+                "catalog_entity": f"component:default/{workload['name']}",
+                "owner": workload_owner(workload),
+                "supported_runtime_targets": workload_runtime_supported(workload),
+                "admitted_runtime_targets": workload_runtime_admitted(workload),
+                "default_runtime_target": (
+                    default_runtime
+                    if default_runtime in workload_runtime_admitted(workload)
+                    else None
+                ),
+                "reference_runtime_targets": [
+                    target
+                    for target in workload_runtime_supported(workload)
+                    if target_status.get(target) == "reference"
+                ],
+            }
+            for workload in workloads()
+        ],
+    }
+
+
+def _integration_plane() -> dict[str, Any]:
+    return {
+        "front_door": {
+            "tool": "backstage",
+            "mode": "read-and-dispatch",
+            "catalog_source": "catalog-info.yaml",
+            "provider_credentials": "none",
+        },
+        "mutation_gateway": {
+            "tool": "github-actions",
+            "workflow_root": ".github/workflows",
+            "credential_boundary": "GitHub environments and OIDC",
+        },
+        "authorities": [
+            {
+                "concern": "workload identity",
+                "owner": "platform/workloads.json",
+            },
+            {
+                "concern": "runtime support and admission",
+                "owner": "platform/workload-runtime-support.json",
+            },
+            {
+                "concern": "infrastructure and authoritative DNS",
+                "owner": "Terraform roots under infra/",
+            },
+            {
+                "concern": "build, deploy, apply, and operator jobs",
+                "owner": "GitHub Actions",
+            },
+            {
+                "concern": "observed deployment and release correlation",
+                "owner": "scripts/observability/release_event.py",
+            },
+        ],
+        "platform_edges": [
+            {
+                "tool": "coolify",
+                "catalog_entity": "resource:default/delivery-edge-coolify",
+                "role": "application-delivery candidate",
+                "status": "bounded-experiment",
+                "authority": "none until ADR 0003 gate passes",
+            },
+            {
+                "tool": "netbird",
+                "catalog_entity": "resource:default/network-edge-netbird",
+                "role": "private-network candidate",
+                "status": "bounded-candidate",
+                "authority": "private connectivity only after admission; never authoritative public DNS",
+            },
+        ],
+    }
 
 
 def _workload_config_names(workload: dict[str, Any], key: str) -> list[str]:
@@ -387,13 +514,7 @@ def _workload_config_names(workload: dict[str, Any], key: str) -> list[str]:
 
 
 def _has_object_output(workload: dict[str, Any]) -> bool:
-    env_names = _workload_config_names(workload, "env")
-    return any(
-        name.endswith("_S3_BUCKET")
-        or name.endswith("_OUTPUT_BUCKET")
-        or name.endswith("_OUTPUT_DIR")
-        for name in env_names
-    )
+    return isinstance(workload.get("object_output"), dict)
 
 
 def _workload_infra_capabilities(workload: dict[str, Any]) -> list[str]:
@@ -443,6 +564,8 @@ def monorepo_capability_profile() -> dict[str, Any]:
         "profile": "lean-monorepo-capabilities",
         "stable_center": platform_inventory_document().get("stable_center", {}),
         "delivery_lanes": _workflow_lanes(),
+        "integration_plane": _integration_plane(),
+        "workload_placement": _workload_placement_policy(),
         "runtime_targets": [
             {
                 "runtime_target": runtime_target,
@@ -526,6 +649,7 @@ def monorepo_capability_profile() -> dict[str, Any]:
         "lean_controls": {
             "metadata_sources": [
                 "platform/workloads.json",
+                "platform/workload-runtime-support.json",
                 "platform/runtime-defaults.json",
                 "platform/platform-inventory.json",
             ],

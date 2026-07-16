@@ -421,8 +421,8 @@ def _aws_runtime_env_names(workload: dict[str, Any]) -> set[str]:
                 "DAPR_SUBSCRIPTION_ROUTE",
             }
         )
-    if "DATA_EXPORT_S3_BUCKET" in declared:
-        names.add("DATA_EXPORT_S3_BUCKET")
+    if "DATA_EXPORT_BUCKET" in declared:
+        names.add("DATA_EXPORT_BUCKET")
     return names
 
 

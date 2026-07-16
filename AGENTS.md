@@ -103,13 +103,14 @@ Jobs must provide:
 ## Metadata Ownership
 
 1. `platform/workloads.json` - what the workload is
-2. `platform/runtime-conformance.json` - local/CI fixture data only
-3. `infra/app/workload_inventory.tf` - how the current AWS runtime fulfills the contract
+2. `platform/workload-runtime-support.json` - runtime-edge support and admission evidence
+3. `platform/runtime-conformance.json` - local/CI fixture data only
+4. `infra/app/workload_inventory.tf` - how the current AWS runtime fulfills the contract
 
 Rules:
 
 - Do not grow `platform/workloads.json` into a deployment DSL.
-- Do not let runtime realization layers such as `infra/app/workload_inventory.tf` redefine workload identity.
+- Do not let runtime support or realization layers redefine workload identity.
 - Do not let `platform/runtime-conformance.json` grow second application-spec semantics.
 - Use target-neutral `use_cases` to classify workload intent for catalog, templates, and self-service discovery.
 - Add future runtime targets as parallel realization layers, not by rewriting the stable center.

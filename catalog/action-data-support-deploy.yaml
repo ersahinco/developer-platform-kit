@@ -1,0 +1,62 @@
+apiVersion: scaffolder.backstage.io/v1beta3
+kind: Template
+metadata:
+  name: action-data-support-deploy
+  title: Promote data-support job images
+  description: Dispatch the existing support-job promotion workflow for one workload or all admitted jobs.
+  annotations:
+    github.com/project-slug: ersahinco/aws-sdlc-containers
+    aws-sdlc-containers/workflow-id: data-support-deploy.yml
+    aws-sdlc-containers/workflow-lane: data
+    aws-sdlc-containers/mutation-gateway: github-actions
+  tags:
+    - delivery
+    - data
+    - job
+spec:
+  owner: group:default/platform-engineering
+  type: delivery-action
+  parameters:
+    - title: Select the approved build and workload
+      required:
+        - image_tag
+        - target_workload
+        - confirm_data_support_deploy
+      properties:
+        image_tag:
+          title: Immutable image tag
+          type: string
+          pattern: ^sha-[0-9a-f]{40}$
+        target_workload:
+          title: Target workload
+          type: string
+          default: all
+          enum:
+            - all
+            - backfill_worker
+            - data_export_job
+            - operational_snapshot_job
+        confirm_data_support_deploy:
+          title: Confirmation
+          type: string
+          pattern: ^deploy-data-support$
+        dry_run:
+          title: Dry run
+          type: string
+          default: "true"
+          enum:
+            - "true"
+            - "false"
+  steps:
+    - id: dispatchSupport
+      name: Dispatch Data Support Deploy
+      action: github:actions:dispatch
+      input:
+        repoUrl: ${{ environment.parameters.deliveryRepoUrl }}
+        workflowId: data-support-deploy.yml
+        branchOrTagName: main
+        workflowInputs:
+          image_tag: ${{ parameters.image_tag }}
+          target_workload: ${{ parameters.target_workload }}
+          confirm_data_support_deploy: ${{ parameters.confirm_data_support_deploy }}
+          dry_run: ${{ parameters.dry_run }}

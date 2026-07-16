@@ -6,7 +6,7 @@ import yaml
 
 from scripts.platform.workload_read_model import build_local_kubernetes_image_matrix
 
-from ._helpers import ROOT, load_json
+from ._helpers import ROOT, load_json, runtime_admitted, runtime_supported
 
 
 LOCAL_KUBERNETES_ROOT = ROOT / "infra" / "local-kubernetes"
@@ -78,7 +78,7 @@ def test_local_kubernetes_supported_workloads_are_intentional() -> None:
     supported = {
         name
         for name, workload in workloads.items()
-        if "local-kubernetes" in workload["runtime"]["supported"]
+        if "local-kubernetes" in runtime_supported(name)
     }
 
     assert supported == set(LOCAL_KUBERNETES_WORKLOADS)
@@ -94,7 +94,7 @@ def test_local_kubernetes_supported_workloads_are_intentional() -> None:
     }
     assert manifest_workload_labels == supported
     for name in supported:
-        assert "local-kubernetes" not in workloads[name]["runtime"]["admitted"]
+        assert "local-kubernetes" not in runtime_admitted(name)
 
 
 def test_local_kubernetes_kustomization_is_static_and_small() -> None:
@@ -210,7 +210,7 @@ def test_local_kubernetes_runtime_proves_identity_network_and_storage() -> None:
     assert ("Job", "backfill-worker") in documents
     assert ("Job", "operational-snapshot-job") in documents
     assert config_map["data"]["DATA_EXPORT_OUTPUT_DIR"] == "/exports"
-    assert config_map["data"]["DATA_EXPORT_S3_BUCKET"] == ""
+    assert config_map["data"]["DATA_EXPORT_BUCKET"] == ""
     assert config_map["data"]["DAPR_PUBSUB_NAME"] == "async-events-pubsub"
     assert config_map["data"]["DAPR_TOPIC"] == "async-events-v1.fifo"
 

@@ -1,0 +1,51 @@
+apiVersion: scaffolder.backstage.io/v1beta3
+kind: Template
+metadata:
+  name: action-data-backfill
+  title: Run a reviewed data backfill
+  description: Dispatch the existing backfill workflow against an approved immutable image.
+  annotations:
+    github.com/project-slug: ersahinco/aws-sdlc-containers
+    aws-sdlc-containers/workflow-id: data-backfill.yml
+    aws-sdlc-containers/workflow-lane: data
+    aws-sdlc-containers/mutation-gateway: github-actions
+  tags:
+    - delivery
+    - data
+    - backfill
+spec:
+  owner: group:default/platform-engineering
+  type: delivery-action
+  parameters:
+    - title: Select the approved build
+      required:
+        - image_tag
+        - confirm_backfill
+      properties:
+        image_tag:
+          title: Immutable image tag
+          type: string
+          pattern: ^sha-[0-9a-f]{40}$
+        confirm_backfill:
+          title: Confirmation
+          type: string
+          pattern: ^run-backfill$
+        dry_run:
+          title: Dry run
+          type: string
+          default: "true"
+          enum:
+            - "true"
+            - "false"
+  steps:
+    - id: dispatchBackfill
+      name: Dispatch Data Backfill
+      action: github:actions:dispatch
+      input:
+        repoUrl: ${{ environment.parameters.deliveryRepoUrl }}
+        workflowId: data-backfill.yml
+        branchOrTagName: main
+        workflowInputs:
+          image_tag: ${{ parameters.image_tag }}
+          confirm_backfill: ${{ parameters.confirm_backfill }}
+          dry_run: ${{ parameters.dry_run }}

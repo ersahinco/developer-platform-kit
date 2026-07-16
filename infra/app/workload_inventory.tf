@@ -8,12 +8,19 @@
 
 locals {
   workload_contract = jsondecode(file("${path.module}/../../platform/workloads.json"))
-  default_db_user   = "app"
-  default_db_name   = "aws_sdlc_containers"
+  workload_runtime_support = jsondecode(
+    file("${path.module}/../../platform/workload-runtime-support.json")
+  )
+  default_db_user = "app"
+  default_db_name = "aws_sdlc_containers"
+
+  aws_admitted_workload_names = toset(
+    local.workload_runtime_support.targets["aws-ecs"].admitted_workloads
+  )
 
   aws_admitted_workloads = [
     for workload in local.workload_contract.workloads : workload
-    if contains(try(workload.runtime.admitted, []), "aws-ecs")
+    if contains(local.aws_admitted_workload_names, workload.name)
   ]
 
   workloads_by_name = {
@@ -169,7 +176,7 @@ locals {
 
   workload_static_env_overrides = {
     data_export_job = {
-      DATA_EXPORT_S3_BUCKET = aws_s3_bucket.data_hub.bucket
+      DATA_EXPORT_BUCKET = aws_s3_bucket.data_hub.bucket
     }
     (local.primary_async_eventing_workload_name) = {
       DAPR_PUBSUB_NAME        = local.primary_async_eventing_pubsub_name

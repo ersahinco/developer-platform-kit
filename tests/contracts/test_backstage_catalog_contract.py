@@ -6,7 +6,21 @@ from typing import Any
 
 import yaml
 
+from scripts.ci.workflow_dry_run_commands import workflow_dispatch_inputs
+
 ROOT = Path(__file__).resolve().parents[2]
+
+EXPECTED_BACKSTAGE_WORKFLOW_ACTIONS = {
+    "app-build.yml",
+    "app-deploy.yml",
+    "infra-plan.yml",
+    "infra-apply.yml",
+    "data-schema-apply.yml",
+    "data-runtime-switch.yml",
+    "data-backfill.yml",
+    "data-support-deploy.yml",
+    "operational-snapshot.yml",
+}
 
 
 def _load_yaml_documents(path: str) -> list[dict[str, Any]]:
@@ -80,24 +94,29 @@ def _load_workload_runtime_dependencies() -> dict[str, list[str]]:
     workloads = json.loads((ROOT / "platform" / "workloads.json").read_text())[
         "workloads"
     ]
+    support = json.loads(
+        (ROOT / "platform" / "workload-runtime-support.json").read_text()
+    )["targets"]
+    active_targets = set(
+        json.loads((ROOT / "platform" / "runtime-defaults.json").read_text())[
+            "runtime_targets"
+        ]
+    )
     dependencies: dict[str, list[str]] = {}
     for workload in workloads:
         if not isinstance(workload, dict):
             continue
         name = workload.get("name")
-        runtime = workload.get("runtime", {})
-        if not isinstance(name, str) or not isinstance(runtime, dict):
+        if not isinstance(name, str):
             continue
         supported = [
-            value for value in runtime.get("supported", []) if isinstance(value, str)
+            target
+            for target, profile in support.items()
+            if target in active_targets and name in profile["supported_workloads"]
         ]
-        admitted = [
-            value for value in runtime.get("admitted", []) if isinstance(value, str)
-        ]
-        ordered = list(dict.fromkeys([*supported, *admitted]))
         dependencies[name] = [
             f"resource:default/runtime-target-{runtime_target}"
-            for runtime_target in ordered
+            for runtime_target in supported
         ]
     return dependencies
 
@@ -136,6 +155,9 @@ def test_catalog_entity_files_declare_backstage_entities_for_platform_and_worklo
     assert ("Resource", "runtime-target-local-compose") in entities
     assert ("Resource", "runtime-target-local-kubernetes") in entities
     assert ("Resource", "runtime-target-aws-ecs") in entities
+    assert ("Resource", "runtime-target-hetzner-compose") in entities
+    assert ("Resource", "delivery-edge-coolify") in entities
+    assert ("Resource", "network-edge-netbird") in entities
     assert ("Component", "platform-monorepo") in entities
 
 
@@ -161,6 +183,100 @@ def test_platform_catalog_exposes_generated_capability_profile_metadata() -> Non
         annotations["aws-sdlc-containers/capability-profile-schema"]
         == "lean-monorepo-capabilities/v1"
     )
+    assert annotations["aws-sdlc-containers/integration-mode"] == "read-and-dispatch"
+    assert annotations["aws-sdlc-containers/mutation-gateway"] == "github-actions"
+    assert (
+        annotations["aws-sdlc-containers/placement-source"]
+        == "platform/workload-runtime-support.json"
+    )
+    assert (
+        annotations["aws-sdlc-containers/observed-deployment-source"]
+        == "scripts/observability/release_event.py"
+    )
+
+
+def test_backstage_actions_dispatch_only_declared_github_workflows() -> None:
+    templates = {
+        document["metadata"]["annotations"]["aws-sdlc-containers/workflow-id"]: document
+        for document in _load_catalog_entity_documents()
+        if document.get("kind") == "Template"
+    }
+
+    assert set(templates) == EXPECTED_BACKSTAGE_WORKFLOW_ACTIONS
+
+    for workflow_id, template in templates.items():
+        metadata = template["metadata"]
+        annotations = metadata["annotations"]
+        steps = template["spec"]["steps"]
+        assert template["apiVersion"] == "scaffolder.backstage.io/v1beta3"
+        assert template["spec"]["owner"] == "group:default/platform-engineering"
+        assert annotations["github.com/project-slug"] == (
+            "ersahinco/aws-sdlc-containers"
+        )
+        assert annotations["aws-sdlc-containers/mutation-gateway"] == ("github-actions")
+        assert len(steps) == 1
+
+        dispatch = steps[0]
+        dispatch_input = dispatch["input"]
+        assert dispatch["action"] == "github:actions:dispatch"
+        assert dispatch_input["repoUrl"] == (
+            "${{ environment.parameters.deliveryRepoUrl }}"
+        )
+        assert dispatch_input["workflowId"] == workflow_id
+        assert dispatch_input["branchOrTagName"] == "main"
+
+        workflow_path = ROOT / ".github" / "workflows" / workflow_id
+        declared_inputs = workflow_dispatch_inputs(workflow_path)
+        dispatched_inputs = set(dispatch_input.get("workflowInputs", {}))
+        parameter_inputs = {
+            name
+            for group in template["spec"].get("parameters", [])
+            for name in group.get("properties", {})
+        }
+        assert dispatched_inputs == declared_inputs
+        assert parameter_inputs == declared_inputs
+
+        if "dry_run" in declared_inputs:
+            dry_run_properties = [
+                group["properties"]["dry_run"]
+                for group in template["spec"]["parameters"]
+                if "dry_run" in group.get("properties", {})
+            ]
+            assert dry_run_properties == [
+                {
+                    "title": "Dry run",
+                    "type": "string",
+                    "default": "true",
+                    "enum": ["true", "false"],
+                }
+            ]
+
+
+def test_platform_edge_candidates_have_no_active_mutation_authority() -> None:
+    resources = {
+        document["metadata"]["name"]: document
+        for document in _load_catalog_entity_documents()
+        if document.get("kind") == "Resource"
+    }
+    coolify = resources["delivery-edge-coolify"]["metadata"]["annotations"]
+    netbird = resources["network-edge-netbird"]["metadata"]["annotations"]
+
+    assert coolify["aws-sdlc-containers/status"] == "bounded-experiment"
+    assert coolify["aws-sdlc-containers/authority"] == "none-until-admitted"
+    assert netbird["aws-sdlc-containers/status"] == "bounded-candidate"
+    assert netbird["aws-sdlc-containers/authority"] == "none-until-admitted"
+    assert netbird["aws-sdlc-containers/public-dns-authority"] == "terraform"
+
+    candidate_refs = {
+        "resource:default/delivery-edge-coolify",
+        "resource:default/network-edge-netbird",
+    }
+    dependencies = {
+        dependency
+        for document in _load_catalog_entity_documents()
+        for dependency in document.get("spec", {}).get("dependsOn", [])
+    }
+    assert candidate_refs.isdisjoint(dependencies)
 
 
 def test_catalog_info_workload_components_match_workload_contract() -> None:

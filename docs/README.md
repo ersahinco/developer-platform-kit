@@ -11,8 +11,10 @@ Canonical doc map. Find the owner before adding a new page.
 | Portable workload expectations | [Platform Contract](platform-contract.md) | Workload contract, metadata ownership, external contract rules |
 | Proof ladder and evidence levels | [Proof Ladder](proof-ladder.md) | Static contracts, local Compose, local Kubernetes proof, and AWS ECS evidence |
 | Current platform capability surface | [Platform Capabilities](platform-capabilities.md) | What exists today and where to extend it |
+| Backstage catalog and action integration | [Backstage Integration](backstage-integration.md) | Import the read-only catalog and dispatch governed GitHub workflows |
 | Runtime-target evaluation | [Runtime Toolkit](runtime-toolkit.md) | When and how to add another runtime target |
 | Deployment option evaluation | [Deployment Options](deployment-options.md) | Greenfield, brownfield, hybrid Supabase, and network-pattern choices without changing workload identity |
+| Hybrid starter operation | [Hybrid Starter Reference](hybrid-reference.md) | Plan, deploy, verify, recover, and destroy the Cloudflare/Hetzner/Supabase/S3 composition |
 | Runtime defaults | [Runtime Defaults](runtime-defaults.md) | Blessed auth, identity, secrets, observability, policy, CI/CD, and network defaults |
 | Local workflow | [Local Development](local-development.md) | Setup, migrations, local services |
 | AWS delivery and operator flow | [Deployment](deployment.md) | Workflow ownership, rollout sequence, review loop |
@@ -29,15 +31,17 @@ Canonical doc map. Find the owner before adding a new page.
 | Validate the toolkit quickly | [First 30 Minutes](first-30-minutes.md), `make help-local`, `make help-proof` |
 | Review a platform-facing change | [Architecture](architecture.md), [Platform Contract](platform-contract.md), [Operator Day 2 Commands](operator-day-2.md) |
 | Learn the vocabulary | [Ubiquitous Language](ubiquitous-language.md) |
-| Understand the monorepo model | [Architecture](architecture.md), [ADR 0001](adr/0001-aws-first-platform-monorepo-seed.md), [ADR 0002](adr/0002-stable-center-and-pluggable-runtime-targets.md) |
+| Understand the monorepo model | [Architecture](architecture.md), [ADR 0001](adr/0001-aws-first-platform-monorepo-seed.md), [ADR 0002](adr/0002-stable-center-and-pluggable-runtime-targets.md), [ADR 0003](adr/0003-retain-direct-hetzner-compose-reference.md), [ADR 0004](adr/0004-governed-open-source-integration-plane.md) |
 | Understand the platform itself | [Platform Contract](platform-contract.md), [Platform Capabilities](platform-capabilities.md) |
 | Add a workload | [Adding Workloads](adding-workloads.md), `make workload-readiness`, `make workload-readiness-check`, [Platform Contract](platform-contract.md#workload-checklist) |
 | Request self-service admission | [Adding Workloads](adding-workloads.md#self-service-admission), [Platform Capabilities](platform-capabilities.md#self-service-boundary), GitHub issue form `Workload or capability admission`, PR template `workload-capability-admission.md` |
 | Work locally | [Local Development](local-development.md), `make platform-doctor`, `make workload-readiness-local` |
 | Choose the right proof level | [Proof Ladder](proof-ladder.md), [Local Development](local-development.md) |
 | Compare deployment options | [Deployment Options](deployment-options.md), [Runtime Toolkit](runtime-toolkit.md), [Runtime Defaults](runtime-defaults.md) |
+| Run the hybrid starter | [Hybrid Starter Reference](hybrid-reference.md), [ADR 0003](adr/0003-retain-direct-hetzner-compose-reference.md), `make hybrid-reference-plan` |
 | Deploy or operate AWS | [Operator Day 2 Commands](operator-day-2.md), [Deployment](deployment.md), [Infrastructure](../infra/README.md), [Runbooks](runbooks/README.md), `make workload-readiness-cloud` |
 | Review pipeline gates | [DevOps Toolchain](devops-toolchain.md), [Deployment](deployment.md) |
+| Import the developer-facing catalog | [Backstage Integration](backstage-integration.md), `catalog-info.yaml` |
 | Add or evaluate another runtime | [Runtime Toolkit](runtime-toolkit.md), [Runtime Defaults](runtime-defaults.md), `make runtime-defaults` |
 | Work on telemetry or release evidence | [Workload Observability](workload-observability.md), [Observability](observability.md) |
 
