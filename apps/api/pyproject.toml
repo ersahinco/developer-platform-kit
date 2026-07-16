@@ -7,7 +7,7 @@ dependencies = [
     "aws-sdlc-containers-infrastructure",
     "aws-sdlc-containers-domain",
     "fastapi>=0.136.3,<0.136.4",
-    "uvicorn>=0.48.0",
+    "uvicorn>=0.50.2",
     "sqlalchemy>=2.0.30",
     "psycopg2-binary>=2.9.9",
     "pydantic>=2.7.1",

@@ -6,7 +6,7 @@ dependencies = [
     "aws-sdlc-containers-infrastructure",
     "fastapi>=0.136.3,<0.136.4",
     "prometheus-client>=0.20.0",
-    "uvicorn>=0.48.0",
+    "uvicorn>=0.50.2",
 ]
 
 [build-system]
