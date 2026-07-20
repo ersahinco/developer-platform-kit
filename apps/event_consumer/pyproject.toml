@@ -5,7 +5,7 @@ requires-python = ">=3.14"
 dependencies = [
     "aws-sdlc-containers-application",
     "aws-sdlc-containers-infrastructure",
-    "fastapi>=0.136.3,<0.136.4",
+    "fastapi>=0.139.2,<0.139.3",
     "prometheus-client>=0.20.0",
     "uvicorn>=0.50.2",
 ]
