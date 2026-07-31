@@ -63,11 +63,15 @@ category.
 
 GitHub environment: `aws`
 
-Required:
+Required environment secret for reviewed deploy, apply, and operator jobs:
 
 - `AWS_ROLE_ARN`
 
-Useful variables:
+Required repository variable for default-branch infrastructure plans:
+
+- `AWS_ROLE_ARN` - use the `infra/platform` `github_actions_role_arn` output
+
+Useful repository variables:
 
 - `AWS_REGION`
 - `STACK_NAME`

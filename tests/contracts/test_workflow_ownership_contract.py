@@ -276,10 +276,16 @@ def test_workflow_jobs_have_explicit_least_privilege_permissions() -> None:
 def test_infra_plan_uses_default_branch_oidc_identity() -> None:
     workflow = _workflow_yaml("infra-plan.yml")
     plan = workflow["jobs"]["plan"]
+    credentials_step = next(
+        step
+        for step in plan["steps"]
+        if step.get("uses", "").startswith("aws-actions/configure-aws-credentials@")
+    )
 
     assert "github.event_name != 'pull_request'" in plan["if"]
     assert "github.ref_name == github.event.repository.default_branch" in plan["if"]
     assert "environment" not in plan
+    assert credentials_step["with"]["role-to-assume"] == "${{ vars.AWS_ROLE_ARN }}"
     assert all(step.get("name") != "Post plan to PR" for step in plan["steps"])
 
 
