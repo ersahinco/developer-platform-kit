@@ -189,7 +189,7 @@ EXPECTED_JOB_PERMISSIONS = {
     "infra-plan.yml": {
         "lint-and-validate": {"contents": "read"},
         "opentofu-compatibility": {"contents": "read"},
-        "plan": {"contents": "read", "id-token": "write", "pull-requests": "write"},
+        "plan": {"contents": "read", "id-token": "write"},
     },
     "infra-apply.yml": {
         "apply": {"actions": "read", "contents": "read", "id-token": "write"},
@@ -271,6 +271,16 @@ def test_workflow_jobs_have_explicit_least_privilege_permissions() -> None:
                 workflow_name,
                 job_name,
             )
+
+
+def test_infra_plan_uses_default_branch_oidc_identity() -> None:
+    workflow = _workflow_yaml("infra-plan.yml")
+    plan = workflow["jobs"]["plan"]
+
+    assert "github.event_name != 'pull_request'" in plan["if"]
+    assert "github.ref_name == github.event.repository.default_branch" in plan["if"]
+    assert "environment" not in plan
+    assert all(step.get("name") != "Post plan to PR" for step in plan["steps"])
 
 
 def test_workflow_actions_are_pinned_by_full_commit_sha() -> None:

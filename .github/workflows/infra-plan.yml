@@ -138,16 +138,11 @@ jobs:
     name: Plan
     needs: [lint-and-validate, opentofu-compatibility]
     if: >
-      (github.event_name == 'pull_request' &&
-      github.actor != 'dependabot[bot]' &&
-      github.event.pull_request.head.repo.full_name == github.repository) ||
-      (github.event_name != 'pull_request' &&
-      github.ref_name == github.event.repository.default_branch)
+      github.event_name != 'pull_request' &&
+      github.ref_name == github.event.repository.default_branch
     runs-on: ubuntu-latest
-    environment: aws
     permissions:
       contents: read
-      pull-requests: write
       id-token: write
 
     steps:
@@ -250,22 +245,6 @@ jobs:
             infra/app/app.tfplan
             infra/app/app_plan_output.txt
           retention-days: 14
-
-      - name: Post plan to PR
-        if: github.event_name == 'pull_request'
-        uses: actions/github-script@3a2844b7e9c422d3c10d287c895573f7108da1b3 # v9
-        with:
-          script: |
-            const fs = require('fs');
-            const platform = fs.readFileSync('infra/platform/platform_plan_output.txt', 'utf8');
-            const app = fs.readFileSync('infra/app/app_plan_output.txt', 'utf8');
-            const body = `### Terraform platform plan\n\`\`\`\n${platform.slice(0, 30000)}\n\`\`\`\n\n### Terraform app plan\n\`\`\`\n${app.slice(0, 30000)}\n\`\`\``;
-            github.rest.issues.createComment({
-              issue_number: context.issue.number,
-              owner: context.repo.owner,
-              repo: context.repo.repo,
-              body,
-            });
 
       - name: Fail if platform plan failed
         if: steps.platform-plan.outputs.exitcode != '0'
