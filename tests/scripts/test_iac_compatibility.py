@@ -17,10 +17,12 @@ def test_plan_actions_normalizes_tool_output() -> None:
     }
 
 
-def test_compatibility_copy_excludes_tool_specific_provider_state(tmp_path: Path) -> None:
+def test_compatibility_copy_excludes_tool_specific_provider_state(
+    tmp_path: Path,
+) -> None:
     source = tmp_path / "source"
     source.mkdir()
-    (source / "main.tf").write_text("resource \"example\" \"this\" {}\n")
+    (source / "main.tf").write_text('resource "example" "this" {}\n')
     (source / ".terraform.lock.hcl").write_text("tool-specific checksums\n")
     (source / ".terraform").mkdir()
     (source / ".terraform" / "provider").write_text("cached provider\n")
