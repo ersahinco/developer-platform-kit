@@ -46,10 +46,7 @@ def _completed(command: list[str], cwd: Path) -> subprocess.CompletedProcess[str
 
 
 def _run(tool: str, root: Path) -> set[tuple[str, str]]:
-    init_command = [tool, "init", "-backend=false", "-input=false"]
-    if tool == "terraform":
-        init_command.append("-lockfile=readonly")
-    _completed(init_command, root)
+    _completed([tool, "init", "-backend=false", "-input=false"], root)
     completed = _completed(
         [tool, "test", "-verbose"],
         root,
@@ -58,6 +55,14 @@ def _run(tool: str, root: Path) -> set[tuple[str, str]]:
     if not actions:
         raise RuntimeError(f"{tool} produced no planned resource actions for {root}")
     return actions
+
+
+def _copy_root(source: Path, destination: Path) -> None:
+    shutil.copytree(
+        source,
+        destination,
+        ignore=shutil.ignore_patterns(".terraform", ".terraform.lock.hcl"),
+    )
 
 
 def main() -> int:
@@ -71,11 +76,7 @@ def main() -> int:
             working_roots: dict[str, Path] = {}
             for tool in ("terraform", "tofu"):
                 working_root = temp / tool / root.name
-                shutil.copytree(
-                    ROOT / root,
-                    working_root,
-                    ignore=shutil.ignore_patterns(".terraform"),
-                )
+                _copy_root(ROOT / root, working_root)
                 working_roots[tool] = working_root
             terraform_actions = _run("terraform", working_roots["terraform"])
             tofu_actions = _run("tofu", working_roots["tofu"])

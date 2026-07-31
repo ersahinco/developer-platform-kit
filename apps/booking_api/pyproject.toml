@@ -5,13 +5,13 @@ requires-python = ">=3.14"
 dependencies = [
     "aws-sdlc-containers-application",
     "aws-sdlc-containers-infrastructure",
-    "fastapi>=0.136.3,<0.136.4",
+    "fastapi>=0.139.2,<0.139.3",
     "prometheus-client>=0.20.0",
-    "uvicorn>=0.50.2",
+    "uvicorn>=0.51.0",
 ]
 
 [build-system]
-requires = ["setuptools>=69"]
+requires = ["setuptools>=83.0.0"]
 build-backend = "setuptools.build_meta"
 
 [tool.setuptools]

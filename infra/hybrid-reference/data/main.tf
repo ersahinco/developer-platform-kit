@@ -103,6 +103,8 @@ resource "aws_iam_group_policy" "export_writer" {
 }
 
 resource "aws_iam_group_membership" "export_writer" {
+  #checkov:skip=CKV2_AWS_14:Static analysis cannot resolve the non-empty variable-driven users list on this membership resource.
+  #checkov:skip=CKV2_AWS_21:The existing export-writer user is explicitly attached to the export_writers group below.
   name  = "${var.stack_name}-hybrid-export-writer"
   users = [var.export_writer_user_name]
   group = aws_iam_group.export_writers.name
