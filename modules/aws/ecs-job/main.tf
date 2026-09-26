@@ -156,6 +156,8 @@ resource "aws_ecs_task_definition" "this" {
 }
 
 resource "aws_security_group" "task" {
+  # checkov:skip=CKV2_AWS_5:The delivery lane attaches this exported group when starting a task; schedules attach it in ecs_parameters.
+
   name_prefix = "${var.name}-task-"
   description = "Task network placement for ${var.name}"
   vpc_id      = var.vpc_id

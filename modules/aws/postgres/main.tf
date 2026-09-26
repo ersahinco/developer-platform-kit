@@ -16,6 +16,8 @@ resource "aws_db_subnet_group" "this" {
 }
 
 resource "aws_security_group" "client" {
+  # checkov:skip=CKV2_AWS_5:Exported client group is attached by the consuming ECS services and migration lane.
+
   name_prefix = "${var.name}-client-"
   description = "Attach to a workload that may reach the ${var.name} database"
   vpc_id      = var.vpc_id
@@ -57,12 +59,26 @@ resource "aws_vpc_security_group_egress_rule" "client_to_database" {
   ip_protocol                  = "tcp"
 }
 
+data "aws_caller_identity" "current" {}
+data "aws_partition" "current" {}
+
 resource "aws_kms_key" "this" {
   count = var.kms_key_arn == null ? 1 : 0
 
   description             = "Storage encryption for the ${var.name} database"
   enable_key_rotation     = true
   deletion_window_in_days = 30
+  # Explicit AWS default: account IAM policies control access to this key only.
+  policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [{
+      Sid       = "EnableAccountIAMPolicies"
+      Effect    = "Allow"
+      Principal = { AWS = "arn:${data.aws_partition.current.partition}:iam::${data.aws_caller_identity.current.account_id}:root" }
+      Action    = "kms:*"
+      Resource  = "*"
+    }]
+  })
 
   tags = var.tags
 }
@@ -79,8 +95,14 @@ resource "aws_db_parameter_group" "this" {
   family      = var.parameter_group_family
   description = "Parameters for ${var.name}"
 
+  parameter {
+    name         = "rds.force_ssl"
+    value        = "1"
+    apply_method = "pending-reboot"
+  }
+
   dynamic "parameter" {
-    for_each = var.parameters
+    for_each = { for name, value in var.parameters : name => value if name != "rds.force_ssl" }
     content {
       name         = parameter.key
       value        = parameter.value

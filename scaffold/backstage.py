@@ -110,13 +110,16 @@ def export(output: Path, provider: str = "github", base_url: str = "https://gith
                         "action": "catalog:register",
                         "input": {
                             "repoContentsUrl": "${{ steps.publish.output.repoContentsUrl }}",
-                            "catalogInfoPath": "/catalog-info.yaml",
+                            "catalogInfoPath": (
+                                "catalog-info.yaml" if provider == "gitea" else "/catalog-info.yaml"
+                            ),
                         },
                     },
                 ],
                 "output": {
                     "links": [
-                        {"title": "Repository", "url": "${{ steps.publish.output.remoteUrl }}"}
+                        {"title": "Repository", "url": "${{ steps.publish.output.remoteUrl }}"},
+                        {"title": "Catalog", "entityRef": "${{ steps.register.output.entityRef }}"},
                     ]
                 },
             },

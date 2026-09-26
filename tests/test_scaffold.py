@@ -207,6 +207,9 @@ def test_backstage_export_uses_native_actions_and_all_three_templates(
             "catalog:register",
         ]
         values = document["spec"]["steps"][0]["input"]["values"]
+        assert document["spec"]["steps"][2]["input"]["catalogInfoPath"] == (
+            "catalog-info.yaml" if provider == "gitea" else "/catalog-info.yaml"
+        )
         assert values["REPOSITORY_BASE_URL"] == base_url
         assert "parseRepoUrl" in values["REPOSITORY"]
         properties = document["spec"]["parameters"][0]["properties"]

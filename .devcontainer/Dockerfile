@@ -25,8 +25,6 @@ RUN useradd --create-home --shell /bin/bash vscode \
     && echo "vscode ALL=(root) NOPASSWD:ALL" > /etc/sudoers.d/vscode \
     && chmod 0440 /etc/sudoers.d/vscode
 
-RUN python -m pip install --no-cache-dir checkov==3.2.526
-
 ARG ACTIONLINT_VERSION=1.7.12
 ARG GITLEAKS_VERSION=8.30.1
 ARG HADOLINT_VERSION=2.14.0

@@ -65,6 +65,9 @@ resource "aws_vpc_security_group_egress_rule" "to_targets" {
 # This is the public edge when internal=false; public plaintext is guarded below.
 # trivy:ignore:AVD-AWS-0053
 resource "aws_lb" "this" {
+  # checkov:skip=CKV2_AWS_20:Conditional HTTP redirect follows certificate_arn; public plaintext requires explicit allow_public_http.
+  # checkov:skip=CKV2_AWS_28:WAF rules and their ongoing cost are owned by the public application's security requirements.
+
   name               = var.name
   internal           = var.internal
   load_balancer_type = "application"
@@ -97,6 +100,8 @@ resource "aws_lb" "this" {
 # Redirects to HTTPS when configured; public plaintext requires allow_public_http.
 # trivy:ignore:AVD-AWS-0054
 resource "aws_lb_listener" "http" {
+  # checkov:skip=CKV_AWS_103:HTTP redirects to the TLS 1.2+ listener when a certificate exists; public plaintext requires explicit opt-in.
+
   # checkov:skip=CKV_AWS_2:HTTP redirects to HTTPS when a certificate is supplied; public plaintext requires explicit allow_public_http.
 
   load_balancer_arn = aws_lb.this.arn
@@ -144,6 +149,8 @@ resource "aws_lb_listener" "https" {
 }
 
 resource "aws_lb_target_group" "default" {
+  # checkov:skip=CKV_AWS_378:TLS terminates at the ALB; HTTP targets are private Fargate tasks restricted to the ALB security group.
+
   name        = "${var.name}-default"
   port        = var.target_port
   protocol    = "HTTP"

@@ -57,6 +57,8 @@ resource "aws_emrserverless_application" "this" {
 # Only needed when jobs reach VPC resources such as a database. A job that only
 # reads and writes S3 needs no network configuration at all.
 resource "aws_security_group" "job" {
+  # checkov:skip=CKV2_AWS_5:Attached conditionally through the EMR application's dynamic network_configuration.
+
   count = length(var.subnet_ids) == 0 ? 0 : 1
 
   name_prefix = "${var.name}-emr-"

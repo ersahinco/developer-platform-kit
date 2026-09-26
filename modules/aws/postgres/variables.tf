@@ -37,9 +37,14 @@ variable "parameter_group_family" {
 }
 
 variable "parameters" {
-  description = "Database parameters to override."
+  description = "Database parameters to override. TLS cannot be disabled."
   type        = map(string)
   default     = {}
+
+  validation {
+    condition     = lookup(var.parameters, "rds.force_ssl", "1") == "1"
+    error_message = "rds.force_ssl must remain 1: database connections require TLS."
+  }
 }
 
 variable "instance_class" {

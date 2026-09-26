@@ -7,6 +7,10 @@
 ################################################################################
 
 resource "aws_s3_bucket" "this" {
+  # checkov:skip=CKV2_AWS_62:No event-driven consumer exists; notifications belong to the consuming workload.
+  # checkov:skip=CKV_AWS_18:Access logging requires a separate log destination; the consumer supplies its audit trail.
+  # checkov:skip=CKV_AWS_144:Cross-region replication is a consumer DR and transfer-cost choice; versioning is enabled here.
+
   bucket        = var.name
   force_destroy = var.force_destroy
 

@@ -105,11 +105,7 @@ jobs:
         run: make lint-tflint
 
       - name: Checkov
-        uses: bridgecrewio/checkov-action@7b972723c44fb3d256283fac96fae5d7c1894bb7 # v12.3114.0
-        with:
-          directory: modules
-          framework: terraform
-          config_file: .checkov.yaml
+        run: make lint-checkov
 
   security:
     name: Security
