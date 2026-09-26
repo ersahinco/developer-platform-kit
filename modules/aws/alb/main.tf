@@ -62,6 +62,8 @@ resource "aws_vpc_security_group_egress_rule" "to_targets" {
   ip_protocol       = "-1"
 }
 
+# This is the public edge when internal=false; public plaintext is guarded below.
+# trivy:ignore:AVD-AWS-0053
 resource "aws_lb" "this" {
   name               = var.name
   internal           = var.internal
@@ -92,6 +94,8 @@ resource "aws_lb" "this" {
   }
 }
 
+# Redirects to HTTPS when configured; public plaintext requires allow_public_http.
+# trivy:ignore:AVD-AWS-0054
 resource "aws_lb_listener" "http" {
   # checkov:skip=CKV_AWS_2:HTTP redirects to HTTPS when a certificate is supplied; public plaintext requires explicit allow_public_http.
 

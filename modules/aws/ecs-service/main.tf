@@ -12,6 +12,14 @@
 
 data "aws_region" "current" {}
 
+data "aws_vpc" "this" {
+  id = var.vpc_id
+}
+
+data "aws_ec2_managed_prefix_list" "s3" {
+  name = "com.amazonaws.${data.aws_region.current.region}.s3"
+}
+
 locals {
   log_group_name = coalesce(var.log_group_name, "/ecs/${var.name}")
 
@@ -206,11 +214,27 @@ resource "aws_vpc_security_group_ingress_rule" "from_peers" {
   ip_protocol                  = "tcp"
 }
 
-resource "aws_vpc_security_group_egress_rule" "all" {
+moved {
+  from = aws_vpc_security_group_egress_rule.all
+  to   = aws_vpc_security_group_egress_rule.endpoints
+}
+
+resource "aws_vpc_security_group_egress_rule" "endpoints" {
   security_group_id = aws_security_group.task.id
-  description       = "Outbound to AWS APIs, endpoints, and dependencies"
-  cidr_ipv4         = "0.0.0.0/0"
-  ip_protocol       = "-1"
+  description       = "HTTPS to private AWS endpoints; dependencies use separate client groups"
+  cidr_ipv4         = data.aws_vpc.this.cidr_block
+  from_port         = 443
+  to_port           = 443
+  ip_protocol       = "tcp"
+}
+
+resource "aws_vpc_security_group_egress_rule" "s3" {
+  security_group_id = aws_security_group.task.id
+  description       = "HTTPS to S3, including ECR image layers"
+  prefix_list_id    = data.aws_ec2_managed_prefix_list.s3.id
+  from_port         = 443
+  to_port           = 443
+  ip_protocol       = "tcp"
 }
 
 ################################################################################

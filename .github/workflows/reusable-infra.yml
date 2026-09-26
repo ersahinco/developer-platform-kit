@@ -45,7 +45,7 @@ on:
         description: "Terraform version used for both plan and apply."
         required: false
         type: string
-        default: 1.15.0
+        default: 1.15.8
       tflint_version:
         description: "TFLint version used during plan validation."
         required: false

@@ -5,6 +5,7 @@
 ARG LIQUIBASE_VERSION=4.33
 FROM liquibase/liquibase:${LIQUIBASE_VERSION}
 
+USER liquibase:liquibase
 WORKDIR /liquibase
 
 COPY changelog ./changelog
