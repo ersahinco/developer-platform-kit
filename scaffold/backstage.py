@@ -8,8 +8,10 @@ from __future__ import annotations
 
 import argparse
 import json
+import re
 import sys
 from pathlib import Path
+from urllib.parse import urlsplit
 
 from scaffold.new_repo import TOKEN_PATTERN, TemplateError, available_templates, template_files
 
@@ -29,7 +31,12 @@ def skeleton(text: str) -> str:
     return "".join(result)
 
 
-def export(output: Path) -> None:
+def export(output: Path, provider: str = "github", base_url: str = "https://github.com") -> None:
+    if provider not in {"github", "gitea"}:
+        raise TemplateError(f"Unsupported Git provider: {provider}.")
+    if not re.fullmatch(r"https://[A-Za-z0-9.-]+(?::[0-9]+)?(?:/[A-Za-z0-9._-]+)*", base_url):
+        raise TemplateError("Git base URL must be HTTPS with no credentials, query, or fragment.")
+    host = urlsplit(base_url).netloc
     if output.exists() and (not output.is_dir() or any(output.iterdir())):
         raise TemplateError(f"{output} must be an empty directory.")
     for template in available_templates():
@@ -38,7 +45,10 @@ def export(output: Path) -> None:
         values = {}
         required = []
         for variable in template.variables:
-            if variable.name == "GITHUB_REPOSITORY":
+            if variable.name == "REPOSITORY_BASE_URL":
+                values[variable.name] = base_url
+                continue
+            if variable.name == "REPOSITORY":
                 values[variable.name] = (
                     "${{ (parameters.repoUrl | parseRepoUrl).owner }}"
                     "/${{ (parameters.repoUrl | parseRepoUrl).repo }}"
@@ -58,7 +68,7 @@ def export(output: Path) -> None:
             "type": "string",
             "title": "Repository",
             "ui:field": "RepoUrlPicker",
-            "ui:options": {"allowedHosts": ["github.com"]},
+            "ui:options": {"allowedHosts": [host]},
         }
         required.append("repoUrl")
         for source in template_files(template.files_dir):
@@ -87,11 +97,11 @@ def export(output: Path) -> None:
                     {
                         "id": "publish",
                         "name": "Publish",
-                        "action": "publish:github",
+                        "action": f"publish:{provider}",
                         "input": {
                             "repoUrl": "${{ parameters.repoUrl }}",
                             "defaultBranch": "main",
-                            "repoVisibility": "private",
+                            **({"repoVisibility": "private"} if provider == "github" else {}),
                         },
                     },
                     {
@@ -129,9 +139,11 @@ def export(output: Path) -> None:
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("output", type=Path)
+    parser.add_argument("--provider", choices=["github", "gitea"], default="github")
+    parser.add_argument("--base-url", default="https://github.com")
     args = parser.parse_args()
     try:
-        export(args.output)
+        export(args.output, args.provider, args.base_url)
     except TemplateError as error:
         print(f"error: {error}", file=sys.stderr)
         return 1

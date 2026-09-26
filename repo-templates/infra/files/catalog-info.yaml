@@ -3,7 +3,7 @@ kind: Component
 metadata:
   name: __STACK_NAME__
   annotations:
-    github.com/project-slug: __GITHUB_REPOSITORY__
+    backstage.io/source-location: url:__REPOSITORY_BASE_URL__/__REPOSITORY__
 spec:
   type: infrastructure
   lifecycle: production

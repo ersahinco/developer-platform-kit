@@ -15,7 +15,7 @@
       "pattern": "^[a-z][a-z0-9-]{1,62}$"
     },
     {
-      "name": "GITHUB_REPOSITORY",
+      "name": "REPOSITORY",
       "description": "Repository the scaffold lands in, as owner/name.",
       "example": "acme/platform-infra",
       "pattern": "^[A-Za-z0-9][A-Za-z0-9_.-]*/[A-Za-z0-9][A-Za-z0-9_.-]*$"
@@ -43,6 +43,13 @@
       "description": "Published toolkit release tag or full commit SHA. No floating branches.",
       "example": "v0.1.0",
       "pattern": "^(?:[0-9a-f]{40}|v[0-9]+\\.[0-9]+\\.[0-9]+)$"
+    },
+    {
+      "name": "REPOSITORY_BASE_URL",
+      "description": "Git hosting base URL for source links. Delivery workflows currently target GitHub.",
+      "example": "https://github.com",
+      "default": "https://github.com",
+      "pattern": "^https://[A-Za-z0-9.-]+(?::[0-9]+)?(?:/[A-Za-z0-9._-]+)*$"
     }
   ]
 }

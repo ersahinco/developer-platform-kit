@@ -186,10 +186,16 @@ def test_every_variable_has_a_pattern(name: str) -> None:
     assert all(variable.pattern for variable in load_template(name).variables)
 
 
-def test_backstage_export_uses_native_actions_and_all_three_templates(tmp_path: Path) -> None:
+@pytest.mark.parametrize(
+    ("provider", "base_url"),
+    [("github", "https://github.com"), ("gitea", "https://cnoe.localtest.me:8443/gitea")],
+)
+def test_backstage_export_uses_native_actions_and_all_three_templates(
+    tmp_path: Path, provider: str, base_url: str
+) -> None:
     from scaffold.backstage import export
 
-    export(tmp_path)
+    export(tmp_path, provider, base_url)
     location = json.loads((tmp_path / "catalog-info.yaml").read_text())
     assert len(location["spec"]["targets"]) == 3
     for target in location["spec"]["targets"]:
@@ -197,10 +203,47 @@ def test_backstage_export_uses_native_actions_and_all_three_templates(tmp_path: 
         document = json.loads(descriptor.read_text())
         assert [step["action"] for step in document["spec"]["steps"]] == [
             "fetch:template",
-            "publish:github",
+            f"publish:{provider}",
             "catalog:register",
         ]
+        values = document["spec"]["steps"][0]["input"]["values"]
+        assert values["REPOSITORY_BASE_URL"] == base_url
+        assert "parseRepoUrl" in values["REPOSITORY"]
+        properties = document["spec"]["parameters"][0]["properties"]
+        assert "REPOSITORY" not in properties
+        assert "REPOSITORY_BASE_URL" not in properties
         assert (descriptor.parent / "skeleton" / "catalog-info.yaml").is_file()
         for source in (descriptor.parent / "skeleton").rglob("*"):
             if source.is_file():
                 assert not TOKEN_PATTERN.search(source.read_text())
+
+
+@pytest.mark.parametrize(
+    "base_url",
+    [
+        "http://git.local",
+        "https://user:pass@git.local",
+        "https://git.local?x=1",
+        "https://git.local/#x",
+    ],
+)
+def test_backstage_rejects_unsafe_base_url(tmp_path: Path, base_url: str) -> None:
+    from scaffold.backstage import export
+
+    with pytest.raises(TemplateError, match="Git base URL"):
+        export(tmp_path / "export", "gitea", base_url)
+    assert not (tmp_path / "export").exists()
+
+
+@pytest.mark.parametrize("name", template_names())
+def test_catalog_source_location_matches_git_host(name: str, tmp_path: Path) -> None:
+    template = load_template(name)
+    values = example_values(template) | {
+        "REPOSITORY_BASE_URL": "https://cnoe.localtest.me:8443/gitea",
+        "REPOSITORY": "platform/example",
+    }
+    render(template, tmp_path, resolve_values(template, values))
+    catalog = yaml.safe_load((tmp_path / "catalog-info.yaml").read_text())
+    assert catalog["metadata"]["annotations"]["backstage.io/source-location"] == (
+        "url:https://cnoe.localtest.me:8443/gitea/platform/example"
+    )

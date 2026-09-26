@@ -21,7 +21,7 @@ uv run python -m scaffold.new_repo describe app
 uv run python -m scaffold.new_repo render app ../orders-api \
   --set WORKLOAD_NAME=orders-api \
   --set OWNER=team-payments \
-  --set GITHUB_REPOSITORY=acme/orders-api \
+  --set REPOSITORY=acme/orders-api \
   --set AWS_REGION=eu-central-1 \
   --set TOOLKIT_REPOSITORY=ersahinco/developer-platform-kit \
   --set TOOLKIT_REF=v0.1.0
@@ -62,6 +62,26 @@ and skeletons from the same manifests as the CLI, using the native `fetch:templa
 `publish:github`, and `catalog:register` actions. Configure GitHub integration and
 the GitHub scaffolder module there. No portal or custom action ships in this repo.
 See [Backstage Software Templates](https://backstage.io/docs/features/software-templates/writing-templates/).
+
+For a local CNOE portal backed by Gitea, export the same templates with:
+
+```bash
+uv run python -m scaffold.backstage /tmp/toolkit-gitea \
+  --provider gitea --base-url https://cnoe.localtest.me:8443/gitea
+```
+
+The portal must supply `publish:gitea` and a matching Gitea integration. The CLI's
+`REPOSITORY=owner/name` and optional `REPOSITORY_BASE_URL` describe the generated
+repo; `TOOLKIT_REPOSITORY` and `TOOLKIT_REF` select the shared delivery source on
+GitHub. Backstage derives the destination from its repository picker.
+
+The companion `developer-platform-local` repository assembles pinned
+[CNOE packages](https://cnoe.io/docs/reference-implementation/local) for Kind,
+Gitea, Argo CD, Backstage, Keycloak, and External Secrets. It owns deployment and
+local credentials; this toolkit owns scaffolding. Local Gitea publishing and
+catalog registration do **not** enable delivery: the generated workflows still
+require GitHub Actions and AWS. CNOE's bundled Gitea publisher uses server-default
+repository visibility; the GitHub export explicitly creates private repos.
 
 ## IaC catalog and cloud boundaries
 

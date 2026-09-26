@@ -4,7 +4,7 @@ metadata:
   name: __PIPELINE_NAME__
   description: __PIPELINE_NAME__ Spark pipeline and its schema
   annotations:
-    github.com/project-slug: __GITHUB_REPOSITORY__
+    backstage.io/source-location: url:__REPOSITORY_BASE_URL__/__REPOSITORY__
 spec:
   type: data-pipeline
   lifecycle: production

@@ -21,7 +21,7 @@ locals {
   tags = {
     Project   = var.stack_name
     ManagedBy = "terraform"
-    Repo      = "__GITHUB_REPOSITORY__"
+    Repo      = "__REPOSITORY__"
   }
 }
 
@@ -198,7 +198,7 @@ module "delivery_identity" {
   source = "git::https://github.com/__TOOLKIT_REPOSITORY__.git//modules/aws/github-oidc?ref=__TOOLKIT_REF__"
 
   name              = "${local.name}-infra-delivery"
-  github_repository = "__GITHUB_REPOSITORY__"
+  github_repository = "__REPOSITORY__"
   environments      = ["aws"]
   refs              = ["refs/heads/main"]
   state_bucket      = var.state_bucket

@@ -9,7 +9,7 @@ appear in file contents and in path names.
     python -m scaffold.new_repo render app ../orders-api \
         --set WORKLOAD_NAME=orders-api \
         --set OWNER=team-payments \
-        --set GITHUB_REPOSITORY=acme/orders-api \
+        --set REPOSITORY=acme/orders-api \
         --set AWS_REGION=eu-central-1 \
         --set TOOLKIT_REPOSITORY=acme/developer-platform-kit \
         --set TOOLKIT_REF=v0.1.0
