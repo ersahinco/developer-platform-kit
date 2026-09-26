@@ -101,7 +101,7 @@ jobs:
           terraform validate
         working-directory: ${{ inputs.root_dir }}
 
-      - uses: terraform-linters/setup-tflint@6e1e0642c0289bd619021bf6b34e3c08ed1e005a # v6
+      - uses: terraform-linters/setup-tflint@1cf010d3c7aef302051ccdb68c14c5dc2efa34ef # v6
         with:
           tflint_version: ${{ inputs.tflint_version }}
 
