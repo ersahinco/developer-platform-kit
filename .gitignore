@@ -2,50 +2,37 @@
 .venv/
 __pycache__/
 .pytest_cache/
+.ruff_cache/
 *.egg-info/
 *.py[cod]
-*$py.class
 
 # Environment / secrets
 .env
 .env.*
-!.env.example
 aws_credentials
 .aws/credentials
 .aws/config
 
-# Docker / local compose overrides
-compose.override.yaml
-compose.override.yml
-compose.*.yaml
-compose.*.yml
-!compose.yaml
-docker-compose.override.yml
-docker-compose.*.yml
-*.log
-*.pid
-
-# Terraform local state
+# Terraform working files. Modules here are never applied, so any state file in
+# this repo is a mistake worth catching.
 .terraform/
+.terraform.lock.hcl
 *.tfstate
 *.tfstate.*
+*.tfplan
+tfplan.binary
+plan_output.txt
 crash.log
 override.tf
 override.tf.json
-terraform.tfvars
 *.tfvars
-*.tfvars.json
-!infra/app/stack.tfvars
-!infra/platform/stack.tfvars
+# Template content is tracked: it is the product, not local configuration.
+!repo-templates/**/*.tfvars
 
-# IDE/editor
+# IDE / OS
 .codex/
 .vscode/
 .idea/
-#.kiro/
 .DS_Store
 *.swp
 *~
-.logs.txt
-.ruff_cache
-.hypothesis

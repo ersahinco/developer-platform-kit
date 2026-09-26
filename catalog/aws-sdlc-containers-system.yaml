@@ -1,8 +1,0 @@
-apiVersion: backstage.io/v1alpha1
-kind: System
-metadata:
-  name: aws-sdlc-containers
-  description: Platform monorepo system with a stable workload contract and pluggable runtime targets.
-spec:
-  owner: group:default/platform-engineering
-  domain: default/platform-engineering

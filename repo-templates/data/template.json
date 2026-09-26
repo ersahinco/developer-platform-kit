@@ -1,0 +1,42 @@
+{
+  "name": "data",
+  "description": "Data repo: Spark ETL/ELT job with declarative quality checks, plus the Liquibase schema migrations it depends on.",
+  "variables": [
+    {
+      "name": "PIPELINE_NAME",
+      "description": "Pipeline name in kebab-case. Becomes the repo, job name, and S3 code prefix.",
+      "example": "orders-daily",
+      "pattern": "^[a-z][a-z0-9-]{1,38}[a-z0-9]$"
+    },
+    {
+      "name": "OWNER",
+      "description": "Team that owns reruns, backfills, and failed checks.",
+      "example": "team-data",
+      "pattern": "^[a-z][a-z0-9-]{1,62}$"
+    },
+    {
+      "name": "GITHUB_REPOSITORY",
+      "description": "Repository the scaffold lands in, as owner/name.",
+      "example": "acme/orders-daily",
+      "pattern": "^[A-Za-z0-9][A-Za-z0-9_.-]*/[A-Za-z0-9][A-Za-z0-9_.-]*$"
+    },
+    {
+      "name": "AWS_REGION",
+      "description": "Region the pipeline and database live in.",
+      "example": "eu-central-1",
+      "pattern": "^[a-z]{2}(-[a-z]+)+-[0-9]+$"
+    },
+    {
+      "name": "TOOLKIT_REPOSITORY",
+      "description": "Repository hosting the reusable lanes.",
+      "example": "acme/developer-platform-kit",
+      "pattern": "^[A-Za-z0-9][A-Za-z0-9_.-]*/[A-Za-z0-9][A-Za-z0-9_.-]*$"
+    },
+    {
+      "name": "TOOLKIT_REF",
+      "description": "Published toolkit release tag or full commit SHA. No floating branches.",
+      "example": "v0.1.0",
+      "pattern": "^(?:[0-9a-f]{40}|v[0-9]+\\.[0-9]+\\.[0-9]+)$"
+    }
+  ]
+}

@@ -1,1 +1,0 @@
-"""Operational snapshot job host."""

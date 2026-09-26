@@ -1,0 +1,48 @@
+{
+  "name": "infra",
+  "description": "Terraform root with representative AWS modules and one infra workflow with plan/apply modes.",
+  "variables": [
+    {
+      "name": "STACK_NAME",
+      "description": "Stack name. Prefixes every AWS resource name.",
+      "example": "acme-prod",
+      "pattern": "^[a-z][a-z0-9-]{1,30}[a-z0-9]$"
+    },
+    {
+      "name": "OWNER",
+      "description": "Team owning this infrastructure.",
+      "example": "platform-engineering",
+      "pattern": "^[a-z][a-z0-9-]{1,62}$"
+    },
+    {
+      "name": "GITHUB_REPOSITORY",
+      "description": "Repository the scaffold lands in, as owner/name.",
+      "example": "acme/platform-infra",
+      "pattern": "^[A-Za-z0-9][A-Za-z0-9_.-]*/[A-Za-z0-9][A-Za-z0-9_.-]*$"
+    },
+    {
+      "name": "AWS_REGION",
+      "description": "Region the stack lives in.",
+      "example": "eu-central-1",
+      "pattern": "^[a-z]{2}(-[a-z]+)+-[0-9]+$"
+    },
+    {
+      "name": "STATE_BUCKET",
+      "description": "Existing S3 bucket holding Terraform state.",
+      "example": "acme-tfstate-123456789012",
+      "pattern": "^[a-z0-9][a-z0-9.-]{1,61}[a-z0-9]$"
+    },
+    {
+      "name": "TOOLKIT_REPOSITORY",
+      "description": "Repository hosting the modules and reusable lanes.",
+      "example": "acme/developer-platform-kit",
+      "pattern": "^[A-Za-z0-9][A-Za-z0-9_.-]*/[A-Za-z0-9][A-Za-z0-9_.-]*$"
+    },
+    {
+      "name": "TOOLKIT_REF",
+      "description": "Published toolkit release tag or full commit SHA. No floating branches.",
+      "example": "v0.1.0",
+      "pattern": "^(?:[0-9a-f]{40}|v[0-9]+\\.[0-9]+\\.[0-9]+)$"
+    }
+  ]
+}

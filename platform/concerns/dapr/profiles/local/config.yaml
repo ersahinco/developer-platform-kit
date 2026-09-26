@@ -1,7 +1,0 @@
-apiVersion: dapr.io/v1alpha1
-kind: Configuration
-metadata:
-  name: async-eventing-config
-spec:
-  tracing:
-    samplingRate: "1"

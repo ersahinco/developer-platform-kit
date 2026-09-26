@@ -1,0 +1,9 @@
+# Checkov configuration for the module set.
+#
+# Add a skip only with the reason on the same line. A skip with no reason is
+# indistinguishable from an oversight six months later.
+framework:
+  - terraform
+quiet: true
+compact: true
+skip-check: []

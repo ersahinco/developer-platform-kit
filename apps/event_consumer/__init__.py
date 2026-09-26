@@ -1,1 +1,0 @@
-"""Event consumer workload host."""

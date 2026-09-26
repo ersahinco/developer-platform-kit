@@ -1,0 +1,328 @@
+name: Reusable Infra Delivery
+
+# The infrastructure team's lane. One file, two modes, never the same run:
+#
+#   mode: plan    fmt, validate, TFLint, Checkov, plan, publish the diff
+#   mode: apply   apply the saved plan from a named plan run
+#
+# The apply mode refuses any plan run that did not succeed, did not run on the
+# default branch of the same workflow, or planned a commit that is no longer
+# head. That check, not the file layout, is what stops an unreviewed apply.
+
+on:
+  workflow_call:
+    inputs:
+      mode:
+        description: "plan or apply."
+        required: true
+        type: string
+      root_dir:
+        description: "Terraform root directory."
+        required: true
+        type: string
+      aws_region:
+        description: "AWS region for this delivery run."
+        required: true
+        type: string
+      environment:
+        description: "GitHub environment holding the OIDC role and the approval."
+        required: true
+        type: string
+      state_bucket:
+        description: "Existing S3 bucket holding encrypted Terraform state."
+        required: true
+        type: string
+      state_key:
+        description: "State object key for this stack."
+        required: true
+        type: string
+      var_file:
+        description: "Reviewed variable file relative to root_dir."
+        required: false
+        type: string
+        default: stack.tfvars
+      terraform_version:
+        description: "Terraform version used for both plan and apply."
+        required: false
+        type: string
+        default: 1.15.0
+      tflint_version:
+        description: "TFLint version used during plan validation."
+        required: false
+        type: string
+        default: v0.62.0
+      checkov_config:
+        description: "Checkov config in the calling repo. Must exist when mode is plan."
+        required: false
+        type: string
+        default: .checkov.yaml
+      plan_run_id:
+        description: "Run ID of the reviewed plan. Required for apply."
+        required: false
+        type: string
+        default: ""
+      confirm:
+        description: "Must be the literal string apply when mode is apply."
+        required: false
+        type: string
+        default: ""
+    secrets:
+      aws_role_arn:
+        required: true
+
+permissions:
+  contents: read
+
+jobs:
+  plan:
+    name: Plan
+    if: inputs.mode == 'plan'
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    environment: ${{ inputs.environment }}
+    permissions:
+      contents: read
+      id-token: write
+      pull-requests: write
+
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - uses: hashicorp/setup-terraform@dfe3c3f87815947d99a8997f908cb6525fc44e9e # v4
+        with:
+          terraform_version: ${{ inputs.terraform_version }}
+
+      - name: fmt and validate
+        run: |
+          terraform fmt -check -recursive .
+          terraform init -backend=false
+          terraform validate
+        working-directory: ${{ inputs.root_dir }}
+
+      - uses: terraform-linters/setup-tflint@6e1e0642c0289bd619021bf6b34e3c08ed1e005a # v6
+        with:
+          tflint_version: ${{ inputs.tflint_version }}
+
+      - name: tflint
+        run: |
+          tflint --init
+          tflint --format compact
+        working-directory: ${{ inputs.root_dir }}
+
+      - name: checkov
+        uses: bridgecrewio/checkov-action@7b972723c44fb3d256283fac96fae5d7c1894bb7 # v12.3114.0
+        with:
+          directory: ${{ inputs.root_dir }}
+          framework: terraform
+          config_file: ${{ inputs.checkov_config }}
+
+      - uses: aws-actions/configure-aws-credentials@a89a83ec143615402a01f672b6e172b7b1875000 # v6
+        with:
+          role-to-assume: ${{ secrets.aws_role_arn }}
+          aws-region: ${{ inputs.aws_region }}
+
+      - name: plan
+        env:
+          STATE_BUCKET: ${{ inputs.state_bucket }}
+          STATE_KEY: ${{ inputs.state_key }}
+          AWS_REGION: ${{ inputs.aws_region }}
+          VAR_FILE: ${{ inputs.var_file }}
+        run: |
+          terraform init -reconfigure \
+            -backend-config="bucket=$STATE_BUCKET" \
+            -backend-config="key=$STATE_KEY" \
+            -backend-config="region=$AWS_REGION"
+          terraform plan -input=false -lock-timeout=5m -var-file="$VAR_FILE" -no-color -out=tfplan.binary \
+            2>&1 | tee plan_output.txt
+          exit "${PIPESTATUS[0]}"
+        working-directory: ${{ inputs.root_dir }}
+
+      - name: Record plan context
+        env:
+          ROOT_DIR: ${{ inputs.root_dir }}
+          STATE_BUCKET: ${{ inputs.state_bucket }}
+          STATE_KEY: ${{ inputs.state_key }}
+          TERRAFORM_VERSION: ${{ inputs.terraform_version }}
+        run: |
+          jq -n --arg bucket "$STATE_BUCKET" --arg key "$STATE_KEY" \
+            --arg version "$TERRAFORM_VERSION" --arg commit "$GITHUB_SHA" \
+            '$ARGS.named' > "$ROOT_DIR/plan-context.json"
+
+      - name: Publish diff
+        if: always()
+        env:
+          ROOT_DIR: ${{ inputs.root_dir }}
+        run: |
+          {
+            echo "### Plan: $ROOT_DIR"
+            echo ""
+            echo '```'
+            if [[ -f "$ROOT_DIR/plan_output.txt" ]]; then
+              sed -n '1,350p' "$ROOT_DIR/plan_output.txt"
+            else
+              echo "Plan did not run. Inspect validation and authentication steps."
+            fi
+            echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
+        with:
+          name: terraform-plan-${{ github.run_id }}
+          path: |
+            ${{ inputs.root_dir }}/plan-context.json
+            ${{ inputs.root_dir }}/tfplan.binary
+            ${{ inputs.root_dir }}/plan_output.txt
+            ${{ inputs.root_dir }}/.terraform.lock.hcl
+          include-hidden-files: true
+          retention-days: 7
+          if-no-files-found: error
+
+      - name: Comment on pull request
+        if: github.event_name == 'pull_request'
+        uses: actions/github-script@3a2844b7e9c422d3c10d287c895573f7108da1b3 # v9
+        env:
+          ROOT_DIR: ${{ inputs.root_dir }}
+        with:
+          script: |
+            const fs = require('fs');
+            const plan = fs.readFileSync(`${process.env.ROOT_DIR}/plan_output.txt`, 'utf8');
+            await github.rest.issues.createComment({
+              issue_number: context.issue.number,
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              body: `### Plan \`${process.env.ROOT_DIR}\`\n\`\`\`\n${plan.slice(0, 60000)}\n\`\`\``,
+            });
+
+  apply:
+    name: Apply Reviewed Plan
+    if: inputs.mode == 'apply'
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    environment: ${{ inputs.environment }}
+    concurrency:
+      group: terraform-apply-${{ inputs.state_bucket }}-${{ inputs.state_key }}
+      cancel-in-progress: false
+    permissions:
+      actions: read
+      contents: read
+      id-token: write
+
+    steps:
+      - name: Validate the reviewed plan run
+        id: plan
+        uses: actions/github-script@3a2844b7e9c422d3c10d287c895573f7108da1b3 # v9
+        env:
+          PLAN_RUN_ID: ${{ inputs.plan_run_id }}
+          CONFIRM: ${{ inputs.confirm }}
+        with:
+          script: |
+            if (process.env.CONFIRM !== 'apply') {
+              core.setFailed('Type apply in confirm to apply a reviewed plan.');
+              return;
+            }
+            const run_id = Number(process.env.PLAN_RUN_ID);
+            if (!Number.isSafeInteger(run_id) || run_id <= 0) {
+              core.setFailed('mode=apply needs a numeric plan_run_id.');
+              return;
+            }
+            const { owner, repo } = context.repo;
+            const defaultBranch = context.payload.repository.default_branch;
+            const { data: run } = await github.rest.actions.getWorkflowRun({ owner, repo, run_id });
+
+            const { data: current } = await github.rest.actions.getWorkflowRun({ owner, repo, run_id: context.runId });
+            if (run.workflow_id !== current.workflow_id || run.event !== 'push') {
+              core.setFailed(`Run ${run_id} is "${run.name}", not "${context.workflow}".`);
+              return;
+            }
+            if (run.head_branch !== defaultBranch) {
+              core.setFailed(`Run ${run_id} planned ${run.head_branch}; apply only accepts ${defaultBranch}.`);
+              return;
+            }
+            if (run.status !== 'completed' || run.conclusion !== 'success') {
+              core.setFailed(`Run ${run_id} is ${run.status}/${run.conclusion}; only a successful plan is appliable.`);
+              return;
+            }
+            const { data: branch } = await github.rest.repos.getBranch({ owner, repo, branch: defaultBranch });
+            if (run.head_sha !== branch.commit.sha || current.head_sha !== branch.commit.sha || current.head_branch !== defaultBranch) {
+              core.setFailed(`Run ${run_id} planned ${run.head_sha} but ${defaultBranch} is now ${branch.commit.sha}. Re-plan.`);
+              return;
+            }
+            core.setOutput('head_sha', run.head_sha);
+
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ steps.plan.outputs.head_sha }}
+          persist-credentials: false
+
+      - uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # actions/download-artifact@v8
+        with:
+          name: terraform-plan-${{ inputs.plan_run_id }}
+          run-id: ${{ inputs.plan_run_id }}
+          github-token: ${{ github.token }}
+          path: ${{ inputs.root_dir }}
+
+      - uses: hashicorp/setup-terraform@dfe3c3f87815947d99a8997f908cb6525fc44e9e # v4
+        with:
+          terraform_version: ${{ inputs.terraform_version }}
+
+      - uses: aws-actions/configure-aws-credentials@a89a83ec143615402a01f672b6e172b7b1875000 # v6
+        with:
+          role-to-assume: ${{ secrets.aws_role_arn }}
+          aws-region: ${{ inputs.aws_region }}
+
+      - name: Verify plan context
+        working-directory: ${{ inputs.root_dir }}
+        env:
+          STATE_BUCKET: ${{ inputs.state_bucket }}
+          STATE_KEY: ${{ inputs.state_key }}
+          TERRAFORM_VERSION: ${{ inputs.terraform_version }}
+          REVIEWED_COMMIT: ${{ steps.plan.outputs.head_sha }}
+        run: |
+          jq -e --arg bucket "$STATE_BUCKET" --arg key "$STATE_KEY" \
+            --arg version "$TERRAFORM_VERSION" --arg commit "$REVIEWED_COMMIT" \
+            '. == $ARGS.named' plan-context.json > /dev/null || {
+            echo "::error::The saved plan targets a different state, Terraform version, or commit. Re-plan." >&2
+            exit 1
+          }
+
+      - name: apply
+        env:
+          STATE_BUCKET: ${{ inputs.state_bucket }}
+          STATE_KEY: ${{ inputs.state_key }}
+          AWS_REGION: ${{ inputs.aws_region }}
+          VAR_FILE: ${{ inputs.var_file }}
+        run: |
+          terraform init -reconfigure \
+            -backend-config="bucket=$STATE_BUCKET" \
+            -backend-config="key=$STATE_KEY" \
+            -backend-config="region=$AWS_REGION"
+          terraform apply -input=false -lock-timeout=5m tfplan.binary
+        working-directory: ${{ inputs.root_dir }}
+
+      - name: Evidence
+        if: always()
+        env:
+          STATUS: ${{ job.status }}
+          ROOT_DIR: ${{ inputs.root_dir }}
+          PLAN_RUN_ID: ${{ inputs.plan_run_id }}
+          HEAD_SHA: ${{ steps.plan.outputs.head_sha }}
+        run: |
+          mkdir -p /tmp/evidence
+          jq -n --arg event infra_apply --arg status "$STATUS" --arg root_dir "$ROOT_DIR" \
+            --arg plan_run_id "$PLAN_RUN_ID" --arg reviewed_commit "$HEAD_SHA" \
+            --arg run_id "$GITHUB_RUN_ID" '$ARGS.named' > /tmp/evidence/release-event.json
+          {
+            echo "### Apply ${STATUS}: ${ROOT_DIR}"
+            echo ""
+            echo "- Reviewed plan run: ${PLAN_RUN_ID}"
+            echo "- Reviewed commit: ${HEAD_SHA}"
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
+        if: always()
+        with:
+          name: evidence-apply-${{ github.run_id }}
+          path: /tmp/evidence
+          retention-days: 30

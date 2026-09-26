@@ -1,0 +1,22 @@
+[project]
+name = "__PIPELINE_NAME__"
+version = "0.1.0"
+description = "__PIPELINE_NAME__ pipeline, owned by __OWNER__"
+requires-python = ">=3.10,<3.13"
+dependencies = []
+
+[dependency-groups]
+dev = [
+    "pytest>=8.4.0",
+    "ruff>=0.15.0",
+]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+pythonpath = ["."]
+
+[tool.ruff]
+line-length = 100
+
+[project.optional-dependencies]
+spark = ["pyspark==3.5.2", "boto3>=1.35.0"]

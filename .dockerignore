@@ -20,7 +20,7 @@ aws_credentials
 .aws/
 
 # Terraform state and plans must never enter Docker build context.
-infra/.terraform/
+**/.terraform/
 **/*.tfstate
 **/*.tfstate.*
 *.tfplan

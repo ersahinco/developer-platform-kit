@@ -1,5 +1,5 @@
 {
-  "name": "aws-sdlc-containers",
+  "name": "developer-platform-kit",
   "build": {
     "dockerfile": "Dockerfile",
     "context": "."
@@ -19,21 +19,12 @@
       "version": "2.34.39"
     }
   },
-  "runArgs": ["--add-host=host.docker.internal:host-gateway"],
-  "containerEnv": {
-    "AWS_REGION": "eu-central-1",
-    "BASE_URL": "http://host.docker.internal:8000",
-    "DATABASE_URL": "postgresql://postgres:postgres@host.docker.internal:6432/aws_sdlc_containers",
-    "BACKFILL_DATABASE_URL": "postgresql://postgres:postgres@host.docker.internal:5432/aws_sdlc_containers",
-    "DATA_EXPORT_DATABASE_URL": "postgresql://postgres:postgres@host.docker.internal:5432/aws_sdlc_containers"
-  },
   "customizations": {
     "vscode": {
       "extensions": [
         "charliermarsh.ruff",
         "github.vscode-github-actions",
         "hashicorp.terraform",
-        "ms-azuretools.vscode-docker",
         "ms-python.python",
         "ms-python.vscode-pylance"
       ],
@@ -44,6 +35,6 @@
       }
     }
   },
-  "postCreateCommand": "uv sync --all-packages --group dev --group scripts --group test && pre-commit install --hook-type pre-commit --hook-type pre-push",
+  "postCreateCommand": "uv sync && uv run prek install --hook-type pre-commit --hook-type pre-push",
   "remoteUser": "vscode"
 }

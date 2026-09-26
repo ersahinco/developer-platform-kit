@@ -1,252 +1,108 @@
-# aws-sdlc-containers
+# Developer platform kit
 
-This delivery toolkit helps teams define portable workload boundaries, prove
-them locally, deliver them through GitHub Actions, and realize them at the
-platform edge with runtime evidence, without hiding standard DevOps tools behind
-a framework.
+A scaffolding capability for a developer platform: three repository starters,
+three reusable CI/CD workflows, and a small Terraform module catalog. Teams own
+and edit the generated repos. The toolkit adds no application runtime dependency.
 
-Short form: standardize the delivery workflow, do not replace the tools.
-
-The stable center of the repo is the workload contract and the platform
-catalog. Together they make the monorepo a practical toolkit for teams to
-standardize app development, infrastructure ownership, build, test, delivery,
-and evidence without hiding standard tools behind private machinery. Runtime
-targets are pluggable implementations at the platform edge. Local Compose is
-the fastest feedback runtime; local Kubernetes is the richer local proof
-runtime; AWS/ECS is the current reviewed production realization. The explicit
-hybrid starter reference composes Cloudflare, Hetzner, Supabase, S3, and Dapr
-without hiding provider semantics. Further runtime choices can incubate as
-bounded candidates before demand reaches scale; they stay out of active
-defaults until a concrete proof, owner, conformance path, evidence artifact,
-failure mode, and runbook exist.
-The repo also ships conventional Backstage entities and native Software
-Templates in `catalog-info.yaml`. Backstage can ingest the workload and
-runtime read model and dispatch the existing GitHub Actions workflows without
-receiving provider credentials or custom integration code.
-
-The monorepo is capability-rich but deliberately lean. It includes modern
-GitHub Actions lanes for infra, app, and data delivery; infrastructure
-capabilities from network placement through database, object storage, messaging,
-jobs, and scheduler realization; and an app development contract that brings
-portable concerns such as Dapr, observability, config, secrets, and evidence
-into the app host from the start.
-
-Dapr is the core distributed-application boundary: app teams use stable APIs
-for building blocks while platform engineering owns component implementations,
-scoping, resiliency, security, telemetry, and runtime delivery. Pub/sub is
-production-proven; local service invocation is exercised by the booking
-consistency workload; further building blocks grow through owned experiments.
-
-App size is not the fit test. A tiny container, a long-running app host, or a
-scheduled job fits when its ports,
-health/readiness, config, secrets, network, storage, auth, logs/metrics,
-ownership, and evidence needs are explicit.
-
-## Who This Is For
-
-Use this repo when you want:
-
-- a repeatable path for app hosts and jobs
-- local proof before cloud changes
-- local Kubernetes proof when Compose is too small for network, storage, probes,
-  jobs, or service identity
-- explicit workload boundaries before platform ceremony
-- opinionated build, test, delivery, infra, evidence, and app-host conventions
-- AWS ECS delivery with explicit review, evidence, and operator handoff
-- runtime standardization without putting Okta, Kong, OPA, Datadog, or Splunk
-  into workload metadata
-
-Do not use it as:
-
-- a lowest-common-denominator provider abstraction
-- a self-service portal or control plane before the workload boundary is clear
-- a runtime platform replacement for ECS, Lambda, Kubernetes, Cloud Run, VMs, or
-  on-prem hosts
-- a YAML DSL for every deployment concern
-- a place to hide platform magic behind generated per-app behavior
-- a place for each app team to pick random delivery, auth, observability, or
-  policy tools when shared runtime capabilities should own those choices
-- a place to install enterprise tools without a bounded capability outcome,
-  concrete proof, and owner
-
-## What This Repo Standardizes
-
-- Platform center: workload contract plus reusable catalog and concern definitions
-- Workload contract: provider-free `platform/workloads.json`; runtime-edge support in `platform/workload-runtime-support.json`; local/CI proof in `platform/runtime-conformance.json`
-- Boundaries: thin `apps/*` hosts, reusable `packages/*`, pluggable runtime targets realized at the edge in `infra/*`, workflows, and Compose
-- Capabilities: network, database, object storage, messaging, jobs, scheduling, Dapr, observability, secrets, and evidence selected by workload need or an owned pre-scale proof
-- Ownership: each workload declares a portable owner before cloud runtime admission
-- DevEx: repeatable app-host conventions, local proof, checks, and evidence before runtime-specific work
-- Delivery: build before deploy, plan before apply, immutable image tags, release evidence
-- Operations: observability baseline, runbooks, contract and architecture tests
-
-## Repo Map
-
-| Path | Owns |
-|---|---|
-| `apps/` | Contract-governed workload hosts, including local-only workloads |
-| `examples/` | Teaching, demo, and reference-only samples |
-| `packages/` | Domain, application, infrastructure packages |
-| `db/` | Liquibase changelog and Postgres assets |
-| `infra/` | Runtime-target Terraform roots plus reusable catalog parts; current production target is AWS |
-| `platform/` | Workload contract, shared image, and shared runtime concerns |
-| `scripts/` | CI, release, operator, observability, data helpers |
-| `tests/` | API, contract, runtime, infrastructure checks |
-| `docs/` | Canonical operator and design docs |
-| `catalog-info.yaml` | Optional Backstage catalog entities for self-service discovery |
-
-## Start Here
-
-| Need | Read |
-|---|---|
-| Canonical doc map | [docs/README.md](docs/README.md) |
-| Which proof command to run | `make help-proof`, [docs/proof-ladder.md](docs/proof-ladder.md), [docs/local-development.md](docs/local-development.md#command-map) |
-| First local-to-cloud validation pass | [docs/first-30-minutes.md](docs/first-30-minutes.md) |
-| Repo boundaries | [docs/architecture.md](docs/architecture.md) |
-| Portable workload expectations | [docs/platform-contract.md](docs/platform-contract.md) |
-| Runtime hosts and reusable packages | [apps/README.md](apps/README.md), [packages/README.md](packages/README.md) |
-| Local workflow | [docs/local-development.md](docs/local-development.md) |
-| DevOps gates and reusable pipeline shape | [docs/devops-toolchain.md](docs/devops-toolchain.md), [docs/deployment.md](docs/deployment.md) |
-| AWS delivery and operator flow | [docs/operator-day-2.md](docs/operator-day-2.md), [docs/deployment.md](docs/deployment.md) |
-| Greenfield and brownfield deployment options | [docs/deployment-options.md](docs/deployment-options.md) |
-| Hybrid starter reference | [docs/hybrid-reference.md](docs/hybrid-reference.md) |
-| Backstage catalog and actions | [docs/backstage-integration.md](docs/backstage-integration.md) |
-| Incident response | [docs/runbooks/README.md](docs/runbooks/README.md) |
-| Current work state | [docs/roadmaps.md](docs/roadmaps.md) |
-
-## Quick Local Path
-
-Start with the smallest proof that answers the question in front of you. Use
-the grouped help views instead of sampling every target in the Makefile:
-
-```bash
-make help-local
-make help-proof
+```text
+repo-templates/{app,infra,data}/   manifests and repository skeletons
+.github/workflows/reusable-*.yml   one delivery lane per audience
+modules/aws/                       representative IaC capabilities
+scaffold/                          stdlib CLI and Backstage export
+tests/                             rendering and delivery contracts
 ```
 
-For a cold workstation check, stay local and non-mutating:
+## Start a repository
 
 ```bash
-make platform-doctor
-make workload-readiness
-make local-kubernetes-admission-report
+uv sync --frozen
+uv run python -m scaffold.new_repo list
+uv run python -m scaffold.new_repo describe app
+uv run python -m scaffold.new_repo render app ../orders-api \
+  --set WORKLOAD_NAME=orders-api \
+  --set OWNER=team-payments \
+  --set GITHUB_REPOSITORY=acme/orders-api \
+  --set AWS_REGION=eu-central-1 \
+  --set TOOLKIT_REPOSITORY=ersahinco/developer-platform-kit \
+  --set TOOLKIT_REF=v0.1.0
 ```
 
-For cheap static proof before starting the app host:
+Publish the tested toolkit revision first and substitute its actual release tag
+or full commit SHA; the example does not imply a release already exists. Floating
+branches are rejected. Each variable has an example, description, and validation
+pattern. Names derive their slugs automatically. Rendering fails before writing
+if an undeclared token remains or a path escapes the destination.
+
+| Starter | Repository contents | Delivery modes |
+|---|---|---|
+| `app` | Container host, health/readiness, Prometheus metrics, JSON logs, tests, dependency lock | `build`: test in the caller, build, scan, publish. `deploy`: release an existing image by digest |
+| `infra` | Terraform root, state configuration, module composition, catalog metadata | `plan`: validate, lint, scan, save plan. `apply`: apply that reviewed plan |
+| `data` | Spark ETL/ELT stages, JSON quality checks, Liquibase migrations, tests, dependency lock | `migrate`: run a published migration image. `pipeline`: package and execute Spark |
+
+Each generated repo has one workflow for its lane and its own README. App build
+and deploy share one reusable workflow; infra plan and apply share another.
+Modes remain separate runs so review can happen between producing and releasing
+an artifact. Data teams can remove the migration or Spark portion they do not need.
+
+PR app builds need no cloud credentials. Published image tags are commit based,
+and release resolves them to digests. Infra apply checks the source workflow,
+successful default-branch plan, current head, state location, Terraform version,
+and provider lock. Cloud-changing modes record `release-event.json`; apply and
+data execution require explicit confirmation strings.
+
+## Backstage
 
 ```bash
-make workload-readiness-check
-make local-kubernetes-contracts
+uv run python -m scaffold.backstage /tmp/toolkit-backstage
 ```
 
-For the first live local app-host proof:
+Publish the exported directory to your template repository, then register its
+`catalog-info.yaml` in an existing Backstage installation. Export derives forms
+and skeletons from the same manifests as the CLI, using the native `fetch:template`,
+`publish:github`, and `catalog:register` actions. Configure GitHub integration and
+the GitHub scaffolder module there. No portal or custom action ships in this repo.
+See [Backstage Software Templates](https://backstage.io/docs/features/software-templates/writing-templates/).
+
+## IaC catalog and cloud boundaries
+
+`modules/aws/` contains `network`, `ecr`, `github-oidc`, `ecs-cluster`, `alb`,
+`ecs-service`, `ecs-job`, `postgres`, `object-storage`, and `emr-serverless`.
+Every module takes `name` and `tags`, documents inputs/outputs in HCL, and has a
+caller in the infra starter. Terraform 1.10+ supports the starter's S3 state lock;
+the AWS provider is 6.x and the VPC registry module is pinned to 6.7.3.
+
+The shipped implementation is **AWS ECS/Fargate and EMR Serverless**. Multi-cloud
+standardization here means the same ownership, repository, artifact, approval,
+and evidence contracts. Azure/GCP delivery is not implemented. Add provider-specific
+modules and concrete lane implementations when there is a consuming team; keep
+provider identity and state explicit instead of inventing neutral resource wrappers.
+The container host, Spark stages, Liquibase changesets, and Backstage metadata can
+move with that team.
+
+Before the first apply, remove unused capabilities from the infra starter and
+review its billable resources. Follow its README to bootstrap state and identity.
+Production roles should be distinct per repo and per plan/apply privilege, with
+protected environments and branch restrictions. Plans can contain secrets: keep
+artifacts private and short lived. Database credentials stay in Secrets Manager.
+
+The starter has one ALB target group and permits one public service. Terraform
+owns service shape; delivery owns task revisions. Workload images must match the
+X86_64 task default. Spark refuses existing output paths; use run-specific prefixes
+and design dataset promotion in the consuming repo.
+
+## Contribute
 
 ```bash
-make platform-toolkit-smoke-local
+make help
+make check
 ```
 
-This smoke path avoids the local observability stack; use `make local-up` when
-you need Prometheus, Loki, Tempo, Promtail, and Grafana.
+The gate renders all three starters, checks workflow contracts and Python types,
+validates every module and the rendered infra root, and runs TFLint, Checkov, and
+Dockerfile linting. CI also runs each generated Python repo's tests with its lock.
+Checkov exceptions are resource-local with reasons; they describe consumer choices
+such as retention and availability, not a global disabled policy list.
 
-For the full local Compose proof ladder:
-
-```bash
-make platform-toolkit-validate-local
-```
-
-When the risk is the local runtime boundary itself, use the isolated Compose
-drill for token auth, health, readiness, metrics, structured logs, and local
-observability:
-
-```bash
-make local-compose-live-proof
-```
-
-For the richer local Kubernetes proof runtime target, first inspect admission
-and then run the live drill only when the workload needs that level of proof:
-
-```bash
-make workload-readiness-local
-make local-kubernetes-admission-report
-make local-kubernetes-evidence-drill
-```
-
-Use this non-mutating cloud readiness path before opening cloud-changing work:
-
-```bash
-make workload-readiness-cloud
-make platform-doctor-cloud
-make platform-toolkit-validate-cloud
-```
-
-`workload-readiness-cloud` shows the AWS admission, policy/delivery gate,
-structured log contract, secret injection proof, delivery workflow, evidence
-artifact, log group, and rollback proof category for each workload.
-
-The doctor targets are human diagnostics. The local doctor requires local tools,
-Docker, repo files, and workload readiness; cloud-only tools and GitHub auth are
-warnings unless you run `make platform-doctor-cloud`.
-
-For full local setup, exact inventory views, and optional observability helpers,
-use [docs/local-development.md](docs/local-development.md) and
-[docs/first-30-minutes.md](docs/first-30-minutes.md).
-
-## Use It In Anger
-
-1. Inspect workload and runtime maturity:
-   `make workload-readiness`
-2. Prove the local Compose path:
-   `make platform-toolkit-validate-local`
-3. Use local Kubernetes proof when Compose is too small:
-   `make workload-readiness-local`, `make local-kubernetes-evidence-drill`
-4. Add or onboard one real workload:
-   [docs/adding-workloads.md](docs/adding-workloads.md)
-5. Inspect evidence and artifacts:
-   `make workload-readiness`, `make data-artifacts-list`
-6. Decide runtime admission:
-   use [docs/runtime-toolkit.md](docs/runtime-toolkit.md),
-   `make workload-readiness-cloud`, and `make runtime-defaults`
-
-## Keep It Useful
-
-The repo already has enough capability to absorb real workloads. Prefer use and
-small corrections, and extend it through bounded proofs rather than new
-machinery:
-
-- add scripts only when they answer an operator question directly
-- keep `platform/workloads.json` as workload identity, not deployment choreography
-- keep live capability proof narrow; full local validation belongs to
-  `make platform-toolkit-validate-local`
-- let enterprise integrations incubate as contract-backed candidates, but keep
-  them out of active defaults until a runtime owner, evidence, conformance,
-  failure mode, and runbook exist
-
-Useful inventory commands when you need them:
-
-```bash
-make monorepo-capability-profile
-make monorepo-capability-profile-md
-make monorepo-capability-profile-check
-make workload-capability-matrix
-make workload-readiness
-```
-
-## Delivery Shape
-
-| Workflow | Owns |
-|---|---|
-| `app-build.yml` | Validate, test, runtime conformance, build, scan, push |
-| `app-deploy.yml` | Deploy app images, verify runtime, emit release evidence |
-| `data-*.yml` | Apply schema phases, switch runtime modes, promote support jobs, run backfills |
-| `infra-plan.yml` | Reviewed Terraform plan only |
-| `infra-apply.yml` | Apply reviewed Terraform plan only |
-
-Cloud-changing jobs stay split so review happens between build and deploy, and
-between plan and apply.
-
-## Operator Path
-
-Shared review commands and rollout checks live in
-[docs/deployment.md](docs/deployment.md#review-checklist).
-Incident selection lives in
-[docs/runbooks/README.md](docs/runbooks/README.md).
+Keep three audiences and three lanes. A fourth needs a real audience. Delete
+uncalled modules, obsolete workflows, and unused template content. Keep prose
+here and in the README that each template renders.

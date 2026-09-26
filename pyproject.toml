@@ -1,65 +1,32 @@
 [project]
-name = "aws-sdlc-containers"
+name = "developer-platform-kit"
 version = "0.1.0"
-requires-python = ">=3.14"
-dependencies = [
-]
+description = "Developer toolkit: repo scaffolding, reusable CI/CD lanes, and Terraform modules."
+requires-python = ">=3.13"
+dependencies = []
 
 [dependency-groups]
 dev = [
     "pip-audit>=2.7.0",
     "prek>=0.4.8",
     "pyright>=1.1.410",
-    "ruff>=0.15.22",
-]
-scripts = [
-    "httpx>=0.27.0",
-    "psycopg2-binary>=2.9.9",
-    "sqlalchemy>=2.0.50",
-]
-test = [
-    "duckdb>=1.4.2",
-    "httpx>=0.27.0",
-    "hypothesis>=6.156.1",
-    "jsonschema>=4.26.0",
     "pytest>=9.0.3",
     "pyyaml>=6.0.3",
+    "ruff>=0.15.22",
 ]
-
-[tool.uv.workspace]
-members = [
-    "apps/api",
-    "apps/backfill_worker",
-    "apps/booking_api",
-    "apps/churn_model_train_job",
-    "apps/churn_prediction_api",
-    "apps/data_export_job",
-    "apps/event_consumer",
-    "apps/integration_check_job",
-    "apps/lake_orders_ingest_job",
-    "apps/operational_snapshot_job",
-    "packages/domain",
-    "packages/application",
-    "packages/infrastructure",
-]
-
-[tool.uv.sources]
-aws-sdlc-containers-domain = { workspace = true }
-aws-sdlc-containers-application = { workspace = true }
-aws-sdlc-containers-infrastructure = { workspace = true }
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
-markers = [
-    "require_phase: skip test unless current migration phase matches",
-]
+# The scaffolder is imported by the tests from the repo root, not installed.
+pythonpath = ["."]
+
+[tool.ruff]
+line-length = 100
+# Rendered templates are not this project's source. They are checked by the
+# tests that render them.
+extend-exclude = ["repo-templates"]
 
 [tool.pyright]
-include = ["apps", "examples", "packages", "tests", "scripts"]
-extraPaths = [
-    "apps",
-    "examples",
-    "packages",
-]
-pythonVersion = "3.14"
+include = ["scaffold", "tests"]
+pythonVersion = "3.13"
 typeCheckingMode = "standard"

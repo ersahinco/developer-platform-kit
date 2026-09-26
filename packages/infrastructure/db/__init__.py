@@ -1,1 +1,0 @@
-"""Postgres/SQLAlchemy adapter package."""

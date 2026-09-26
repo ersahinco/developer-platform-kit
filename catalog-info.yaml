@@ -1,37 +1,9 @@
 apiVersion: backstage.io/v1alpha1
-kind: Location
+kind: Component
 metadata:
-  name: aws-sdlc-containers-catalog
-  description: Root Backstage catalog location for platform monorepo entities.
+  name: developer-platform-kit
+  description: Repo scaffolding, reusable CI/CD lanes, and Terraform modules
 spec:
-  type: file
-  targets:
-    - ./catalog/platform-engineering-group.yaml
-    - ./catalog/platform-engineering-domain.yaml
-    - ./catalog/aws-sdlc-containers-system.yaml
-    - ./catalog/runtime-target-local-compose.yaml
-    - ./catalog/runtime-target-local-kubernetes.yaml
-    - ./catalog/runtime-target-aws-ecs.yaml
-    - ./catalog/runtime-target-hetzner-compose.yaml
-    - ./catalog/delivery-edge-coolify.yaml
-    - ./catalog/network-edge-netbird.yaml
-    - ./catalog/platform-monorepo-component.yaml
-    - ./catalog/action-app-build.yaml
-    - ./catalog/action-app-deploy.yaml
-    - ./catalog/action-infra-plan.yaml
-    - ./catalog/action-infra-apply.yaml
-    - ./catalog/action-data-schema-apply.yaml
-    - ./catalog/action-data-runtime-switch.yaml
-    - ./catalog/action-data-backfill.yaml
-    - ./catalog/action-data-support-deploy.yaml
-    - ./catalog/action-operational-snapshot.yaml
-    - ./catalog/api-component.yaml
-    - ./catalog/booking-api-component.yaml
-    - ./catalog/churn-model-train-job-component.yaml
-    - ./catalog/churn-prediction-api-component.yaml
-    - ./catalog/event-consumer-component.yaml
-    - ./catalog/backfill-worker-component.yaml
-    - ./catalog/data-export-job-component.yaml
-    - ./catalog/operational-snapshot-job-component.yaml
-    - ./catalog/integration-check-job-component.yaml
-    - ./catalog/lake-orders-ingest-job-component.yaml
+  type: library
+  lifecycle: production
+  owner: platform-engineering

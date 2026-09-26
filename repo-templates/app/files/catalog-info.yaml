@@ -1,0 +1,11 @@
+apiVersion: backstage.io/v1alpha1
+kind: Component
+metadata:
+  name: __WORKLOAD_NAME__
+  description: __WORKLOAD_NAME__
+  annotations:
+    github.com/project-slug: __GITHUB_REPOSITORY__
+spec:
+  type: service
+  lifecycle: production
+  owner: __OWNER__

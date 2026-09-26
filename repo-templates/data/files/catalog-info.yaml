@@ -1,0 +1,11 @@
+apiVersion: backstage.io/v1alpha1
+kind: Component
+metadata:
+  name: __PIPELINE_NAME__
+  description: __PIPELINE_NAME__ Spark pipeline and its schema
+  annotations:
+    github.com/project-slug: __GITHUB_REPOSITORY__
+spec:
+  type: data-pipeline
+  lifecycle: production
+  owner: __OWNER__

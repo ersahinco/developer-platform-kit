@@ -1,10 +1,10 @@
-title = "aws-sdlc-containers Gitleaks configuration"
+title = "developer-platform-kit Gitleaks configuration"
 
 [extend]
 useDefault = true
 
 [[allowlists]]
-description = "Ignore generated Terraform module cache"
+description = "Terraform provider cache pulled by validate and tflint runs"
 paths = [
-  '''^infra/.*/\.terraform/''',
+  '''^modules/.*/\.terraform/''',
 ]

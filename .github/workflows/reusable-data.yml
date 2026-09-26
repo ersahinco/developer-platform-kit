@@ -1,0 +1,441 @@
+name: Reusable Data Delivery
+
+# The data team's lane. One file, two modes, never the same run:
+#
+#   mode: migrate   run one Liquibase command against the database as an ECS task
+#   mode: pipeline  publish the Spark job, run it on EMR Serverless, report the
+#                   data quality results it produced
+#
+# Both modes take a literal confirm value, because both touch real data. The
+# lane decides success from the exit status the runtime reports, never from the
+# absence of an error message.
+
+on:
+  workflow_call:
+    inputs:
+      mode:
+        description: "migrate or pipeline."
+        required: true
+        type: string
+      job_name:
+        description: "Name used in the summary and evidence."
+        required: true
+        type: string
+      aws_region:
+        description: "AWS region for this delivery run."
+        required: true
+        type: string
+      environment:
+        description: "GitHub environment holding the OIDC role and the approval."
+        required: true
+        type: string
+      confirm:
+        description: "Must be the literal string run."
+        required: true
+        type: string
+
+      # mode: migrate
+      cluster:
+        description: "ECS cluster running the migration task."
+        required: false
+        type: string
+        default: ""
+      task_definition:
+        description: "Task family holding the Liquibase container."
+        required: false
+        type: string
+        default: ""
+      container_name:
+        description: "Container to run or revise within the task definition."
+        required: false
+        type: string
+        default: liquibase
+      subnet_ids:
+        description: "Comma-separated private subnet IDs."
+        required: false
+        type: string
+        default: ""
+      security_group_ids:
+        description: "Comma-separated security group IDs."
+        required: false
+        type: string
+        default: ""
+      log_group:
+        description: "CloudWatch log group tailed after the task stops."
+        required: false
+        type: string
+        default: ""
+      image_tag:
+        description: "Published migration image tag (sha-<40-character commit>)."
+        type: string
+        default: ""
+      liquibase_command:
+        description: "updateSQL, update, status, history, or rollbackCount."
+        required: false
+        type: string
+        default: updateSQL
+
+      # mode: pipeline
+      emr_application_id:
+        description: "EMR Serverless application that runs the job."
+        required: false
+        type: string
+        default: ""
+      code_bucket:
+        description: "Bucket the job code and check reports live in."
+        required: false
+        type: string
+        default: ""
+      entry_point:
+        description: "Job entry point inside the published prefix."
+        required: false
+        type: string
+        default: pipeline/main.py
+      job_arguments:
+        description: "JSON array of arguments appended to the entry point."
+        required: false
+        type: string
+        default: "[]"
+      spark_submit_parameters:
+        description: "Extra Spark submission parameters."
+        required: false
+        type: string
+        default: "--conf spark.executor.cores=2 --conf spark.executor.memory=4g"
+      wait_minutes:
+        description: "Maximum time to observe the remote operation."
+        required: false
+        type: number
+        default: 60
+    secrets:
+      emr_job_role_arn:
+        required: false
+      aws_role_arn:
+        required: true
+
+permissions:
+  contents: read
+
+jobs:
+  migrate:
+    name: Migrate
+    if: inputs.mode == 'migrate'
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    environment: ${{ inputs.environment }}
+    concurrency:
+      group: migrate-${{ inputs.cluster }}-${{ inputs.task_definition }}
+      cancel-in-progress: false
+    permissions:
+      contents: read
+      id-token: write
+
+    steps:
+      - name: Check migrate inputs
+        env:
+          CONFIRM: ${{ inputs.confirm }}
+          CLUSTER: ${{ inputs.cluster }}
+          TASK_DEFINITION: ${{ inputs.task_definition }}
+          SUBNETS: ${{ inputs.subnet_ids }}
+          SECURITY_GROUP_IDS: ${{ inputs.security_group_ids }}
+        run: |
+          [[ "$CONFIRM" == "run" ]] || { echo "::error::Type run in confirm." >&2; exit 1; }
+          for pair in "cluster:$CLUSTER" "task_definition:$TASK_DEFINITION" \
+                      "subnet_ids:$SUBNETS" "security_group_ids:$SECURITY_GROUP_IDS"; do
+            [[ -n "${pair#*:}" ]] || { echo "::error::mode=migrate needs ${pair%%:*}." >&2; exit 1; }
+          done
+
+      - uses: aws-actions/configure-aws-credentials@a89a83ec143615402a01f672b6e172b7b1875000 # v6
+        with:
+          role-to-assume: ${{ secrets.aws_role_arn }}
+          aws-region: ${{ inputs.aws_region }}
+
+      - name: Run Liquibase task
+        id: task
+        env:
+          CLUSTER: ${{ inputs.cluster }}
+          TASK_DEFINITION: ${{ inputs.task_definition }}
+          CONTAINER: ${{ inputs.container_name }}
+          SUBNETS: ${{ inputs.subnet_ids }}
+          SECURITY_GROUP_IDS: ${{ inputs.security_group_ids }}
+          COMMAND: ${{ inputs.liquibase_command }}
+          IMAGE_TAG: ${{ inputs.image_tag }}
+        run: |
+          [[ "$IMAGE_TAG" =~ ^sha-[0-9a-f]{40}$ ]] || { echo "::error::Pass an immutable migration image_tag; latest is rejected." >&2; exit 1; }
+          case "$COMMAND" in
+            updateSQL|update|status|history) args=$(jq -cn --arg c "$COMMAND" '[$c]') ;;
+            rollbackCount) args='["rollbackCount","--count=1"]' ;;
+            *) echo "::error::Unsupported Liquibase command." >&2; exit 1 ;;
+          esac
+          aws ecs describe-task-definition --task-definition "$TASK_DEFINITION" --query taskDefinition > current.json
+          repository=$(jq -er --arg n "$CONTAINER" '.containerDefinitions[] | select(.name == $n) | .image | split(":")[0]' current.json)
+          digest=$(aws ecr describe-images --repository-name "${repository#*/}" --image-ids imageTag="$IMAGE_TAG" \
+            --query 'imageDetails[0].imageDigest' --output text)
+          jq --arg n "$CONTAINER" --arg image "${repository}@${digest}" '
+            .containerDefinitions |= map(if .name == $n then .image = $image else . end)
+            | del(.taskDefinitionArn, .revision, .status, .requiresAttributes,
+                  .compatibilities, .registeredAt, .registeredBy, .deregisteredAt)
+          ' current.json > next.json
+          TASK_DEFINITION=$(aws ecs register-task-definition --cli-input-json file://next.json \
+            --query 'taskDefinition.taskDefinitionArn' --output text)
+          overrides=$(jq -cn --arg n "$CONTAINER" --argjson args "$args" \
+            '{containerOverrides: [{name: $n, command: $args}]}')
+          arn=$(aws ecs run-task --cluster "$CLUSTER" --task-definition "$TASK_DEFINITION" \
+            --launch-type FARGATE \
+            --network-configuration "awsvpcConfiguration={subnets=[${SUBNETS}],securityGroups=[${SECURITY_GROUP_IDS}],assignPublicIp=DISABLED}" \
+            --overrides "$overrides" --query 'tasks[0].taskArn' --output text)
+          if [[ -z "$arn" || "$arn" == "None" ]]; then
+            echo "::error::ECS started no task. Check the task definition, subnets, and security groups." >&2
+            exit 1
+          fi
+          echo "arn=${arn}" >> "$GITHUB_OUTPUT"
+          echo "id=${arn##*/}" >> "$GITHUB_OUTPUT"
+
+      - name: Wait for the task to stop
+        env:
+          CLUSTER: ${{ inputs.cluster }}
+          TASK_ARN: ${{ steps.task.outputs.arn }}
+          WAIT_MINUTES: ${{ inputs.wait_minutes }}
+        run: |
+          deadline=$(( SECONDS + WAIT_MINUTES * 60 ))
+          while (( SECONDS < deadline )); do
+            status=$(aws ecs describe-tasks --cluster "$CLUSTER" --tasks "$TASK_ARN" \
+              --query 'tasks[0].lastStatus' --output text)
+            echo "lastStatus=${status}"
+            [[ "$status" == "STOPPED" ]] && exit 0
+            sleep 10
+          done
+          echo "::error::Task has not stopped after ${WAIT_MINUTES} minutes. It is still running, not failed. Check it before rerunning." >&2
+          exit 1
+
+      - name: Tail logs
+        if: always() && inputs.log_group != ''
+        env:
+          LOG_GROUP: ${{ inputs.log_group }}
+          CONTAINER: ${{ inputs.container_name }}
+          TASK_ID: ${{ steps.task.outputs.id }}
+        run: |
+          stream="${CONTAINER}/${CONTAINER}/${TASK_ID}"
+          aws logs get-log-events --log-group-name "$LOG_GROUP" --log-stream-name "$stream" \
+            --limit 300 --query 'events[].message' --output text \
+            || echo "No stream ${stream} in ${LOG_GROUP}: the task may have failed before the container started."
+
+      - name: Assert exit status
+        id: exit
+        env:
+          CLUSTER: ${{ inputs.cluster }}
+          TASK_ARN: ${{ steps.task.outputs.arn }}
+          CONTAINER: ${{ inputs.container_name }}
+        run: |
+          read -r code reason <<< "$(aws ecs describe-tasks --cluster "$CLUSTER" --tasks "$TASK_ARN" \
+            --query "tasks[0].[containers[?name=='${CONTAINER}'].exitCode | [0], stoppedReason]" \
+            --output text)"
+          echo "exit_code=${code}" >> "$GITHUB_OUTPUT"
+          if [[ "$code" == "None" || -z "$code" ]]; then
+            echo "::error::Container never reported an exit code. Task stopped because: ${reason}" >&2
+            exit 1
+          fi
+          if [[ "$code" != "0" ]]; then
+            echo "::error::Liquibase ran and failed with exit ${code}. Reason: ${reason}" >&2
+            exit 1
+          fi
+
+      - name: Evidence
+        if: always()
+        env:
+          STATUS: ${{ job.status }}
+          JOB_NAME: ${{ inputs.job_name }}
+          COMMAND: ${{ inputs.liquibase_command }}
+          TASK_ARN: ${{ steps.task.outputs.arn }}
+          EXIT_CODE: ${{ steps.exit.outputs.exit_code }}
+        run: |
+          mkdir -p /tmp/evidence
+          jq -n --arg event schema_migrate --arg status "$STATUS" --arg job "$JOB_NAME" \
+            --arg command "$COMMAND" --arg task_arn "$TASK_ARN" --arg exit_code "$EXIT_CODE" \
+            --arg commit "$GITHUB_SHA" --arg run_id "$GITHUB_RUN_ID" \
+            '$ARGS.named' > /tmp/evidence/release-event.json
+          {
+            echo "### ${JOB_NAME} ${STATUS}: liquibase ${COMMAND}"
+            echo ""
+            echo "- Task: ${TASK_ARN}"
+            echo "- Exit code: ${EXIT_CODE:-none}"
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
+        if: always()
+        with:
+          name: evidence-migrate-${{ inputs.job_name }}-${{ github.run_id }}
+          path: /tmp/evidence
+          retention-days: 30
+
+  pipeline:
+    name: Pipeline
+    if: inputs.mode == 'pipeline'
+    runs-on: ubuntu-latest
+    timeout-minutes: 90
+    environment: ${{ inputs.environment }}
+    concurrency:
+      group: pipeline-${{ inputs.emr_application_id }}-${{ inputs.job_name }}
+      cancel-in-progress: false
+    permissions:
+      contents: read
+      id-token: write
+
+    steps:
+      - name: Check pipeline inputs
+        env:
+          CONFIRM: ${{ inputs.confirm }}
+          APP_ID: ${{ inputs.emr_application_id }}
+          ROLE: ${{ secrets.emr_job_role_arn }}
+          BUCKET: ${{ inputs.code_bucket }}
+        run: |
+          [[ "$CONFIRM" == "run" ]] || { echo "::error::Type run in confirm." >&2; exit 1; }
+          for pair in "emr_application_id:$APP_ID" "emr_job_role_arn:$ROLE" "code_bucket:$BUCKET"; do
+            [[ -n "${pair#*:}" ]] || { echo "::error::mode=pipeline needs ${pair%%:*}." >&2; exit 1; }
+          done
+
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - uses: aws-actions/configure-aws-credentials@a89a83ec143615402a01f672b6e172b7b1875000 # v6
+        with:
+          role-to-assume: ${{ secrets.aws_role_arn }}
+          aws-region: ${{ inputs.aws_region }}
+
+      # Code is published under the commit SHA, so a run is always traceable to a
+      # reviewed revision and two runs never race over the same objects.
+      - name: Publish job code
+        id: publish
+        env:
+          BUCKET: ${{ inputs.code_bucket }}
+          JOB_NAME: ${{ inputs.job_name }}
+        run: |
+          prefix="s3://${BUCKET}/jobs/${JOB_NAME}/${GITHUB_SHA}/${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}"
+          python -m zipfile -c pipeline.zip pipeline
+          aws s3 cp pipeline.zip "${prefix}/pipeline.zip" --only-show-errors
+          aws s3 sync pipeline "${prefix}/pipeline" --only-show-errors
+          if [[ -f checks.json ]]; then
+            aws s3 cp checks.json "${prefix}/checks.json" --only-show-errors
+          fi
+          echo "prefix=${prefix}" >> "$GITHUB_OUTPUT"
+
+      - name: Start Spark job
+        id: start
+        env:
+          APP_ID: ${{ inputs.emr_application_id }}
+          ROLE: ${{ secrets.emr_job_role_arn }}
+          PREFIX: ${{ steps.publish.outputs.prefix }}
+          ENTRY_POINT: ${{ inputs.entry_point }}
+          ARGS: ${{ inputs.job_arguments }}
+          SPARK_PARAMS: ${{ inputs.spark_submit_parameters }}
+          JOB_NAME: ${{ inputs.job_name }}
+        run: |
+          if ! jq -e 'type == "array" and all(.[]; type == "string")' <<< "$ARGS" > /dev/null 2>&1; then
+            echo "::error::job_arguments must be a JSON array, got: ${ARGS}" >&2
+            exit 1
+          fi
+          # The job receives where it came from and where to write its report, so
+          # neither is duplicated inside the job code.
+          args=$(jq -cn --argjson extra "$ARGS" \
+            --arg run_id "$GITHUB_RUN_ID" \
+            --arg checks "checks.json" \
+            --arg report "${PREFIX}/reports/${GITHUB_RUN_ID}/checks.json" \
+            '["--run-id", $run_id, "--checks", $checks, "--report", $report] + $extra')
+          driver=$(jq -cn \
+            --arg entry "${PREFIX}/${ENTRY_POINT}" \
+            --argjson args "$args" \
+            --arg params "--py-files ${PREFIX}/pipeline.zip --files ${PREFIX}/checks.json $SPARK_PARAMS" \
+            '{sparkSubmit: {entryPoint: $entry, entryPointArguments: $args, sparkSubmitParameters: $params}}')
+          run_id=$(aws emr-serverless start-job-run \
+            --application-id "$APP_ID" \
+            --execution-role-arn "$ROLE" \
+            --name "${JOB_NAME}-${GITHUB_RUN_ID}" \
+            --job-driver "$driver" \
+            --query jobRunId --output text)
+          echo "job_run_id=${run_id}" >> "$GITHUB_OUTPUT"
+          echo "report=${PREFIX}/reports/${GITHUB_RUN_ID}/checks.json" >> "$GITHUB_OUTPUT"
+
+      - name: Wait for the job
+        id: wait
+        env:
+          APP_ID: ${{ inputs.emr_application_id }}
+          JOB_RUN_ID: ${{ steps.start.outputs.job_run_id }}
+          WAIT_MINUTES: ${{ inputs.wait_minutes }}
+        run: |
+          deadline=$(( SECONDS + WAIT_MINUTES * 60 ))
+          while (( SECONDS < deadline )); do
+            read -r state details <<< "$(aws emr-serverless get-job-run \
+              --application-id "$APP_ID" --job-run-id "$JOB_RUN_ID" \
+              --query 'jobRun.[state,stateDetails]' --output text)"
+            echo "state=${state}"
+            case "$state" in
+              SUCCESS)
+                echo "state=SUCCESS" >> "$GITHUB_OUTPUT"
+                exit 0
+                ;;
+              FAILED)
+                echo "state=FAILED" >> "$GITHUB_OUTPUT"
+                echo "::error::Spark job ran and failed. EMR reported: ${details}" >&2
+                exit 1
+                ;;
+              CANCELLED|CANCELLING)
+                echo "state=CANCELLED" >> "$GITHUB_OUTPUT"
+                echo "::error::Spark job was cancelled, so it neither succeeded nor failed on its own. Reason: ${details}" >&2
+                exit 1
+                ;;
+            esac
+            sleep 20
+          done
+          echo "state=TIMEOUT" >> "$GITHUB_OUTPUT"
+          echo "::error::Spark job is still ${state} after ${WAIT_MINUTES} minutes. It has not failed; cancel it or raise wait_minutes." >&2
+          exit 1
+
+      # The job writes its own check report and exits non-zero when a blocking
+      # check fails. This step exists to put the numbers in front of a human.
+      - name: Report data quality checks
+        if: always()
+        env:
+          REPORT: ${{ steps.start.outputs.report }}
+        run: |
+          mkdir -p /tmp/evidence
+          if ! aws s3 cp "$REPORT" /tmp/evidence/checks.json --only-show-errors 2>/dev/null; then
+            echo "Could not retrieve the check report at ${REPORT}. Inspect the job and S3 permissions; this does not prove a data-quality failure." \
+              >> "$GITHUB_STEP_SUMMARY"
+            exit 0
+          fi
+          {
+            echo "### Data quality checks"
+            echo ""
+            echo "| Check | Dataset | Status | Observed | Threshold |"
+            echo "|---|---|---|---|---|"
+            jq -r '.checks[] | "| \(.name) | \(.dataset) | \(.status) | \(.observed) | \(.threshold) |"' \
+              /tmp/evidence/checks.json
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Evidence
+        if: always()
+        env:
+          STATUS: ${{ job.status }}
+          JOB_NAME: ${{ inputs.job_name }}
+          JOB_RUN_ID: ${{ steps.start.outputs.job_run_id }}
+          STATE: ${{ steps.wait.outputs.state }}
+          PREFIX: ${{ steps.publish.outputs.prefix }}
+        run: |
+          mkdir -p /tmp/evidence
+          jq -n --arg event pipeline_run --arg status "$STATUS" --arg job "$JOB_NAME" \
+            --arg job_run_id "$JOB_RUN_ID" --arg emr_state "$STATE" --arg code_prefix "$PREFIX" \
+            --arg commit "$GITHUB_SHA" --arg run_id "$GITHUB_RUN_ID" \
+            '$ARGS.named' > /tmp/evidence/release-event.json
+          {
+            echo "### ${JOB_NAME} ${STATUS}"
+            echo ""
+            echo "- EMR job run: ${JOB_RUN_ID} (${STATE})"
+            echo "- Code: ${PREFIX}"
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
+        if: always()
+        with:
+          name: evidence-pipeline-${{ inputs.job_name }}-${{ github.run_id }}
+          path: /tmp/evidence
+          retention-days: 30
