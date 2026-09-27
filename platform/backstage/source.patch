@@ -1,0 +1,607 @@
+--- a/packages/app/config.d.ts
++++ b/packages/app/config.d.ts
+@@ -1,4 +1,10 @@
+ export interface Config {
++  auth?: {
++    /** Identity provider displayed on the sign-in page.
++     * @visibility frontend
++     */
++    signInProvider?: 'microsoft' | 'keycloak-oidc';
++  };
+   /** Homepage configuration
+    * @visibility frontend
+    */
+--- a/packages/app/src/App.tsx
++++ b/packages/app/src/App.tsx
+@@ -23,7 +23,8 @@
+ import { TechDocsAddons } from '@backstage/plugin-techdocs-react';
+ import { ReportIssue } from '@backstage/plugin-techdocs-module-addons-contrib';
+ import { UserSettingsPage } from '@backstage/plugin-user-settings';
+-import { apis } from './apis';
++import { apis, keycloakOIDCAuthApiRef } from './apis';
++import { configApiRef, microsoftAuthApiRef, useApi } from '@backstage/core-plugin-api';
+ import { entityPage } from './components/catalog/EntityPage';
+ import { searchPage } from './components/search/SearchPage';
+ import { Root } from './components/Root';
+@@ -47,7 +48,15 @@
+   themes: [cnoeVibrantLightAppTheme, cnoeVibrantDarkAppTheme],
+   components: {
+     SignInPage: props => {
+-      return <SignInPage {...props} providers={['guest']} />;
++      const config = useApi(configApiRef);
++      const microsoft = config.getOptionalString('auth.signInProvider') === 'microsoft';
++      return <SignInPage {...props} provider={microsoft ? {
++        id: 'microsoft', title: 'Microsoft Entra ID',
++        message: 'Sign in with your work account', apiRef: microsoftAuthApiRef,
++      } : {
++        id: 'keycloak-oidc', title: 'Keycloak',
++        message: 'Sign in using Keycloak', apiRef: keycloakOIDCAuthApiRef,
++      }} />;
+     },
+   },
+   bindRoutes({ bind }) {
+--- a/packages/backend/src/index.ts
++++ b/packages/backend/src/index.ts
+@@ -24,10 +24,8 @@
+   import('@backstage/plugin-catalog-backend-module-scaffolder-entity-model'),
+ );
+ 
+-// Scaffolder modules that require external services — skip if not configured
+-if (process.env.GITHUB_TOKEN) {
+-  backend.add(import('@backstage/plugin-scaffolder-backend-module-github'));
+-}
++// GitHub credentials come from native integrations: tokens or GitHub Apps.
++backend.add(import('@backstage/plugin-scaffolder-backend-module-github'));
+ backend.add(import('@backstage/plugin-scaffolder-backend-module-gitlab'));
+ 
+ // CNOE custom scaffolder actions (gitea publish, argocd, k8s-apply, sanitize, verify)
+@@ -42,10 +40,11 @@
+ 
+ // Auth
+ backend.add(import('@backstage/plugin-auth-backend'));
+-backend.add(import('@backstage/plugin-auth-backend-module-guest-provider'));
++backend.add(import('@backstage/plugin-auth-backend-module-microsoft-provider'));
+ 
+ // Catalog
+ backend.add(import('@backstage/plugin-catalog-backend'));
++backend.add(import('@backstage/plugin-catalog-backend-module-msgraph'));
+ 
+ // Add GitLab integration for catalog processing
+ if (process.env.GIT_HOSTNAME) {
+@@ -54,9 +53,7 @@
+ 
+ // Permission
+ backend.add(import('@backstage/plugin-permission-backend'));
+-backend.add(
+-  import('@backstage/plugin-permission-backend-module-allow-all-policy'),
+-);
++backend.add(require('/app/platform/policy.cjs').moduleRegistration);
+ 
+ // Search
+ backend.add(import('@backstage/plugin-search-backend'));
+@@ -73,16 +70,8 @@
+ }
+ 
+ // Keycloak OIDC auth
+-if (process.env.KEYCLOAK_URL) {
+-  backend.add(authModuleKeycloakOIDCProvider);
+-}
++backend.add(authModuleKeycloakOIDCProvider);
+ 
+-// Terraform backend
+-if (process.env.MOCK_MODE !== 'true') {
+-  backend.add(import('@internal/backstage-plugin-terraform-backend'));
+-} else {
+-  backend.add(import('./plugins/mock-terraform'));
+-  backend.add(import('./plugins/mock-argocd'));
+-}
++// The unused Terraform viewer exposes server filesystem reads; do not register it.
+ 
+ backend.start();
+--- a/packages/backend/src/plugins/auth.ts
++++ b/packages/backend/src/plugins/auth.ts
+@@ -2,7 +2,6 @@
+   DEFAULT_NAMESPACE,
+   stringifyEntityRef,
+ } from '@backstage/catalog-model';
+-import { JsonArray } from '@backstage/types';
+ import { createBackendModule } from '@backstage/backend-plugin-api';
+ import {
+   authProvidersExtensionPoint,
+@@ -37,26 +36,24 @@
+               },
+             }),
+             async signInResolver(info, ctx) {
+-              const { profile } = info;
+-              if (!profile.displayName) {
++              const subject = info.result.fullProfile.userinfo.sub;
++              if (typeof subject !== 'string' || !subject) {
+                 throw new Error(
+-                  'Login failed, user profile does not contain a valid name',
++                  'Login failed, OIDC subject is missing',
+                 );
+               }
+-              // should use users from catalog
+               const userRef = stringifyEntityRef({
+                 kind: 'User',
+-                name: info.profile.displayName!,
++                name: subject,
+                 namespace: DEFAULT_NAMESPACE,
+               });
+ 
+               return ctx.issueToken({
+                 claims: {
+                   sub: userRef,
+-                  ent: [userRef],
+-                  groups:
+-                    (info.result.fullProfile.userinfo.groups as JsonArray) ||
+-                    [],
++                  ent: [userRef, ...require('/app/platform/policy.cjs').groupRefs(
++                    info.result.fullProfile.userinfo.groups,
++                  )],
+                 },
+               });
+             },
+--- a/packages/backend/package.json
++++ b/packages/backend/package.json
+@@ -24,10 +24,12 @@
+     "@backstage/plugin-app-backend": "^0.5.12",
+     "@backstage/plugin-auth-backend": "^0.27.3",
+     "@backstage/plugin-auth-backend-module-guest-provider": "^0.2.17",
++    "@backstage/plugin-auth-backend-module-microsoft-provider": "0.3.13",
+     "@backstage/plugin-auth-backend-module-oidc-provider": "^0.4.14",
+     "@backstage/plugin-auth-node": "^0.6.14",
+     "@backstage/plugin-catalog-backend": "^3.5.0",
+     "@backstage/plugin-catalog-backend-module-gitlab": "^0.8.0",
++    "@backstage/plugin-catalog-backend-module-msgraph": "0.9.1",
+     "@backstage/plugin-catalog-backend-module-scaffolder-entity-model": "^0.2.18",
+     "@backstage/plugin-catalog-node": "^2.2.0",
+     "@backstage/plugin-kubernetes-backend": "^0.21.2",
+@@ -38,6 +40,7 @@
+     "@backstage/plugin-proxy-backend": "^0.6.11",
+     "@backstage/plugin-scaffolder-backend": "^3.3.0",
+     "@backstage/plugin-scaffolder-backend-module-github": "^0.9.7",
++    "@backstage/plugin-scaffolder-backend-module-gitlab": "^0.8.0",
+     "@backstage/plugin-scaffolder-node": "^0.13.1",
+     "@backstage/plugin-search-backend": "^2.1.0",
+     "@backstage/plugin-search-backend-module-catalog": "^0.3.13",
+@@ -59,8 +62,7 @@
+     "fs-extra": "~11.2.0",
+     "js-yaml": "^4.1.0",
+     "node-gyp": "^10.0.0",
+-    "yaml": "^2.3.0",
+-    "@backstage/plugin-scaffolder-backend-module-gitlab": "^0.8.0"
++    "yaml": "^2.3.0"
+   },
+   "devDependencies": {
+     "@backstage/backend-test-utils": "^1.11.1",
+--- a/yarn.lock
++++ b/yarn.lock
+@@ -3272,6 +3272,25 @@
+     luxon "^3.0.0"
+     zod "^3.25.76 || ^4.0.0"
+ 
++"@backstage/backend-plugin-api@^1.10.1", "@backstage/backend-plugin-api@^1.2.1", "@backstage/backend-plugin-api@^1.3.1":
++  version "1.10.1"
++  resolved "https://registry.yarnpkg.com/@backstage/backend-plugin-api/-/backend-plugin-api-1.10.1.tgz#da6aef7f123a7dcab4acb070bc9b3b1bf7e5548f"
++  integrity sha512-ApHHkW8hE5l9S7qgk0kjASQEhOdxYQPdeLYa69K5l+/4mxNYCuK2lnomNxr1Qc0bWfAyKG4BS4Cu+hpmzrzgeQ==
++  dependencies:
++    "@backstage/cli-common" "^0.3.1"
++    "@backstage/config" "^1.3.9"
++    "@backstage/errors" "^1.3.1"
++    "@backstage/plugin-auth-node" "^0.7.6"
++    "@backstage/plugin-permission-common" "^0.9.11"
++    "@backstage/plugin-permission-node" "^0.11.4"
++    "@backstage/types" "^1.2.2"
++    "@types/express" "^4.17.6"
++    "@types/json-schema" "^7.0.6"
++    "@types/luxon" "^3.0.0"
++    knex "^3.0.0"
++    luxon "^3.0.0"
++    zod "^3.25.76 || ^4.0.0"
++
+ "@backstage/backend-test-utils@^1.11.1":
+   version "1.11.2"
+   resolved "https://registry.yarnpkg.com/@backstage/backend-test-utils/-/backend-test-utils-1.11.2.tgz#581f1c152e4e290e807d932ce21ea5e81892fbcd"
+@@ -3322,6 +3341,31 @@
+     lodash "^4.17.21"
+     uri-template "^2.0.0"
+ 
++"@backstage/catalog-client@^1.16.2":
++  version "1.16.2"
++  resolved "https://registry.yarnpkg.com/@backstage/catalog-client/-/catalog-client-1.16.2.tgz#ad16daca79d4d14ec57346094f446d5c389c64c6"
++  integrity sha512-NSrAwEfoE/58SDLaAXRc41EROAplTEKeRrZMhqJVbT7HxlNkEesggDQCi0gipIWb7JGjz7GCGSgpQ4L4n1Mmhw==
++  dependencies:
++    "@backstage/catalog-model" "^1.10.1"
++    "@backstage/errors" "^1.3.1"
++    "@backstage/filter-predicates" "^0.1.5"
++    "@backstage/plugin-catalog-common" "^1.2.0"
++    cross-fetch "^4.0.0"
++    lodash "^4.17.21"
++    uri-template "^2.0.0"
++
++"@backstage/catalog-model@^1.10.1", "@backstage/catalog-model@^1.7.4":
++  version "1.10.1"
++  resolved "https://registry.yarnpkg.com/@backstage/catalog-model/-/catalog-model-1.10.1.tgz#a71e8fbba0096163f5c088d2361e9d3fd4731994"
++  integrity sha512-Bya4F+FsOQbDpp9YqeJCD3ATXZ7KZIvB6+kWp5sEazsms4aWs5iCe2/GCi0GxCVuy67HsrOktOttf1DMsecHig==
++  dependencies:
++    "@backstage/errors" "^1.3.1"
++    "@backstage/types" "^1.2.2"
++    ajv "^8.10.0"
++    ajv-errors "^3.0.0"
++    lodash "^4.17.21"
++    zod "^3.25.76"
++
+ "@backstage/catalog-model@^1.7.3", "@backstage/catalog-model@^1.7.5", "@backstage/catalog-model@^1.7.6", "@backstage/catalog-model@^1.7.7", "@backstage/catalog-model@^1.8.0":
+   version "1.8.0"
+   resolved "https://registry.yarnpkg.com/@backstage/catalog-model/-/catalog-model-1.8.0.tgz#6b6207c3d362ac2356aca3c6697b0270f519ecb9"
+@@ -3358,6 +3402,14 @@
+     cross-spawn "^7.0.3"
+     global-agent "^3.0.0"
+     undici "^7.24.5"
++
++"@backstage/cli-common@^0.3.1":
++  version "0.3.1"
++  resolved "https://registry.yarnpkg.com/@backstage/cli-common/-/cli-common-0.3.1.tgz#b600da85cfc6e32bf21a4073cbedf66354d48a4c"
++  integrity sha512-wIC2udhtxPs8sBmGbDXdSFZq4cYBBzcods1rNwtasasuvVad4ZBhBQISe5bZIhjSh5cnK7SP0d2W/td3lZLaew==
++  dependencies:
++    "@backstage/errors" "^1.3.1"
++    cross-spawn "^7.0.3"
+ 
+ "@backstage/cli-defaults@^0.1.0", "@backstage/cli-defaults@^0.1.1":
+   version "0.1.1"
+@@ -3940,6 +3992,15 @@
+     "@backstage/types" "^1.2.2"
+     ms "^2.1.3"
+ 
++"@backstage/config@^1.3.9":
++  version "1.3.9"
++  resolved "https://registry.yarnpkg.com/@backstage/config/-/config-1.3.9.tgz#5bf715b0e8b62923eb78e36bbe73493796d29c12"
++  integrity sha512-/qMKhedMVUEVVSHbNLKkkS7bGU9ZvtlEclcx4WewWQJ8D9koTmLazUhpkNMVMVonF2n0xCs9XIhjsbSxI5l2qg==
++  dependencies:
++    "@backstage/errors" "^1.3.1"
++    "@backstage/types" "^1.2.2"
++    ms "^2.1.3"
++
+ "@backstage/core-app-api@^1.19.4", "@backstage/core-app-api@^1.19.6", "@backstage/core-app-api@^1.20.0":
+   version "1.20.0"
+   resolved "https://registry.yarnpkg.com/@backstage/core-app-api/-/core-app-api-1.20.0.tgz#8f2ef2126edb66a21a4b9642ce3eab481f0ae7b4"
+@@ -4070,6 +4131,14 @@
+     "@backstage/types" "^1.2.2"
+     serialize-error "^8.0.1"
+ 
++"@backstage/errors@^1.3.1":
++  version "1.3.1"
++  resolved "https://registry.yarnpkg.com/@backstage/errors/-/errors-1.3.1.tgz#4ed8b932f4e3bef9783eb6100f6b3ef00e5a8f2f"
++  integrity sha512-EsBo684l3rEcKrGYSBw26LsRdLAAxU6u6GWaOPLt4MYAvK28fCs5arsg2He2Q6cIYJRiD8PiLEAH8o+C1xUWLA==
++  dependencies:
++    "@backstage/types" "^1.2.2"
++    serialize-error "^8.0.1"
++
+ "@backstage/eslint-plugin@^0.2.0", "@backstage/eslint-plugin@^0.2.1", "@backstage/eslint-plugin@^0.2.3":
+   version "0.2.3"
+   resolved "https://registry.yarnpkg.com/@backstage/eslint-plugin/-/eslint-plugin-0.2.3.tgz#dff8c0bf8cd1a3cf462baecdc4c5c35e15feccac"
+@@ -4088,6 +4157,17 @@
+     "@backstage/types" "^1.2.2"
+     zod "^3.25.76 || ^4.0.0"
+     zod-validation-error "^4.0.2"
++
++"@backstage/filter-predicates@^0.1.5":
++  version "0.1.5"
++  resolved "https://registry.yarnpkg.com/@backstage/filter-predicates/-/filter-predicates-0.1.5.tgz#937e850e0b80a5df246000fff54caf493daf4aa3"
++  integrity sha512-7XDex+ztLRDEDk0esmh9N2JFQUSPiJd79rEg1Lv0tSJXlEfJdu/+pfGRTG6VSCrZJOphI+/KO1LhOi/lt/n9kw==
++  dependencies:
++    "@backstage/config" "^1.3.9"
++    "@backstage/errors" "^1.3.1"
++    "@backstage/types" "^1.2.2"
++    zod "^3.25.76 || ^4.0.0"
++    zod-validation-error "^5.0.0"
+ 
+ "@backstage/frontend-app-api@^0.14.1":
+   version "0.14.1"
+@@ -4250,7 +4330,7 @@
+     "@material-ui/core" "^4.12.2"
+     "@material-ui/icons" "^4.9.1"
+ 
+-"@backstage/integration@^1.15.0", "@backstage/integration@^1.18.0", "@backstage/integration@^1.18.2", "@backstage/integration@^1.20.0", "@backstage/integration@^1.20.1":
++"@backstage/integration@^1.15.0", "@backstage/integration@^1.16.2", "@backstage/integration@^1.17.0", "@backstage/integration@^1.18.0", "@backstage/integration@^1.18.2", "@backstage/integration@^1.20.0", "@backstage/integration@^1.20.1":
+   version "1.20.1"
+   resolved "https://registry.yarnpkg.com/@backstage/integration/-/integration-1.20.1.tgz#6a3b4eba069734d1abf2f779ce0b6c483051a35b"
+   integrity sha512-rfYMauJAq0BcEPcAm3em/NJC8Gvu3WzRfbgr3onEdjEc0/hEE2ffXmTcMSZykieltV3IAMHwfF2UBm0eV+hOhQ==
+@@ -4428,6 +4508,18 @@
+     "@backstage/errors" "^1.3.0"
+     "@backstage/plugin-auth-node" "^0.7.0"
+     passport-oauth2 "^1.7.0"
++
++"@backstage/plugin-auth-backend-module-microsoft-provider@0.3.13":
++  version "0.3.13"
++  resolved "https://registry.yarnpkg.com/@backstage/plugin-auth-backend-module-microsoft-provider/-/plugin-auth-backend-module-microsoft-provider-0.3.13.tgz#242c3fc8532b5a48206f168294ea82e4c405858e"
++  integrity sha512-V3B1LX5HMCkIy+4jjwtLy8pzvChKr018FRkBtYh4ggVUPRTtmHHboca4K9XRWXp10EDpSzxOmtFuLb5eQKC21Q==
++  dependencies:
++    "@backstage/backend-plugin-api" "^1.8.0"
++    "@backstage/plugin-auth-node" "^0.6.14"
++    express "^4.22.0"
++    jose "^5.0.0"
++    passport-microsoft "^1.0.0"
++    zod "^3.25.76 || ^4.0.0"
+ 
+ "@backstage/plugin-auth-backend-module-oidc-provider@^0.4.14":
+   version "0.4.15"
+@@ -4569,6 +4661,27 @@
+     zod-to-json-schema "^3.25.1"
+     zod-validation-error "^4.0.2"
+ 
++"@backstage/plugin-auth-node@^0.7.6":
++  version "0.7.6"
++  resolved "https://registry.yarnpkg.com/@backstage/plugin-auth-node/-/plugin-auth-node-0.7.6.tgz#28720754a760fe40bd7121d88e84077a6cde22e6"
++  integrity sha512-YnI9dEmjc8nnShhqyRZ0iHh+/xYH0bjFmmKAI/2BN7Olt2k1ujZCLW/2dvhahLYP7BARvnhkHApf2FiC3qKGWw==
++  dependencies:
++    "@backstage/backend-plugin-api" "^1.10.1"
++    "@backstage/catalog-client" "^1.16.2"
++    "@backstage/catalog-model" "^1.10.1"
++    "@backstage/config" "^1.3.9"
++    "@backstage/errors" "^1.3.1"
++    "@backstage/types" "^1.2.2"
++    "@types/express" "^4.17.6"
++    "@types/passport" "^1.0.3"
++    express "^4.22.0"
++    jose "^5.0.0"
++    lodash "^4.17.21"
++    passport "^0.7.0"
++    zod "^3.25.76 || ^4.0.0"
++    zod-to-json-schema "^3.25.1"
++    zod-validation-error "^5.0.0"
++
+ "@backstage/plugin-auth-react@^0.1.26":
+   version "0.1.26"
+   resolved "https://registry.yarnpkg.com/@backstage/plugin-auth-react/-/plugin-auth-react-0.1.26.tgz#f48ad08135b0eee196730c11475cb63fe0971a82"
+@@ -4597,6 +4710,23 @@
+     "@gitbeaker/rest" "^40.0.3"
+     lodash "^4.17.21"
+     node-fetch "^2.7.0"
++    uuid "^11.0.0"
++
++"@backstage/plugin-catalog-backend-module-msgraph@0.9.1":
++  version "0.9.1"
++  resolved "https://registry.yarnpkg.com/@backstage/plugin-catalog-backend-module-msgraph/-/plugin-catalog-backend-module-msgraph-0.9.1.tgz#98e3a98b0b187c728051a5ff245a70f5b379cfbe"
++  integrity sha512-Jvy7IwpDw7fJF/UDl/lJ6xAzQH9S2WYZg/u5oSGIvzTIIWY30z83aeaGoPTAb0huA5qC2KQS2sdLgMfzpg6wcQ==
++  dependencies:
++    "@azure/identity" "^4.0.0"
++    "@backstage/backend-plugin-api" "^1.8.0"
++    "@backstage/catalog-model" "^1.7.7"
++    "@backstage/config" "^1.3.6"
++    "@backstage/plugin-catalog-common" "^1.1.8"
++    "@backstage/plugin-catalog-node" "^2.1.0"
++    "@microsoft/microsoft-graph-types" "^2.6.0"
++    lodash "^4.17.21"
++    p-limit "^3.0.2"
++    qs "^6.9.4"
+     uuid "^11.0.0"
+ 
+ "@backstage/plugin-catalog-backend-module-scaffolder-entity-model@^0.2.18":
+@@ -4660,6 +4790,15 @@
+     "@backstage/plugin-permission-common" "^0.9.8"
+     "@backstage/plugin-search-common" "^1.2.23"
+ 
++"@backstage/plugin-catalog-common@^1.2.0":
++  version "1.2.0"
++  resolved "https://registry.yarnpkg.com/@backstage/plugin-catalog-common/-/plugin-catalog-common-1.2.0.tgz#3989a8eb348b30af1ed2c9ac298e0e15557aeb4e"
++  integrity sha512-+EpybLYn1diA+p8ULv2E8zj8RpdooaRbOXLs+/zcxG+fWuqTyo2Vpdzc088jGWYtYMm2Awjk18LLjA48VvjLgQ==
++  dependencies:
++    "@backstage/catalog-model" "^1.10.1"
++    "@backstage/plugin-permission-common" "^0.9.11"
++    "@backstage/plugin-search-common" "^1.2.25"
++
+ "@backstage/plugin-catalog-graph@^0.6.0":
+   version "0.6.3"
+   resolved "https://registry.yarnpkg.com/@backstage/plugin-catalog-graph/-/plugin-catalog-graph-0.6.3.tgz#7151ce011b3ebde49d0def0a9cbb21c534aa7468"
+@@ -5119,6 +5258,18 @@
+     zod "^3.25.76 || ^4.0.0"
+     zod-to-json-schema "^3.25.1"
+ 
++"@backstage/plugin-permission-common@^0.9.11":
++  version "0.9.11"
++  resolved "https://registry.yarnpkg.com/@backstage/plugin-permission-common/-/plugin-permission-common-0.9.11.tgz#d8d0ff974d1d2909e098b8a76db9f45966bc6963"
++  integrity sha512-jTpDtKnHXPyd5Vsri+cPB3klFozr3lAxVM7heWJygMfwz0uzLrjtTt1Mb2sU8rDVPq3mPKlFs+VHwB8WLb4dHA==
++  dependencies:
++    "@backstage/config" "^1.3.9"
++    "@backstage/errors" "^1.3.1"
++    "@backstage/types" "^1.2.2"
++    cross-fetch "^4.0.0"
++    zod "^3.25.76 || ^4.0.0"
++    zod-to-json-schema "^3.25.1"
++
+ "@backstage/plugin-permission-node@^0.10.1", "@backstage/plugin-permission-node@^0.10.11", "@backstage/plugin-permission-node@^0.10.12", "@backstage/plugin-permission-node@^0.10.4", "@backstage/plugin-permission-node@^0.10.6", "@backstage/plugin-permission-node@^0.10.7":
+   version "0.10.12"
+   resolved "https://registry.yarnpkg.com/@backstage/plugin-permission-node/-/plugin-permission-node-0.10.12.tgz#5f47c1d89b9f4508f5fbd1c5b8eaada6a95f1e35"
+@@ -5129,6 +5280,22 @@
+     "@backstage/errors" "^1.3.0"
+     "@backstage/plugin-auth-node" "^0.7.0"
+     "@backstage/plugin-permission-common" "^0.9.8"
++    "@types/express" "^4.17.6"
++    express "^4.22.0"
++    express-promise-router "^4.1.0"
++    zod "^3.25.76 || ^4.0.0"
++    zod-to-json-schema "^3.25.1"
++
++"@backstage/plugin-permission-node@^0.11.4":
++  version "0.11.4"
++  resolved "https://registry.yarnpkg.com/@backstage/plugin-permission-node/-/plugin-permission-node-0.11.4.tgz#d3b5da0140ae882d884c887219d476987704de50"
++  integrity sha512-NsLK/i8flIODxzwYv7Uy0SXNMJ4hpt2sgxM/vZnKc7am7NlAoJdc3r0Y0HnTkQ34T9qNwf6Yeig2HtwLBytAxg==
++  dependencies:
++    "@backstage/backend-plugin-api" "^1.10.1"
++    "@backstage/config" "^1.3.9"
++    "@backstage/errors" "^1.3.1"
++    "@backstage/plugin-permission-common" "^0.9.11"
++    "@standard-schema/spec" "^1.1.0"
+     "@types/express" "^4.17.6"
+     express "^4.22.0"
+     express-promise-router "^4.1.0"
+@@ -5195,6 +5362,22 @@
+     octokit-plugin-create-pull-request "^5.0.0"
+     yaml "^2.0.0"
+     zod "^3.25.76 || ^4.0.0"
++
++"@backstage/plugin-scaffolder-backend-module-gitlab@^0.8.0":
++  version "0.8.1"
++  resolved "https://registry.yarnpkg.com/@backstage/plugin-scaffolder-backend-module-gitlab/-/plugin-scaffolder-backend-module-gitlab-0.8.1.tgz#c06082e93617cdcdf15b38c7639efdff3384319b"
++  integrity sha512-BtgdAF5zny0Ely1SFKV3YxfC7TstKKHYRb3X/ZnugPVWzFGRYAfduiXMq0+dEkbzyDoadFvGOKuP8tpYUjLS0A==
++  dependencies:
++    "@backstage/backend-plugin-api" "^1.2.1"
++    "@backstage/config" "^1.3.2"
++    "@backstage/errors" "^1.2.7"
++    "@backstage/integration" "^1.16.2"
++    "@backstage/plugin-scaffolder-node" "^0.8.0"
++    "@gitbeaker/rest" "^41.2.0"
++    luxon "^3.0.0"
++    winston "^3.2.1"
++    yaml "^2.0.0"
++    zod "^3.22.4"
+ 
+ "@backstage/plugin-scaffolder-backend@^3.3.0":
+   version "3.4.0"
+@@ -5237,7 +5420,7 @@
+     zod "^3.25.76 || ^4.0.0"
+     zod-to-json-schema "^3.25.1"
+ 
+-"@backstage/plugin-scaffolder-common@^1.7.6":
++"@backstage/plugin-scaffolder-common@^1.5.11", "@backstage/plugin-scaffolder-common@^1.7.6":
+   version "1.7.6"
+   resolved "https://registry.yarnpkg.com/@backstage/plugin-scaffolder-common/-/plugin-scaffolder-common-1.7.6.tgz#1cc8c94d91207af6f3d9e2a789533124b4f3d8ca"
+   integrity sha512-JFpYJkvCMwXFfJ5V9Ll26gciaYewa5bbhP+73GaIQ1mIIH5iK2A9+Se9k2xBXHvnSDhmz1PyW5l0aQUuib182w==
+@@ -5323,6 +5506,31 @@
+     winston-transport "^4.7.0"
+     zod "^3.25.76 || ^4.0.0"
+     zod-to-json-schema "^3.25.1"
++
++"@backstage/plugin-scaffolder-node@^0.8.0":
++  version "0.8.2"
++  resolved "https://registry.yarnpkg.com/@backstage/plugin-scaffolder-node/-/plugin-scaffolder-node-0.8.2.tgz#a44521711ff1828d8e5b66e66b309de588239adc"
++  integrity sha512-vqThOxRDEvB1JaXNhWNlWa9Q2qFOJ5dlBeOnPbT+6NataYhSgOOKXV0UHWUNaBknqNCL0Y++cwVCCKiXJKcH/w==
++  dependencies:
++    "@backstage/backend-plugin-api" "^1.3.1"
++    "@backstage/catalog-model" "^1.7.4"
++    "@backstage/errors" "^1.2.7"
++    "@backstage/integration" "^1.17.0"
++    "@backstage/plugin-scaffolder-common" "^1.5.11"
++    "@backstage/types" "^1.2.1"
++    "@isomorphic-git/pgp-plugin" "^0.0.7"
++    concat-stream "^2.0.0"
++    fs-extra "^11.2.0"
++    globby "^11.0.0"
++    isomorphic-git "^1.23.0"
++    jsonschema "^1.5.0"
++    lodash "^4.17.21"
++    p-limit "^3.1.0"
++    tar "^6.1.12"
++    winston "^3.2.1"
++    winston-transport "^4.7.0"
++    zod "^3.22.4"
++    zod-to-json-schema "^3.20.4"
+ 
+ "@backstage/plugin-scaffolder-react@^1.20.1":
+   version "1.20.1"
+@@ -5498,6 +5706,14 @@
+     "@backstage/plugin-permission-common" "^0.9.8"
+     "@backstage/types" "^1.2.2"
+ 
++"@backstage/plugin-search-common@^1.2.25":
++  version "1.2.25"
++  resolved "https://registry.yarnpkg.com/@backstage/plugin-search-common/-/plugin-search-common-1.2.25.tgz#e779a09d03bff90b573af29049f64e3913491862"
++  integrity sha512-l2OuAex9poVzS/9I2047hj0n5AsJWAM26m9IzkmMDjV+bLqzrePRLnws7RQ66gLKIs1hKwHxoWXiuRyUJ2jUEQ==
++  dependencies:
++    "@backstage/plugin-permission-common" "^0.9.11"
++    "@backstage/types" "^1.2.2"
++
+ "@backstage/plugin-search-react@^1.11.0", "@backstage/plugin-search-react@^1.11.3":
+   version "1.11.3"
+   resolved "https://registry.yarnpkg.com/@backstage/plugin-search-react/-/plugin-search-react-1.11.3.tgz#b58e7659687a475f5287e74f4db172085ea947df"
+@@ -7943,6 +8159,11 @@
+   resolved "https://registry.yarnpkg.com/@microsoft/fetch-event-source/-/fetch-event-source-2.0.1.tgz#9ceecc94b49fbaa15666e38ae8587f64acce007d"
+   integrity sha512-W6CLUJ2eBMw3Rec70qrsEW0jOm/3twwJv21mrmj2yORiaVmVYGS4sSS5yUwvQc1ZlDLYGPnClVWmUUMagKNsfA==
+ 
++"@microsoft/microsoft-graph-types@^2.6.0":
++  version "2.43.1"
++  resolved "https://registry.yarnpkg.com/@microsoft/microsoft-graph-types/-/microsoft-graph-types-2.43.1.tgz#4fa178a9d1b1372a5cb648013ac9eed4b1184725"
++  integrity sha512-7r3FiJYW2qTWnl+Li8GV5MzJqPiJp27hvY98kH5V/ZMzGuIOkcJqOfIpusoIQrskLDfYk5kFT8AjpeW713qcIg==
++
+ "@module-federation/bridge-react-webpack-plugin@0.21.6":
+   version "0.21.6"
+   resolved "https://registry.yarnpkg.com/@module-federation/bridge-react-webpack-plugin/-/bridge-react-webpack-plugin-0.21.6.tgz#67f543576328bafe022106686f859d01b3496a9f"
+@@ -9798,10 +10019,10 @@
+     generic-pool "3.9.0"
+     yallist "4.0.0"
+ 
+-"@remix-run/router@1.23.2":
+-  version "1.23.2"
+-  resolved "https://registry.yarnpkg.com/@remix-run/router/-/router-1.23.2.tgz#156c4b481c0bee22a19f7924728a67120de06971"
+-  integrity sha512-Ic6m2U/rMjTkhERIa/0ZtXJP17QUi2CbWE7cqx4J58M8aA3QTfW+2UlQ4psvTX9IO1RfNVhK3pcpdjej7L+t2w==
++"@remix-run/router@1.23.4":
++  version "1.23.4"
++  resolved "https://registry.yarnpkg.com/@remix-run/router/-/router-1.23.4.tgz#d2becd2afca4a40c30a659d913b9b0bcc28bced8"
++  integrity sha512-q7j5geK7xs3UJSdm9/iytUNclBnLmYx1EnSeCFXHPeutdqgIMeFeHtUZgS3EhlKxdBEAu8OwtJCwmLrEzpSs7Q==
+ 
+ "@remixicon/react@^4.6.0":
+   version "4.9.0"
+@@ -13769,9 +13990,9 @@
+     "@types/react" "*"
+ 
+ "@types/react@*", "@types/react@^16.13.1 || ^17.0.0 || ^18.0.0", "@types/react@^18":
+-  version "18.3.28"
+-  resolved "https://registry.yarnpkg.com/@types/react/-/react-18.3.28.tgz#0a85b1a7243b4258d9f626f43797ba18eb5f8781"
+-  integrity sha512-z9VXpC7MWrhfWipitjNdgCauoMLRdIILQsAEV+ZesIzBq/oUlxk0m3ApZuMFCXdnS4U7KrI+l3WRUEGQ8K1QKw==
++  version "18.3.31"
++  resolved "https://registry.yarnpkg.com/@types/react/-/react-18.3.31.tgz#b5e95e28ffcceab8d982f33f2eb076e17653c2a4"
++  integrity sha512-vfEqpXTvwT91yhmwdfouStN2hSKwTvyRs8qpLfADyrq/kxDw0hZM7Wk9Ug1FELj8hIby+S/+kQCSRFF32nv2Qw==
+   dependencies:
+     "@types/prop-types" "*"
+     csstype "^3.2.2"
+@@ -25309,7 +25530,14 @@
+     no-case "^3.0.4"
+     tslib "^2.0.3"
+ 
+-passport-oauth2@^1.7.0:
++passport-microsoft@^1.0.0:
++  version "1.1.0"
++  resolved "https://registry.yarnpkg.com/passport-microsoft/-/passport-microsoft-1.1.0.tgz#6b0c79ff5fa17f37d716a00a1461cd13fc4712f3"
++  integrity sha512-yJyynEkGakK8SveCqILAvrpMBOKpx6TNyxL1ry+eW4m9/qqqDDOUahLdHj7wPSuDReHQ4jArGheH5v0/pNwR+g==
++  dependencies:
++    passport-oauth2 "1.8.0"
++
++passport-oauth2@1.8.0, passport-oauth2@^1.7.0:
+   version "1.8.0"
+   resolved "https://registry.npmmirror.com/passport-oauth2/-/passport-oauth2-1.8.0.tgz#55725771d160f09bbb191828d5e3d559eee079c8"
+   integrity sha512-cjsQbOrXIDE4P8nNb3FQRCCmJJ/utnFKEz2NX209f7KOHPoX18gF7gBzBbLLsj2/je4KrgiwLLGjf0lm9rtTBA==
+@@ -26906,19 +27134,19 @@
+     react-draggable "^4.0.3"
+ 
+ react-router-dom@^6.3.0, react-router-dom@^6.30.2:
+-  version "6.30.3"
+-  resolved "https://registry.yarnpkg.com/react-router-dom/-/react-router-dom-6.30.3.tgz#42ae6dc4c7158bfb0b935f162b9621b29dddf740"
+-  integrity sha512-pxPcv1AczD4vso7G4Z3TKcvlxK7g7TNt3/FNGMhfqyntocvYKj+GCatfigGDjbLozC4baguJ0ReCigoDJXb0ag==
+-  dependencies:
+-    "@remix-run/router" "1.23.2"
+-    react-router "6.30.3"
+-
+-react-router@6.30.3, react-router@^6.30.2:
+-  version "6.30.3"
+-  resolved "https://registry.yarnpkg.com/react-router/-/react-router-6.30.3.tgz#994b3ccdbe0e81fe84d4f998100f62584dfbf1cf"
+-  integrity sha512-XRnlbKMTmktBkjCLE8/XcZFlnHvr2Ltdr1eJX4idL55/9BbORzyZEaIkBFDhFGCEWBBItsVrDxwx3gnisMitdw==
+-  dependencies:
+-    "@remix-run/router" "1.23.2"
++  version "6.30.6"
++  resolved "https://registry.yarnpkg.com/react-router-dom/-/react-router-dom-6.30.6.tgz#acaf0db65efeddabd0840616243c97f578b3baf3"
++  integrity sha512-0RHKZz7wwffvkU+2MFVT2NnjK44ssLEV+m0CAJaS2Ksmorrwj7WxH00jO0SOCW26/tINUnJHToXblDs33I38YQ==
++  dependencies:
++    "@remix-run/router" "1.23.4"
++    react-router "6.30.6"
++
++react-router@6.30.6, react-router@^6.30.2:
++  version "6.30.6"
++  resolved "https://registry.yarnpkg.com/react-router/-/react-router-6.30.6.tgz#a2ad70f3472de61c61e44182b3e5a25fd91f9f68"
++  integrity sha512-5HfK7k5im7LTOB0EqCQmfvy4C13G92Ssj1VTmouTK3AJvyjKTnFuCV0vcMAD/JS+JC4DvDIBRrlAeJIFjh5VWg==
++  dependencies:
++    "@remix-run/router" "1.23.4"
+ 
+ react-side-effect@^2.1.0:
+   version "2.1.2"

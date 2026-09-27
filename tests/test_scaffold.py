@@ -261,6 +261,126 @@ def test_backstage_destination_schema_rejects_unapproved_owners_and_hosts(tmp_pa
         assert not re.fullmatch(repo["pattern"], value)
 
 
+def test_backstage_platform_values_are_fixed_outside_the_form(tmp_path: Path) -> None:
+    from scaffold.backstage import export
+
+    fixed = {
+        "OWNER": "team-payments",
+        "AWS_REGION": "eu-west-1",
+        "TOOLKIT_REPOSITORY": "acme/developer-platform-kit",
+        "TOOLKIT_REF": "a" * 40,
+        "STATE_BUCKET": "acme-state",
+    }
+    export(tmp_path, fixed_values=fixed)
+    for template in available_templates():
+        document = json.loads((tmp_path / template.name / "template.yaml").read_text())
+        form = document["spec"]["parameters"][0]
+        values = document["spec"]["steps"][0]["input"]["values"]
+        declared = {variable.name for variable in template.variables}
+        for name, value in fixed.items():
+            assert name not in form["properties"]
+            assert name not in form["required"]
+            if name in declared:
+                # A task request cannot override the value with its own parameters.
+                assert values[name] == value
+            else:
+                assert name not in values
+        assert "repoUrl" in form["required"]
+
+
+def test_github_settings_are_applied_before_the_initial_push(tmp_path: Path) -> None:
+    from scaffold.backstage import export
+
+    settings = json.loads((Path(__file__).parent / "fixtures/github-settings.json").read_text())
+    export(tmp_path, allowed_owners=("acme",), github_settings=settings)
+    for name, expected in settings.items():
+        document = json.loads((tmp_path / name / "template.yaml").read_text())
+        steps = document["spec"]["steps"]
+        actions = [step["action"] for step in steps]
+        assert actions[:2] == ["fetch:template", "github:repo:create"]
+        assert actions[-2:] == ["github:repo:push", "catalog:register"]
+        assert set(actions[2:-2]) == {"github:environment:create"}
+        for key, value in expected.items():
+            assert steps[1]["input"][key] == value
+        assert steps[1]["input"]["repoVisibility"] == "private"
+        assert steps[2]["input"]["name"] == "aws"
+        assert steps[2]["input"]["customBranchPolicyNames"] == ["main"]
+        assert steps[2]["input"]["deploymentBranchPolicy"] == {
+            "protected_branches": False,
+            "custom_branch_policies": True,
+        }
+        if name == "infra":
+            assert steps[3]["input"]["name"] == "aws-plan"
+        assert (
+            steps[-1]["input"]["repoContentsUrl"] == "${{ steps.publish.output.repoContentsUrl }}"
+        )
+
+
+@pytest.mark.parametrize(
+    "settings",
+    [
+        [],
+        {"unknown": {}},
+        {"app": {"token": "must-not-be-exported"}},
+        {"app": {"secrets": {"AWS_ROLE_ARN": "an-access-key"}}},
+        {"app": {"secrets": {"AWS_SECRET_ACCESS_KEY": "must-not-be-exported"}}},
+        {"app": {"repoVariables": {"UNUSED": "value"}}},
+        {"app": {"repoVariables": {"ECS_CLUSTER": "${{ parameters.target }}"}}},
+        {"app": {"repoVariables": {"PUBLISH_IMAGES": "yes"}}},
+        {"app": {"collaborators": [{"team": "payments", "access": "admin"}]}},
+        {"app": {"collaborators": [{"user": "alice", "access": "push"}]}},
+    ],
+)
+def test_github_settings_reject_credentials_and_unconsumed_configuration(
+    tmp_path: Path, settings: dict
+) -> None:
+    from scaffold.backstage import export
+
+    output = tmp_path / "export"
+    with pytest.raises(TemplateError):
+        export(output, allowed_owners=("acme",), github_settings=settings)
+    assert not output.exists()
+
+
+@pytest.mark.parametrize(
+    "provider,owners", [("gitea", ("acme",)), ("github", ()), ("github", ("a", "b"))]
+)
+def test_github_settings_require_one_organization(
+    tmp_path: Path, provider: str, owners: tuple[str, ...]
+) -> None:
+    from scaffold.backstage import export
+
+    with pytest.raises(TemplateError, match="exactly one"):
+        export(
+            tmp_path / "export",
+            provider=provider,
+            allowed_owners=owners,
+            github_settings={"app": {}},
+        )
+
+
+@pytest.mark.parametrize(
+    "fixed",
+    [
+        {"TOOLKIT_REF": "main"},
+        {"STATE_BUCKET": "not a bucket"},
+        {"UNDECLARED": "value"},
+        {"WORKLOAD_SLUG": "derived"},
+        {"REPOSITORY": "acme/override"},
+        {"REPOSITORY_BASE_URL": "https://other.example"},
+    ],
+)
+def test_backstage_rejects_invalid_fixed_values_before_writing(
+    tmp_path: Path, fixed: dict[str, str]
+) -> None:
+    from scaffold.backstage import export
+
+    output = tmp_path / "export"
+    with pytest.raises(TemplateError):
+        export(output, fixed_values=fixed)
+    assert not output.exists()
+
+
 @pytest.mark.parametrize("name", template_names())
 def test_catalog_source_location_matches_git_host(name: str, tmp_path: Path) -> None:
     template = load_template(name)

@@ -55,7 +55,8 @@ workflow can revise it.
 | Output | Goes to | As |
 |---|---|---|
 | `ecs_cluster` | app and data repos | variable `ECS_CLUSTER` |
-| `delivery_role_arn` | this infra repo only | repository secret `AWS_ROLE_ARN` |
+| `delivery_role_arn` | this infra repo's apply job only | repository secret `AWS_ROLE_ARN` |
+| Existing limited planning role ARN | this infra repo's plan job only | repository secret `AWS_PLAN_ROLE_ARN` |
 | `private_subnet_ids` | data repos | variable `PRIVATE_SUBNET_IDS` |
 | `migration_security_group_ids["<pipeline>"]` | that data repo | variable `MIGRATION_SECURITY_GROUP_IDS` |
 | `emr_application_id` | data repos | variable `EMR_APPLICATION_ID` |
@@ -75,8 +76,13 @@ Only one public service is supported until you add target groups and routing.
 
 Create separate OIDC roles for the app and data repositories with their own
 repository subjects and least-privilege policies. The infra role does not trust
-those repos. Use separate planning and applying roles in production; restrict the
-apply environment to the default branch and require review. Fork PRs cannot use
+those repos. Plan uses `AWS_PLAN_ROLE_ARN` and the `aws-plan` environment. Supply an
+existing role with the read and state-lock permissions needed to plan; the sample
+`delivery_identity` module is the apply role and does not provision this planning
+role. Its trust subject is `repo:__REPOSITORY__:environment:aws-plan`.
+Apply uses `AWS_ROLE_ARN` and `aws`, whose trust subject is
+`repo:__REPOSITORY__:environment:aws`. Restrict `aws` to the default branch and
+configure required reviewers in GitHub where supported. Fork PRs cannot use
 cloud credentials and therefore cannot run a cloud-backed plan.
 
 The stack creates billable networking, database, and load-balancer resources.

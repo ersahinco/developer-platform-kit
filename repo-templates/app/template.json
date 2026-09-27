@@ -10,9 +10,9 @@
     },
     {
       "name": "OWNER",
-      "description": "Team that gets paged for this workload.",
+      "description": "Backstage group name of the team that gets paged for this workload.",
       "example": "team-payments",
-      "pattern": "^[a-z][a-z0-9-]{1,62}$"
+      "pattern": "^[a-z0-9][a-z0-9._-]{0,62}$"
     },
     {
       "name": "REPOSITORY",

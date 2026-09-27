@@ -1,6 +1,5 @@
 """Check live local identity, TLS rejection, destination policy, and cluster privileges."""
 
-import base64
 import json
 import subprocess
 from urllib.error import HTTPError
@@ -11,6 +10,10 @@ from identity import admin
 
 def headers(token):
     return {"Authorization": "Bearer " + token, "Content-Type": "application/json"}
+
+
+def identity(token):
+    return request(PORTAL + "/api/auth/v1/userinfo", headers=headers(token))["claims"]
 
 
 def denied(token, path, data=None):
@@ -51,8 +54,7 @@ def creation_decision(token):
 def verify_groups(creator, api):
     viewer = login("user2")
     for token, name in ((creator, "scaffold-creators"), (viewer, "scaffold-viewers")):
-        claims = json.loads(base64.urlsafe_b64decode(token.split(".")[1] + "=="))
-        assert "group:default/" + name in claims["ent"]
+        assert "group:default/" + name in identity(token)["ent"]
         for template in ("app", "infra", "data"):
             entity = request(
                 PORTAL + f"/api/catalog/entities/by-name/template/default/platform-{template}",
@@ -78,9 +80,22 @@ def verify_groups(creator, api):
             "groups": ["scaffold-creators"],
         },
     )
-    denied(viewer, "/api/scaffolder/v2/tasks")
-    denied(viewer, "/api/scaffolder/v2/dry-run", {})
-    denied(viewer, "/api/scaffolder/v2/tasks/nonexistent/cancel", {})
+    listed = request(PORTAL + "/api/scaffolder/v2/tasks", headers=headers(viewer))
+    assert listed["tasks"] == [] and int(listed["totalTasks"]) == 0, (
+        "Viewers must not see task history, including through the list endpoint."
+    )
+    creator_tasks = request(PORTAL + "/api/scaffolder/v2/tasks", headers=headers(creator))["tasks"]
+    if creator_tasks:
+        task_path = "/api/scaffolder/v2/tasks/" + creator_tasks[0]["id"]
+        denied(viewer, task_path)
+        denied(viewer, task_path + "/cancel", {})
+    else:
+        print("No existing tasks: detail/cancel checks skipped; run portal-smoke in Gitea first.")
+    denied(
+        viewer,
+        "/api/scaffolder/v2/dry-run",
+        {"template": entity, "values": values, "directoryContents": []},
+    )
     denied(
         viewer,
         "/api/catalog/locations",
@@ -109,10 +124,9 @@ def verify_groups(creator, api):
 
 def main():
     token = login()
-    claims = json.loads(base64.urlsafe_b64decode(token.split(".")[1] + "=="))
     api = admin()
     user = api("users?username=user1&exact=true")[0]
-    assert claims["sub"] == "user:default/" + user["id"], "Login must use a stable ID."
+    assert identity(token)["sub"] == "user:default/" + user["id"], "Login must use a stable ID."
     executions = api("authentication/flows/platform-existing-user/executions")
     disabled = {e.get("providerId") for e in executions if e["requirement"] == "DISABLED"}
     assert {

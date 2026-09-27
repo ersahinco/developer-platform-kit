@@ -1,12 +1,12 @@
 'use strict';
 const { test } = require('node:test');
 const assert = require('node:assert/strict');
-const { policy, groupRefs } = require('./policy.cjs');
-const { taskCreatePermission, actionExecutePermission } = require('@backstage/plugin-scaffolder-common/alpha');
+const { policy, groupRefs, createPolicy } = require('./policy.cjs');
+const { taskCreatePermission, taskReadPermission, actionExecutePermission } = require('@backstage/plugin-scaffolder-common/alpha');
 const user = group => ({ info: { ownershipEntityRefs: groupRefs([group]) } });
 test('patched resolver keeps identity stable across display-name changes and requires a subject', async () => {
-  // Execute the resolver from the actual patched bundle, without starting the backend.
-  const source = require('node:fs').readFileSync('packages/backend/dist/index.cjs.js', 'utf8');
+  // Execute the actual compiled resolver, without starting the backend.
+  const source = require('node:fs').readFileSync('packages/backend/dist/plugins/auth.cjs.js', 'utf8');
   const start = source.indexOf('async signInResolver(info, ctx) {');
   assert(start >= 0, 'Pinned resolver was not found');
   const end = source.indexOf('\n          })', start);
@@ -46,13 +46,33 @@ test('viewers can browse templates but cannot read tasks or mutate catalog', asy
   for (const name of ['catalog.entity.read', 'scaffolder.template.parameter.read']) {
     assert.equal((await policy.handle({ permission: { name } }, user('scaffold-viewers'))).result, 'ALLOW');
   }
-  for (const name of ['scaffolder.task.read', 'scaffolder.task.cancel', 'catalog.location.create']) {
+  for (const name of ['scaffolder.task.cancel', 'catalog.location.create']) {
     assert.equal((await policy.handle({ permission: { name } }, user('scaffold-viewers'))).result, 'DENY');
   }
+});
+test('task reads use a native empty owner filter for anyone without creator access', async () => {
+  for (const identity of [undefined, user('scaffold-viewers'), user('admin')]) {
+    const result = await policy.handle({ permission: taskReadPermission }, identity);
+    assert.equal(result.result, 'CONDITIONAL');
+    assert.equal(result.conditions.rule, 'IS_TASK_OWNER');
+    assert.deepEqual(result.conditions.params, { createdBy: [] });
+  }
+  assert.equal((await policy.handle({ permission: taskReadPermission }, user('scaffold-creators'))).result, 'ALLOW');
 });
 test('creators get an action allowlist, never unrestricted action execution', async () => {
   const result = await policy.handle({ permission: actionExecutePermission }, user('scaffold-creators'));
   assert.equal(result.result, 'CONDITIONAL');
-  assert.deepEqual(result.conditions.anyOf.map(c => c.params.actionId), ['fetch:template', 'publish:gitea', 'publish:github', 'catalog:register']);
+  assert.deepEqual(result.conditions.anyOf.map(c => c.params.actionId), [
+    'fetch:template', 'publish:gitea', 'publish:github', 'catalog:register',
+    'github:repo:create', 'github:environment:create', 'github:repo:push',
+  ]);
   assert.equal((await policy.handle({ permission: actionExecutePermission }, user('scaffold-viewers'))).result, 'DENY');
+});
+test('client groups replace demo access and empty lists deny everyone', async () => {
+  const creators = ['group:default/platform-creators'];
+  const clientPolicy = createPolicy(creators, []);
+  const member = { info: { ownershipEntityRefs: creators } };
+  assert.equal((await clientPolicy.handle({ permission: taskCreatePermission }, member)).result, 'ALLOW');
+  assert.equal((await clientPolicy.handle({ permission: taskCreatePermission }, user('scaffold-creators'))).result, 'DENY');
+  assert.equal((await createPolicy([], []).handle({ permission: taskCreatePermission }, member)).result, 'DENY');
 });

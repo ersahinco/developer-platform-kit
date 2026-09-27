@@ -36,7 +36,11 @@ portal-prepare: ## Assemble pinned CNOE packages and export templates
 	python3 platform/prepare.py
 
 portal-check: portal-prepare ## Validate CNOE overlays and test the Backstage image without deploying
-	docker build --provenance=false --platform linux/amd64 platform/backstage
+	docker build --provenance=false --iidfile platform/.local/check-image-id platform/backstage
+	@set -euo pipefail; exported=$$(mktemp -d); trap 'rm -rf "$$exported"' EXIT; \
+	python3 -m scaffold.backstage "$$exported/templates" --allowed-owner acme --github-settings tests/fixtures/github-settings.json; \
+	docker run --rm --network none -v "$$exported/templates:/templates:ro" \
+	  --entrypoint node "$$(cat platform/.local/check-image-id)" --test platform/github.test.cjs platform/runtime.test.cjs
 
 portal-up: portal-prepare ## Start or update Backstage and Keycloak locally
 	@if ! kubectl --request-timeout=5s get deployment/external-secrets-webhook -n external-secrets >/dev/null 2>&1; then \

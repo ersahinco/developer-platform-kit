@@ -230,7 +230,7 @@ def render(
     return written
 
 
-def _parse_set(pairs: list[str]) -> dict[str, str]:
+def parse_set(pairs: list[str]) -> dict[str, str]:
     values: dict[str, str] = {}
     for pair in pairs:
         if "=" not in pair:
@@ -288,7 +288,7 @@ def main(argv: list[str] | None = None) -> int:
             return 0
 
         template = load_template(args.template)
-        values = resolve_values(template, _parse_set(args.set))
+        values = resolve_values(template, parse_set(args.set))
         written = render(template, args.output, values, force=args.force)
     except TemplateError as error:
         print(f"error: {error}", file=sys.stderr)

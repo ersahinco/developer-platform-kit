@@ -14,7 +14,7 @@ ROOT = Path(__file__).resolve().parent
 TOOLKIT = ROOT.parent
 STATE = ROOT / ".local"
 STACKS_REF = "32160ecb5942b6d0199b1cef039cc3457d2b1100"
-TOOLKIT_REF = "1e9e21e755970c4aa1100683a2f366b65af75684"
+TOOLKIT_REF = "14a28541b3c8bd8081651e5c07c22014c513d757"
 BASE_URL = "https://cnoe.localtest.me:8443/gitea"
 PACKAGES = ("external-secrets", "keycloak", "backstage", "backstage-templates")
 
@@ -55,6 +55,17 @@ def main():
         provider="github" if github else "gitea",
         base_url="https://github.com" if github else BASE_URL,
         allowed_owners=(owner,),
+        fixed_values={
+            "OWNER": "platform-engineering",
+            "AWS_REGION": "eu-central-1",
+            "TOOLKIT_REPOSITORY": "ersahinco/developer-platform-kit",
+            "TOOLKIT_REF": TOOLKIT_REF,
+        },
+        github_settings=(
+            json.loads((STATE / "github-settings.json").read_text())
+            if (STATE / "github-settings.json").exists()
+            else None
+        ),
     )
     (entities / "organization").mkdir()
     (entities / "organization/platform.yaml").write_text(
@@ -72,18 +83,6 @@ spec:
     catalog = json.loads(location.read_text())
     catalog["spec"]["targets"].append("./organization/platform.yaml")
     location.write_text(json.dumps(catalog, indent=2) + "\n")
-    for template in entities.glob("*/template.yaml"):
-        document = json.loads(template.read_text())
-        properties = document["spec"]["parameters"][0]["properties"]
-        for name, value in {
-            "OWNER": "platform-engineering",
-            "AWS_REGION": "eu-central-1",
-            "TOOLKIT_REPOSITORY": "ersahinco/developer-platform-kit",
-            "TOOLKIT_REF": TOOLKIT_REF,
-        }.items():
-            if name in properties:
-                properties[name]["default"] = value
-        template.write_text(json.dumps(document, indent=2) + "\n")
     # idpbuilder publishes this generated staging tree to its local Gitea.
     # Keep the pinned checkout untouched; only explicit overlays/patches change the output.
     for package in PACKAGES:

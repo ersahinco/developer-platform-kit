@@ -13,7 +13,15 @@ import sys
 from pathlib import Path
 from urllib.parse import urlsplit
 
-from scaffold.new_repo import TOKEN_PATTERN, TemplateError, available_templates, template_files
+from scaffold.new_repo import (
+    TOKEN_PATTERN,
+    TemplateError,
+    available_templates,
+    example_values,
+    parse_set,
+    resolve_values,
+    template_files,
+)
 
 
 def skeleton(text: str) -> str:
@@ -36,9 +44,31 @@ def export(
     provider: str = "github",
     base_url: str = "https://github.com",
     allowed_owners: tuple[str, ...] = (),
+    fixed_values: dict[str, str] | None = None,
+    github_settings: dict | None = None,
 ) -> None:
+    templates = available_templates()
+    fixed_values = fixed_values or {}
+    declared = {variable.name for template in templates for variable in template.variables}
+    invalid = set(fixed_values) - (declared - {"REPOSITORY", "REPOSITORY_BASE_URL"})
+    if invalid:
+        raise TemplateError(f"Unknown or derived fixed variables: {', '.join(sorted(invalid))}.")
+    # Validate every supplied value before creating any output. Shared values apply
+    # only to templates that declare them; e.g. STATE_BUCKET belongs to infra.
+    for template in templates:
+        supplied = {
+            variable.name: fixed_values[variable.name]
+            for variable in template.variables
+            if variable.name in fixed_values
+        }
+        resolve_values(template, example_values(template) | supplied)
     if provider not in {"github", "gitea"}:
         raise TemplateError(f"Unsupported Git provider: {provider}.")
+    github_settings = {} if github_settings is None else github_settings
+    validate_github_settings(github_settings)
+    if github_settings:
+        if provider != "github" or len(allowed_owners) != 1:
+            raise TemplateError("GitHub settings require GitHub and exactly one --allowed-owner.")
     if not re.fullmatch(r"https://[A-Za-z0-9.-]+(?::[0-9]+)?(?:/[A-Za-z0-9._-]+)*", base_url):
         raise TemplateError("Git base URL must be HTTPS with no credentials, query, or fragment.")
     host = urlsplit(base_url).netloc
@@ -49,12 +79,15 @@ def export(
     repo_pattern = r"[A-Za-z0-9_.-]+"
     if output.exists() and (not output.is_dir() or any(output.iterdir())):
         raise TemplateError(f"{output} must be an empty directory.")
-    for template in available_templates():
+    for template in templates:
         destination = output / template.name
         properties = {}
         values = {}
         required = []
         for variable in template.variables:
+            if variable.name in fixed_values:
+                values[variable.name] = fixed_values[variable.name]
+                continue
             if variable.name == "REPOSITORY_BASE_URL":
                 values[variable.name] = base_url
                 continue
@@ -140,6 +173,56 @@ def export(
                 },
             },
         }
+        if template.name in github_settings:
+            settings = github_settings[template.name]
+            steps = document["spec"]["steps"]
+            environments = [
+                {
+                    "name": "aws",
+                    "deploymentBranchPolicy": {
+                        "protected_branches": False,
+                        "custom_branch_policies": True,
+                    },
+                    "customBranchPolicyNames": ["main"],
+                }
+            ]
+            if template.name == "infra":
+                # PR plans need their own limited role; they cannot use the
+                # main-only apply environment. No write credential is shared.
+                environments.append({"name": "aws-plan"})
+            # Create settings and environments before pushing the first commit:
+            # that push can immediately start the generated delivery workflow.
+            steps[1:2] = [
+                {
+                    "id": "create",
+                    "name": "Create repository and configure delivery",
+                    "action": "github:repo:create",
+                    "input": {
+                        "repoUrl": "${{ parameters.repoUrl }}",
+                        "repoVisibility": "private",
+                        **settings,
+                    },
+                },
+                *[
+                    {
+                        "id": f"environment-{index}",
+                        "name": f"Configure {environment['name']} environment",
+                        "action": "github:environment:create",
+                        "input": {"repoUrl": "${{ parameters.repoUrl }}", **environment},
+                    }
+                    for index, environment in enumerate(environments)
+                ],
+                {
+                    "id": "publish",
+                    "name": "Push starter",
+                    "action": "github:repo:push",
+                    "input": {
+                        "repoUrl": "${{ parameters.repoUrl }}",
+                        "defaultBranch": "main",
+                        "protectDefaultBranch": True,
+                    },
+                },
+            ]
         (destination / "template.yaml").write_text(json.dumps(document, indent=2) + "\n")
     (output / "catalog-info.yaml").write_text(
         json.dumps(
@@ -155,16 +238,85 @@ def export(
     )
 
 
+def validate_github_settings(settings: dict) -> None:
+    """Accept native action settings for current consumers, never publishing tokens."""
+    templates = {template.name: template for template in available_templates()}
+    if not isinstance(settings, dict) or set(settings) - templates.keys():
+        raise TemplateError("GitHub settings must be an object keyed by app, infra, or data.")
+    for name, entry in settings.items():
+        if not isinstance(entry, dict) or set(entry) - {
+            "collaborators",
+            "repoVariables",
+            "secrets",
+        }:
+            raise TemplateError(f"{name}: use native collaborators, repoVariables, or secrets.")
+        workflow = "\n".join(
+            path.read_text()
+            for path in (templates[name].files_dir / ".github/workflows").glob("*.yml")
+        )
+        variables = set(re.findall(r"vars\.([A-Z_]+)", workflow))
+        secrets = set(re.findall(r"secrets\.([A-Z_]+)", workflow))
+        for field, names in (("repoVariables", variables), ("secrets", secrets)):
+            values = entry.get(field, {})
+            if not isinstance(values, dict) or set(values) - names:
+                raise TemplateError(
+                    f"{name}.{field}: only settings used by this starter are accepted."
+                )
+            for key, value in values.items():
+                if not isinstance(value, str) or not value or "${{" in value or "{%" in value:
+                    raise TemplateError(f"{name}.{field}.{key}: use a non-empty literal string.")
+                if field == "secrets" and not re.fullmatch(
+                    r"arn:aws(?:-us-gov|-cn)?:iam::[0-9]{12}:role/[A-Za-z0-9+=,.@_/-]+", value
+                ):
+                    raise TemplateError(
+                        f"{name}.{field}.{key}: only an existing IAM role ARN is allowed."
+                    )
+                if key == "PUBLISH_IMAGES" and value not in {"true", "false"}:
+                    raise TemplateError(f"{name}.repoVariables.PUBLISH_IMAGES: use true or false.")
+        collaborators = entry.get("collaborators", [])
+        if not isinstance(collaborators, list) or any(
+            not isinstance(team, dict)
+            or set(team) != {"team", "access"}
+            or not isinstance(team["access"], str)
+            or team["access"] not in {"pull", "triage", "push", "maintain"}
+            or not isinstance(team["team"], str)
+            or not re.fullmatch(r"[a-z0-9][a-z0-9-]*", team["team"])
+            for team in collaborators
+        ):
+            raise TemplateError(
+                f"{name}.collaborators: use team slugs with pull, triage, push, or maintain access."
+            )
+
+
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("output", type=Path)
     parser.add_argument("--provider", choices=["github", "gitea"], default="github")
     parser.add_argument("--base-url", default="https://github.com")
     parser.add_argument("--allowed-owner", action="append", default=[])
+    parser.add_argument(
+        "--github-settings",
+        type=Path,
+        help="JSON file of native GitHub repository and environment settings, keyed by starter.",
+    )
+    parser.add_argument(
+        "--set",
+        action="append",
+        default=[],
+        metavar="NAME=value",
+        help="Fix a platform-owned template value and omit it from the developer form.",
+    )
     args = parser.parse_args()
     try:
-        export(args.output, args.provider, args.base_url, tuple(args.allowed_owner))
-    except TemplateError as error:
+        export(
+            args.output,
+            args.provider,
+            args.base_url,
+            tuple(args.allowed_owner),
+            parse_set(args.set),
+            json.loads(args.github_settings.read_text()) if args.github_settings else None,
+        )
+    except (TemplateError, OSError, json.JSONDecodeError) as error:
         print(f"error: {error}", file=sys.stderr)
         return 1
     print(f"Backstage templates exported to {args.output}. Publish and register catalog-info.yaml.")

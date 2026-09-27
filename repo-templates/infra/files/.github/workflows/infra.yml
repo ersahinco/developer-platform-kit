@@ -36,11 +36,11 @@ jobs:
       mode: plan
       root_dir: "."
       aws_region: __AWS_REGION__
-      environment: aws
+      environment: aws-plan
       state_bucket: __STATE_BUCKET__
       state_key: __STACK_NAME__/terraform.tfstate
     secrets:
-      aws_role_arn: ${{ secrets.AWS_ROLE_ARN }}
+      aws_role_arn: ${{ secrets.AWS_PLAN_ROLE_ARN }}
 
   apply:
     name: Apply

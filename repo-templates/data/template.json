@@ -10,9 +10,9 @@
     },
     {
       "name": "OWNER",
-      "description": "Team that owns reruns, backfills, and failed checks.",
+      "description": "Backstage group name of the team owning reruns, backfills, and failed checks.",
       "example": "team-data",
-      "pattern": "^[a-z][a-z0-9-]{1,62}$"
+      "pattern": "^[a-z0-9][a-z0-9._-]{0,62}$"
     },
     {
       "name": "REPOSITORY",

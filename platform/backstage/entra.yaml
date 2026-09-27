@@ -1,0 +1,83 @@
+# Native Backstage configuration for a shared portal. Supply values from the
+# client's runtime/secret store and mount this file with --config.
+app:
+  title: Developer platform
+  baseUrl: ${PORTAL_URL}
+backend:
+  baseUrl: ${PORTAL_URL}
+  listen:
+    host: 0.0.0.0
+    port: 7007
+  cors:
+    origin: ${PORTAL_URL}
+    credentials: true
+  database:
+    client: pg
+    pluginDivisionMode: schema
+    ensureExists: false
+    ensureSchemaExists: true
+    connection:
+      host: ${POSTGRES_HOST}
+      port: ${POSTGRES_PORT}
+      user: ${POSTGRES_USER}
+      password: ${POSTGRES_PASSWORD}
+      database: ${POSTGRES_DATABASE}
+      ssl:
+        rejectUnauthorized: true
+auth:
+  environment: production
+  signInProvider: microsoft
+  session:
+    secret: ${SESSION_SECRET}
+  providers:
+    microsoft:
+      production:
+        tenantId: ${ENTRA_TENANT_ID}
+        clientId: ${ENTRA_CLIENT_ID}
+        clientSecret: ${ENTRA_CLIENT_SECRET}
+        signIn:
+          resolvers:
+            - resolver: userIdMatchingUserEntityAnnotation
+catalog:
+  rules:
+    - allow: [Component, System, API, Resource, Location]
+  locations:
+    - type: url
+      target: ${TEMPLATES_CATALOG_URL}
+      rules:
+        - allow: [Template, Location]
+  providers:
+    microsoftGraphOrg:
+      client:
+        tenantId: ${ENTRA_TENANT_ID}
+        clientId: ${ENTRA_CLIENT_ID}
+        clientSecret: ${ENTRA_CLIENT_SECRET}
+        group:
+          filter: &platformGroups "id eq '${ENTRA_CREATORS_GROUP_ID}' or id eq '${ENTRA_VIEWERS_GROUP_ID}'"
+        userGroupMember:
+          filter: *platformGroups
+        user:
+          loadPhotos: false
+        schedule:
+          frequency: { minutes: 15 }
+          timeout: { minutes: 10 }
+permission:
+  enabled: true
+  platform:
+    # Native Graph groups use normalized directory names; inspect their catalog
+    # refs and graph.microsoft.com/group-id annotations when configuring these.
+    creators: ["${ENTRA_CREATORS_GROUP_REF}"]
+    viewers: ["${ENTRA_VIEWERS_GROUP_REF}"]
+integrations:
+  github:
+    - host: github.com
+      apps:
+        - appId: ${GITHUB_APP_ID}
+          clientId: ${GITHUB_APP_CLIENT_ID}
+          clientSecret: ${GITHUB_APP_CLIENT_SECRET}
+          privateKey: ${GITHUB_APP_PRIVATE_KEY}
+          allowedInstallationOwners: ["${GITHUB_ORGANIZATION}"]
+techdocs:
+  builder: external
+  publisher:
+    type: local

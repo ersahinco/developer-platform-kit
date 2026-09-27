@@ -26,11 +26,11 @@ python3 -m scaffold.new_repo render app ../orders-api \
   --set REPOSITORY=acme/orders-api \
   --set AWS_REGION=eu-central-1 \
   --set TOOLKIT_REPOSITORY=ersahinco/developer-platform-kit \
-  --set TOOLKIT_REF=v0.1.0
+  --set TOOLKIT_REF=14a28541b3c8bd8081651e5c07c22014c513d757
 ```
 
-Replace `v0.1.0` with a published release tag or full commit SHA; the example
-does not imply a release exists. Floating branches are rejected. `describe` shows
+The example pins a published commit. Use a released tag or full commit SHA;
+floating branches are rejected. `describe` shows
 required variables and examples; rendering validates values before writing.
 The CLI ends with files on disk. It does not create a GitHub repository, push a
 commit, register a catalog entity, or start CI. Review the generated README, then
@@ -58,7 +58,12 @@ data execution require explicit confirmation strings.
 ## Backstage
 
 ```bash
-python3 -m scaffold.backstage /tmp/toolkit-backstage --allowed-owner your-github-org
+python3 -m scaffold.backstage /tmp/toolkit-backstage \
+  --allowed-owner your-github-org \
+  --set OWNER=team-payments \
+  --set AWS_REGION=eu-central-1 \
+  --set TOOLKIT_REPOSITORY=ersahinco/developer-platform-kit \
+  --set TOOLKIT_REF=14a28541b3c8bd8081651e5c07c22014c513d757
 ```
 
 Publish the exported directory to your template repository, then register its
@@ -73,6 +78,76 @@ Use `--provider gitea --base-url https://your-host/gitea` for a portal with
 it permits any owner on the selected host. Exported task schemas enforce the host
 and owner, including direct API requests. SCM credentials and portal permissions
 must also restrict publishing access.
+
+`--set` fixes platform-owned values in the exported template and removes them
+from the developer form. Task parameters cannot override those values. Values
+are validated against the same manifests as the CLI, which also accepts `--set`.
+Add `--set STATE_BUCKET=your-existing-state-bucket` for infra; it does not add a
+field to the other starters. Without `--set`, the exporter keeps the full forms.
+
+To configure repository access and delivery automatically, pass
+`--github-settings /path/to/client-github.json` with exactly one `--allowed-owner`.
+The JSON uses the native GitHub action fields, keyed by `app`, `infra`, and `data`;
+omit a starter to keep its basic publish/register flow. For example:
+
+```json
+{
+  "app": {
+    "collaborators": [{"team": "payments", "access": "push"}],
+    "repoVariables": {"PUBLISH_IMAGES": "false", "ECS_CLUSTER": "existing-cluster"},
+    "secrets": {"AWS_ROLE_ARN": "arn:aws:iam::123456789012:role/app-delivery"}
+  }
+}
+```
+
+Replace the example identifiers with existing client resources. Repository
+variables must be consumed by that starter's workflow. The `secrets` field accepts
+only IAM role ARNs, which are identifiers, not credentials; no access keys or
+publishing tokens may enter these exported files. SCM credentials stay in
+Backstage's integration configuration. A complete test example for all three
+starters is in `tests/fixtures/github-settings.json`.
+
+Configured starters use native `github:repo:create`, `github:environment:create`,
+and `github:repo:push`: team access and delivery settings are applied before the
+first commit starts CI. The `aws` environment permits only `main`; infra also
+gets `aws-plan` for pull-request planning with a separate `AWS_PLAN_ROLE_ARN`.
+The apply role must trust `aws`, the limited planning role `aws-plan`, and image
+publication roles the repository's `refs/heads/main` subject. Do not give the
+planning role permission to apply changes. These steps create no AWS resources;
+ECR repositories, services, state, and roles must exist before their workflows
+use them. Enable `PUBLISH_IMAGES=true` only after those targets are ready.
+
+Install the native GitHub scaffolder module and grant the GitHub App the
+[permissions for publishing, variables, secrets, and environments](https://backstage.io/docs/integrations/github/github-apps/#app-permissions).
+The export configures environment branch restrictions; set the client's required
+reviewers and approval rules in GitHub. Native
+collaborator assignment can log a warning instead of failing the task, so confirm
+team access during client acceptance. A failed setup can leave an empty repository;
+inspect its task log before retrying. In the CNOE lab, the same configuration can
+be placed in ignored `platform/.local/github-settings.json` before `portal-up`.
+
+### Shared portal and self-service
+
+Platform engineers can host one shared Backstage portal in the client's existing
+container runtime. Developers sign in, choose a starter, enter project details,
+and receive a repository and catalog entry. The CLI remains an alternative using
+the same templates. The local CNOE deployment below is the integration lab;
+shared hosting uses the image with the separate Entra configuration below and
+the client's services and credentials.
+
+The minimum client setup is Entra sign-in and team membership, a scoped GitHub
+App, platform-owned template values, and delivery settings for existing AWS
+targets. Backstage's native GitHub actions can assign repository collaborators,
+set Actions variables and secrets, and create deployment environments. Configure
+those before the first workflow runs using `--github-settings` above and the
+client's team permissions and environment protection requirements. Basic exports
+without those settings only publish and register repositories.
+
+Keep the three identities separate: employees use their existing Entra/AWS
+federation, GitHub Actions assumes a delivery role through OIDC, and workloads
+use runtime roles. An employee's AWS access does not configure CI access. Reuse
+existing roles, accounts, secret stores, certificates, and runtime targets;
+creating another account or identity control plane is unnecessary.
 
 ### Run the reference platform locally
 
@@ -108,17 +183,34 @@ The platform uses these upstream boundaries:
 | `bootstrap.py` | Creates the local Gitea destination if absent and waits for Argo to observe the published Git revision. Backstage's native processing loop refreshes the catalog. Its sign-in helpers are used only by explicit live checks. |
 | `runtime.py` | Supplies CA trust and native SCM integration credentials through Kubernetes resources. |
 | `config/session-secret.yaml` | Uses External Secrets' native password generator for the persistent Backstage session key. |
-| `backstage/` and `image.py` | Supply the missing native permission backend and connect verified OIDC identity/group claims. The pinned backend does not register the permission plugin; YAML alone cannot add it. |
+| `backstage/` and `image.py` | Build pinned CNOE source with native Microsoft sign-in, Graph directory sync, and a group permission policy. A source patch selects the sign-in provider and fixes the local Keycloak subject; no compiled bundle is rewritten. |
 
 These decisions are checked against the pinned
 [CNOE packages](https://github.com/cnoe-io/stacks/tree/32160ecb5942b6d0199b1cef039cc3457d2b1100/ref-implementation),
-[backend](https://github.com/cnoe-io/backstage-app/blob/9232d633b2698fffa6d0a73b715e06640d170162/packages/backend/src/index.ts),
-[resolver](https://github.com/cnoe-io/backstage-app/blob/9232d633b2698fffa6d0a73b715e06640d170162/packages/backend/src/plugins/auth.ts),
+[backend](https://github.com/cnoe-io/backstage-app/blob/6a5087c2fb6aeccdee5f2b5665f7d93cb89640b3/packages/backend/src/index.ts),
+[resolver](https://github.com/cnoe-io/backstage-app/blob/6a5087c2fb6aeccdee5f2b5665f7d93cb89640b3/packages/backend/src/plugins/auth.ts),
 and [Keycloak import behavior](https://www.keycloak.org/server/importExport).
+
+The Backstage Dockerfile pins the CNOE source archive and Node image by digest,
+applies `backstage/source.patch`, and installs with the patched upstream lockfile.
+Dependency licenses and the upstream README remain in the image. This CNOE app
+revision has no top-level license file; clarify its redistribution terms with
+upstream before distributing a client image. The patch registers native providers
+and our permission policy instead of guest sign-in and allow-all permissions.
+Client authorization rules are normal Backstage composition; the local Keycloak
+subject fix remains an upstream gap. The unused upstream Terraform viewer is
+unregistered because it exposes server file reads and has no starter consumer.
+The pinned scaffolder 3.4.0 task-list path ignores a plain permission `DENY`;
+our policy uses its native empty task-owner condition for non-creators, so both
+listing and individual task reads are restricted. The live check covers both.
+Remove that compatibility condition when the adopted upstream version handles
+`DENY` on task lists correctly.
+Update the source pin and patch together,
+then run `portal-check` and live checks before adopting an upgrade.
 
 ### Run the platform
 
-Install Docker (at least 6 GB memory), Python 3.13+, kubectl,
+Install Docker, Python 3.13+, kubectl,
 Kind, and idpbuilder (verified with 0.10.2), then run from the repository root:
 
 ```bash
@@ -130,13 +222,18 @@ make portal-verify          # Identity, TLS, destination and group enforcement
 make portal-smoke           # Create all three starters in local Gitea
 ```
 
-`portal-up` builds the native permission integration, loads it into the `toolkit`
+`portal-up` builds the CNOE Backstage integration, loads it into the `toolkit`
 Kind cluster, and republishes templates from this checkout. The native
 [catalog processing loop](https://backstage.io/docs/features/software-catalog/configuration/#processing-interval)
 uses a 30-second minimum interval; allow about a minute for template changes to
-appear. Startup does not sign in as a demo user. The pinned CNOE image
-requires AMD64 emulation on ARM. State, kubeconfig, and credentials are ignored
+appear. Startup does not sign in as a demo user. Backstage builds for the host's
+architecture, including ARM. State, kubeconfig, and credentials are ignored
 under `platform/.local/`; your default kubeconfig is not modified.
+
+The first source build downloads and compiles upstream dependencies and takes
+several minutes; later builds reuse Docker's cache. The build and running lab
+were checked with 12 GB allocated to Docker. Developers using a shared portal
+do not need this local stack; CLI rendering requires only Python.
 
 When updating an older checkout, move `local/.local/` to `platform/.local/`
 before starting the platform to preserve its kubeconfig and integration settings.
@@ -167,14 +264,14 @@ CNOE supplies Backstage and Keycloak. `platform/config/` uses native
 and [Backstage configuration layers](https://backstage.io/docs/conf/writing/)
 for TLS, credentials, catalog sources, and deployment settings. `portal-prepare`
 validates the overlay; Argo CD applies it and prunes obsolete resources after
-healthy rollout. No second portal or identity server is added. The pinned Backstage bundle needs
-guarded code patches to use the OIDC subject, connect verified groups, and load its native permission
-backend. This is the main maintenance compromise; remove those patches when the
-upstream image supplies that wiring. The pinned Keycloak setup job also needs
+healthy rollout. No second portal or identity server is added. The source patch
+keeps the local Keycloak subject stable and connects verified groups; remove that
+resolver change when upstream supplies it. The pinned Keycloak setup job also needs
 compatibility fixes for ARM, resumable setup, and secret-safe logging. These
 workarounds stay limited to the local reference; the renderer and templates do
 not depend on them. CI runs `portal-check`, including the image's permission and
-identity tests. Live sign-in and deployment checks remain explicit local commands.
+identity tests and native GitHub actions against an offline API double. Live
+sign-in and deployment checks remain explicit local commands.
 
 Open [Backstage](https://cnoe.localtest.me:8443) and use `user1` with the
 `USER_PASSWORD` shown by the credentials command. Choose **Create**, select a
@@ -276,22 +373,60 @@ Backstage's native [GitHub App integration](https://backstage.io/docs/integratio
 put its native integration config in the same ignored file, install it in the
 organization, set `platform/.local/github-owner`, and run `make portal-up`.
 Enterprise deployments should source credentials through External Secrets and
-an existing secret store. To return to Gitea, remove the two GitHub configuration
+an existing secret store. To return to Gitea, remove the GitHub owner, integration,
+and optional settings configuration
 files, run `make portal-up`, and revoke the unused publishing token in GitHub.
 
 ### Connect existing enterprise services
 
 | Capability | Reuse | Current boundary |
 |---|---|---|
-| Employee identity | [Backstage Microsoft provider](https://backstage.io/docs/auth/microsoft/provider/) and [Microsoft Graph catalog provider](https://backstage.io/docs/integrations/azure/org/) | Install the native backend modules and frontend sign-in provider in your existing portal; select groups and resolve users by directory ID. A personal Outlook account is not an enterprise directory. |
-| Repository publishing | [GitHub integration](https://backstage.io/docs/integrations/github/github-apps/) | Native `publish:github`; organization GitHub App or a dedicated personal-account token. Sign-in credentials and publishing credentials are separate. |
+| Employee identity | [Backstage Microsoft provider](https://backstage.io/docs/auth/microsoft/provider/) and [Microsoft Graph catalog provider](https://backstage.io/docs/integrations/azure/org/) | The image includes both native modules and a Microsoft sign-in page. Supply the client's registration and group configuration below. A personal Outlook account is not an enterprise directory. |
+| Repository publishing | [GitHub integration](https://backstage.io/docs/integrations/github/github-apps/) | Native publishing and repository/environment actions; organization GitHub App or a dedicated personal-account token. Sign-in credentials and publishing credentials are separate. |
 | GitLab | [Native GitLab integration](https://backstage.io/docs/integrations/gitlab/locations/) | Integration point for an existing portal; this toolkit does not yet export GitLab CI or GitLab publishing templates. |
 | Secrets | [External Secrets](https://external-secrets.io/latest/provider/azure-key-vault/) | Portal deployment references an existing secret store. Secrets never enter rendered repositories. |
 | TLS | [cert-manager issuers](https://cert-manager.io/docs/configuration/) and [trust-manager](https://cert-manager.io/docs/trust/trust-manager/) | Reuse an existing issuer and distribute its CA bundle. Workstation trust is separate from Kubernetes trust. |
 
-Reuse existing enterprise services instead of installing this local lab. The
-settings above belong to the portal deployment; CI uses separate cloud workload
-identities. Live Entra and GitLab integration are not implemented here.
+These settings belong to the shared portal deployment. Use an existing Backstage
+installation, or build `platform/backstage` and host the resulting image in the
+client's runtime. It listens on port 7007 and defaults to
+`node packages/backend --config platform/entra.yaml`; the CNOE lab overrides that
+command with its Keycloak configuration. Keycloak is unnecessary for direct Entra
+sign-in. Supply PostgreSQL, TLS termination, secret injection, backups, and the
+native `/.backstage/health/v1/readiness` health check through the existing runtime.
+On Kubernetes, set `automountServiceAccountToken: false`, as the local overlay
+does. This portal's scaffolding flow needs no cluster credentials; the upstream
+app otherwise detects the token and enables its optional Kubernetes plugins.
+
+The image's `platform/entra.yaml` comes from `platform/backstage/entra.yaml` here.
+Provide these values through the client's runtime and secret store:
+
+| Values | Purpose |
+|---|---|
+| `PORTAL_URL` | External HTTPS URL of this portal |
+| `POSTGRES_HOST`, `POSTGRES_PORT`, `POSTGRES_DATABASE`, `POSTGRES_USER`, `POSTGRES_PASSWORD` | Existing PostgreSQL database; the user needs permission to create schemas inside it, not create databases |
+| `SESSION_SECRET` | Persistent random session key, shared across portal replicas |
+| `ENTRA_TENANT_ID`, `ENTRA_CLIENT_ID`, `ENTRA_CLIENT_SECRET` | Tenant-specific Web application registration |
+| `ENTRA_CREATORS_GROUP_ID`, `ENTRA_VIEWERS_GROUP_ID` | Existing directory groups to import, together with their direct user members |
+| `ENTRA_CREATORS_GROUP_REF`, `ENTRA_VIEWERS_GROUP_REF` | Imported Backstage group refs, e.g. `group:default/platform-creators`; native Graph uses normalized group names, not group IDs |
+| `GITHUB_APP_ID`, `GITHUB_APP_CLIENT_ID`, `GITHUB_APP_CLIENT_SECRET`, `GITHUB_APP_PRIVATE_KEY`, `GITHUB_ORGANIZATION` | Scoped native GitHub App integration; the pinned integration requires its client ID and secret as well as the signing key |
+| `TEMPLATES_CATALOG_URL` | Published `catalog-info.yaml` from this kit's export |
+
+Register `PORTAL_URL/api/auth/microsoft/handler/frame` as the Entra Web redirect
+URI. Grant the native provider's delegated sign-in permissions and the directory
+provider's application permissions (`User.Read.All`, `GroupMember.Read.All`), with
+tenant consent. Directory sync runs every 15 minutes. Confirm imported group refs
+against their `graph.microsoft.com/group-id` annotations and update the configured
+refs if groups are renamed. Set exported `OWNER` to the owning group's catalog
+name. Only configured template locations may supply executable templates;
+developers can register their generated components.
+
+The native resolver matches `graph.microsoft.com/user-id` and requires a catalog
+user. It has no email-based or missing-user fallback. PostgreSQL certificate
+validation stays enabled; mount the client's CA and set `NODE_EXTRA_CA_CERTS` when
+using a private issuer. Do not copy the local lab's users or credentials into the
+shared deployment. Live client sign-in, consent, team access, and AWS delivery
+must be verified with the client's services. GitLab delivery is not implemented.
 
 ## IaC catalog and cloud boundaries
 

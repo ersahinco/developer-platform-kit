@@ -50,11 +50,11 @@ def main():
         for key in ("WORKLOAD_NAME", "STACK_NAME", "PIPELINE_NAME"):
             if key in values:
                 values[key] = name
-        parameters = {
-            key: value
-            for key, value in values.items()
-            if key not in {"REPOSITORY", "REPOSITORY_BASE_URL"}
-        }
+        entity = next(
+            item for item in catalog if item["metadata"]["name"] == f"platform-{template.name}"
+        )
+        properties = entity["spec"]["parameters"][0]["properties"]
+        parameters = {key: value for key, value in values.items() if key in properties}
         parameters["repoUrl"] = "cnoe.localtest.me:8443?" + urlencode(
             {"owner": "platform", "repo": name}
         )

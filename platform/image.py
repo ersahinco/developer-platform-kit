@@ -1,4 +1,4 @@
-"""Build the native permission integration and load it into the local Kind cluster."""
+"""Build the CNOE Backstage integration and load it into the local Kind cluster."""
 
 import hashlib
 from pathlib import Path
@@ -23,11 +23,9 @@ if __name__ == "__main__":
             [
                 "docker",
                 "build",
-                # The pinned CNOE image runs through Docker emulation on ARM.
-                # Keep a single manifest, matching upstream, for Kind imports.
+                # Keep a single manifest for Kind imports. Build for this
+                # machine; the pinned upstream source supports ARM and x86.
                 "--provenance=false",
-                "--platform",
-                "linux/amd64",
                 "-t",
                 IMAGE,
                 str(SOURCE),

@@ -5,6 +5,10 @@ auth:
 permission:
   enabled: true
 catalog:
+  # Developers can register components; executable templates stay in the
+  # platform-owned location below, whose explicit rules permit them.
+  rules:
+    - allow: [Component, System, API, Resource, Location]
   # Local template edits are picked up by the native catalog processing loop.
   processingInterval: { seconds: 30 }
   locations:

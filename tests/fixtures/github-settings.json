@@ -1,0 +1,29 @@
+{
+  "app": {
+    "collaborators": [{"team": "payments", "access": "push"}],
+    "repoVariables": {"PUBLISH_IMAGES": "false", "ECS_CLUSTER": "existing-cluster"},
+    "secrets": {"AWS_ROLE_ARN": "arn:aws:iam::123456789012:role/app-delivery"}
+  },
+  "infra": {
+    "collaborators": [{"team": "platform", "access": "maintain"}],
+    "secrets": {
+      "AWS_ROLE_ARN": "arn:aws:iam::123456789012:role/infra-apply",
+      "AWS_PLAN_ROLE_ARN": "arn:aws:iam::123456789012:role/infra-plan"
+    }
+  },
+  "data": {
+    "collaborators": [{"team": "data", "access": "push"}],
+    "repoVariables": {
+      "PUBLISH_IMAGES": "false",
+      "ECS_CLUSTER": "existing-cluster",
+      "PRIVATE_SUBNET_IDS": "subnet-0123456789abcdef0",
+      "MIGRATION_SECURITY_GROUP_IDS": "sg-0123456789abcdef0",
+      "EMR_APPLICATION_ID": "existing-application",
+      "DATA_CODE_BUCKET": "existing-code-bucket"
+    },
+    "secrets": {
+      "AWS_ROLE_ARN": "arn:aws:iam::123456789012:role/data-delivery",
+      "EMR_JOB_ROLE_ARN": "arn:aws:iam::123456789012:role/data-runtime"
+    }
+  }
+}

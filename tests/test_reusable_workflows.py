@@ -118,6 +118,15 @@ def test_plan_and_apply_stay_separate_jobs() -> None:
     )
 
 
+def test_infra_starter_separates_plan_and_apply_identity() -> None:
+    workflow = _load(Path("repo-templates/infra/files/.github/workflows/infra.yml"))
+    plan, apply = workflow["jobs"]["plan"], workflow["jobs"]["apply"]
+    assert plan["with"]["environment"] == "aws-plan"
+    assert apply["with"]["environment"] == "aws"
+    assert plan["secrets"]["aws_role_arn"] == "${{ secrets.AWS_PLAN_ROLE_ARN }}"
+    assert apply["secrets"]["aws_role_arn"] == "${{ secrets.AWS_ROLE_ARN }}"
+
+
 def test_apply_verifies_the_plan_run_before_applying() -> None:
     apply = _job_text(WORKFLOWS_DIR / "reusable-infra.yml", "apply")
     for guard in ("conclusion", "head_branch", "head_sha"):
