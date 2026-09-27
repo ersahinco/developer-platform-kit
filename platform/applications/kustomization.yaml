@@ -1,0 +1,21 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+resources:
+  - backstage.yaml
+patches:
+  - target:
+      kind: Application
+      name: backstage
+    patch: |
+      apiVersion: argoproj.io/v1alpha1
+      kind: Application
+      metadata:
+        name: backstage
+        namespace: argocd
+      spec:
+        syncPolicy:
+          automated:
+            prune: true
+          syncOptions:
+            - CreateNamespace=true
+            - PruneLast=true

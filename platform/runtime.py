@@ -5,7 +5,6 @@ import getpass
 import json
 import os
 import re
-import secrets
 import subprocess
 
 from bootstrap import STATE, secret
@@ -65,31 +64,6 @@ def main():
         }
     )
     (STATE / "platform-ca.crt").write_text(ca)
-    result = subprocess.run(
-        [
-            "kubectl",
-            "get",
-            "secret",
-            "platform-session",
-            "-n",
-            "backstage",
-            "--ignore-not-found",
-            "-o",
-            "name",
-        ],
-        check=True,
-        capture_output=True,
-        text=True,
-    )
-    if not result.stdout.strip():
-        apply(
-            {
-                "apiVersion": "v1",
-                "kind": "Secret",
-                "metadata": {"name": "platform-session", "namespace": "backstage"},
-                "stringData": {"SESSION_SECRET": secrets.token_urlsafe(48)},
-            }
-        )
     path = STATE / "backstage-integrations.json"
     config = json.loads(path.read_text()) if path.exists() else {}
     if set(config) - {"integrations"}:
@@ -102,7 +76,9 @@ def main():
             "stringData": {"integrations.json": json.dumps(config)},
         }
     )
-    print("Local CA, persistent session key, and native integration config are ready.")
+    print(
+        "Local CA and native integration config are ready; External Secrets manages the session key."
+    )
 
 
 if __name__ == "__main__":

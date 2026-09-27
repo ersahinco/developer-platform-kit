@@ -15,12 +15,13 @@ framework.
 | `.github/workflows/ci.yml` | This repo's gates | Anything touching a cloud account |
 | `modules/aws/<name>/` | One capability | Stack wiring, workload identity |
 | `scaffold/` | Rendering | Template content |
-| `local/` | Optional upstream CNOE deployment and native integrations | Duplicate templates, custom portal server, tracked secrets |
+| `platform/` | Optional upstream CNOE deployment and native integrations | Duplicate templates, custom portal server, tracked secrets |
 | `tests/` | Proving templates render and lanes hold their shape | Production code |
 
 ## Hard rules
 
 - Prefer upstream native integrations and declarative configuration. Custom glue must fill a verified gap.
+- Keep the pinned CNOE checkout and generated packages ignored under `platform/.local/`. Own overlays and explicit patches, retain upstream licenses, and remove workarounds when upstream supplies the capability.
 - Every file must serve a current consumer or check. Remove redundant setup and speculative features.
 - Three templates, three lanes: app, infra, data. A fourth needs a fourth audience, and a test enforces the count.
 - A template that does not render is broken. `make test` is the gate.
@@ -60,7 +61,7 @@ make validate-modules lint-tflint lint-checkov
 ## Not here
 
 - An application, domain model, or schema of our own
-- A custom control plane, portal, or catalog server; `local/` deploys upstream CNOE
+- A custom control plane, portal, or catalog server; `platform/` deploys upstream CNOE
 - Provider-neutral module wrappers
 - A second runtime target with no consumer
 - A docs tree. One README, plus the README each template renders

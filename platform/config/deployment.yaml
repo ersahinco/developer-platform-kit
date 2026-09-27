@@ -5,6 +5,9 @@ metadata:
   namespace: backstage
 spec:
   template:
+    metadata:
+      annotations:
+        platform.local/session-manager: external-secrets
     spec:
       automountServiceAccountToken: false
       containers:

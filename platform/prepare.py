@@ -84,35 +84,16 @@ spec:
             if name in properties:
                 properties[name]["default"] = value
         template.write_text(json.dumps(document, indent=2) + "\n")
-    # Argo removes obsolete generated ConfigMaps only after the replacement is healthy.
-    application = target / "backstage.yaml"
+    # idpbuilder publishes this generated staging tree to its local Gitea.
+    # Keep the pinned checkout untouched; only explicit overlays/patches change the output.
+    for package in PACKAGES:
+        directory = "entities" if package == "backstage-templates" else "manifests"
+        shutil.copyfile(upstream / "LICENSE", target / package / directory / "LICENSE")
+    shutil.copyfile(ROOT / "applications/kustomization.yaml", target / "kustomization.yaml")
     result = subprocess.run(
-        [
-            "kubectl",
-            "patch",
-            "--local",
-            "-f",
-            str(application),
-            "--type=merge",
-            "-p",
-            json.dumps(
-                {
-                    "spec": {
-                        "syncPolicy": {
-                            "automated": {"prune": True},
-                            "syncOptions": ["CreateNamespace=true", "PruneLast=true"],
-                        }
-                    }
-                }
-            ),
-            "-o",
-            "yaml",
-        ],
-        check=True,
-        capture_output=True,
-        text=True,
+        ["kubectl", "kustomize", str(target)], check=True, capture_output=True, text=True
     )
-    application.write_text(result.stdout)
+    (target / "backstage.yaml").write_text(result.stdout)
     # Native Kustomize overlays preserve upstream resources without text rewriting.
     manifests = target / "backstage/manifests"
     shutil.copytree(ROOT / "config", manifests, dirs_exist_ok=True)
@@ -137,8 +118,8 @@ spec:
                 [
                     {
                         "op": "add",
-                        "path": "/spec/template/metadata/annotations",
-                        "value": {"platform.local/integrations-hash": digest},
+                        "path": "/spec/template/metadata/annotations/platform.local~1integrations-hash",
+                        "value": digest,
                     }
                 ]
             ),
@@ -146,26 +127,13 @@ spec:
     )
     path.write_text(json.dumps(overlay, indent=2) + "\n")
     subprocess.run(["kubectl", "kustomize", str(manifests)], check=True, stdout=subprocess.DEVNULL)
-    # Patch the pinned reference bootstrap: quiet secrets, native kubectl, resumable setup.
-    job = target / "keycloak/manifests/keycloak-config.yaml"
-    script = job.read_text().replace("set -ex -o pipefail", "set -e -o pipefail")
-    download = 'curl -sS -LO "https://dl.k8s.io/release/v1.28.3//bin/linux/amd64/kubectl"\n              chmod +x kubectl'
-    script = script.replace(download, "")
-    script = script.replace(
-        "              set +e",
-        """              KUBECTL_URL="https://dl.k8s.io/release/v1.33.1/bin/linux/$(dpkg --print-architecture)/kubectl"
-              curl -fsSLo kubectl "${KUBECTL_URL}"
-              curl -fsSLo kubectl.sha256 "${KUBECTL_URL}.sha256"
-              echo "$(cat kubectl.sha256)  kubectl" | sha256sum --check
-              chmod +x kubectl
-
-              set +e""",
+    # Standard patch application fails if the pinned upstream context changes.
+    subprocess.run(["git", "apply", str(ROOT / "keycloak/setup.patch")], cwd=target, check=True)
+    keycloak = target / "keycloak/manifests"
+    (keycloak / "kustomization.yaml").write_text(
+        json.dumps({"resources": sorted(path.name for path in keycloak.glob("*.yaml"))}) + "\n"
     )
-    script = script.replace(
-        'curl --fail-with-body -H "Authorization: bearer ${KEYCLOAK_TOKEN}"  "${KEYCLOAK_URL}/admin/realms/cnoe"  &> /dev/null',
-        "./kubectl -n keycloak get secret keycloak-clients &> /dev/null",
-    )
-    job.write_text(script)
+    subprocess.run(["kubectl", "kustomize", str(keycloak)], check=True, stdout=subprocess.DEVNULL)
     print(f"Prepared {len(PACKAGES)} CNOE packages and three templates in {target}")
 
 

@@ -151,7 +151,7 @@ def main():
                 raise SystemExit(
                     f"{name} did not reach revision {revision} within 240 seconds.\n"
                     f"{reason}\nInspect make portal-status; after resolving the cause, "
-                    "retry python3 local/bootstrap.py."
+                    "retry python3 platform/bootstrap.py."
                 )
             time.sleep(3)
     print(

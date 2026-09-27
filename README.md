@@ -10,7 +10,7 @@ repo-templates/{app,infra,data}/   manifests and repository skeletons
 modules/aws/                       representative IaC capabilities
 scaffold/                          stdlib CLI and Backstage export
 tests/                             rendering and delivery contracts
-local/                             run and verify Backstage/Keycloak through CNOE
+platform/                          CNOE assembly, native integrations, and live checks
 ```
 
 ## Start a repository
@@ -76,19 +76,38 @@ must also restrict publishing access.
 
 ### Run the reference platform locally
 
-`local/` assembles pinned [CNOE packages](https://cnoe.io/docs/reference-implementation/local)
+`platform/` assembles pinned [CNOE packages](https://cnoe.io/docs/reference-implementation/local)
 for Kind, Gitea, Argo CD, Backstage, Keycloak, and External Secrets. It contains
 deployment glue and live checks, separate from the templates exported to consuming
 repos. CLI users and existing Backstage installations do not need it.
 
-The local assembly uses these upstream boundaries:
+### Upstream ownership and customization
+
+`platform/.local/stacks/` is an ignored clone of `cnoe-io/stacks`, checked out at
+the full commit SHA in `platform/prepare.py`. Preparation leaves that checkout
+unchanged and stages selected packages in `platform/.local/packages/`, retaining
+the upstream license. These are disposable build outputs, not a maintained copy
+of CNOE source. idpbuilder publishes the staging directories into local Gitea;
+Argo CD reconciles them from there.
+
+This repository owns the templates and the explicit configuration differences:
+`platform/applications/` configures Argo applications, `platform/config/` overlays
+Backstage, and `platform/keycloak/setup.patch` records the pinned bootstrap fixes.
+Git rejects the patch if upstream context changes. Keep general fixes suitable
+for upstream contribution; remove workarounds when an adopted upstream revision
+includes them. To update CNOE, review the upstream changes, update the pin, run
+`make portal-check`, then run the local deployment and live checks. Do not edit
+the generated staging tree or commit the upstream clone.
+
+The platform uses these upstream boundaries:
 
 | Local code | Purpose and native boundary |
 |---|---|
-| `prepare.py` | Copies the pinned CNOE packages, exports this checkout's templates, and applies Kustomize configuration. The pinned Keycloak job needs architecture and secret-logging fixes, plus a completed-setup check. |
+| `prepare.py` | Stages the pinned CNOE packages, exports this checkout's templates, and validates Kustomize overlays and the explicit Keycloak patch. |
 | `identity.py` | Configures scopes, demo groups, and authenticated account linking through Keycloak's Admin API. Startup realm import skips an existing realm, so it cannot maintain this existing lab's settings. |
 | `bootstrap.py` | Creates the local Gitea destination if absent and waits for Argo to observe the published Git revision. Backstage's native processing loop refreshes the catalog. Its sign-in helpers are used only by explicit live checks. |
-| `runtime.py` | Supplies CA trust, a persistent session key, and native SCM integration credentials through Kubernetes resources. |
+| `runtime.py` | Supplies CA trust and native SCM integration credentials through Kubernetes resources. |
+| `config/session-secret.yaml` | Uses External Secrets' native password generator for the persistent Backstage session key. |
 | `backstage/` and `image.py` | Supply the missing native permission backend and connect verified OIDC identity/group claims. The pinned backend does not register the permission plugin; YAML alone cannot add it. |
 
 These decisions are checked against the pinned
@@ -97,11 +116,14 @@ These decisions are checked against the pinned
 [resolver](https://github.com/cnoe-io/backstage-app/blob/9232d633b2698fffa6d0a73b715e06640d170162/packages/backend/src/plugins/auth.ts),
 and [Keycloak import behavior](https://www.keycloak.org/server/importExport).
 
+### Run the platform
+
 Install Docker (at least 6 GB memory), Python 3.13+, kubectl,
 Kind, and idpbuilder (verified with 0.10.2), then run from the repository root:
 
 ```bash
 make portal-up              # Start or update the local deployment
+make portal-check           # Assemble overlays and build/test the image without deploying
 make portal-status          # Argo applications and Backstage pods
 make portal-credentials     # Show local login passwords in your terminal
 make portal-verify          # Identity, TLS, destination and group enforcement
@@ -114,15 +136,33 @@ Kind cluster, and republishes templates from this checkout. The native
 uses a 30-second minimum interval; allow about a minute for template changes to
 appear. Startup does not sign in as a demo user. The pinned CNOE image
 requires AMD64 emulation on ARM. State, kubeconfig, and credentials are ignored
-under `local/.local/`; your default kubeconfig is not modified.
+under `platform/.local/`; your default kubeconfig is not modified.
+
+When updating an older checkout, move `local/.local/` to `platform/.local/`
+before starting the platform to preserve its kubeconfig and integration settings.
+The existing idpbuilder cluster also retains absolute repository source paths.
+After `make portal-prepare`, update those four paths once, then run `make portal-up`:
+
+```bash
+for package in external-secrets keycloak backstage backstage-templates; do
+  directory=manifests
+  [ "$package" != backstage-templates ] || directory=entities
+  kubectl --kubeconfig platform/.local/kubeconfig -n idpbuilder-toolkit \
+    patch gitrepository "$package-$directory" --type=merge \
+    -p "{\"spec\":{\"source\":{\"path\":\"$PWD/platform/.local/packages/$package/$directory\"}}}"
+done
+```
+
+External Secrets takes over the previous session secret on the first rollout;
+sign in again afterward. Its zero refresh interval prevents periodic regeneration.
 
 If the final bootstrap wait times out, `make portal-status` shows Argo's
 conditions as well as pod readiness. A healthy Backstage pod does not prove Argo
 can read the template repository; for example, a `ComparisonError` with a DNS
 timeout means reconciliation is blocked. Resolve the reported cause, then run
-`python3 local/bootstrap.py` to repeat the final check without rebuilding the platform.
+`python3 platform/bootstrap.py` to repeat the final check without rebuilding the platform.
 
-CNOE supplies Backstage and Keycloak. `local/config/` uses native
+CNOE supplies Backstage and Keycloak. `platform/config/` uses native
 [Kustomize overlays](https://kubernetes.io/docs/tasks/manage-kubernetes-objects/kustomization/)
 and [Backstage configuration layers](https://backstage.io/docs/conf/writing/)
 for TLS, credentials, catalog sources, and deployment settings. `portal-prepare`
@@ -133,7 +173,8 @@ backend. This is the main maintenance compromise; remove those patches when the
 upstream image supplies that wiring. The pinned Keycloak setup job also needs
 compatibility fixes for ARM, resumable setup, and secret-safe logging. These
 workarounds stay limited to the local reference; the renderer and templates do
-not depend on them.
+not depend on them. CI runs `portal-check`, including the image's permission and
+identity tests. Live sign-in and deployment checks remain explicit local commands.
 
 Open [Backstage](https://cnoe.localtest.me:8443) and use `user1` with the
 `USER_PASSWORD` shown by the credentials command. Choose **Create**, select a
@@ -165,7 +206,7 @@ Actions workflows. GitHub publishing creates private repos. The lab deploys no
 cloud resources; scaffold groups grant no cloud access.
 
 No domain purchase is needed. `portal-up` exports the public local CA to
-`local/.local/platform-ca.crt`; Backstage trusts it explicitly. Import it into
+`platform/.local/platform-ca.crt`; Backstage trusts it explicitly. Import it into
 your workstation trust store yourself to trust the local browser endpoint.
 Replace that trust if you delete and rebuild the cluster. Do not distribute the
 CA private key. This lab uses upstream demo images and shared local credentials;
@@ -216,8 +257,8 @@ may impose additional restrictions; see
 [GitHub token permissions](https://docs.github.com/en/authentication/keeping-your-account-and-data-secure/managing-your-personal-access-tokens).
 
 The native `integrations.github` config is saved in ignored
-`local/.local/backstage-integrations.json` with mode `0600` and mounted as a
-Kubernetes Secret. `local/.local/github-owner` selects the destination. Run
+`platform/.local/backstage-integrations.json` with mode `0600` and mounted as a
+Kubernetes Secret. `platform/.local/github-owner` selects the destination. Run
 `portal-up` after changes. Credentials never enter exported templates; do not
 paste them into tracked files or chat.
 
@@ -233,7 +274,7 @@ publishing, catalog reading, and reusable-workflow access are separate permissio
 For an organization, prefer
 Backstage's native [GitHub App integration](https://backstage.io/docs/integrations/github/github-apps/):
 put its native integration config in the same ignored file, install it in the
-organization, set `local/.local/github-owner`, and run `make portal-up`.
+organization, set `platform/.local/github-owner`, and run `make portal-up`.
 Enterprise deployments should source credentials through External Secrets and
 an existing secret store. To return to Gitea, remove the two GitHub configuration
 files, run `make portal-up`, and revoke the unused publishing token in GitHub.

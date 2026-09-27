@@ -11,4 +11,4 @@ paths = [
 
 [[allowlists]]
 description = "Ignored local lab credentials, generated packages, and upstream checkout"
-paths = ['''(^|/)local/\.local/''']
+paths = ['''(^|/)(platform|local)/\.local/''']

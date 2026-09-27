@@ -6,6 +6,8 @@ repos:
     rev: v6.0.0
     hooks:
       - id: trailing-whitespace
+        # Preserve upstream context in explicit compatibility patches.
+        exclude: \.patch$
       - id: end-of-file-fixer
       - id: check-yaml
         args: [--allow-multiple-documents]

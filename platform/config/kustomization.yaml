@@ -3,7 +3,8 @@
   "kind": "Kustomization",
   "resources": [
     "install.yaml",
-    "argocd-secrets.yaml"
+    "argocd-secrets.yaml",
+    "session-secret.yaml"
   ],
   "configMapGenerator": [
     {

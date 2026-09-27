@@ -48,6 +48,27 @@ jobs:
             uv run --directory "$rendered/$template" --python "$python_version" python -m pytest -q
           done
 
+  platform:
+    name: CNOE overlays & Backstage integration
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Install kubectl for Kustomize
+        run: |
+          url=https://dl.k8s.io/release/v1.33.1/bin/linux/amd64/kubectl
+          curl -fsSLo kubectl "$url"
+          curl -fsSLo kubectl.sha256 "$url.sha256"
+          echo "$(cat kubectl.sha256)  kubectl" | sha256sum --check
+          sudo install -m 0755 kubectl /usr/local/bin/kubectl
+          rm kubectl kubectl.sha256
+
+      - name: Assemble upstream packages and test permission integration
+        run: make portal-check
+
   workflows:
     name: Workflows
     runs-on: ubuntu-latest

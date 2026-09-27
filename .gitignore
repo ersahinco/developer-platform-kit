@@ -9,6 +9,8 @@ __pycache__/
 # Environment / secrets
 .env
 .env.*
+platform/.local/
+# Keep credentials ignored until older checkouts move their state to platform/.
 local/.local/
 aws_credentials
 .aws/credentials
