@@ -116,6 +116,12 @@ appear. Startup does not sign in as a demo user. The pinned CNOE image
 requires AMD64 emulation on ARM. State, kubeconfig, and credentials are ignored
 under `local/.local/`; your default kubeconfig is not modified.
 
+If the final bootstrap wait times out, `make portal-status` shows Argo's
+conditions as well as pod readiness. A healthy Backstage pod does not prove Argo
+can read the template repository; for example, a `ComparisonError` with a DNS
+timeout means reconciliation is blocked. Resolve the reported cause, then run
+`python3 local/bootstrap.py` to repeat the final check without rebuilding the platform.
+
 CNOE supplies Backstage and Keycloak. `local/config/` uses native
 [Kustomize overlays](https://kubernetes.io/docs/tasks/manage-kubernetes-objects/kustomization/)
 and [Backstage configuration layers](https://backstage.io/docs/conf/writing/)

@@ -129,8 +129,29 @@ def main():
             ):
                 break
             if time.monotonic() > deadline:
-                raise TimeoutError(
-                    f"{name} has not completed rollout of {revision}; inspect make portal-status."
+                sync = status.get("sync", {})
+                operation = status.get("operationState") or {}
+                errors = [
+                    f"{condition['type']}: {condition.get('message', '')}"
+                    for condition in status.get("conditions", [])
+                    if condition.get("type", "").endswith("Error")
+                ]
+                if errors:
+                    reason = "Argo reconciliation is blocked. " + "; ".join(errors)
+                elif operation.get("syncResult", {}).get("revision") == revision and operation.get(
+                    "phase"
+                ) in {"Failed", "Error"}:
+                    reason = f"Sync failed: {operation.get('message', '')}"
+                else:
+                    reason = (
+                        f"Still waiting: sync={sync.get('status', 'Unknown')}, "
+                        f"health={status.get('health', {}).get('status', 'Unknown')}, "
+                        f"observed revision={sync.get('revision', 'not yet observed')}."
+                    )
+                raise SystemExit(
+                    f"{name} did not reach revision {revision} within 240 seconds.\n"
+                    f"{reason}\nInspect make portal-status; after resolving the cause, "
+                    "retry python3 local/bootstrap.py."
                 )
             time.sleep(3)
     print(

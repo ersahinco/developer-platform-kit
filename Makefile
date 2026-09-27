@@ -51,6 +51,7 @@ portal-up: portal-prepare ## Start or update Backstage and Keycloak locally
 
 portal-status: ## Show local platform rollout status
 	kubectl get applications -n argocd
+	kubectl get applications -n argocd -o go-template='{{range .items}}{{$$name := .metadata.name}}{{range .status.conditions}}{{printf "%s: %s: %s\n" $$name .type .message}}{{end}}{{end}}'
 	kubectl get pods -n backstage
 
 portal-credentials: ## Show only the local Keycloak user and admin login passwords

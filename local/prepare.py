@@ -14,7 +14,7 @@ ROOT = Path(__file__).resolve().parent
 TOOLKIT = ROOT.parent
 STATE = ROOT / ".local"
 STACKS_REF = "32160ecb5942b6d0199b1cef039cc3457d2b1100"
-TOOLKIT_REF = "9be107670719104977b5177f27903225d04865ba"
+TOOLKIT_REF = "1e9e21e755970c4aa1100683a2f366b65af75684"
 BASE_URL = "https://cnoe.localtest.me:8443/gitea"
 PACKAGES = ("external-secrets", "keycloak", "backstage", "backstage-templates")
 
