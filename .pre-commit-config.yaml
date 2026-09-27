@@ -1,0 +1,82 @@
+default_install_hook_types: [pre-commit, pre-push]
+default_stages: [pre-commit]
+
+repos:
+  - repo: https://github.com/pre-commit/pre-commit-hooks
+    rev: v6.0.0
+    hooks:
+      - id: trailing-whitespace
+      - id: end-of-file-fixer
+      - id: check-yaml
+        args: [--allow-multiple-documents]
+      - id: check-json
+      - id: check-toml
+      - id: check-merge-conflict
+      - id: detect-private-key
+      - id: mixed-line-ending
+        args: [--fix=lf]
+
+  - repo: https://github.com/astral-sh/ruff-pre-commit
+    rev: v0.15.12
+    hooks:
+      - id: ruff-check
+        args: [--fix]
+      - id: ruff-format
+
+  - repo: https://github.com/antonbabenko/pre-commit-terraform
+    rev: v1.105.0
+    hooks:
+      - id: terraform_fmt
+        args: [--args=-recursive]
+
+  - repo: local
+    hooks:
+      - id: secret-scan
+        name: secret scan
+        entry: gitleaks dir . --redact --no-banner
+        language: system
+        pass_filenames: false
+
+      - id: actionlint
+        name: actionlint
+        entry: make lint-workflows
+        language: system
+        pass_filenames: false
+        files: ^\.github/workflows/|^repo-templates/.*/\.github/workflows/
+
+      - id: pyright
+        name: pyright
+        entry: uv run pyright
+        language: system
+        pass_filenames: false
+
+      - id: templates-render
+        name: templates render
+        entry: uv run python -m pytest tests/ -q
+        language: system
+        pass_filenames: false
+        files: ^(repo-templates/|scaffold/|tests/|modules/|\.github/workflows/)
+
+      - id: validate-modules
+        name: terraform validate modules
+        entry: make validate-modules
+        language: system
+        pass_filenames: false
+        files: ^modules/.*\.tf$
+        stages: [pre-push]
+
+      - id: tflint
+        name: TFLint
+        entry: make lint-tflint
+        language: system
+        pass_filenames: false
+        files: ^modules/.*\.tf$
+        stages: [pre-push]
+
+      - id: checkov
+        name: Checkov
+        entry: make lint-checkov
+        language: system
+        pass_filenames: false
+        files: ^modules/.*\.tf$
+        stages: [pre-push]

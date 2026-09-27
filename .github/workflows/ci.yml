@@ -1,0 +1,152 @@
+name: CI
+
+# This repo ships templates and modules. Nothing here deploys anything, so CI
+# proves one thing: what we hand to a team is valid before they get it.
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  scaffold:
+    name: Scaffold & Python
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - uses: astral-sh/setup-uv@11f9893b081a58869d3b5fccaea48c9e9e46f990 # v8.3.2
+        with:
+          version: "0.11.8"
+          enable-cache: true
+
+      - name: Install
+        run: uv sync --frozen
+
+      - name: Lint Python
+        run: make lint-python
+
+      - name: Render and check every template
+        run: make test
+
+      - name: Test generated repositories
+        run: |
+          rendered=$(mktemp -d)
+          uv run python -m scaffold.new_repo render-examples "$rendered"
+          for template in app data; do
+            python_version=$(cat "$rendered/$template/.python-version")
+            uv sync --directory "$rendered/$template" --python "$python_version" --locked
+            uv run --directory "$rendered/$template" --python "$python_version" ruff format --check .
+            uv run --directory "$rendered/$template" --python "$python_version" ruff check .
+            uv run --directory "$rendered/$template" --python "$python_version" python -m pytest -q
+          done
+
+  workflows:
+    name: Workflows
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      # Same pinned version the devcontainer installs, so local and CI agree.
+      - name: Install actionlint
+        env:
+          ACTIONLINT_VERSION: 1.7.12
+        run: |
+          curl -fsSL \
+            "https://github.com/rhysd/actionlint/releases/download/v${ACTIONLINT_VERSION}/actionlint_${ACTIONLINT_VERSION}_linux_amd64.tar.gz" \
+            -o actionlint.tar.gz
+          tar -xzf actionlint.tar.gz actionlint
+          sudo install -m 0755 actionlint /usr/local/bin/actionlint
+
+      - name: Lint workflows
+        run: make lint-workflows
+
+  terraform:
+    name: Terraform
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - uses: hashicorp/setup-terraform@dfe3c3f87815947d99a8997f908cb6525fc44e9e # v4
+        with:
+          terraform_version: 1.15.8
+
+      - name: Format
+        run: make lint-terraform
+
+      - uses: astral-sh/setup-uv@11f9893b081a58869d3b5fccaea48c9e9e46f990 # v8.3.2
+        with:
+          version: "0.11.8"
+
+      - name: Validate rendered infrastructure
+        run: make validate-templates
+
+      - name: Validate every module
+        run: make validate-modules
+
+      - uses: terraform-linters/setup-tflint@6e1e0642c0289bd619021bf6b34e3c08ed1e005a # v6
+        with:
+          tflint_version: v0.62.0
+
+      - name: TFLint
+        run: make lint-tflint
+
+      - name: Checkov
+        run: make lint-checkov
+
+  security:
+    name: Security
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+
+      - uses: astral-sh/setup-uv@11f9893b081a58869d3b5fccaea48c9e9e46f990 # v8.3.2
+        with:
+          version: "0.11.8"
+          enable-cache: true
+
+      - name: Secret and misconfiguration scan
+        run: |
+          docker run --rm -v "$PWD:/repo" \
+            ghcr.io/aquasecurity/trivy:0.70.0 filesystem /repo \
+            --scanners secret --exit-code 1 --no-progress --severity HIGH,CRITICAL
+          # IaC policies inspect modules; the rendered root is validated in the Terraform job.
+          docker run --rm -v "$PWD:/repo" \
+            ghcr.io/aquasecurity/trivy:0.70.0 config /repo/modules \
+            --exit-code 1 --severity HIGH,CRITICAL
+          docker run --rm -v "$PWD:/repo" \
+            ghcr.io/aquasecurity/trivy:0.70.0 config /repo/repo-templates \
+            --misconfig-scanners dockerfile --exit-code 1 --severity HIGH,CRITICAL
+
+      - name: Dependency audit
+        run: uv run --group dev pip-audit --progress-spinner off
+
+      # Rendered, not templated: __TOKEN__ is not valid Dockerfile syntax, so the
+      # only honest thing to lint is what a team actually receives. Same hadolint
+      # version the devcontainer pins.
+      - name: Lint rendered Dockerfiles
+        run: |
+          uv sync
+          rendered=$(mktemp -d)
+          uv run python -m scaffold.new_repo render-examples "$rendered"
+          while IFS= read -r -d '' file; do
+            echo "== ${file#"$rendered/"}"
+            docker run --rm -i hadolint/hadolint:v2.14.0 hadolint - < "$file"
+          done < <(find "$rendered" -name Dockerfile -print0)

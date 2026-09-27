@@ -1,0 +1,9 @@
+apiVersion: backstage.io/v1alpha1
+kind: Component
+metadata:
+  name: developer-platform-kit
+  description: Repo scaffolding, reusable CI/CD lanes, and Terraform modules
+spec:
+  type: library
+  lifecycle: production
+  owner: platform-engineering

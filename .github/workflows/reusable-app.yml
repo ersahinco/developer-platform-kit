@@ -1,0 +1,353 @@
+name: Reusable App Delivery
+
+# The application team's lane. One file, two modes, and they never run in the
+# same run:
+#
+#   mode: build   test, build, scan, push an immutable tag
+#   mode: deploy  revise an ECS service to an already-built tag
+#
+# Review happens between the two runs. A deploy run cannot build, so what is
+# approved is an image that already exists and already passed its scan.
+
+on:
+  workflow_call:
+    inputs:
+      mode:
+        description: "build or deploy."
+        required: true
+        type: string
+      workload_name:
+        description: "Workload name. Also the ECR repository, ECS service, and task family name."
+        required: true
+        type: string
+      aws_region:
+        description: "AWS region for this delivery run."
+        required: true
+        type: string
+      environment:
+        description: "GitHub environment holding the OIDC role and the approval."
+        required: true
+        type: string
+      image_tag:
+        description: "Immutable tag. Defaults to sha-<commit>. Required for deploy."
+        required: false
+        type: string
+        default: ""
+      dockerfile:
+        description: "Dockerfile path relative to the repository root."
+        required: false
+        type: string
+        default: Dockerfile
+      build_context:
+        description: "Docker build context relative to the repository root."
+        required: false
+        type: string
+        default: "."
+      push:
+        description: "Push the scanned image. Keep false on pull requests."
+        required: false
+        type: boolean
+        default: false
+      cluster:
+        description: "ECS cluster. Required for deploy."
+        required: false
+        type: string
+        default: ""
+      container_name:
+        description: "Container in the task definition that receives the image."
+        required: false
+        type: string
+        default: app
+      health_url:
+        description: "Optional URL polled once the service reaches steady state."
+        required: false
+        type: string
+        default: ""
+      wait_minutes:
+        description: "Maximum time to observe the remote operation."
+        required: false
+        type: number
+        default: 15
+      trivy_severity:
+        description: "Vulnerability severities that block publication."
+        required: false
+        type: string
+        default: CRITICAL
+    secrets:
+      aws_role_arn:
+        required: false
+    outputs:
+      image:
+        description: "Image reference built or deployed."
+        value: ${{ jobs.build.outputs.image }}
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    name: Build & Scan
+    if: inputs.mode == 'build'
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    permissions:
+      contents: read
+      id-token: write
+      attestations: write
+    outputs:
+      image: ${{ steps.image.outputs.image }}
+
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - uses: aws-actions/configure-aws-credentials@a89a83ec143615402a01f672b6e172b7b1875000 # v6
+        if: inputs.push
+        with:
+          role-to-assume: ${{ secrets.aws_role_arn }}
+          aws-region: ${{ inputs.aws_region }}
+
+      - uses: aws-actions/amazon-ecr-login@d539f0932e70871a027e9d5a9d8fc38589180a64 # v2.1.6
+        id: login-ecr
+        if: inputs.push
+
+      - name: Build image
+        id: image
+        env:
+          REGISTRY: ${{ steps.login-ecr.outputs.registry }}
+          REPOSITORY: ${{ inputs.workload_name }}
+          REQUESTED_TAG: ${{ inputs.image_tag }}
+          DOCKERFILE: ${{ inputs.dockerfile }}
+          BUILD_CONTEXT: ${{ inputs.build_context }}
+        run: |
+          tag="${REQUESTED_TAG:-sha-${GITHUB_SHA}}"
+          if [[ ! "$tag" =~ ^sha-[0-9a-f]{40}$ ]]; then
+            echo "::error::Use an immutable sha-<40-character commit> tag; latest is rejected." >&2
+            exit 1
+          fi
+          image="${REGISTRY:-local}/${REPOSITORY}:${tag}"
+          docker build -f "$DOCKERFILE" -t "$image" "$BUILD_CONTEXT"
+          echo "image=${image}" >> "$GITHUB_OUTPUT"
+          echo "tag=${tag}" >> "$GITHUB_OUTPUT"
+
+      - name: Scan image
+        env:
+          IMAGE: ${{ steps.image.outputs.image }}
+          SEVERITY: ${{ inputs.trivy_severity }}
+        run: |
+          docker run --rm \
+            -v /var/run/docker.sock:/var/run/docker.sock \
+            -v "$HOME/.cache/trivy:/root/.cache/trivy" \
+            ghcr.io/aquasecurity/trivy:0.70.0 image \
+            --exit-code 1 --ignore-unfixed --severity "$SEVERITY" --no-progress \
+            "$IMAGE"
+
+      - name: Push image
+        if: inputs.push
+        env:
+          IMAGE: ${{ steps.image.outputs.image }}
+        run: docker push "$IMAGE"
+
+      - name: Resolve digest
+        id: digest
+        if: inputs.push
+        env:
+          IMAGE: ${{ steps.image.outputs.image }}
+        run: |
+          digest=$(docker buildx imagetools inspect "$IMAGE" \
+            --format '{{json .Manifest.Digest}}')
+          echo "digest=${digest//\"/}" >> "$GITHUB_OUTPUT"
+
+      - name: Attest provenance
+        if: inputs.push && !github.event.repository.private
+        uses: actions/attest-build-provenance@0f67c3f4856b2e3261c31976d6725780e5e4c373 # v4.1.1
+        with:
+          subject-name: ${{ steps.login-ecr.outputs.registry }}/${{ inputs.workload_name }}
+          subject-digest: ${{ steps.digest.outputs.digest }}
+          push-to-registry: true
+
+      - name: Evidence
+        if: always() && inputs.push
+        env:
+          STATUS: ${{ job.status }}
+          WORKLOAD: ${{ inputs.workload_name }}
+          IMAGE: ${{ steps.image.outputs.image }}
+          DIGEST: ${{ steps.digest.outputs.digest }}
+        run: |
+          mkdir -p /tmp/evidence
+          jq -n --arg event app_build --arg status "$STATUS" --arg workload "$WORKLOAD" \
+            --arg image "$IMAGE" --arg digest "$DIGEST" --arg commit "$GITHUB_SHA" \
+            --arg run_id "$GITHUB_RUN_ID" '$ARGS.named' > /tmp/evidence/release-event.json
+          {
+            echo "### Built ${WORKLOAD}"
+            echo ""
+            echo "- Image: ${IMAGE}"
+            echo "- Digest: ${DIGEST}"
+            echo ""
+            echo "Deploy this tag with mode=deploy after review."
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
+        if: always() && inputs.push
+        with:
+          name: evidence-build-${{ inputs.workload_name }}-${{ github.run_id }}
+          path: /tmp/evidence
+          retention-days: 30
+
+  deploy:
+    name: Deploy
+    if: inputs.mode == 'deploy'
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    environment: ${{ inputs.environment }}
+    concurrency:
+      group: deploy-${{ inputs.cluster }}-${{ inputs.workload_name }}
+      cancel-in-progress: false
+    permissions:
+      contents: read
+      id-token: write
+
+    steps:
+      - name: Check deploy inputs
+        env:
+          CLUSTER: ${{ inputs.cluster }}
+          IMAGE_TAG: ${{ inputs.image_tag }}
+        run: |
+          [[ -n "$CLUSTER" ]] || { echo "::error::mode=deploy needs cluster." >&2; exit 1; }
+          [[ -n "$IMAGE_TAG" ]] || { echo "::error::mode=deploy needs image_tag." >&2; exit 1; }
+          [[ "$IMAGE_TAG" =~ ^sha-[0-9a-f]{40}$ ]] || { echo "::error::latest is not deployable." >&2; exit 1; }
+
+      - uses: aws-actions/configure-aws-credentials@a89a83ec143615402a01f672b6e172b7b1875000 # v6
+        with:
+          role-to-assume: ${{ secrets.aws_role_arn }}
+          aws-region: ${{ inputs.aws_region }}
+
+      - uses: aws-actions/amazon-ecr-login@d539f0932e70871a027e9d5a9d8fc38589180a64 # v2.1.6
+        id: login-ecr
+
+      - name: Require the tag to exist
+        id: image
+        env:
+          REGISTRY: ${{ steps.login-ecr.outputs.registry }}
+          REPOSITORY: ${{ inputs.workload_name }}
+          IMAGE_TAG: ${{ inputs.image_tag }}
+        run: |
+          if ! digest=$(aws ecr describe-images --repository-name "$REPOSITORY" \
+            --image-ids imageTag="$IMAGE_TAG" --query 'imageDetails[0].imageDigest' --output text); then
+            echo "::error::Tag ${IMAGE_TAG} is not in ${REPOSITORY}. Build that commit first." >&2
+            exit 1
+          fi
+          echo "image=${REGISTRY}/${REPOSITORY}@${digest}" >> "$GITHUB_OUTPUT"
+
+      - name: Register revision
+        id: register
+        env:
+          CLUSTER: ${{ inputs.cluster }}
+          SERVICE: ${{ inputs.workload_name }}
+          CONTAINER: ${{ inputs.container_name }}
+          IMAGE: ${{ steps.image.outputs.image }}
+        run: |
+          current=$(aws ecs describe-services --cluster "$CLUSTER" --services "$SERVICE" \
+            --query 'services[0].taskDefinition' --output text)
+          if [[ -z "$current" || "$current" == "None" ]]; then
+            echo "::error::Service ${SERVICE} does not exist in ${CLUSTER}. Apply the infra lane first." >&2
+            exit 1
+          fi
+          echo "previous=${current}" >> "$GITHUB_OUTPUT"
+
+          aws ecs describe-task-definition --task-definition "$current" \
+            --query taskDefinition > current.json
+          if ! jq -e --arg n "$CONTAINER" 'any(.containerDefinitions[]; .name == $n)' current.json > /dev/null; then
+            echo "::error::Container ${CONTAINER} is not in ${current}. Check container_name." >&2
+            exit 1
+          fi
+          jq --arg n "$CONTAINER" --arg i "$IMAGE" '
+            .containerDefinitions = [.containerDefinitions[] | if .name == $n then .image = $i else . end]
+            | del(.taskDefinitionArn, .revision, .status, .requiresAttributes,
+                  .compatibilities, .registeredAt, .registeredBy, .deregisteredAt)
+          ' current.json > next.json
+          arn=$(aws ecs register-task-definition --cli-input-json file://next.json \
+            --query 'taskDefinition.taskDefinitionArn' --output text)
+          echo "task_definition=${arn}" >> "$GITHUB_OUTPUT"
+
+      - name: Roll out
+        id: rollout
+        env:
+          CLUSTER: ${{ inputs.cluster }}
+          SERVICE: ${{ inputs.workload_name }}
+          TASK_DEFINITION: ${{ steps.register.outputs.task_definition }}
+          WAIT_MINUTES: ${{ inputs.wait_minutes }}
+        run: |
+          aws ecs update-service --cluster "$CLUSTER" --service "$SERVICE" \
+            --task-definition "$TASK_DEFINITION" > /dev/null
+          deadline=$(( SECONDS + WAIT_MINUTES * 60 ))
+          while (( SECONDS < deadline )); do
+            read -r running rollout <<< "$(aws ecs describe-services --cluster "$CLUSTER" \
+              --services "$SERVICE" \
+              --query 'services[0].[runningCount,deployments[0].rolloutState]' --output text)"
+            echo "running=${running} rollout=${rollout}"
+            deployed=$(aws ecs describe-services --cluster "$CLUSTER" --services "$SERVICE" \
+              --query 'services[0].taskDefinition' --output text)
+            if [[ "$rollout" == "COMPLETED" ]]; then
+              [[ "$deployed" == "$TASK_DEFINITION" ]] && exit 0
+              echo "::error::ECS rolled back to ${deployed}; the requested revision did not deploy." >&2
+              exit 1
+            fi
+            if [[ "$rollout" == "FAILED" ]]; then
+              echo "::error::Rollout failed: the new tasks did not pass their health checks." >&2
+              exit 1
+            fi
+            sleep 15
+          done
+          echo "::error::Rollout still in progress after ${WAIT_MINUTES} minutes. Not confirmed failed; check the service before retrying." >&2
+          exit 1
+
+      - name: Verify health endpoint
+        if: inputs.health_url != ''
+        env:
+          HEALTH_URL: ${{ inputs.health_url }}
+        run: |
+          curl --retry 12 --retry-delay 5 --retry-connrefused --fail --show-error --silent \
+            "$HEALTH_URL" > /dev/null
+
+      - name: Roll back
+        if: failure() && steps.register.outcome == 'success'
+        env:
+          CLUSTER: ${{ inputs.cluster }}
+          SERVICE: ${{ inputs.workload_name }}
+          PREVIOUS: ${{ steps.register.outputs.previous }}
+        run: |
+          echo "Rolling ${SERVICE} back to ${PREVIOUS}."
+          aws ecs update-service --cluster "$CLUSTER" --service "$SERVICE" \
+            --task-definition "$PREVIOUS" > /dev/null
+          aws ecs wait services-stable --cluster "$CLUSTER" --services "$SERVICE"
+
+      - name: Evidence
+        if: always()
+        env:
+          STATUS: ${{ job.status }}
+          WORKLOAD: ${{ inputs.workload_name }}
+          IMAGE: ${{ steps.image.outputs.image }}
+          PREVIOUS: ${{ steps.register.outputs.previous }}
+          DEPLOYED: ${{ steps.register.outputs.task_definition }}
+        run: |
+          mkdir -p /tmp/evidence
+          jq -n --arg event app_deploy --arg status "$STATUS" --arg workload "$WORKLOAD" \
+            --arg image "$IMAGE" --arg previous "$PREVIOUS" --arg deployed "$DEPLOYED" \
+            --arg commit "$GITHUB_SHA" --arg run_id "$GITHUB_RUN_ID" \
+            '$ARGS.named' > /tmp/evidence/release-event.json
+          {
+            echo "### Deploy ${STATUS}: ${WORKLOAD}"
+            echo ""
+            echo "- Image: ${IMAGE}"
+            echo "- Previous revision: ${PREVIOUS}"
+            echo "- Deployed revision: ${DEPLOYED}"
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
+        if: always()
+        with:
+          name: evidence-deploy-${{ inputs.workload_name }}-${{ github.run_id }}
+          path: /tmp/evidence
+          retention-days: 30

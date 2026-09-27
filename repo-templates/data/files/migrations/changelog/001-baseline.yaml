@@ -1,0 +1,25 @@
+databaseChangeLog:
+  # Phase: expand. Additive only, so currently deployed code keeps working.
+  - changeSet:
+      id: 001-baseline
+      author: __OWNER__
+      comment: Baseline table for __PIPELINE_NAME__. Replace with the real first change.
+      changes:
+        - createTable:
+            tableName: example
+            columns:
+              - column:
+                  name: id
+                  type: bigint
+                  constraints:
+                    primaryKey: true
+                    nullable: false
+              - column:
+                  name: ingested_at
+                  type: timestamptz
+                  defaultValueComputed: now()
+                  constraints:
+                    nullable: false
+      rollback:
+        - dropTable:
+            tableName: example

@@ -1,0 +1,34 @@
+{
+  "checks": [
+    {
+      "name": "curated-has-rows",
+      "dataset": "curated",
+      "kind": "row_count_min",
+      "value": 1,
+      "blocking": true
+    },
+    {
+      "name": "id-is-unique",
+      "dataset": "curated",
+      "kind": "unique",
+      "column": "id",
+      "blocking": true
+    },
+    {
+      "name": "id-is-never-null",
+      "dataset": "curated",
+      "kind": "null_rate_max",
+      "column": "id",
+      "value": 0,
+      "blocking": true
+    },
+    {
+      "name": "ingested-recently",
+      "dataset": "curated",
+      "kind": "freshness_max_hours",
+      "column": "ingested_at",
+      "value": 24,
+      "blocking": false
+    }
+  ]
+}

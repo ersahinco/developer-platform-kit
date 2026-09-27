@@ -1,0 +1,32 @@
+[project]
+name = "developer-platform-kit"
+version = "0.1.0"
+description = "Developer toolkit: repo scaffolding, reusable CI/CD lanes, and Terraform modules."
+requires-python = ">=3.13"
+dependencies = []
+
+[dependency-groups]
+dev = [
+    "pip-audit>=2.7.0",
+    "prek>=0.4.8",
+    "pyright>=1.1.410",
+    "pytest>=9.0.3",
+    "pyyaml>=6.0.3",
+    "ruff>=0.15.22",
+]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+# The scaffolder is imported by the tests from the repo root, not installed.
+pythonpath = ["."]
+
+[tool.ruff]
+line-length = 100
+# Rendered templates are not this project's source. They are checked by the
+# tests that render them.
+extend-exclude = ["repo-templates"]
+
+[tool.pyright]
+include = ["scaffold", "tests"]
+pythonVersion = "3.13"
+typeCheckingMode = "standard"

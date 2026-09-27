@@ -1,0 +1,78 @@
+name: Delivery
+
+# Pull requests and main test, build, and scan without cloud setup. Set the
+# PUBLISH_IMAGES repository variable to true once ECR and OIDC are ready.
+# Deploying a published tag remains a separate manual run.
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+  workflow_dispatch:
+    inputs:
+      image_tag:
+        description: "Tag to deploy, e.g. sha-<commit>."
+        required: true
+        type: string
+
+permissions:
+  contents: read
+  id-token: write
+  actions: read
+  attestations: write
+  pull-requests: write
+
+jobs:
+  test:
+    name: Test
+    if: github.event_name != 'workflow_dispatch'
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - uses: astral-sh/setup-uv@11f9893b081a58869d3b5fccaea48c9e9e46f990 # v8.3.2
+        with:
+          enable-cache: true
+
+      - name: Install
+        run: uv sync --frozen
+
+      - name: Lint
+        run: |
+          uv run ruff format --check .
+          uv run ruff check .
+
+      - name: Test
+        run: uv run pytest -v
+
+  build:
+    name: Build
+    needs: test
+    if: github.event_name != 'workflow_dispatch'
+    uses: __TOOLKIT_REPOSITORY__/.github/workflows/reusable-app.yml@__TOOLKIT_REF__
+    with:
+      mode: build
+      workload_name: __WORKLOAD_NAME__
+      aws_region: __AWS_REGION__
+      environment: aws
+      # Publication requires both a main push and explicit repository setup.
+      push: ${{ github.event_name == 'push' && vars.PUBLISH_IMAGES == 'true' }}
+    secrets:
+      aws_role_arn: ${{ secrets.AWS_ROLE_ARN }}
+
+  deploy:
+    name: Deploy
+    if: github.event_name == 'workflow_dispatch'
+    uses: __TOOLKIT_REPOSITORY__/.github/workflows/reusable-app.yml@__TOOLKIT_REF__
+    with:
+      mode: deploy
+      workload_name: __WORKLOAD_NAME__
+      aws_region: __AWS_REGION__
+      environment: aws
+      cluster: ${{ vars.ECS_CLUSTER }}
+      image_tag: ${{ inputs.image_tag }}
+    secrets:
+      aws_role_arn: ${{ secrets.AWS_ROLE_ARN }}

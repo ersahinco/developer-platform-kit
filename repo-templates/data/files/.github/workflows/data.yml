@@ -1,0 +1,163 @@
+name: Data
+
+# One workflow for the whole repo. Pull requests prove the pipeline code and the
+# changelog. Manual runs either migrate the schema or run the pipeline.
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+  workflow_dispatch:
+    inputs:
+      mode:
+        description: "migrate applies schema changes; pipeline runs the Spark job."
+        required: true
+        default: migrate
+        type: choice
+        options: [migrate, pipeline]
+      image_tag:
+        description: "Published migration tag: sha-<40-character commit>."
+        type: string
+        required: false
+      liquibase_command:
+        description: "For migrate. Read updateSQL before running update."
+        required: false
+        default: updateSQL
+        type: choice
+        options: [updateSQL, status, history, update, rollbackCount]
+      source:
+        description: "For pipeline. Input location."
+        required: false
+        type: string
+      target:
+        description: "For pipeline. Curated output location."
+        required: false
+        type: string
+      dry_run:
+        description: "For pipeline. Run every stage except the load."
+        required: false
+        default: true
+        type: boolean
+      confirm:
+        description: "Type run to execute."
+        required: true
+        type: string
+
+permissions:
+  contents: read
+  id-token: write
+  actions: read
+  attestations: write
+  pull-requests: write
+
+jobs:
+  verify:
+    name: Verify
+    if: github.event_name != 'workflow_dispatch'
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    services:
+      postgres:
+        image: postgres:18.3
+        env:
+          POSTGRES_DB: verify
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+        ports: ["5432:5432"]
+        options: >-
+          --health-cmd "pg_isready -U postgres -d verify"
+          --health-interval 5s --health-timeout 5s --health-retries 10
+
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - uses: astral-sh/setup-uv@11f9893b081a58869d3b5fccaea48c9e9e46f990 # v8.3.2
+        with:
+          enable-cache: true
+
+      - name: Install
+        run: uv sync --frozen
+
+      - name: Lint
+        run: |
+          uv run ruff format --check .
+          uv run ruff check .
+
+      - name: Test the check engine
+        run: uv run pytest -v
+
+      # A changelog that only parses is not proven. Applying it to an empty
+      # database, then rolling one changeset back, is the cheap version of proof.
+      - name: Apply the changelog to a throwaway database
+        run: |
+          docker build -t migrations:verify migrations/
+          for command in update rollbackCount; do
+            args=("$command")
+            [[ "$command" == "rollbackCount" ]] && args+=("--count=1")
+            docker run --rm --network host \
+              -e LIQUIBASE_COMMAND_URL=jdbc:postgresql://localhost:5432/verify \
+              -e LIQUIBASE_COMMAND_USERNAME=postgres \
+              -e LIQUIBASE_COMMAND_PASSWORD=postgres \
+              migrations:verify "${args[@]}"
+          done
+
+  # Reuses the app lane's build mode: one build implementation, whatever the
+  # image is for. Publishing only follows a green verify.
+  migration_image:
+    name: Migration Image
+    needs: verify
+    if: github.event_name == 'push'
+    uses: __TOOLKIT_REPOSITORY__/.github/workflows/reusable-app.yml@__TOOLKIT_REF__
+    with:
+      mode: build
+      workload_name: __PIPELINE_NAME__-migrations
+      aws_region: __AWS_REGION__
+      environment: aws
+      dockerfile: migrations/Dockerfile
+      build_context: migrations
+      push: ${{ vars.PUBLISH_IMAGES == 'true' }}
+    secrets:
+      aws_role_arn: ${{ secrets.AWS_ROLE_ARN }}
+
+  migrate:
+    name: Migrate
+    if: github.event_name == 'workflow_dispatch' && inputs.mode == 'migrate'
+    uses: __TOOLKIT_REPOSITORY__/.github/workflows/reusable-data.yml@__TOOLKIT_REF__
+    with:
+      mode: migrate
+      job_name: __PIPELINE_NAME__
+      aws_region: __AWS_REGION__
+      environment: aws
+      confirm: ${{ inputs.confirm }}
+      cluster: ${{ vars.ECS_CLUSTER }}
+      task_definition: __PIPELINE_NAME__-migrations
+      container_name: liquibase
+      subnet_ids: ${{ vars.PRIVATE_SUBNET_IDS }}
+      security_group_ids: ${{ vars.MIGRATION_SECURITY_GROUP_IDS }}
+      log_group: /ecs/__PIPELINE_NAME__-migrations
+      liquibase_command: ${{ inputs.liquibase_command }}
+      image_tag: ${{ inputs.image_tag }}
+    secrets:
+      aws_role_arn: ${{ secrets.AWS_ROLE_ARN }}
+
+  pipeline:
+    name: Pipeline
+    if: github.event_name == 'workflow_dispatch' && inputs.mode == 'pipeline'
+    uses: __TOOLKIT_REPOSITORY__/.github/workflows/reusable-data.yml@__TOOLKIT_REF__
+    with:
+      mode: pipeline
+      job_name: __PIPELINE_NAME__
+      aws_region: __AWS_REGION__
+      environment: aws
+      confirm: ${{ inputs.confirm }}
+      emr_application_id: ${{ vars.EMR_APPLICATION_ID }}
+      code_bucket: ${{ vars.DATA_CODE_BUCKET }}
+      job_arguments: >-
+        ${{ format('["--source",{0},"--target",{1}{2}]',
+        toJSON(inputs.source), toJSON(inputs.target),
+        inputs.dry_run && ',"--dry-run"' || '') }}
+    secrets:
+      emr_job_role_arn: ${{ secrets.EMR_JOB_ROLE_ARN }}
+      aws_role_arn: ${{ secrets.AWS_ROLE_ARN }}

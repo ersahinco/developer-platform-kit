@@ -1,0 +1,11 @@
+apiVersion: backstage.io/v1alpha1
+kind: Component
+metadata:
+  name: __WORKLOAD_NAME__
+  description: __WORKLOAD_NAME__
+  annotations:
+    backstage.io/source-location: url:__REPOSITORY_BASE_URL__/__REPOSITORY__
+spec:
+  type: service
+  lifecycle: production
+  owner: __OWNER__

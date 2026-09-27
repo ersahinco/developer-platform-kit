@@ -1,0 +1,14 @@
+title = "developer-platform-kit Gitleaks configuration"
+
+[extend]
+useDefault = true
+
+[[allowlists]]
+description = "Terraform provider cache pulled by validate and tflint runs"
+paths = [
+  '''^modules/.*/\.terraform/''',
+]
+
+[[allowlists]]
+description = "Ignored local lab credentials, generated packages, and upstream checkout"
+paths = ['''(^|/)local/\.local/''']

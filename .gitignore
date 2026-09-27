@@ -1,0 +1,39 @@
+# Python
+.venv/
+__pycache__/
+.pytest_cache/
+.ruff_cache/
+*.egg-info/
+*.py[cod]
+
+# Environment / secrets
+.env
+.env.*
+local/.local/
+aws_credentials
+.aws/credentials
+.aws/config
+
+# Terraform working files. Modules here are never applied, so any state file in
+# this repo is a mistake worth catching.
+.terraform/
+.terraform.lock.hcl
+*.tfstate
+*.tfstate.*
+*.tfplan
+tfplan.binary
+plan_output.txt
+crash.log
+override.tf
+override.tf.json
+*.tfvars
+# Template content is tracked: it is the product, not local configuration.
+!repo-templates/**/*.tfvars
+
+# IDE / OS
+.codex/
+.vscode/
+.idea/
+.DS_Store
+*.swp
+*~

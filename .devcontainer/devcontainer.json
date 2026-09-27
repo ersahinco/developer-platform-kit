@@ -1,0 +1,37 @@
+{
+  "name": "developer-platform-kit",
+  "build": {
+    "dockerfile": "Dockerfile",
+    "context": "."
+  },
+  "features": {
+    "ghcr.io/devcontainers/features/docker-outside-of-docker:1.9.1": {
+      "version": "29.4.1",
+      "mobyBuildxVersion": "0.33.0",
+      "dockerDashComposeVersion": "v2"
+    },
+    "ghcr.io/devcontainers/features/terraform:1.4.2": {
+      "version": "1.15.8",
+      "tflint": "none",
+      "terragrunt": "none"
+    }
+  },
+  "customizations": {
+    "vscode": {
+      "extensions": [
+        "charliermarsh.ruff",
+        "github.vscode-github-actions",
+        "hashicorp.terraform",
+        "ms-python.python",
+        "ms-python.vscode-pylance"
+      ],
+      "settings": {
+        "python.defaultInterpreterPath": "${workspaceFolder}/.venv/bin/python",
+        "python.analysis.typeCheckingMode": "standard",
+        "ruff.nativeServer": "on"
+      }
+    }
+  },
+  "postCreateCommand": "uv sync && uv run prek install --hook-type pre-commit --hook-type pre-push",
+  "remoteUser": "vscode"
+}

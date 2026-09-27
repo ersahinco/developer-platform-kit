@@ -1,0 +1,7 @@
+# Master changelog for __PIPELINE_NAME__.
+#
+# Append only. A changeset that has run anywhere is immutable: editing it breaks
+# the checksum, which is Liquibase telling you the truth.
+databaseChangeLog:
+  - include:
+      file: changelog/001-baseline.yaml

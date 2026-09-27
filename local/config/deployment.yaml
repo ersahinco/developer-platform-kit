@@ -1,0 +1,74 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: backstage
+  namespace: backstage
+spec:
+  template:
+    spec:
+      automountServiceAccountToken: false
+      containers:
+        - name: backstage
+          command:
+            - node
+            - packages/backend
+            - --config
+            - config/app-config.yaml
+            - --config
+            - /app/overrides/app-config.yaml
+            - --config
+            - /app/integrations/integrations.json
+          readinessProbe:
+            httpGet:
+              path: /.backstage/health/v1/readiness
+              port: 7007
+            periodSeconds: 3
+          env:
+            - name: NODE_TLS_REJECT_UNAUTHORIZED
+              $patch: delete
+            - name: NODE_EXTRA_CA_CERTS
+              value: /app/trust/ca.crt
+            - name: LOG_LEVEL
+              value: info
+          envFrom:
+            - secretRef:
+                name: platform-session
+            - secretRef:
+                name: backstage-env-vars
+            - secretRef:
+                name: gitea-credentials
+            - secretRef:
+                name: argocd-credentials
+          volumeMounts:
+            - mountPath: /app/overrides
+              name: platform-config
+              readOnly: true
+            - mountPath: /app/trust
+              name: platform-ca
+              readOnly: true
+            - mountPath: /app/integrations
+              name: platform-integrations
+              readOnly: true
+      volumes:
+        - name: backstage-config
+          projected:
+            sources:
+              - configMap:
+                  name: backstage-config
+                  items:
+                    - key: app-config.yaml
+                      path: app-config.yaml
+              - configMap:
+                  name: platform-config
+                  items:
+                    - key: k8s-config.yaml
+                      path: k8s-config.yaml
+        - name: platform-config
+          configMap:
+            name: platform-config
+        - name: platform-ca
+          configMap:
+            name: platform-ca
+        - name: platform-integrations
+          secret:
+            secretName: platform-integrations

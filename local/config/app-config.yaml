@@ -1,0 +1,14 @@
+# Loaded after CNOE's config through Backstage's native --config option.
+auth:
+  session:
+    secret: ${SESSION_SECRET}
+permission:
+  enabled: true
+catalog:
+  # Local template edits are picked up by the native catalog processing loop.
+  processingInterval: { seconds: 30 }
+  locations:
+    - type: url
+      target: https://cnoe.localtest.me:8443/gitea/giteaAdmin/idpbuilder-toolkit-backstage-templates-entities/raw/branch/main/catalog-info.yaml
+      rules:
+        - allow: [Component, System, API, Resource, Location, Template, User, Group]

@@ -1,0 +1,59 @@
+name: Infra
+
+# One workflow. Pull requests and pushes plan. A manual run applies a plan that
+# already exists and was already read, named by its run ID.
+
+on:
+  pull_request:
+    paths: ["**.tf", "**.tfvars", ".github/workflows/*.yml"]
+  push:
+    branches: [main]
+    paths: ["**.tf", "**.tfvars", ".github/workflows/*.yml"]
+  workflow_dispatch:
+    inputs:
+      plan_run_id:
+        description: "Run ID of the plan to apply."
+        required: true
+        type: string
+      confirm:
+        description: "Type apply to confirm."
+        required: true
+        type: string
+
+permissions:
+  contents: read
+  id-token: write
+  actions: read
+  attestations: write
+  pull-requests: write
+
+jobs:
+  plan:
+    name: Plan
+    if: github.event_name != 'workflow_dispatch'
+    uses: __TOOLKIT_REPOSITORY__/.github/workflows/reusable-infra.yml@__TOOLKIT_REF__
+    with:
+      mode: plan
+      root_dir: "."
+      aws_region: __AWS_REGION__
+      environment: aws
+      state_bucket: __STATE_BUCKET__
+      state_key: __STACK_NAME__/terraform.tfstate
+    secrets:
+      aws_role_arn: ${{ secrets.AWS_ROLE_ARN }}
+
+  apply:
+    name: Apply
+    if: github.event_name == 'workflow_dispatch'
+    uses: __TOOLKIT_REPOSITORY__/.github/workflows/reusable-infra.yml@__TOOLKIT_REF__
+    with:
+      mode: apply
+      root_dir: "."
+      aws_region: __AWS_REGION__
+      environment: aws
+      state_bucket: __STATE_BUCKET__
+      state_key: __STACK_NAME__/terraform.tfstate
+      plan_run_id: ${{ inputs.plan_run_id }}
+      confirm: ${{ inputs.confirm }}
+    secrets:
+      aws_role_arn: ${{ secrets.AWS_ROLE_ARN }}
