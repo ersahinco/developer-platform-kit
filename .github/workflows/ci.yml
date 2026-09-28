@@ -36,6 +36,9 @@ jobs:
       - name: Render and check every template
         run: make test
 
+      - name: Verify the distributable CLI
+        run: make cli-check
+
       - name: Test generated repositories
         run: |
           rendered=$(mktemp -d)

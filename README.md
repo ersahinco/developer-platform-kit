@@ -18,6 +18,12 @@ AWS delivery still require acceptance testing in that environment.
 [Shared hosting](#host-a-shared-portal) · [Local lab](#local-cnoe-lab) ·
 [Contributing](#contribute)
 
+| Use | Maintainer entry point | Developer entry point |
+|---|---|---|
+| CLI only | `make cli-build` produces a wheel for your artifact store | Install the wheel; run `dpk` from any directory |
+| Local portal | `make portal-up`, then `make portal-credentials` | Open the local Backstage URL |
+| Shared portal | `make portal-image IMAGE=registry/name:version`, then deploy through your existing runtime | Open the team's portal URL and sign in with Entra |
+
 ## Start a repository
 
 Clone this repository and run from its root with Python 3.13+. Rendering uses
@@ -39,6 +45,27 @@ python3 -m scaffold.new_repo render app ../orders-api \
 writing. Pin a published full commit SHA or immutable release tag; floating
 branches are rejected. Review the generated README, then publish with Git/GitHub.
 The CLI creates files; repository creation and catalog registration are separate.
+
+To install the commands from a checkout, run `make cli-install` (requires
+[uv](https://docs.astral.sh/uv/guides/tools/)). Then use `dpk list`, `dpk describe app`,
+and `dpk render` with the same arguments above, from any directory.
+`dpk-backstage` exports portal templates. Run `uv tool update-shell` if the commands
+are not on your PATH. Re-run `make cli-install` after updating the checkout.
+
+For enterprise distribution, run `make cli-build` and share the versioned wheel
+from `dist/` through the client's artifact store. Developers install that file:
+
+```bash
+uv tool install /path/to/developer_platform_kit-0.1.0-py3-none-any.whl
+dpk list
+```
+
+The wheel bundles all three starters and has no runtime dependencies beyond
+Python 3.13+. No portal, source checkout, or cloud credentials are needed to render.
+Use `uv tool install --reinstall /path/to/new-version.whl` to replace an installed
+version. Maintainers increment `project.version` before distributing changed
+artifacts; retain old versions for rollback. No package registry publication is
+configured by this repository.
 
 | Starter | Includes | Delivery modes |
 |---|---|---|
@@ -129,8 +156,19 @@ accounts and roles; employee access alone does not configure CI access.
 
 ## Host a shared portal
 
-Use an existing Backstage installation, or build `platform/backstage` and deploy
-the image to the client's container runtime. It listens on port 7007 and starts
+Use an existing Backstage installation, or build the shared portal image:
+
+```bash
+make portal-image IMAGE=registry.example.com/platform/backstage:0.1.0
+```
+
+This builds locally without starting Kind or configuring the local lab. Build for
+the target runtime's CPU architecture. After resolving the upstream licensing
+boundary below, publish to the client's registry and deploy by digest through its
+existing delivery process. Export and publish templates with `dpk-backstage`,
+using fixed client defaults and `--github-settings` as described above.
+
+The image listens on port 7007 and starts
 with `node packages/backend --config platform/entra.yaml`. The image includes
 native [Microsoft sign-in](https://backstage.io/docs/auth/microsoft/provider/),
 [Graph directory sync](https://backstage.io/docs/integrations/azure/org/), and
@@ -341,8 +379,10 @@ make check                  # Python, workflows, Terraform, TFLint, Checkov, Doc
 make secret-scan
 ```
 
-CI also tests generated Python repositories with their locks and builds/tests the
-Backstage image. For platform changes, run `make portal-check`; changes affecting
+CI also installs the built CLI away from the checkout and compares every rendered
+file and Backstage export with the source version (`make cli-check`). It tests
+generated Python repositories with their locks and builds/tests the Backstage
+image. For platform changes, run `make portal-check`; changes affecting
 sign-in or publishing also need `portal-up`, `portal-verify`, and `portal-smoke`
 with the local Gitea profile. Update upstream pins and patches together.
 

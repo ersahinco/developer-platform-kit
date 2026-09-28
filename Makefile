@@ -21,6 +21,18 @@ templates: ## List available repo templates
 describe: ## Show one template's variables: make describe TEMPLATE=app
 	python3 -m scaffold.new_repo describe $(TEMPLATE)
 
+.PHONY: cli-install cli-build cli-check
+cli-install: ## Install dpk and dpk-backstage as isolated user tools (requires uv)
+	uv tool install --reinstall .
+
+cli-build: ## Build the CLI wheel and source archive in dist/ (requires uv)
+	uv build
+
+cli-check: ## Build/install the CLI outside this checkout and compare all outputs
+	@set -euo pipefail; built=$$(mktemp -d); trap 'rm -rf "$$built"' EXIT; \
+	uv build --out-dir "$$built"; \
+	uv run python -m tests.validate_package "$$built"
+
 .PHONY: portal
 portal: ## Show local portal URLs and setup commands
 	@printf '%s\n' 'Backstage: https://cnoe.localtest.me:8443' \
@@ -34,6 +46,13 @@ portal: ## Show local portal URLs and setup commands
 portal-%: export KUBECONFIG := $(CURDIR)/platform/.local/kubeconfig
 portal-prepare: ## Assemble pinned CNOE packages and export templates
 	python3 platform/prepare.py
+
+.PHONY: portal-image
+portal-image: export PORTAL_IMAGE = $(IMAGE)
+portal-image: ## Build the shared Entra portal image: IMAGE=registry/name:version
+	@[[ "$$PORTAL_IMAGE" =~ :[A-Za-z0-9_][A-Za-z0-9_.-]*$$ && "$$PORTAL_IMAGE" != *:latest ]] || \
+	  { echo 'Set IMAGE=registry/name:version; latest is not allowed'; exit 2; }
+	docker build --provenance=false --tag "$$PORTAL_IMAGE" platform/backstage
 
 portal-check: portal-prepare ## Validate CNOE overlays and test the Backstage image without deploying
 	docker build --provenance=false --iidfile platform/.local/check-image-id platform/backstage
@@ -141,7 +160,7 @@ test: ## Render every template and check the output
 	uv run python -m pytest tests/ -v
 
 .PHONY: check
-check: lint test validate-modules validate-templates lint-tflint lint-checkov lint-dockerfiles ## What CI runs
+check: lint test cli-check validate-modules validate-templates lint-tflint lint-checkov lint-dockerfiles ## What CI runs
 
 .PHONY: validate-templates
 validate-templates: ## Validate the rendered infra root against local modules

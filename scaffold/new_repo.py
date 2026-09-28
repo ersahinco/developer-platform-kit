@@ -28,7 +28,9 @@ import sys
 from dataclasses import dataclass
 from pathlib import Path
 
-TEMPLATE_ROOT = Path(__file__).resolve().parent.parent / "repo-templates"
+TEMPLATE_ROOT = Path(__file__).resolve().parent / "repo-templates"
+if not TEMPLATE_ROOT.is_dir():
+    TEMPLATE_ROOT = Path(__file__).resolve().parent.parent / "repo-templates"
 TOKEN_PATTERN = re.compile(r"__([A-Z][A-Z0-9_]*?)__")
 
 # Binary or vendored paths are copied byte for byte, never substituted.
@@ -241,7 +243,10 @@ def parse_set(pairs: list[str]) -> dict[str, str]:
 
 
 def main(argv: list[str] | None = None) -> int:
-    parser = argparse.ArgumentParser(prog="scaffold", description=__doc__)
+    parser = argparse.ArgumentParser(
+        prog="dpk",
+        description="Create app, infrastructure, and data repositories from maintained starters.",
+    )
     commands = parser.add_subparsers(dest="command", required=True)
 
     commands.add_parser("list", help="List available templates.")

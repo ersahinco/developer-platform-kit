@@ -1,3 +1,7 @@
+[build-system]
+requires = ["hatchling>=1.27,<2"]
+build-backend = "hatchling.build"
+
 [project]
 name = "developer-platform-kit"
 version = "0.1.0"
@@ -6,6 +10,22 @@ license = "MIT"
 license-files = ["LICENSE"]
 requires-python = ">=3.13"
 dependencies = []
+
+[project.scripts]
+dpk = "scaffold.new_repo:main"
+dpk-backstage = "scaffold.backstage:main"
+
+[tool.hatch.build]
+dev-mode-dirs = ["."]
+
+[tool.hatch.build.targets.wheel]
+only-include = ["scaffold", "repo-templates"]
+
+[tool.hatch.build.targets.wheel.sources]
+"repo-templates" = "scaffold/repo-templates"
+
+[tool.hatch.build.targets.sdist]
+only-include = ["scaffold", "repo-templates", "README.md", "LICENSE", ".gitignore"]
 
 [dependency-groups]
 dev = [
@@ -19,7 +39,7 @@ dev = [
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
-# The scaffolder is imported by the tests from the repo root, not installed.
+# Unit tests exercise the checkout; cli-check also tests an isolated wheel install.
 pythonpath = ["."]
 
 [tool.ruff]
