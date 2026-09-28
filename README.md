@@ -351,3 +351,10 @@ configuration; custom code needs a verified gap and a current consumer. Modules
 need callers in a template. Add tests for behavior changes, keep user documentation
 in this README and generated READMEs, and follow [AGENTS.md](AGENTS.md) for editing
 rules. Never commit `platform/.local/`, generated packages, or credentials.
+
+## License
+
+Original code is licensed under [MIT](LICENSE). Generated starters retain that
+license in `NOTICE`; teams choose the terms for their own additions. Upstream
+dependencies retain their own terms, including the CNOE image redistribution
+limitation described above.

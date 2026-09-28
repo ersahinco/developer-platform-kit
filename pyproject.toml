@@ -2,6 +2,8 @@
 name = "developer-platform-kit"
 version = "0.1.0"
 description = "Developer toolkit: repo scaffolding, reusable CI/CD lanes, and Terraform modules."
+license = "MIT"
+license-files = ["LICENSE"]
 requires-python = ">=3.13"
 dependencies = []
 
