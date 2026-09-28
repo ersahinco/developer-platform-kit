@@ -27,8 +27,3 @@ output "log_group_name" {
   description = "CloudWatch log group receiving job output."
   value       = aws_cloudwatch_log_group.this.name
 }
-
-output "schedule_arn" {
-  description = "Schedule ARN, or null for an operator job."
-  value       = try(aws_scheduler_schedule.this[0].arn, null)
-}

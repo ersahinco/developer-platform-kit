@@ -3,11 +3,6 @@ variable "name" {
   type        = string
 }
 
-variable "cluster_id" {
-  description = "ECS cluster ARN the job runs in."
-  type        = string
-}
-
 variable "image" {
   description = "Initial image. The task lane may override it per run."
   type        = string
@@ -58,35 +53,6 @@ variable "secrets" {
 variable "vpc_id" {
   description = "VPC hosting the task security group."
   type        = string
-}
-
-variable "subnet_ids" {
-  description = "Private subnets for the task."
-  type        = list(string)
-}
-
-variable "schedule_expression" {
-  description = "EventBridge Scheduler expression, e.g. \"cron(0 2 * * ? *)\". Null makes this an operator job."
-  type        = string
-  default     = null
-}
-
-variable "schedule_timezone" {
-  description = "Timezone for the schedule expression."
-  type        = string
-  default     = "UTC"
-}
-
-variable "schedule_enabled" {
-  description = "Whether the schedule fires. Disable to pause without deleting."
-  type        = bool
-  default     = true
-}
-
-variable "schedule_retry_attempts" {
-  description = "Retries when the scheduler cannot start the task. Not a retry of a failed run."
-  type        = number
-  default     = 0
 }
 
 variable "task_policy_json" {

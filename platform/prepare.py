@@ -2,7 +2,9 @@
 
 import hashlib
 import json
+import os
 import re
+import shlex
 import shutil
 import subprocess
 import sys
@@ -12,11 +14,23 @@ from image import IMAGE
 
 ROOT = Path(__file__).resolve().parent
 TOOLKIT = ROOT.parent
+sys.path.insert(0, str(TOOLKIT))
 STATE = ROOT / ".local"
 STACKS_REF = "32160ecb5942b6d0199b1cef039cc3457d2b1100"
 TOOLKIT_REF = "81009fac4cb1a77a1800efdf249af3bab3d1aae3"
 BASE_URL = "https://cnoe.localtest.me:8443/gitea"
 PACKAGES = ("external-secrets", "keycloak", "backstage", "backstage-templates")
+
+
+def template_values():
+    from scaffold.new_repo import parse_set
+
+    return {
+        "OWNER": "platform-engineering",
+        "AWS_REGION": "eu-central-1",
+        "TOOLKIT_REPOSITORY": "ersahinco/developer-platform-kit",
+        "TOOLKIT_REF": TOOLKIT_REF,
+    } | parse_set(shlex.split(os.environ.get("PORTAL_SET", "")))
 
 
 def main():
@@ -40,9 +54,9 @@ def main():
         shutil.copyfile(source.with_suffix(".yaml"), (target / package).with_suffix(".yaml"))
     entities = target / "backstage-templates/entities"
     shutil.rmtree(entities)
-    sys.path.insert(0, str(TOOLKIT))
     from scaffold.backstage import export
 
+    values = template_values()
     owner_path = STATE / "github-owner"
     owner = owner_path.read_text().strip() if owner_path.exists() else "platform"
     github = owner_path.exists()
@@ -55,12 +69,7 @@ def main():
         provider="github" if github else "gitea",
         base_url="https://github.com" if github else BASE_URL,
         allowed_owners=(owner,),
-        fixed_values={
-            "OWNER": "platform-engineering",
-            "AWS_REGION": "eu-central-1",
-            "TOOLKIT_REPOSITORY": "ersahinco/developer-platform-kit",
-            "TOOLKIT_REF": TOOLKIT_REF,
-        },
+        fixed_values=values,
         github_settings=(
             json.loads((STATE / "github-settings.json").read_text())
             if (STATE / "github-settings.json").exists()
@@ -69,11 +78,11 @@ def main():
     )
     (entities / "organization").mkdir()
     (entities / "organization/platform.yaml").write_text(
-        """
+        f"""
 apiVersion: backstage.io/v1alpha1
 kind: Group
 metadata:
-  name: platform-engineering
+  name: {values["OWNER"]}
 spec:
   type: team
   children: []

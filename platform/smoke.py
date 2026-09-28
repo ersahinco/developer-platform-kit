@@ -13,7 +13,7 @@ from urllib.parse import urlencode
 from urllib.request import Request, urlopen
 
 from bootstrap import PORTAL, context, login, request, secret
-from prepare import BASE_URL, STATE, TOOLKIT, TOOLKIT_REF
+from prepare import BASE_URL, STATE, TOOLKIT
 
 
 def main():
@@ -40,20 +40,27 @@ def main():
     suffix = uuid.uuid4().hex[:8]
     for template in available_templates():
         name = f"smoke-{template.name}-{suffix}"
-        values = example_values(template) | {
-            "OWNER": "platform-engineering",
-            "REPOSITORY": f"platform/{name}",
-            "REPOSITORY_BASE_URL": BASE_URL,
-            "TOOLKIT_REPOSITORY": "ersahinco/developer-platform-kit",
-            "TOOLKIT_REF": TOOLKIT_REF,
-        }
-        for key in ("WORKLOAD_NAME", "STACK_NAME", "PIPELINE_NAME"):
-            if key in values:
-                values[key] = name
         entity = next(
             item for item in catalog if item["metadata"]["name"] == f"platform-{template.name}"
         )
         properties = entity["spec"]["parameters"][0]["properties"]
+        values = example_values(template)
+        # Compare with the deployed defaults, including custom PORTAL_SET values.
+        values.update(
+            {
+                key: entity["spec"]["steps"][0]["input"]["values"][key]
+                for key in values.keys() - properties.keys()
+            }
+        )
+        values.update(
+            {
+                "REPOSITORY": f"platform/{name}",
+                "REPOSITORY_BASE_URL": BASE_URL,
+            }
+        )
+        for key in ("WORKLOAD_NAME", "STACK_NAME", "PIPELINE_NAME"):
+            if key in values:
+                values[key] = name
         parameters = {key: value for key, value in values.items() if key in properties}
         parameters["repoUrl"] = "cnoe.localtest.me:8443?" + urlencode(
             {"owner": "platform", "repo": name}

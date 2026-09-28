@@ -5,9 +5,19 @@ template. Modules come from `__TOOLKIT_REPOSITORY__` at `__TOOLKIT_REF__`.
 
 ## Owns
 
-Network, ECR, ECS cluster, public load balancer, PostgreSQL, a data bucket, one
-service per `services` entry, one migration task family per `data_pipelines`
-entry, one Spark application, and the CI role.
+The CI role, plus capabilities selected by `services` and `data_pipelines`:
+
+| Configuration | Creates |
+|---|---|
+| Any service or pipeline | Network and ECS cluster |
+| Each service | ECR repository and ECS service |
+| A service with `public = true` | Public load balancer |
+| A service with `needs_database = true`, or any pipeline | PostgreSQL |
+| Each pipeline | Migration task family and ECR repository |
+| Any pipeline | Data bucket and shared Spark application |
+
+Empty workload maps create no networking, database, load balancer, or compute.
+Outputs for absent capabilities are null; per-workload maps are empty.
 
 It does not own which image is running. That is each repo's delivery workflow,
 which is why the ECS service ignores `task_definition` here.
@@ -70,7 +80,7 @@ initialization. The bucket creation example needs no LocationConstraint in us-ea
 Enable bucket public-access blocking and use a private repository for saved plans,
 which can contain sensitive values. Never attach plan artifacts to public issues.
 
-The root intentionally requires a certificate before exposing HTTP publicly.
+A public service requires a certificate before exposing HTTP publicly.
 Set `certificate_arn`, or explicitly set `allow_public_http = true` for development.
 Only one public service is supported until you add target groups and routing.
 
@@ -85,7 +95,14 @@ Apply uses `AWS_ROLE_ARN` and `aws`, whose trust subject is
 configure required reviewers in GitHub where supported. Fork PRs cannot use
 cloud credentials and therefore cannot run a cloud-backed plan.
 
-The stack creates billable networking, database, and load-balancer resources.
-Delete unused module blocks and their corresponding variables/outputs before the
-first plan. A service initially references `bootstrap`; build its image, then run
-the app deploy mode. Do not expect healthy tasks until that first deployment.
+Configured workloads create billable resources. Removing their last consumer
+also removes the capability from the plan: review database and bucket deletion
+carefully. Existing retention and deletion safeguards still apply.
+`moved.tf` preserves the addresses of retained resources when adopting this
+starter from the previous unconditional layout. Back up the existing state and
+review a saved plan before applying the migration.
+
+Use a toolkit ref containing this starter and its matching modules. ECS task
+counts now follow `desired_count`; image revisions remain owned by delivery.
+A service initially references `bootstrap`; build its image, then run the app
+deploy mode. Do not expect healthy tasks until that first deployment.

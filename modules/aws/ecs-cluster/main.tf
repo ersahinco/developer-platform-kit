@@ -26,13 +26,3 @@ resource "aws_ecs_cluster_capacity_providers" "this" {
     base              = 0
   }
 }
-
-resource "aws_service_discovery_private_dns_namespace" "this" {
-  count = var.service_discovery_namespace == null ? 0 : 1
-
-  name        = var.service_discovery_namespace
-  description = "Service-to-service discovery for ${var.name}"
-  vpc         = var.vpc_id
-
-  tags = var.tags
-}

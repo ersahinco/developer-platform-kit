@@ -3,12 +3,6 @@ variable "name" {
   type        = string
 }
 
-variable "vpc_id" {
-  description = "VPC that hosts the optional service discovery namespace."
-  type        = string
-  default     = null
-}
-
 variable "container_insights" {
   description = "Enable enhanced Container Insights."
   type        = bool
@@ -25,12 +19,6 @@ variable "default_capacity_provider" {
   description = "Capacity provider used when a service names none."
   type        = string
   default     = "FARGATE"
-}
-
-variable "service_discovery_namespace" {
-  description = "Private DNS namespace for service-to-service calls, e.g. \"internal\". Null skips it."
-  type        = string
-  default     = null
 }
 
 variable "tags" {

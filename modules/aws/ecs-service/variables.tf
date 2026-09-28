@@ -8,11 +8,6 @@ variable "cluster_id" {
   type        = string
 }
 
-variable "cluster_name" {
-  description = "ECS cluster name. Autoscaling resource IDs need the name, not the ARN."
-  type        = string
-}
-
 variable "image" {
   description = "Initial image. The deploy lane owns it after creation, so a placeholder is fine."
   type        = string
@@ -49,7 +44,7 @@ variable "cpu_architecture" {
 }
 
 variable "desired_count" {
-  description = "Initial task count. Ignored after creation so scaling is not fought by Terraform."
+  description = "Task count managed by this module."
   type        = number
   default     = 2
 }
@@ -106,12 +101,6 @@ variable "target_group_arn" {
   default     = null
 }
 
-variable "service_discovery_arn" {
-  description = "Cloud Map service ARN for service-to-service discovery."
-  type        = string
-  default     = null
-}
-
 variable "capacity_provider" {
   description = "Capacity provider, e.g. FARGATE_SPOT. Null uses the FARGATE launch type."
   type        = string
@@ -140,16 +129,6 @@ variable "enable_execute_command" {
   description = "Allow ECS Exec into the running task. Audit trail lives in CloudTrail."
   type        = bool
   default     = false
-}
-
-variable "autoscaling" {
-  description = "CPU target-tracking autoscaling. Null keeps the task count fixed."
-  type = object({
-    min_capacity       = number
-    max_capacity       = number
-    target_cpu_percent = number
-  })
-  default = null
 }
 
 variable "task_policy_json" {

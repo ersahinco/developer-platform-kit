@@ -1,6 +1,7 @@
 """Validate the rendered infra root against this checkout, without cloud access."""
 
 import re
+import shutil
 import subprocess
 import tempfile
 from pathlib import Path
@@ -22,7 +23,13 @@ def main() -> None:
                     path.read_text(),
                 )
             )
-        for command in [("init", "-backend=false", "-input=false"), ("validate",)]:
+        (root / "tests").mkdir()
+        shutil.copyfile(repository / "tests/infra.tftest.hcl", root / "tests/infra.tftest.hcl")
+        for command in [
+            ("init", "-backend=false", "-input=false"),
+            ("validate",),
+            ("test", "-no-color", "-var-file=stack.tfvars"),
+        ]:
             subprocess.run(["terraform", f"-chdir={root}", *command], check=True)
 
 

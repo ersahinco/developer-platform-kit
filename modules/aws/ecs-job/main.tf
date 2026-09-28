@@ -1,9 +1,8 @@
 ################################################################################
 # ECS job
 #
-# One bounded task: log group, roles, task definition, and an optional schedule.
-# Without a schedule this is an operator job the CI task lane runs on demand.
-# With one, EventBridge Scheduler owns the trigger.
+# One bounded task: log group, roles, and task definition.
+# The data lane runs migrations on demand.
 #
 # A job is only safe here if it exits non-zero on failure and can be rerun.
 # Neither property can be enforced from Terraform, so both belong in the job's
@@ -19,7 +18,6 @@ data "aws_vpc" "this" {
 data "aws_ec2_managed_prefix_list" "s3" {
   name = "com.amazonaws.${data.aws_region.current.region}.s3"
 }
-data "aws_caller_identity" "current" {}
 
 locals {
   log_group_name = coalesce(var.log_group_name, "/ecs/${var.name}")
@@ -156,7 +154,7 @@ resource "aws_ecs_task_definition" "this" {
 }
 
 resource "aws_security_group" "task" {
-  # checkov:skip=CKV2_AWS_5:The delivery lane attaches this exported group when starting a task; schedules attach it in ecs_parameters.
+  # checkov:skip=CKV2_AWS_5:The delivery lane attaches this exported group when starting a task.
 
   name_prefix = "${var.name}-task-"
   description = "Task network placement for ${var.name}"
@@ -190,108 +188,4 @@ resource "aws_vpc_security_group_egress_rule" "s3" {
   from_port         = 443
   to_port           = 443
   ip_protocol       = "tcp"
-}
-
-################################################################################
-# Optional schedule
-################################################################################
-
-data "aws_iam_policy_document" "assume_scheduler" {
-  count = var.schedule_expression == null ? 0 : 1
-
-  statement {
-    actions = ["sts:AssumeRole"]
-    principals {
-      type        = "Service"
-      identifiers = ["scheduler.amazonaws.com"]
-    }
-    condition {
-      test     = "StringEquals"
-      variable = "aws:SourceAccount"
-      values   = [data.aws_caller_identity.current.account_id]
-    }
-  }
-}
-
-resource "aws_iam_role" "scheduler" {
-  count = var.schedule_expression == null ? 0 : 1
-
-  name               = "${var.name}-scheduler"
-  description        = "EventBridge Scheduler trigger for ${var.name}"
-  assume_role_policy = data.aws_iam_policy_document.assume_scheduler[0].json
-
-  tags = var.tags
-}
-
-data "aws_iam_policy_document" "scheduler_run_task" {
-  count = var.schedule_expression == null ? 0 : 1
-
-  statement {
-    sid       = "RunJobTask"
-    actions   = ["ecs:RunTask"]
-    resources = ["${aws_ecs_task_definition.this.arn_without_revision}:*"]
-
-    condition {
-      test     = "ArnEquals"
-      variable = "ecs:cluster"
-      values   = [var.cluster_id]
-    }
-  }
-
-  statement {
-    sid       = "PassTaskRoles"
-    actions   = ["iam:PassRole"]
-    resources = [aws_iam_role.execution.arn, aws_iam_role.task.arn]
-
-    condition {
-      test     = "StringEquals"
-      variable = "iam:PassedToService"
-      values   = ["ecs-tasks.amazonaws.com"]
-    }
-  }
-}
-
-resource "aws_iam_role_policy" "scheduler_run_task" {
-  count = var.schedule_expression == null ? 0 : 1
-
-  name   = "${var.name}-run-task"
-  role   = aws_iam_role.scheduler[0].id
-  policy = data.aws_iam_policy_document.scheduler_run_task[0].json
-}
-
-resource "aws_scheduler_schedule" "this" {
-  # checkov:skip=CKV_AWS_297:Scheduler input contains task configuration, never secret values; service-managed encryption is sufficient for this starter.
-
-  count = var.schedule_expression == null ? 0 : 1
-
-  name                         = var.name
-  schedule_expression          = var.schedule_expression
-  schedule_expression_timezone = var.schedule_timezone
-  state                        = var.schedule_enabled ? "ENABLED" : "DISABLED"
-
-  flexible_time_window {
-    mode = "OFF"
-  }
-
-  target {
-    arn      = var.cluster_id
-    role_arn = aws_iam_role.scheduler[0].arn
-
-    ecs_parameters {
-      task_definition_arn = aws_ecs_task_definition.this.arn_without_revision
-      launch_type         = "FARGATE"
-      task_count          = 1
-
-      network_configuration {
-        subnets          = var.subnet_ids
-        security_groups  = [aws_security_group.task.id]
-        assign_public_ip = false
-      }
-    }
-
-    retry_policy {
-      maximum_retry_attempts       = var.schedule_retry_attempts
-      maximum_event_age_in_seconds = 3600
-    }
-  }
 }

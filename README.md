@@ -320,6 +320,19 @@ make portal-smoke           # Create all three starters in local Gitea
 make portal-down            # Delete this lab and its local repositories
 ```
 
+Override lab template defaults with the same `NAME=value` pairs used by the CLI:
+
+```bash
+export PORTAL_SET='OWNER=team-payments AWS_REGION=eu-west-1 TOOLKIT_REPOSITORY=acme/developer-platform-kit TOOLKIT_REF=PUBLISHED_COMMIT_SHA'
+make portal-up
+```
+
+Replace `PUBLISHED_COMMIT_SHA` with a full commit SHA containing these modules,
+or an immutable release tag. `PORTAL_SET` also accepts other declared template
+values such as `STATE_BUCKET`. Keep it in your shell environment for subsequent
+updates; omit it to use the demo defaults. Git publishing destinations still use
+`make portal-github OWNER=your-github-owner`.
+
 The first source build takes several minutes; later builds reuse Docker's cache.
 The lab was tested with 12 GB allocated to Docker and builds for the host's
 architecture, including ARM. State, credentials, and kubeconfig stay ignored in
@@ -447,11 +460,19 @@ the upstream README remain in the image.
 
 ### Infrastructure boundaries
 
-The infra starter calls all ten AWS modules: `network`, `ecr`, `github-oidc`,
-`ecs-cluster`, `alb`, `ecs-service`, `ecs-job`, `postgres`, `object-storage`, and
-`emr-serverless`. Remove unused capabilities before applying billable resources.
+The infra starter selects its AWS capabilities from `services` and `data_pipelines`.
+Empty workload maps create only the delivery role. Workloads add networking and
+ECS; a public service adds the ALB; database consumers add PostgreSQL; pipelines
+add migration tasks, storage, and Spark. No separate feature switches are needed.
 Follow its README for state and identity setup. Keep plan/apply roles separate,
 plan artifacts private and short lived, and database credentials in Secrets Manager.
+
+Unused ECS scheduling, autoscaling, and service-discovery options are omitted.
+Existing generated repos remain pinned to their module revision. When adopting
+this starter, preserve `moved.tf`, review the plan for removed capabilities, and
+update callers: ECS services no longer take `cluster_name`, clusters no longer
+take `vpc_id`, and jobs no longer take `cluster_id` or `subnet_ids`. A stack using
+the removed optional features must retain its previous module ref until migrated.
 
 The starter supports one public service and ALB target group. Terraform owns
 service shape; delivery owns task revisions. Images must match the X86_64 task

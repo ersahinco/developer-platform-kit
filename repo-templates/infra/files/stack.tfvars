@@ -3,6 +3,8 @@ aws_region   = "__AWS_REGION__"
 environment  = "production"
 state_bucket = "__STATE_BUCKET__"
 
+# Empty workload maps create only the delivery role. Capabilities follow the
+# services and pipelines below; removing their last consumer plans their removal.
 # Add a service here before its repo tries to deploy. The key is the contract
 # between this root and that repo's delivery workflow.
 services = {

@@ -2,7 +2,7 @@
 # ECS service
 #
 # One long-running workload: log group, task roles, task definition, security
-# group, service, and optional target-group registration and autoscaling.
+# group, service, and optional target-group registration.
 #
 # Terraform owns the shape of the service. The deploy lane owns which image is
 # running, so task_definition and desired_count are ignored after creation.
@@ -283,57 +283,14 @@ resource "aws_ecs_service" "this" {
     }
   }
 
-  dynamic "service_registries" {
-    for_each = var.service_discovery_arn == null ? [] : [1]
-    content {
-      registry_arn = var.service_discovery_arn
-    }
-  }
-
   tags = var.tags
 
   lifecycle {
-    ignore_changes = [task_definition, desired_count]
+    ignore_changes = [task_definition]
 
     precondition {
       condition     = var.target_group_arn == null || var.container_port != null
       error_message = "A service behind a target group needs container_port set."
-    }
-  }
-}
-
-################################################################################
-# Autoscaling
-################################################################################
-
-resource "aws_appautoscaling_target" "this" {
-  count = var.autoscaling == null ? 0 : 1
-
-  service_namespace  = "ecs"
-  resource_id        = "service/${var.cluster_name}/${aws_ecs_service.this.name}"
-  scalable_dimension = "ecs:service:DesiredCount"
-  min_capacity       = var.autoscaling.min_capacity
-  max_capacity       = var.autoscaling.max_capacity
-
-  tags = var.tags
-}
-
-resource "aws_appautoscaling_policy" "cpu" {
-  count = var.autoscaling == null ? 0 : 1
-
-  name               = "${var.name}-cpu"
-  policy_type        = "TargetTrackingScaling"
-  service_namespace  = aws_appautoscaling_target.this[0].service_namespace
-  resource_id        = aws_appautoscaling_target.this[0].resource_id
-  scalable_dimension = aws_appautoscaling_target.this[0].scalable_dimension
-
-  target_tracking_scaling_policy_configuration {
-    target_value       = var.autoscaling.target_cpu_percent
-    scale_in_cooldown  = 300
-    scale_out_cooldown = 60
-
-    predefined_metric_specification {
-      predefined_metric_type = "ECSServiceAverageCPUUtilization"
     }
   }
 }

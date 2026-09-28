@@ -2,7 +2,7 @@
 SHELL := bash
 
 MODULES := $(sort $(dir $(wildcard modules/aws/*/)))
-TF_DIRS := modules repo-templates
+TF_DIRS := modules repo-templates tests
 
 .PHONY: help
 help: ## Show available targets
@@ -44,6 +44,7 @@ portal: ## Show local portal URLs and setup commands
 
 .PHONY: portal-prepare portal-check portal-up portal-status portal-credentials portal-smoke portal-verify portal-identity portal-github portal-down
 portal-%: export KUBECONFIG := $(CURDIR)/platform/.local/kubeconfig
+portal-%: export PORTAL_SET := $(PORTAL_SET)
 portal-prepare: ## Assemble pinned CNOE packages and export templates
 	python3 platform/prepare.py
 

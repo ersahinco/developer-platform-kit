@@ -131,7 +131,7 @@ def export(
             "kind": "Template",
             "metadata": {"name": f"platform-{template.name}", "description": template.description},
             "spec": {
-                "owner": "platform-engineering",
+                "owner": fixed_values.get("OWNER", "platform-engineering"),
                 "type": template.name,
                 "parameters": [
                     {"title": "New repository", "required": required, "properties": properties}
