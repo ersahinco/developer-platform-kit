@@ -59,7 +59,7 @@ def main():
             }
         )
         for key in ("WORKLOAD_NAME", "STACK_NAME", "PIPELINE_NAME"):
-            if key in values:
+            if key in properties:
                 values[key] = name
         parameters = {key: value for key, value in values.items() if key in properties}
         parameters["repoUrl"] = "cnoe.localtest.me:8443?" + urlencode(
