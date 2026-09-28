@@ -8,6 +8,8 @@ from __future__ import annotations
 
 import json
 import re
+import subprocess
+import sys
 from pathlib import Path
 
 import pytest
@@ -73,6 +75,20 @@ def test_rendered_python_compiles(name: str, tmp_path: Path) -> None:
     for path in _render(name, tmp_path / name):
         if path.suffix == ".py":
             compile(path.read_text(), str(path), "exec")
+
+
+@pytest.mark.parametrize("workload", ["api", "platform-demo-app-20260927", "a" * 40])
+def test_app_formatting_handles_supported_name_lengths(workload: str, tmp_path: Path) -> None:
+    template = load_template("app")
+    values = example_values(template) | {"WORKLOAD_NAME": workload}
+    render(template, tmp_path, resolve_values(template, values))
+    result = subprocess.run(
+        [sys.executable, "-m", "ruff", "format", "--check", str(tmp_path)],
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+    assert result.returncode == 0, result.stdout + result.stderr
 
 
 @pytest.mark.parametrize("name", template_names())

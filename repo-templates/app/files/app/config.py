@@ -19,7 +19,9 @@ def _env(name: str, default: str | None = None) -> str:
 
 @dataclass(frozen=True)
 class Settings:
-    workload_name: str = field(default_factory=lambda: _env("WORKLOAD_NAME", "__WORKLOAD_NAME__"))
+    workload_name: str = field(
+        default_factory=lambda: _env("WORKLOAD_NAME", "__WORKLOAD_NAME__"),
+    )
     environment: str = field(default_factory=lambda: _env("ENVIRONMENT", "local"))
     log_level: str = field(default_factory=lambda: _env("LOG_LEVEL", "INFO"))
     port: int = field(default_factory=lambda: int(_env("PORT", "__CONTAINER_PORT__")))
