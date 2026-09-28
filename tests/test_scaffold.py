@@ -71,6 +71,16 @@ def test_rendered_yaml_and_json_parse(name: str, tmp_path: Path) -> None:
 
 
 @pytest.mark.parametrize("name", template_names())
+@pytest.mark.parametrize("owner", ["123", "null"])
+def test_catalog_owner_remains_a_string(name: str, owner: str, tmp_path: Path) -> None:
+    template = load_template(name)
+    values = example_values(template) | {"OWNER": owner}
+    render(template, tmp_path, resolve_values(template, values))
+    catalog = yaml.safe_load((tmp_path / "catalog-info.yaml").read_text())
+    assert catalog["spec"]["owner"] == owner
+
+
+@pytest.mark.parametrize("name", template_names())
 def test_rendered_python_compiles(name: str, tmp_path: Path) -> None:
     for path in _render(name, tmp_path / name):
         if path.suffix == ".py":

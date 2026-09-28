@@ -7,4 +7,4 @@ metadata:
 spec:
   type: infrastructure
   lifecycle: production
-  owner: __OWNER__
+  owner: "__OWNER__"

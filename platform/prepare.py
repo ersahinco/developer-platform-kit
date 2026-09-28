@@ -78,15 +78,16 @@ def main():
     )
     (entities / "organization").mkdir()
     (entities / "organization/platform.yaml").write_text(
-        f"""
-apiVersion: backstage.io/v1alpha1
-kind: Group
-metadata:
-  name: {values["OWNER"]}
-spec:
-  type: team
-  children: []
-"""
+        json.dumps(
+            {
+                "apiVersion": "backstage.io/v1alpha1",
+                "kind": "Group",
+                "metadata": {"name": values["OWNER"]},
+                "spec": {"type": "team", "children": []},
+            },
+            indent=2,
+        )
+        + "\n"
     )
     location = entities / "catalog-info.yaml"
     catalog = json.loads(location.read_text())
