@@ -39,7 +39,7 @@ python3 -m scaffold.new_repo render app ../orders-api \
   --set REPOSITORY=acme/orders-api \
   --set AWS_REGION=eu-central-1 \
   --set TOOLKIT_REPOSITORY=ersahinco/developer-platform-kit \
-  --set TOOLKIT_REF=81009fac4cb1a77a1800efdf249af3bab3d1aae3
+  --set TOOLKIT_REF=f5942e40b335913620b7bf5235e880c9be1f9c85
 ```
 
 `describe` lists required variables and examples. Rendering validates them before
@@ -110,7 +110,7 @@ python3 -m scaffold.backstage /tmp/toolkit-backstage \
   --set OWNER=team-payments \
   --set AWS_REGION=eu-central-1 \
   --set TOOLKIT_REPOSITORY=ersahinco/developer-platform-kit \
-  --set TOOLKIT_REF=81009fac4cb1a77a1800efdf249af3bab3d1aae3
+  --set TOOLKIT_REF=f5942e40b335913620b7bf5235e880c9be1f9c85
 ```
 
 The installed `dpk-backstage` command takes the same arguments. Publish the
