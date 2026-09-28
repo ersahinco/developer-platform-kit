@@ -1,0 +1,23 @@
+# Existing PostgreSQL and host reverse proxy; no embedded production services.
+name: developer-platform
+services:
+  backstage:
+    image: ${PORTAL_IMAGE:?Set PORTAL_IMAGE to a registry image digest}
+    env_file: ${PORTAL_ENV_FILE:-../.local/portal.env}
+    ports:
+      - "127.0.0.1:7007:7007"
+    init: true
+    restart: unless-stopped
+    user: "1000:1000"
+    cap_drop: [ALL]
+    security_opt: [no-new-privileges:true]
+    # The upstream frontend injects runtime configuration into its static bundle.
+    # Keep its application directory writable; scaffolder workspaces use /tmp.
+    tmpfs:
+      - /tmp:uid=1000,gid=1000,mode=1777
+    healthcheck:
+      test: [CMD, node, -e, "fetch('http://127.0.0.1:7007/.backstage/health/v1/readiness').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 90s

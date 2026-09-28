@@ -10,9 +10,10 @@ assembling each repository from scratch. Generated applications have no runtime
 dependency on this kit.
 
 Delivery targets are AWS ECS/Fargate and EMR Serverless. The optional CNOE lab
-exercises portal integration locally. Shared hosting connects to the client's
-existing identity, GitHub organization, accounts, and runtime; client sign-in and
-AWS delivery still require acceptance testing in that environment.
+exercises portal integration locally. Shared hosting runs on an on-premises Docker host or AWS ECS/Fargate, using the
+client's existing services. Hosting on-premises does not change the starters' AWS
+delivery targets or provide an air-gapped platform. Client sign-in and AWS delivery
+require acceptance testing in that environment.
 
 [CLI](#start-a-repository) · [Backstage](#backstage-self-service) ·
 [Shared hosting](#host-a-shared-portal) · [Local lab](#local-cnoe-lab) ·
@@ -22,7 +23,7 @@ AWS delivery still require acceptance testing in that environment.
 |---|---|---|
 | CLI only | `make cli-build` produces a wheel for your artifact store | Install the wheel; run `dpk` from any directory |
 | Local portal | `make portal-up`, then `make portal-credentials` | Open the local Backstage URL |
-| Shared portal | `make portal-image IMAGE=registry/name:version`, then deploy through your existing runtime | Open the team's portal URL and sign in with Entra |
+| Shared portal | Build the image, then use the [on-premises or AWS hosting example](#host-a-shared-portal) | Open the team's portal URL and sign in with Entra |
 
 ## Start a repository
 
@@ -38,7 +39,7 @@ python3 -m scaffold.new_repo render app ../orders-api \
   --set REPOSITORY=acme/orders-api \
   --set AWS_REGION=eu-central-1 \
   --set TOOLKIT_REPOSITORY=ersahinco/developer-platform-kit \
-  --set TOOLKIT_REF=ac87eb754c06c66511de337bcd1b440745a4c039
+  --set TOOLKIT_REF=81009fac4cb1a77a1800efdf249af3bab3d1aae3
 ```
 
 `describe` lists required variables and examples. Rendering validates them before
@@ -52,20 +53,37 @@ and `dpk render` with the same arguments above, from any directory.
 `dpk-backstage` exports portal templates. Run `uv tool update-shell` if the commands
 are not on your PATH. Re-run `make cli-install` after updating the checkout.
 
-For enterprise distribution, run `make cli-build` and share the versioned wheel
-from `dist/` through the client's artifact store. Developers install that file:
+For enterprise distribution, promote an approved CI build to the client's artifact
+store. The **Scaffold & Python** job saves `cli-COMMIT_SHA` for 14 days; choose a
+successful **whole CI run** for the intended commit. From the Actions page download
+the artifact, or use:
 
 ```bash
-uv tool install /path/to/developer_platform_kit-0.1.0-py3-none-any.whl
+gh run download RUN_ID --repo ersahinco/developer-platform-kit \
+  --name cli-COMMIT_SHA --dir /tmp/dpk-cli
+cd /tmp/dpk-cli
+shasum -a 256 -c SHA256SUMS
+uv tool install ./developer_platform_kit-0.1.0-py3-none-any.whl
 dpk list
 ```
 
-The wheel bundles all three starters and has no runtime dependencies beyond
-Python 3.13+. No portal, source checkout, or cloud credentials are needed to render.
-Use `uv tool install --reinstall /path/to/new-version.whl` to replace an installed
-version. Maintainers increment `project.version` before distributing changed
-artifacts; retain old versions for rollback. No package registry publication is
-configured by this repository.
+Substitute the approved run ID and full commit SHA. `make cli-build` produces the
+same wheel and source archive locally in `dist/`. For a Python package feed,
+maintainers upload the wheel using the client's publishing process. Developers
+configure that feed's authentication, then install a pinned version:
+
+```bash
+uv tool install --default-index https://packages.example.com/pypi/simple \
+  developer-platform-kit==0.1.0
+```
+
+Use the client's credential helper; keep tokens out of commands, URLs, and Git.
+The CLI has no runtime dependencies beyond Python 3.13+ and bundles all starters.
+No portal, checkout, or cloud credentials are needed to render. Use
+`uv tool install --reinstall ...` to replace an installed version. CI artifacts are
+commit snapshots, not releases: increment `project.version` before promoting a
+changed wheel, retain old versions, and never overwrite a published version.
+No public package registry publication is configured.
 
 | Starter | Includes | Delivery modes |
 |---|---|---|
@@ -92,10 +110,11 @@ python3 -m scaffold.backstage /tmp/toolkit-backstage \
   --set OWNER=team-payments \
   --set AWS_REGION=eu-central-1 \
   --set TOOLKIT_REPOSITORY=ersahinco/developer-platform-kit \
-  --set TOOLKIT_REF=ac87eb754c06c66511de337bcd1b440745a4c039
+  --set TOOLKIT_REF=81009fac4cb1a77a1800efdf249af3bab3d1aae3
 ```
 
-Publish the exported directory to a template repository and register its
+The installed `dpk-backstage` command takes the same arguments. Publish the
+exported directory to a template repository and register its
 `catalog-info.yaml`. Install Backstage's native GitHub scaffolder module and
 configure its GitHub integration. The basic flow uses `fetch:template`,
 `publish:github`, and `catalog:register`; see
@@ -110,7 +129,10 @@ repository, and find it in the catalog.
 Repeat `--allowed-owner` for multiple destinations. Omitting it permits any owner
 on the selected host. Task schemas enforce host and owner even through direct API
 requests; SCM credentials and portal permissions must also restrict access.
-For Gitea, use `--provider gitea --base-url https://your-host/gitea` with the native
+For GitHub Enterprise Server, add `--base-url https://github.example.com` and
+configure the portal integration for that same host. The shipped delivery lanes
+use GitHub.com hosted runners and artifact actions; adapt and verify their GHES
+compatibility before promising delivery there. For Gitea, use `--provider gitea --base-url https://your-host/gitea` with the native
 `publish:gitea` action. GitLab publishing and delivery are not implemented.
 
 ### Repository access and delivery settings
@@ -163,7 +185,9 @@ make portal-image IMAGE=registry.example.com/platform/backstage:0.1.0
 ```
 
 This builds locally without starting Kind or configuring the local lab. Build for
-the target runtime's CPU architecture. After resolving the upstream licensing
+the target runtime's CPU architecture; prefix the command with
+`DOCKER_DEFAULT_PLATFORM=linux/amd64` for the AWS example's default X86_64 tasks.
+After resolving the upstream licensing
 boundary below, publish to the client's registry and deploy by digest through its
 existing delivery process. Export and publish templates with `dpk-backstage`,
 using fixed client defaults and `--github-settings` as described above.
@@ -175,7 +199,8 @@ native [Microsoft sign-in](https://backstage.io/docs/auth/microsoft/provider/),
 [GitHub App integration](https://backstage.io/docs/integrations/github/github-apps/).
 Direct Entra sign-in needs no Keycloak deployment.
 
-Provide PostgreSQL, TLS termination, secret injection, backups, and the native
+The examples below reuse PostgreSQL, TLS termination, and secret injection.
+The client owns backups and monitoring. Use the native
 `/.backstage/health/v1/readiness` check through the existing runtime. On Kubernetes,
 set `automountServiceAccountToken: false`: scaffolding needs no cluster credentials,
 and the upstream app otherwise enables optional Kubernetes plugins when it finds
@@ -194,7 +219,8 @@ Supply these values through the runtime and secret store; configuration lives in
 | `ENTRA_CREATORS_GROUP_ID`, `ENTRA_VIEWERS_GROUP_ID` | Directory groups to import with their direct user members |
 | `ENTRA_CREATORS_GROUP_REF`, `ENTRA_VIEWERS_GROUP_REF` | Imported group refs, e.g. `group:default/platform-creators`; native Graph uses normalized names, not IDs |
 | `GITHUB_APP_ID`, `GITHUB_APP_CLIENT_ID`, `GITHUB_APP_CLIENT_SECRET`, `GITHUB_APP_PRIVATE_KEY`, `GITHUB_ORGANIZATION` | Scoped GitHub App; this integration requires client credentials as well as the signing key |
-| `TEMPLATES_CATALOG_URL` | Published `catalog-info.yaml` from the export |
+| `TEMPLATES_CATALOG_URL` | Published `catalog-info.yaml` from the export; readable by the GitHub App |
+| `GITHUB_HOST`, `GITHUB_API_URL` (optional) | Set both for GHES, e.g. `github.example.com` and `https://github.example.com/api/v3`; defaults are GitHub.com |
 
 Register `PORTAL_URL/api/auth/microsoft/handler/frame` as the Entra Web redirect.
 Grant the native provider's delegated sign-in permissions and Graph application
@@ -206,9 +232,76 @@ Set exported `OWNER` to the owning group's catalog name.
 The native resolver requires a catalog user matched by `graph.microsoft.com/user-id`,
 with no email or missing-user fallback. Only configured template locations may
 supply executable templates; developers can register their generated components.
-Keep PostgreSQL certificate validation enabled; mount the client's CA and set
-`NODE_EXTRA_CA_CERTS` for a private issuer. Verify live client sign-in, consent,
-team access, and AWS delivery before handing the portal to developers.
+Keep PostgreSQL certificate validation enabled. For a private database issuer,
+inject its PEM bundle through native `APP_CONFIG_backend_database_connection_ssl_ca`.
+For other private HTTPS issuers, mount the client's CA and set `NODE_EXTRA_CA_CERTS`.
+Allow network access to Entra, Microsoft Graph, GitHub/API, the template host,
+registry, and PostgreSQL. An internal URL alone does not make the portal offline.
+
+### On-premises Docker host
+
+Use Docker Compose 2.24.4+ on a Linux host with an existing HTTPS reverse proxy and
+PostgreSQL. The [Compose file](platform/hosting/compose.yaml) runs only Backstage;
+port 7007 binds to loopback for the host proxy, not the network. The image runs as
+an unprivileged user with capabilities dropped. Start with:
+
+```bash
+mkdir -p platform/.local
+cp platform/hosting/portal.env.example platform/.local/portal.env
+chmod 600 platform/.local/portal.env
+# Fill in client values and the published image digest; single-quote secrets.
+make portal-host-up
+make portal-host-status
+```
+
+Point the host proxy at `http://127.0.0.1:7007`, preserve the public host and HTTPS
+forwarded headers, and set `PORTAL_URL` to that public HTTPS URL. The example env
+file is a single-host handoff; have the client's secret store supply it with
+restricted permissions. A single-quoted PEM key can contain real line breaks.
+`portal-host-up` validates Compose, requires an image digest, and waits for health.
+For failures, inspect `docker compose --env-file platform/.local/portal.env -f
+platform/hosting/compose.yaml logs --tail 100 backstage` in your terminal. Re-run
+`portal-host-up` after configuration or image changes. `portal-host-down` stops the
+portal; the external database remains. This profile is a single-host deployment.
+
+### AWS ECS/Fargate
+
+The [CloudFormation example](platform/hosting/aws.yaml) creates a portal task,
+service, and 30-day log group. It expects an existing ECS cluster, private subnets,
+security groups, ECR image, database, and ALB target group attached to an HTTPS
+listener. Use an **IP** target group on port **7007**, with health path
+`/.backstage/health/v1/readiness`. Permit ingress to the tasks only from the ALB.
+
+Store the required values from `portal.env.example` as a JSON object in Secrets
+Manager (exclude `PORTAL_IMAGE`). Pass its full ARN as `ConfigurationSecret`.
+ECS injects the named keys; no secret values enter CloudFormation parameters.
+For a private database CA, supply `DatabaseCASecret` as a separate plain PEM
+secret. Optional GitHub host/API values are stack parameters. The existing task
+execution role needs ECR pull, log write, and access to those secrets and their
+KMS keys. The portal receives **no AWS task role**.
+
+Create a reviewed change set through the client's infrastructure pipeline using
+`platform/hosting/aws.yaml`. Its parameters describe each existing-resource input;
+`Image` requires a digest and `Architecture` must match the build. It defaults to
+one 1-vCPU/2-GB task; set `Replicas=2` across multiple subnets for host redundancy.
+Private subnets need outbound access to the integrations above, including registry,
+logs, and secret endpoints. Fargate gives tasks no public IP.
+
+The service uses readiness checks and deployment rollback. Rotate secret values
+through the secret store, then replace tasks: running tasks do not automatically
+receive new values. Keep the session key stable across replicas and routine
+rollouts. Roll back by deploying a previous image digest; review database migration
+compatibility first. The stack retains its log group when removed.
+
+### Client acceptance
+
+Before handing out the URL, verify a creator can scaffold and register a private
+repository, a viewer cannot create or write, and an unrelated user cannot sign in.
+Check imported group refs, template visibility, team access, and the generated
+repository's CI. Then run a reviewed AWS deployment using the client's OIDC roles.
+Exercise a restart and database restore, and connect failed tasks, readiness, and
+logs to the client's monitoring. These require live client access; local checks do
+not certify the client's identity, network, availability, or recovery setup.
 
 ## Local CNOE lab
 
@@ -331,6 +424,7 @@ explicit patches here, not a second copy of upstream source.
 | `runtime.py` | Supply CA trust and native SCM credentials through Kubernetes resources |
 | `config/session-secret.yaml` | Configure External Secrets' native password generator |
 | `backstage/`, `image.py` | Build pinned CNOE source with native providers and group-based authorization |
+| `hosting/` | Native Compose and CloudFormation examples connecting that image to existing client services |
 
 The Backstage Dockerfile pins its source archive and Node image by digest and
 applies `backstage/source.patch` with the upstream lockfile. The patch registers
@@ -382,7 +476,10 @@ make secret-scan
 CI also installs the built CLI away from the checkout and compares every rendered
 file and Backstage export with the source version (`make cli-check`). It tests
 generated Python repositories with their locks and builds/tests the Backstage
-image. For platform changes, run `make portal-check`; changes affecting
+image. `make hosting-check` validates Compose and CloudFormation without deploying.
+For platform changes, run `make portal-check`; it also boots the actual Compose
+service against disposable PostgreSQL with verified TLS and a non-superuser,
+without external identity calls. Changes affecting
 sign-in or publishing also need `portal-up`, `portal-verify`, and `portal-smoke`
 with the local Gitea profile. Update upstream pins and patches together.
 

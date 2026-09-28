@@ -189,7 +189,11 @@ def test_every_variable_has_a_pattern(name: str) -> None:
 
 @pytest.mark.parametrize(
     ("provider", "base_url"),
-    [("github", "https://github.com"), ("gitea", "https://cnoe.localtest.me:8443/gitea")],
+    [
+        ("github", "https://github.com"),
+        ("github", "https://github.example.com"),
+        ("gitea", "https://cnoe.localtest.me:8443/gitea"),
+    ],
 )
 def test_backstage_export_uses_native_actions_and_all_three_templates(
     tmp_path: Path, provider: str, base_url: str

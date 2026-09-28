@@ -1,0 +1,46 @@
+# Extends the actual on-prem service; all credentials are disposable test values.
+services:
+  backstage:
+    extends:
+      file: ../../platform/hosting/compose.yaml
+      service: backstage
+    env_file: !reset []
+    ports: !reset []
+    restart: 'no'
+    entrypoint: [node, --test, platform/runtime.test.cjs]
+    command: []
+    healthcheck:
+      disable: true
+    environment:
+      POSTGRES_HOST: postgres
+      POSTGRES_PORT: '5432'
+      POSTGRES_DATABASE: portal
+      POSTGRES_USER: portal
+      POSTGRES_PASSWORD: ephemeral-test-only
+      APP_CONFIG_backend_database_connection_ssl_ca: ${TEST_DATABASE_CA:?Generate the test CA first}
+    depends_on:
+      postgres:
+        condition: service_healthy
+  postgres:
+    image: postgres:18.3@sha256:7e32e9833a6fb1c92c32552794cb6ed569d51b445a54907d35fc112ef39684db
+    environment:
+      POSTGRES_DB: portal
+      POSTGRES_PASSWORD: ephemeral-admin-test-only
+    entrypoint: [sh, -ec]
+    command:
+      - |
+        cp /certs/server.key /tmp/server.key
+        chown postgres:postgres /tmp/server.key
+        chmod 600 /tmp/server.key
+        exec docker-entrypoint.sh postgres -c ssl=on -c ssl_cert_file=/certs/server.crt -c ssl_key_file=/tmp/server.key
+    volumes:
+      - ${TEST_CERTS:?Generate test certificates first}:/certs:ro
+      - ./init.sql:/docker-entrypoint-initdb.d/portal.sql:ro
+    healthcheck:
+      test: [CMD, pg_isready, -h, 127.0.0.1, -U, postgres, -d, portal]
+      interval: 2s
+      timeout: 2s
+      retries: 30
+networks:
+  default:
+    internal: true

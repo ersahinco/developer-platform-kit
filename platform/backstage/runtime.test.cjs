@@ -1,5 +1,5 @@
 'use strict';
-// Boot the actual shared configuration offline with temporary storage. This
+// Boot the actual shared configuration with temporary storage. This
 // checks composition and the OAuth redirect, not a real Entra login or consent.
 const { test } = require('node:test');
 const assert = require('node:assert/strict');
@@ -13,8 +13,9 @@ const { generateKeyPairSync } = require('node:crypto');
 test('shared image boots without Kubernetes and exposes native Microsoft sign-in', { timeout: 90000 }, async t => {
   const directory = mkdtempSync(join(tmpdir(), 'platform-runtime-'));
   const config = join(directory, 'config.json');
+  const postgres = Boolean(process.env.POSTGRES_HOST);
   writeFileSync(config, JSON.stringify({
-    backend: { database: { client: 'better-sqlite3', connection: ':memory:', pluginDivisionMode: 'database' } },
+    ...(postgres ? {} : { backend: { database: { client: 'better-sqlite3', connection: ':memory:', pluginDivisionMode: 'database' } } }),
     catalog: {
       locations: [],
       providers: { microsoftGraphOrg: { client: { schedule: { initialDelay: { hours: 1 } } } } },
@@ -31,8 +32,9 @@ test('shared image boots without Kubernetes and exposes native Microsoft sign-in
     env: {
       ...process.env,
       PORTAL_URL: baseUrl,
-      POSTGRES_HOST: 'unused', POSTGRES_PORT: '5432', POSTGRES_DATABASE: 'unused',
-      POSTGRES_USER: 'unused', POSTGRES_PASSWORD: 'unused',
+      POSTGRES_HOST: process.env.POSTGRES_HOST || 'unused', POSTGRES_PORT: process.env.POSTGRES_PORT || '5432',
+      POSTGRES_DATABASE: process.env.POSTGRES_DATABASE || 'unused',
+      POSTGRES_USER: process.env.POSTGRES_USER || 'unused', POSTGRES_PASSWORD: process.env.POSTGRES_PASSWORD || 'unused',
       SESSION_SECRET: 'offline-runtime-test-session-secret',
       ENTRA_TENANT_ID: tenant, ENTRA_CLIENT_ID: tenant, ENTRA_CLIENT_SECRET: 'offline-test',
       ENTRA_CREATORS_GROUP_ID: tenant, ENTRA_VIEWERS_GROUP_ID: tenant,
@@ -63,6 +65,30 @@ test('shared image boots without Kubernetes and exposes native Microsoft sign-in
     await new Promise(resolve => setTimeout(resolve, 500));
   }
   assert(ready, `Backend did not become ready:\n${logs}`);
+  if (postgres) {
+    const { Client } = require('pg');
+    const connection = {
+      host: process.env.POSTGRES_HOST, port: Number(process.env.POSTGRES_PORT),
+      database: process.env.POSTGRES_DATABASE, user: process.env.POSTGRES_USER,
+      password: process.env.POSTGRES_PASSWORD,
+    };
+    // A reachable database with an untrusted certificate must still be rejected.
+    const untrusted = new Client({ ...connection, ssl: { rejectUnauthorized: true } });
+    try { await assert.rejects(untrusted.connect(), /self.signed|certificate/i); }
+    finally { await untrusted.end(); }
+    const database = new Client({ ...connection, ssl: {
+      rejectUnauthorized: true, ca: process.env.APP_CONFIG_backend_database_connection_ssl_ca,
+    } });
+    await database.connect();
+    try {
+      const { rows: [role] } = await database.query('SELECT rolcreatedb, rolsuper FROM pg_roles WHERE rolname = current_user');
+      assert.deepEqual(role, { rolcreatedb: false, rolsuper: false });
+      const encryption = await database.query("SELECT bool_and(ssl) AS encrypted FROM pg_stat_ssl JOIN pg_stat_activity USING (pid) WHERE application_name LIKE 'backstage_plugin_%'");
+      assert.equal(encryption.rows[0].encrypted, true, 'Native plugin connections must use TLS');
+      const { rows } = await database.query("SELECT DISTINCT table_schema FROM information_schema.tables WHERE table_schema IN ('auth', 'catalog', 'scaffolder') ORDER BY table_schema");
+      assert.deepEqual(rows.map(row => row.table_schema), ['auth', 'catalog', 'scaffolder'], 'Backend must migrate its plugin schemas in the existing database');
+    } finally { await database.end(); }
+  }
   const html = await fetch(baseUrl).then(r => r.text());
   assert.match(html, /signInProvider.{1,20}microsoft/, 'Frontend must receive the selected identity provider');
   const signIn = await fetch(`${baseUrl}/api/auth/microsoft/start?env=production&origin=${encodeURIComponent(baseUrl)}&scope=user.read`, { redirect: 'manual' });

@@ -6,6 +6,30 @@ const { defaultGroupTransformer, defaultUserTransformer } = require('@backstage/
 const { stringifyEntityRef } = require('@backstage/catalog-model');
 const { taskCreatePermission } = require('@backstage/plugin-scaffolder-common/alpha');
 const { createPolicy } = require('./policy.cjs');
+const { ConfigSources } = require('@backstage/config-loader');
+const { ScmIntegrations } = require('@backstage/integration');
+
+test('shared config uses native GitHub host and private database CA overrides', async () => {
+  for (const host of ['github.com', 'github.example.com']) {
+    const apiBaseUrl = host === 'github.com' ? 'https://api.github.com' : `https://${host}/api/v3`;
+    const env = {
+      APP_CONFIG_backend_database_connection_ssl_ca: 'test-private-ca',
+      GITHUB_APP_ID: '1', GITHUB_APP_CLIENT_ID: 'offline-client',
+      GITHUB_APP_CLIENT_SECRET: 'offline-secret', GITHUB_APP_PRIVATE_KEY: 'offline-key',
+      GITHUB_ORGANIZATION: 'acme',
+      ...(host === 'github.com' ? {} : { GITHUB_HOST: host, GITHUB_API_URL: apiBaseUrl }),
+    };
+    const config = await ConfigSources.toConfig(ConfigSources.default({
+      argv: ['--config', 'platform/entra.yaml'], watch: false, env,
+      substitutionFunc: async name => env[name],
+    }));
+    config.close();
+    const integration = ScmIntegrations.fromConfig(config).github.byHost(host);
+    assert.equal(integration.config.apiBaseUrl, apiBaseUrl);
+    assert.equal(config.getString('backend.database.connection.ssl.ca'), 'test-private-ca');
+    assert.equal(config.getBoolean('backend.database.connection.ssl.rejectUnauthorized'), true);
+  }
+});
 
 test('native Microsoft sign-in matches directory ID, never a mutable email address', async () => {
   const resolve = microsoftSignInResolvers.userIdMatchingUserEntityAnnotation();

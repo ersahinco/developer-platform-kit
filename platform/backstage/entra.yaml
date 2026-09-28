@@ -70,7 +70,8 @@ permission:
     viewers: ["${ENTRA_VIEWERS_GROUP_REF}"]
 integrations:
   github:
-    - host: github.com
+    - host: ${GITHUB_HOST:-github.com}
+      apiBaseUrl: ${GITHUB_API_URL:-https://api.github.com}
       apps:
         - appId: ${GITHUB_APP_ID}
           clientId: ${GITHUB_APP_CLIENT_ID}

@@ -37,7 +37,10 @@ jobs:
         run: make test
 
       - name: Verify the distributable CLI
-        run: make cli-check
+        run: |
+          make cli-build
+          uv run python -m tests.validate_package dist
+          (cd dist && sha256sum ./*.whl ./*.tar.gz > SHA256SUMS)
 
       - name: Test generated repositories
         run: |
@@ -50,6 +53,14 @@ jobs:
             uv run --directory "$rendered/$template" --python "$python_version" ruff check .
             uv run --directory "$rendered/$template" --python "$python_version" python -m pytest -q
           done
+
+      - name: Save tested CLI artifacts
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
+        with:
+          name: cli-${{ github.sha }}
+          path: dist/
+          if-no-files-found: error
+          retention-days: 14
 
   platform:
     name: CNOE overlays & Backstage integration
@@ -68,6 +79,13 @@ jobs:
           echo "$(cat kubectl.sha256)  kubectl" | sha256sum --check
           sudo install -m 0755 kubectl /usr/local/bin/kubectl
           rm kubectl kubectl.sha256
+
+      - uses: astral-sh/setup-uv@11f9893b081a58869d3b5fccaea48c9e9e46f990 # v8.3.2
+        with:
+          version: "0.11.8"
+
+      - name: Validate hosting definitions
+        run: make hosting-check
 
       - name: Build upstream Backstage and test native integrations
         run: make portal-check

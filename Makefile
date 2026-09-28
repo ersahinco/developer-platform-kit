@@ -54,12 +54,33 @@ portal-image: ## Build the shared Entra portal image: IMAGE=registry/name:versio
 	  { echo 'Set IMAGE=registry/name:version; latest is not allowed'; exit 2; }
 	docker build --provenance=false --tag "$$PORTAL_IMAGE" platform/backstage
 
+PORTAL_COMPOSE = docker compose --env-file platform/.local/portal.env -f platform/hosting/compose.yaml
+.PHONY: portal-host-up portal-host-status portal-host-down hosting-check
+portal-host-up: ## Start the shared portal on this host using platform/.local/portal.env
+	@$(PORTAL_COMPOSE) config --quiet
+	@image=$$($(PORTAL_COMPOSE) config --images); [[ "$$image" =~ @sha256:[a-f0-9]{64}$$ ]] || \
+	  { echo 'PORTAL_IMAGE must be pinned by digest'; exit 2; }
+	$(PORTAL_COMPOSE) up -d --wait --wait-timeout 180
+
+portal-host-status: ## Show the shared host's portal state
+	$(PORTAL_COMPOSE) ps
+
+portal-host-down: ## Stop the shared host's portal; the external database remains
+	$(PORTAL_COMPOSE) down
+
+hosting-check: ## Validate native on-premises and AWS hosting definitions without deploying
+	PORTAL_IMAGE=registry.example.com/backstage@sha256:$$(printf '0%.0s' {1..64}) \
+	  PORTAL_ENV_FILE=$(CURDIR)/platform/hosting/portal.env.example \
+	  docker compose -f platform/hosting/compose.yaml config --quiet
+	uvx --from cfn-lint==1.57.0 cfn-lint platform/hosting/aws.yaml
+
 portal-check: portal-prepare ## Validate CNOE overlays and test the Backstage image without deploying
 	docker build --provenance=false --iidfile platform/.local/check-image-id platform/backstage
 	@set -euo pipefail; exported=$$(mktemp -d); trap 'rm -rf "$$exported"' EXIT; \
 	python3 -m scaffold.backstage "$$exported/templates" --allowed-owner acme --github-settings tests/fixtures/github-settings.json; \
 	docker run --rm --network none -v "$$exported/templates:/templates:ro" \
 	  --entrypoint node "$$(cat platform/.local/check-image-id)" --test platform/github.test.cjs platform/runtime.test.cjs
+	bash tests/hosting/check.sh
 
 portal-up: portal-prepare ## Start or update Backstage and Keycloak locally
 	@if ! kubectl --request-timeout=5s get deployment/external-secrets-webhook -n external-secrets >/dev/null 2>&1; then \
@@ -160,7 +181,7 @@ test: ## Render every template and check the output
 	uv run python -m pytest tests/ -v
 
 .PHONY: check
-check: lint test cli-check validate-modules validate-templates lint-tflint lint-checkov lint-dockerfiles ## What CI runs
+check: lint test cli-check hosting-check validate-modules validate-templates lint-tflint lint-checkov lint-dockerfiles ## What CI runs
 
 .PHONY: validate-templates
 validate-templates: ## Validate the rendered infra root against local modules

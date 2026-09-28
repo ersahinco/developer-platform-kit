@@ -1,0 +1,168 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Description: CNOE Backstage on existing ECS, PostgreSQL, HTTPS ingress, and Secrets Manager.
+Parameters:
+  Image:
+    Type: String
+    Description: Image in ECR, built for Architecture and pinned by digest.
+    AllowedPattern: '.+@sha256:[a-f0-9]{64}'
+  Architecture:
+    Type: String
+    Default: X86_64
+    AllowedValues: [X86_64, ARM64]
+  Cluster:
+    Type: String
+    Description: Existing ECS cluster name or ARN.
+  Subnets:
+    Type: List<AWS::EC2::Subnet::Id>
+    Description: Private subnets with access to Entra, Graph, GitHub, ECR, logs, secrets, and PostgreSQL.
+  SecurityGroups:
+    Type: List<AWS::EC2::SecurityGroup::Id>
+    Description: Existing groups allowing port 7007 only from the HTTPS load balancer.
+  TargetGroup:
+    Type: String
+    Description: Existing ALB IP target group, port 7007, attached to an HTTPS listener; readiness path from README.
+  ExecutionRole:
+    Type: String
+    Description: Existing ECS task execution role for ECR, logs, this secret, and its KMS key if applicable.
+  ConfigurationSecret:
+    Type: String
+    Description: Full Secrets Manager ARN; JSON keys are the environment names in portal.env.example.
+  DatabaseCASecret:
+    Type: String
+    Default: ''
+    Description: Optional Secrets Manager ARN containing the PEM database CA bundle as a plain string.
+  GitHubHost:
+    Type: String
+    Default: github.com
+  GitHubApiUrl:
+    Type: String
+    Default: https://api.github.com
+  Replicas:
+    Type: Number
+    Default: 1
+    MinValue: 1
+    MaxValue: 10
+Conditions:
+  HasDatabaseCA: !Not [!Equals [!Ref DatabaseCASecret, '']]
+Resources:
+  Logs:
+    Type: AWS::Logs::LogGroup
+    DeletionPolicy: Retain
+    UpdateReplacePolicy: Retain
+    Properties:
+      RetentionInDays: 30
+  Task:
+    Type: AWS::ECS::TaskDefinition
+    Properties:
+      RequiresCompatibilities: [FARGATE]
+      NetworkMode: awsvpc
+      Cpu: '1024'
+      Memory: '2048'
+      ExecutionRoleArn: !Ref ExecutionRole
+      # No task role: portal users and CI obtain AWS access separately.
+      RuntimePlatform:
+        OperatingSystemFamily: LINUX
+        CpuArchitecture: !Ref Architecture
+      ContainerDefinitions:
+        - Name: backstage
+          Image: !Ref Image
+          Essential: true
+          User: '1000:1000'
+          LinuxParameters:
+            InitProcessEnabled: true
+            Capabilities:
+              Drop: [ALL]
+          PortMappings:
+            - ContainerPort: 7007
+          Environment:
+            - Name: GITHUB_HOST
+              Value: !Ref GitHubHost
+            - Name: GITHUB_API_URL
+              Value: !Ref GitHubApiUrl
+          Secrets:
+            - Name: PORTAL_URL
+              ValueFrom: !Sub '${ConfigurationSecret}:PORTAL_URL::'
+            - Name: POSTGRES_HOST
+              ValueFrom: !Sub '${ConfigurationSecret}:POSTGRES_HOST::'
+            - Name: POSTGRES_PORT
+              ValueFrom: !Sub '${ConfigurationSecret}:POSTGRES_PORT::'
+            - Name: POSTGRES_DATABASE
+              ValueFrom: !Sub '${ConfigurationSecret}:POSTGRES_DATABASE::'
+            - Name: POSTGRES_USER
+              ValueFrom: !Sub '${ConfigurationSecret}:POSTGRES_USER::'
+            - Name: POSTGRES_PASSWORD
+              ValueFrom: !Sub '${ConfigurationSecret}:POSTGRES_PASSWORD::'
+            - Name: SESSION_SECRET
+              ValueFrom: !Sub '${ConfigurationSecret}:SESSION_SECRET::'
+            - Name: ENTRA_TENANT_ID
+              ValueFrom: !Sub '${ConfigurationSecret}:ENTRA_TENANT_ID::'
+            - Name: ENTRA_CLIENT_ID
+              ValueFrom: !Sub '${ConfigurationSecret}:ENTRA_CLIENT_ID::'
+            - Name: ENTRA_CLIENT_SECRET
+              ValueFrom: !Sub '${ConfigurationSecret}:ENTRA_CLIENT_SECRET::'
+            - Name: ENTRA_CREATORS_GROUP_ID
+              ValueFrom: !Sub '${ConfigurationSecret}:ENTRA_CREATORS_GROUP_ID::'
+            - Name: ENTRA_VIEWERS_GROUP_ID
+              ValueFrom: !Sub '${ConfigurationSecret}:ENTRA_VIEWERS_GROUP_ID::'
+            - Name: ENTRA_CREATORS_GROUP_REF
+              ValueFrom: !Sub '${ConfigurationSecret}:ENTRA_CREATORS_GROUP_REF::'
+            - Name: ENTRA_VIEWERS_GROUP_REF
+              ValueFrom: !Sub '${ConfigurationSecret}:ENTRA_VIEWERS_GROUP_REF::'
+            - Name: GITHUB_APP_ID
+              ValueFrom: !Sub '${ConfigurationSecret}:GITHUB_APP_ID::'
+            - Name: GITHUB_APP_CLIENT_ID
+              ValueFrom: !Sub '${ConfigurationSecret}:GITHUB_APP_CLIENT_ID::'
+            - Name: GITHUB_APP_CLIENT_SECRET
+              ValueFrom: !Sub '${ConfigurationSecret}:GITHUB_APP_CLIENT_SECRET::'
+            - Name: GITHUB_APP_PRIVATE_KEY
+              ValueFrom: !Sub '${ConfigurationSecret}:GITHUB_APP_PRIVATE_KEY::'
+            - Name: GITHUB_ORGANIZATION
+              ValueFrom: !Sub '${ConfigurationSecret}:GITHUB_ORGANIZATION::'
+            - Name: TEMPLATES_CATALOG_URL
+              ValueFrom: !Sub '${ConfigurationSecret}:TEMPLATES_CATALOG_URL::'
+            - !If
+              - HasDatabaseCA
+              - Name: APP_CONFIG_backend_database_connection_ssl_ca
+                ValueFrom: !Ref DatabaseCASecret
+              - !Ref AWS::NoValue
+          HealthCheck:
+            Command: [CMD, node, -e, "fetch('http://127.0.0.1:7007/.backstage/health/v1/readiness').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"]
+            Interval: 30
+            Timeout: 5
+            Retries: 3
+            StartPeriod: 90
+          LogConfiguration:
+            LogDriver: awslogs
+            Options:
+              awslogs-group: !Ref Logs
+              awslogs-region: !Ref AWS::Region
+              awslogs-stream-prefix: backstage
+  Service:
+    Type: AWS::ECS::Service
+    Properties:
+      Cluster: !Ref Cluster
+      TaskDefinition: !Ref Task
+      LaunchType: FARGATE
+      PlatformVersion: '1.4.0'
+      DesiredCount: !Ref Replicas
+      HealthCheckGracePeriodSeconds: 120
+      DeploymentConfiguration:
+        DeploymentCircuitBreaker:
+          Enable: true
+          Rollback: true
+        MinimumHealthyPercent: 100
+        MaximumPercent: 200
+      NetworkConfiguration:
+        AwsvpcConfiguration:
+          AssignPublicIp: DISABLED
+          Subnets: !Ref Subnets
+          SecurityGroups: !Ref SecurityGroups
+      LoadBalancers:
+        - ContainerName: backstage
+          ContainerPort: 7007
+          TargetGroupArn: !Ref TargetGroup
+Outputs:
+  ServiceName:
+    Value: !GetAtt Service.Name
+  LogGroup:
+    Value: !Ref Logs
