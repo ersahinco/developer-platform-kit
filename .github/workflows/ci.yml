@@ -1,7 +1,6 @@
 name: CI
 
-# This repo ships templates and modules. Nothing here deploys anything, so CI
-# proves one thing: what we hand to a team is valid before they get it.
+# Validate the kit and rendered starters without deploying to a cloud account.
 
 on:
   pull_request:
@@ -180,9 +179,7 @@ jobs:
       - name: Dependency audit
         run: uv run --group dev pip-audit --progress-spinner off
 
-      # Rendered, not templated: __TOKEN__ is not valid Dockerfile syntax, so the
-      # only honest thing to lint is what a team actually receives. Same hadolint
-      # version the devcontainer pins.
+      # Lint rendered files: __TOKEN__ is not Dockerfile syntax.
       - name: Lint rendered Dockerfiles
         run: |
           uv sync

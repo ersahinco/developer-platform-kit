@@ -1,7 +1,6 @@
 name: Data
 
-# One workflow for the whole repo. Pull requests prove the pipeline code and the
-# changelog. Manual runs either migrate the schema or run the pipeline.
+# Verify code and migrations before publishing; execute only on manual runs.
 
 on:
   pull_request:
@@ -88,8 +87,7 @@ jobs:
       - name: Test the check engine
         run: uv run pytest -v
 
-      # A changelog that only parses is not proven. Applying it to an empty
-      # database, then rolling one changeset back, is the cheap version of proof.
+      # Exercise the changelog and one rollback against disposable PostgreSQL.
       - name: Apply the changelog to a throwaway database
         run: |
           docker build -t migrations:verify migrations/
@@ -103,8 +101,7 @@ jobs:
               migrations:verify "${args[@]}"
           done
 
-  # Reuses the app lane's build mode: one build implementation, whatever the
-  # image is for. Publishing only follows a green verify.
+  # Reuse app image builds after verification.
   migration_image:
     name: Migration Image
     needs: verify

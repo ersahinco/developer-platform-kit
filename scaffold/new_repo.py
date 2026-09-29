@@ -15,8 +15,6 @@ if not TEMPLATE_ROOT.is_dir():
     TEMPLATE_ROOT = Path(__file__).resolve().parent.parent / "repo-templates"
 TOKEN_PATTERN = re.compile(r"__([A-Z][A-Z0-9_]*?)__")
 
-# Binary or vendored paths are copied byte for byte, never substituted.
-SKIP_SUBSTITUTION_SUFFIXES = frozenset({".png", ".jpg", ".jpeg", ".gif", ".ico", ".pdf", ".zip"})
 CACHE_DIRS = {".ruff_cache", ".pytest_cache", "__pycache__", ".terraform", ".venv"}
 
 
@@ -156,9 +154,8 @@ def render(
             f"{output} already has contents. Pass --force to render into it anyway."
         )
 
-    written: list[Path] = []
     unresolved: dict[str, set[str]] = {}
-    pending: list[tuple[Path, Path, str | None]] = []
+    pending: list[tuple[Path, Path, str]] = []
 
     for source in template_files(template.files_dir):
         relative = source.relative_to(template.files_dir)
@@ -168,10 +165,6 @@ def render(
         path_tokens = set(TOKEN_PATTERN.findall(str(target.relative_to(output))))
         if path_tokens:
             unresolved[str(relative)] = path_tokens
-
-        if source.suffix in SKIP_SUBSTITUTION_SUFFIXES:
-            pending.append((source, target, None))
-            continue
 
         rendered = substitute(source.read_text(), values)
         leftover = set(TOKEN_PATTERN.findall(rendered))
@@ -188,13 +181,9 @@ def render(
     # Validate the whole tree before writing, including with --force.
     for source, target, rendered in pending:
         target.parent.mkdir(parents=True, exist_ok=True)
-        if rendered is None:
-            shutil.copy2(source, target)
-        else:
-            target.write_text(rendered)
-            shutil.copymode(source, target)
-        written.append(target)
-    return written
+        target.write_text(rendered)
+        shutil.copymode(source, target)
+    return [target for _, target, _ in pending]
 
 
 def parse_set(pairs: list[str]) -> dict[str, str]:

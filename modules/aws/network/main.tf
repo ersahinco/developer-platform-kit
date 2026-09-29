@@ -1,10 +1,4 @@
-################################################################################
-# Network
-#
-# One VPC with public, private, and intra subnet tiers, NAT egress, and the
-# interface endpoints a private Fargate task needs to pull images, read secrets,
-# and ship logs without a public route.
-################################################################################
+# VPC, subnet tiers, NAT, and private endpoints for Fargate dependencies.
 
 locals {
   azs = slice(var.availability_zones, 0, var.az_count)

@@ -1,13 +1,6 @@
 name: Reusable App Delivery
 
-# The application team's lane. One file, two modes, and they never run in the
-# same run:
-#
-#   mode: build   test, build, scan, push an immutable tag
-#   mode: deploy  revise an ECS service to an already-built tag
-#
-# Review happens between the two runs. A deploy run cannot build, so what is
-# approved is an image that already exists and already passed its scan.
+# Build scans an image; deploy releases a separately reviewed image.
 
 on:
   workflow_call:

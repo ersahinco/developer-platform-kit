@@ -1,13 +1,6 @@
 name: Reusable Infra Delivery
 
-# The infrastructure team's lane. One file, two modes, never the same run:
-#
-#   mode: plan    fmt, validate, TFLint, Checkov, plan, publish the diff
-#   mode: apply   apply the saved plan from a named plan run
-#
-# The apply mode refuses any plan run that did not succeed, did not run on the
-# default branch of the same workflow, or planned a commit that is no longer
-# head. That check, not the file layout, is what stops an unreviewed apply.
+# Apply accepts only a successful default-branch plan for the current commit.
 
 on:
   workflow_call:

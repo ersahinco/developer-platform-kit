@@ -1,13 +1,4 @@
-################################################################################
-# EMR Serverless
-#
-# One Spark application plus the runtime role its jobs assume. Capacity is
-# pre-initialised so a job does not wait for a cold start, and bounded so a
-# runaway job cannot consume the account.
-#
-# The data lane publishes job code to S3 and calls start-job-run against this
-# application. Nothing about a specific pipeline lives here.
-################################################################################
+# Spark application with a capacity ceiling and scoped job identity.
 
 data "aws_partition" "current" {}
 data "aws_caller_identity" "current" {}
@@ -81,9 +72,7 @@ resource "aws_vpc_security_group_egress_rule" "job" {
   ip_protocol       = "-1"
 }
 
-################################################################################
 # Job runtime identity
-################################################################################
 
 data "aws_iam_policy_document" "assume" {
   statement {

@@ -1,9 +1,4 @@
-################################################################################
-# ECR
-#
-# One repository per workload image. Tags are immutable so a deployed tag always
-# means the same bytes, and untagged layers expire on a schedule.
-################################################################################
+# Immutable workload images with bounded retention.
 
 resource "aws_ecr_repository" "this" {
   name                 = var.name

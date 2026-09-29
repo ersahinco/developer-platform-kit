@@ -1,14 +1,6 @@
 name: Reusable Data Delivery
 
-# The data team's lane. One file, two modes, never the same run:
-#
-#   mode: migrate   run one Liquibase command against the database as an ECS task
-#   mode: pipeline  publish the Spark job, run it on EMR Serverless, report the
-#                   data quality results it produced
-#
-# Both modes take a literal confirm value, because both touch real data. The
-# lane decides success from the exit status the runtime reports, never from the
-# absence of an error message.
+# Confirmed runs execute Liquibase on ECS or Spark on EMR Serverless.
 
 on:
   workflow_call:
@@ -302,8 +294,7 @@ jobs:
           role-to-assume: ${{ secrets.aws_role_arn }}
           aws-region: ${{ inputs.aws_region }}
 
-      # Code is published under the commit SHA, so a run is always traceable to a
-      # reviewed revision and two runs never race over the same objects.
+      # Isolate code and reports by commit, run, and attempt.
       - name: Publish job code
         id: publish
         env:
@@ -334,8 +325,6 @@ jobs:
             echo "::error::job_arguments must be a JSON array, got: ${ARGS}" >&2
             exit 1
           fi
-          # The job receives where it came from and where to write its report, so
-          # neither is duplicated inside the job code.
           args=$(jq -cn --argjson extra "$ARGS" \
             --arg run_id "$GITHUB_RUN_ID" \
             --arg checks "checks.json" \
@@ -390,8 +379,7 @@ jobs:
           echo "::error::Spark job is still ${state} after ${WAIT_MINUTES} minutes. It has not failed; cancel it or raise wait_minutes." >&2
           exit 1
 
-      # The job writes its own check report and exits non-zero when a blocking
-      # check fails. This step exists to put the numbers in front of a human.
+      # The job's exit status gates success; this report explains the results.
       - name: Report data quality checks
         if: always()
         env:

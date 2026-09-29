@@ -1,19 +1,14 @@
 # Developer platform kit
 
-Start app, infrastructure, and data repositories from three maintained templates.
-Teams own the generated code and reuse GitHub Actions workflows and AWS Terraform
-modules. Developers use a Python CLI or Backstage; both produce the same files.
+Create app, infrastructure, and data repositories through a Python CLI or Backstage.
+Both produce the same starters with tests and ownership metadata. Teams own the
+generated code and reuse GitHub Actions delivery workflows and AWS Terraform modules.
+Generated applications have no runtime dependency on this kit.
 
-Platform engineers maintain the starters and delivery rules once. Developers get
-working examples, tests, ownership metadata, and a clear path to delivery without
-assembling each repository from scratch. Generated applications have no runtime
-dependency on this kit.
-
-Delivery targets are AWS ECS/Fargate and EMR Serverless. The optional CNOE lab
-exercises portal integration locally. Shared hosting runs on an on-premises Docker host or AWS ECS/Fargate, using the
-client's existing services. Hosting on-premises does not change the starters' AWS
-delivery targets or provide an air-gapped platform. Client sign-in and AWS delivery
-require acceptance testing in that environment.
+Delivery targets AWS ECS/Fargate and EMR Serverless. Host the portal on an on-premises
+Docker host or AWS ECS/Fargate using existing client services, or use the optional
+CNOE lab locally. On-premises hosting still requires external integrations and AWS
+for delivery. Verify client sign-in and delivery before handover.
 
 [CLI](#start-a-repository) · [Backstage](#backstage-self-service) ·
 [Shared hosting](#host-a-shared-portal) · [Local lab](#local-cnoe-lab) ·
@@ -78,12 +73,10 @@ uv tool install --default-index https://packages.example.com/pypi/simple \
 ```
 
 Use the client's credential helper; keep tokens out of commands, URLs, and Git.
-The CLI has no runtime dependencies beyond Python 3.13+ and bundles all starters.
-No portal, checkout, or cloud credentials are needed to render. Use
-`uv tool install --reinstall ...` to replace an installed version. CI artifacts are
-commit snapshots, not releases: increment `project.version` before promoting a
-changed wheel, retain old versions, and never overwrite a published version.
-No public package registry publication is configured.
+The wheel bundles all starters. Use `uv tool install --reinstall ...` to replace
+an installed version. Before promoting a CI snapshot, increment `project.version`;
+retain previous releases and never overwrite published versions. Public package
+registry publication is not configured.
 
 | Starter | Includes | Delivery modes |
 |---|---|---|
@@ -187,13 +180,12 @@ make portal-image IMAGE=registry.example.com/platform/backstage:0.1.0
 This builds locally without starting Kind or configuring the local lab. Build for
 the target runtime's CPU architecture; prefix the command with
 `DOCKER_DEFAULT_PLATFORM=linux/amd64` for the AWS example's default X86_64 tasks.
-After resolving the upstream licensing
-boundary below, publish to the client's registry and deploy by digest through its
-existing delivery process. Export and publish templates with `dpk-backstage`,
-using fixed client defaults and `--github-settings` as described above.
+Resolve the [upstream licensing boundary](#upstream-ownership), then publish to the
+client's registry and deploy by digest. Export templates with `dpk-backstage`, using
+fixed client defaults and `--github-settings` as described above.
 
-The image listens on port 7007 and starts
-with `node packages/backend --config platform/entra.yaml`. The image includes
+The image listens on port 7007 and starts with
+`node packages/backend --config platform/entra.yaml`. It includes
 native [Microsoft sign-in](https://backstage.io/docs/auth/microsoft/provider/),
 [Graph directory sync](https://backstage.io/docs/integrations/azure/org/), and
 [GitHub App integration](https://backstage.io/docs/integrations/github/github-apps/).
@@ -204,8 +196,7 @@ The client owns backups and monitoring. Use the native
 `/.backstage/health/v1/readiness` check through the existing runtime. On Kubernetes,
 set `automountServiceAccountToken: false`: scaffolding needs no cluster credentials,
 and the upstream app otherwise enables optional Kubernetes plugins when it finds
-the token. Resolve the upstream image licensing boundary described below before
-redistributing an image.
+the token.
 
 Supply these values through the runtime and secret store; configuration lives in
 [platform/backstage/entra.yaml](platform/backstage/entra.yaml):
@@ -236,7 +227,7 @@ Keep PostgreSQL certificate validation enabled. For a private database issuer,
 inject its PEM bundle through native `APP_CONFIG_backend_database_connection_ssl_ca`.
 For other private HTTPS issuers, mount the client's CA and set `NODE_EXTRA_CA_CERTS`.
 Allow network access to Entra, Microsoft Graph, GitHub/API, the template host,
-registry, and PostgreSQL. An internal URL alone does not make the portal offline.
+registry, and PostgreSQL.
 
 ### On-premises Docker host
 
@@ -505,7 +496,8 @@ sign-in or publishing also need `portal-up`, `portal-verify`, and `portal-smoke`
 with the local Gitea profile. Update upstream pins and patches together.
 
 Keep three templates and three lanes. Prefer native integration and declarative
-configuration; custom code needs a verified gap and a current consumer. Modules
+configuration; custom code needs a verified gap and a current consumer. Starters
+contain text files supported by both the CLI and Backstage export. Modules
 need callers in a template. Add tests for behavior changes, keep user documentation
 in this README and generated READMEs, and follow [AGENTS.md](AGENTS.md) for editing
 rules. Never commit `platform/.local/`, generated packages, or credentials.

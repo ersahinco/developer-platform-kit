@@ -1,12 +1,4 @@
-################################################################################
-# __STACK_NAME__
-#
-# One Terraform root wiring the toolkit modules into one stack. This is a
-# starting point: capabilities follow the workloads in stack.tfvars.
-#
-# Module sources are pinned to __TOOLKIT_REF__. Bump the ref deliberately, plan,
-# read the diff, then apply.
-################################################################################
+# Capabilities follow stack.tfvars; review a plan before changing module refs.
 
 data "aws_availability_zones" "available" {
   state = "available"
@@ -73,8 +65,7 @@ module "edge" {
   certificate_arn = var.certificate_arn
   target_port     = var.edge_target_port
 
-  # No certificate yet means plaintext on a public listener. Acknowledge it
-  # explicitly rather than discovering it in a scan later.
+  # Public HTTP requires explicit opt-in.
   allow_public_http = var.allow_public_http
 
   tags = local.tags
@@ -110,8 +101,7 @@ module "services" {
   name       = each.key
   cluster_id = module.cluster[0].cluster_id
 
-  # Terraform creates the service with a placeholder. The deploy lane owns which
-  # image actually runs, so this value is never updated in place.
+  # Delivery replaces the bootstrap image with a published digest.
   image          = "${module.ecr[each.key].repository_url}:bootstrap"
   container_name = "app"
   container_port = each.value.container_port
@@ -141,19 +131,12 @@ module "services" {
     each.value.secrets,
   )
 
-  # A container health check is deliberately not set here: it would assume which
-  # tools exist inside someone else's image. The load balancer already polls
-  # /health, and a workload that wants a container-level check adds it knowing
-  # what its image contains.
+  # ALB polls /health; container checks must use tools available in the workload image.
 
   tags = merge(local.tags, { Workload = each.key })
 }
 
-################################################################################
-# Data
-#
-# One migration task family per pipeline, and one shared Spark application.
-################################################################################
+# Migration tasks per pipeline; one shared Spark application.
 
 module "migrations" {
   source = "git::https://github.com/__TOOLKIT_REPOSITORY__.git//modules/aws/ecs-job?ref=__TOOLKIT_REF__"
@@ -166,8 +149,7 @@ module "migrations" {
 
   vpc_id = module.network[0].vpc_id
 
-  # Liquibase reads the connection from the environment. The credential itself is
-  # injected from the RDS-managed secret, so no password exists in this repo.
+  # Inject Liquibase credentials from the RDS-managed secret.
   environment = {
     LIQUIBASE_COMMAND_URL = "jdbc:postgresql://${module.database[0].endpoint}/${var.database_name}"
   }
@@ -186,9 +168,7 @@ module "spark" {
 
   name = "${local.name}-spark"
 
-  # Jobs here read and write S3 and the Glue catalog, so they need no VPC
-  # placement. Give them subnet_ids only when a job must reach the database, and
-  # accept the NAT cost that comes with it.
+  # S3/Glue jobs need no VPC placement; add subnet_ids for database access.
   data_bucket_names = [module.artifacts[0].bucket_name]
 
   tags = local.tags
@@ -204,9 +184,7 @@ module "delivery_identity" {
   state_bucket      = var.state_bucket
   state_key_prefix  = "${var.stack_name}/"
 
-  # This role applies this stack. Grant it the services this root
-  # actually manages, and review changes to this list like any other permission
-  # change.
+  # Grant only the permissions this stack needs to apply changes.
   policy_arns = var.delivery_policy_arns
 
   tags = local.tags

@@ -1,13 +1,4 @@
-################################################################################
-# ECS job
-#
-# One bounded task: log group, roles, and task definition.
-# The data lane runs migrations on demand.
-#
-# A job is only safe here if it exits non-zero on failure and can be rerun.
-# Neither property can be enforced from Terraform, so both belong in the job's
-# own tests and its README.
-################################################################################
+# Migration task definition and identity; the data lane starts each run.
 
 data "aws_region" "current" {}
 
@@ -22,9 +13,7 @@ data "aws_ec2_managed_prefix_list" "s3" {
 locals {
   log_group_name = coalesce(var.log_group_name, "/ecs/${var.name}")
 
-  # A secret value may carry a JSON key suffix, as in "<arn>:password::". That is
-  # valid for the container definition and invalid as an IAM resource, so the
-  # policy gets the ARN back without it.
+  # Strip container-only JSON key suffixes (e.g. :password::) from IAM resource ARNs.
   secret_resources = distinct([
     for arn in values(var.secrets) :
     join(":", slice(split(":", arn), 0, min(7, length(split(":", arn)))))

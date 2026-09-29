@@ -1,9 +1,4 @@
-################################################################################
-# Outputs
-#
-# These are the values workload repos need as GitHub variables and secrets. They
-# are read from here, not copied into a second config file.
-################################################################################
+# Values for workload repository variables and secrets.
 
 output "ecs_cluster" {
   description = "Set as the ECS_CLUSTER variable in every workload repo."
