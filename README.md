@@ -12,7 +12,7 @@ for delivery. Verify client sign-in and delivery before handover.
 
 [CLI](#start-a-repository) · [Backstage](#backstage-self-service) ·
 [Shared hosting](#host-a-shared-portal) · [Local lab](#local-cnoe-lab) ·
-[Contributing](#contribute)
+[Contributing](#contribute) · [MIT license](LICENSE)
 
 | Use | Maintainer entry point | Developer entry point |
 |---|---|---|
@@ -446,8 +446,8 @@ Review against the pinned
 [Backstage source](https://github.com/cnoe-io/backstage-app/tree/6a5087c2fb6aeccdee5f2b5665f7d93cb89640b3),
 and [Keycloak import behavior](https://www.keycloak.org/server/importExport).
 The pinned CNOE Backstage app has no top-level license file: clarify redistribution
-terms with upstream before distributing a client image. Dependency licenses and
-the upstream README remain in the image.
+terms with upstream before distributing its source or a client image. Dependency
+licenses and the upstream README remain in the image.
 
 ### Infrastructure boundaries
 
@@ -472,9 +472,13 @@ promotion in the consuming repo. Azure/GCP delivery is not implemented.
 
 ## Contribute
 
-Open an issue for a bug or proposed change; include a reproduction and expected
-behavior. Submit a small pull request explaining the problem, the change, and the
-checks run. Discuss a new audience or runtime target before adding one.
+Bug fixes, clearer setup instructions, tests, and native integration improvements
+are welcome. Small fixes can go straight to a pull request; describe the problem,
+the change, and the checks run. For bug reports, include a reproduction and expected
+behavior. Discuss a new audience or runtime target in an issue before implementing it.
+
+Original contributions are accepted under [MIT](LICENSE); contributors retain
+their copyright. Preserve licenses and notices for code from other projects.
 
 Use `.devcontainer/` for the check tools, or install them locally and run:
 
@@ -504,7 +508,9 @@ rules. Never commit `platform/.local/`, generated packages, or credentials.
 
 ## License
 
-Original code is licensed under [MIT](LICENSE). Generated starters retain that
-license in `NOTICE`; teams choose the terms for their own additions. Upstream
-dependencies retain their own terms, including the CNOE image redistribution
-limitation described above.
+Original code is licensed under [MIT](LICENSE): you may use, modify, and redistribute
+it, including commercially, while retaining its copyright and license notice.
+Generated starters include that notice in `NOTICE`; teams choose the terms for
+their own additions. Upstream dependencies retain their own licenses, including
+Apache-2.0 where applicable. The [CNOE redistribution limitation](#upstream-ownership)
+still applies.
