@@ -11,8 +11,6 @@ import yaml
 REPO_ROOT = Path(__file__).resolve().parent.parent
 WORKFLOWS_DIR = REPO_ROOT / ".github" / "workflows"
 
-LANES = ("reusable-app.yml", "reusable-infra.yml", "reusable-data.yml")
-
 # Each lane's modes, and the job that must own each one.
 MODE_JOBS = {
     "reusable-app.yml": {"build": "build", "deploy": "deploy"},
@@ -39,7 +37,7 @@ def _job_text(path: Path, job: str) -> str:
 
 def test_there_are_exactly_three_lanes() -> None:
     found = sorted(p.name for p in WORKFLOWS_DIR.glob("reusable-*.yml"))
-    assert found == sorted(LANES), (
+    assert len(found) == 3 and found == sorted(MODE_JOBS), (
         f"One lane per team: app, infra, data. Found {found}. Adding a fourth needs a fourth team."
     )
 
@@ -49,7 +47,7 @@ def test_workflow_yaml_parses(path: Path) -> None:
     assert isinstance(_load(path), dict)
 
 
-@pytest.mark.parametrize("name", LANES)
+@pytest.mark.parametrize("name", MODE_JOBS)
 def test_lane_is_callable_and_only_callable(name: str) -> None:
     triggers = _triggers(WORKFLOWS_DIR / name)
     assert "workflow_call" in triggers, f"{name} cannot be called"
@@ -58,14 +56,14 @@ def test_lane_is_callable_and_only_callable(name: str) -> None:
     )
 
 
-@pytest.mark.parametrize("name", LANES)
+@pytest.mark.parametrize("name", MODE_JOBS)
 def test_every_input_is_described(name: str) -> None:
     inputs = _triggers(WORKFLOWS_DIR / name)["workflow_call"]["inputs"]
     undescribed = [key for key, spec in inputs.items() if not spec.get("description")]
     assert not undescribed, f"{name} has inputs with no description: {undescribed}"
 
 
-@pytest.mark.parametrize("name", LANES)
+@pytest.mark.parametrize("name", MODE_JOBS)
 def test_credentials_arrive_as_secrets(name: str) -> None:
     call = _triggers(WORKFLOWS_DIR / name)["workflow_call"]
     for key in call["inputs"]:
@@ -75,7 +73,7 @@ def test_credentials_arrive_as_secrets(name: str) -> None:
     assert "aws_role_arn" in call["secrets"], f"{name} touches AWS without declaring aws_role_arn"
 
 
-@pytest.mark.parametrize("name", LANES)
+@pytest.mark.parametrize("name", MODE_JOBS)
 def test_each_mode_has_its_own_job_gated_on_mode(name: str) -> None:
     """One file, one job per mode. Two modes never run in the same run."""
     document = _load(WORKFLOWS_DIR / name)
@@ -130,7 +128,7 @@ def test_apply_verifies_the_plan_run_before_applying() -> None:
         )
 
 
-@pytest.mark.parametrize("name", LANES)
+@pytest.mark.parametrize("name", MODE_JOBS)
 def test_cloud_changing_lane_writes_evidence(name: str) -> None:
     assert "release-event.json" in (WORKFLOWS_DIR / name).read_text(), (
         f"{name} changes a cloud account without leaving evidence"
@@ -154,7 +152,7 @@ def test_actions_are_pinned_by_sha(path: Path) -> None:
 
 
 def test_toolkit_workflows_never_deploy_the_old_application() -> None:
-    assert {path.name for path in WORKFLOW_PATHS} == {"ci.yml", *LANES}
+    assert {path.name for path in WORKFLOW_PATHS} == {"ci.yml", *MODE_JOBS}
 
 
 def test_pr_build_does_not_require_cloud_credentials() -> None:
@@ -167,9 +165,9 @@ def test_pr_build_does_not_require_cloud_credentials() -> None:
 
 def test_consumers_grant_permissions_required_by_lanes() -> None:
     for path in (REPO_ROOT / "repo-templates").glob("*/files/.github/workflows/*.yml"):
-        permissions = _load(path)["permissions"]
-        assert permissions["id-token"] == "write"
-        for job in _load(path)["jobs"].values():
+        workflow = _load(path)
+        assert workflow["permissions"]["id-token"] == "write"
+        for job in workflow["jobs"].values():
             if "uses" in job:
                 assert "secrets" in job
 

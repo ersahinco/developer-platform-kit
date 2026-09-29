@@ -171,18 +171,27 @@ def test_template_name_cannot_escape_root(name: str) -> None:
         load_template(name)
 
 
-@pytest.mark.parametrize("in_path", [False, True])
-def test_unknown_tokens_fail_before_writing(tmp_path: Path, in_path: bool) -> None:
+@pytest.mark.parametrize(
+    "filename,body,diagnostic",
+    [
+        ("z.txt", "__MISSING__", "z.txt: MISSING"),
+        ("__MISSING__", "ok", "__MISSING__: MISSING"),
+        ("__PATH__.txt", "__BODY__", "__PATH__.txt: BODY, PATH"),
+    ],
+)
+def test_unknown_tokens_fail_before_writing(
+    tmp_path: Path, filename: str, body: str, diagnostic: str
+) -> None:
     from dataclasses import replace
 
     root = tmp_path / "template"
     files = root / "files"
     files.mkdir(parents=True)
     (files / "a.txt").write_text("valid file")
-    (files / ("__MISSING__" if in_path else "z.txt")).write_text("ok" if in_path else "__MISSING__")
+    (files / filename).write_text(body)
     template = replace(load_template("app"), root=root)
     output = tmp_path / "out"
-    with pytest.raises(TemplateError, match="MISSING"):
+    with pytest.raises(TemplateError, match=re.escape(diagnostic)):
         render(template, output, {})
     assert not output.exists()
 

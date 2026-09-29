@@ -162,14 +162,11 @@ def render(
         target = output / substitute(str(relative), values)
         if source.is_symlink() or not target.resolve().is_relative_to(output.resolve()):
             raise TemplateError(f"Unsafe template path: {relative}.")
-        path_tokens = set(TOKEN_PATTERN.findall(str(target.relative_to(output))))
-        if path_tokens:
-            unresolved[str(relative)] = path_tokens
-
         rendered = substitute(source.read_text(), values)
-        leftover = set(TOKEN_PATTERN.findall(rendered))
+        leftover = set(TOKEN_PATTERN.findall(str(target.relative_to(output))))
+        leftover.update(TOKEN_PATTERN.findall(rendered))
         if leftover:
-            unresolved.setdefault(str(relative), set()).update(leftover)
+            unresolved[str(relative)] = leftover
         pending.append((source, target, rendered))
 
     if unresolved:
