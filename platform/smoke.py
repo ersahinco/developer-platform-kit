@@ -58,9 +58,12 @@ def main():
                 "REPOSITORY_BASE_URL": BASE_URL,
             }
         )
-        for key in ("WORKLOAD_NAME", "STACK_NAME", "PIPELINE_NAME"):
-            if key in properties:
-                values[key] = name
+        name_key = next(
+            key for key in ("WORKLOAD_NAME", "STACK_NAME", "PIPELINE_NAME") if key in values
+        )
+        if name_key in properties:
+            values[name_key] = name
+        entity_name = values[name_key]
         parameters = {key: value for key, value in values.items() if key in properties}
         parameters["repoUrl"] = "cnoe.localtest.me:8443?" + urlencode(
             {"owner": "platform", "repo": name}
@@ -111,7 +114,7 @@ def main():
         for attempt in range(30):
             try:
                 entity = request(
-                    PORTAL + f"/api/catalog/entities/by-name/component/default/{name}",
+                    PORTAL + f"/api/catalog/entities/by-name/component/default/{entity_name}",
                     headers=auth,
                 )
                 break
@@ -120,13 +123,13 @@ def main():
                     raise
                 time.sleep(2)
         else:
-            raise TimeoutError(f"{name} was published but has not appeared in the catalog.")
+            raise TimeoutError(f"{entity_name} was published but has not appeared in the catalog.")
         assert (
             entity["metadata"]["annotations"]["backstage.io/source-location"]
             == f"url:{BASE_URL}/platform/{name}"
         )
         print(
-            f"{template.name}: published {len(expected)} identical files and registered {name}",
+            f"{template.name}: published {len(expected)} identical files and registered {entity_name}",
             flush=True,
         )
     print(

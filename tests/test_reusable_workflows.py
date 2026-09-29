@@ -1,8 +1,4 @@
-"""Shape checks on the three reusable lanes.
-
-Consumers call these by ref, so a broken contract here breaks every repo that
-upgraded. The rules that matter are enforced, not described.
-"""
+"""Check reusable lane contracts and deployment guards."""
 
 from __future__ import annotations
 
@@ -25,8 +21,7 @@ MODE_JOBS = {
 }
 
 
-def workflow_paths() -> list[Path]:
-    return sorted(WORKFLOWS_DIR.glob("*.yml"))
+WORKFLOW_PATHS = sorted(WORKFLOWS_DIR.glob("*.yml"))
 
 
 def _load(path: Path) -> dict:
@@ -49,7 +44,7 @@ def test_there_are_exactly_three_lanes() -> None:
     )
 
 
-@pytest.mark.parametrize("path", workflow_paths(), ids=lambda p: p.name)
+@pytest.mark.parametrize("path", WORKFLOW_PATHS, ids=lambda p: p.name)
 def test_workflow_yaml_parses(path: Path) -> None:
     assert isinstance(_load(path), dict)
 
@@ -142,7 +137,7 @@ def test_cloud_changing_lane_writes_evidence(name: str) -> None:
     )
 
 
-@pytest.mark.parametrize("path", workflow_paths(), ids=lambda p: p.name)
+@pytest.mark.parametrize("path", WORKFLOW_PATHS, ids=lambda p: p.name)
 def test_actions_are_pinned_by_sha(path: Path) -> None:
     unpinned: list[str] = []
     for line in path.read_text().splitlines():
@@ -159,7 +154,7 @@ def test_actions_are_pinned_by_sha(path: Path) -> None:
 
 
 def test_toolkit_workflows_never_deploy_the_old_application() -> None:
-    assert {path.name for path in workflow_paths()} == {"ci.yml", *LANES}
+    assert {path.name for path in WORKFLOW_PATHS} == {"ci.yml", *LANES}
 
 
 def test_pr_build_does_not_require_cloud_credentials() -> None:

@@ -1,8 +1,4 @@
-"""__WORKLOAD_NAME__ host.
-
-Owns process lifecycle, the platform endpoints, logging, and wiring. Business
-logic goes in its own modules so it stays testable without a running server.
-"""
+"""__WORKLOAD_NAME__ lifecycle and platform endpoints."""
 
 from __future__ import annotations
 
@@ -13,11 +9,9 @@ from contextlib import asynccontextmanager
 from fastapi import FastAPI, Response
 from prometheus_client import CONTENT_TYPE_LATEST, Counter, generate_latest
 
-from app.config import Settings
 from app.logging_setup import configure_logging
 
-settings = Settings()
-configure_logging(settings)
+configure_logging()
 logger = logging.getLogger("__WORKLOAD_SLUG__")
 
 REQUESTS = Counter(
@@ -26,8 +20,7 @@ REQUESTS = Counter(
     ["route", "outcome"],
 )
 
-# Liveness and readiness are different questions. The process can be alive and
-# unable to serve, and the load balancer must be able to tell them apart.
+# Readiness starts after dependency checks and ends at shutdown.
 _ready = False
 
 
@@ -35,7 +28,7 @@ _ready = False
 async def lifespan(app: FastAPI) -> AsyncIterator[None]:
     global _ready
     logger.info("startup", extra={"event": "startup"})
-    # Check dependencies here. Fail loudly rather than serving a broken workload.
+    # Check required dependencies before accepting traffic.
     _ready = True
     yield
     _ready = False

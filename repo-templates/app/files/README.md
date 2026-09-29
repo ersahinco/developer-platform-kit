@@ -18,10 +18,10 @@ uv run pytest -v
 | `/ready` is 503 until dependencies are usable | `app/main.py` |
 | `/metrics` serves Prometheus text | `app/main.py` |
 | Logs are JSON with `workload` and `environment` | `app/logging_setup.py` |
-| Config from the environment, secrets injected at runtime | `app/config.py` |
+| Logging settings: `WORKLOAD_NAME`, `ENVIRONMENT`, `LOG_LEVEL` | `app/logging_setup.py` |
 | Non-root image that forwards SIGTERM | `Dockerfile` |
 
-`tests/test_contract.py` enforces these. Change them deliberately.
+`tests/` checks the endpoints and logging. The image build checks the Dockerfile.
 
 ## Delivery
 

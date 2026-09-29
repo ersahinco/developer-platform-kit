@@ -66,9 +66,8 @@ def export(
         raise TemplateError(f"Unsupported Git provider: {provider}.")
     github_settings = {} if github_settings is None else github_settings
     validate_github_settings(github_settings)
-    if github_settings:
-        if provider != "github" or len(allowed_owners) != 1:
-            raise TemplateError("GitHub settings require GitHub and exactly one --allowed-owner.")
+    if github_settings and (provider != "github" or len(allowed_owners) != 1):
+        raise TemplateError("GitHub settings require GitHub and exactly one --allowed-owner.")
     if not re.fullmatch(r"https://[A-Za-z0-9.-]+(?::[0-9]+)?(?:/[A-Za-z0-9._-]+)*", base_url):
         raise TemplateError("Git base URL must be HTTPS with no credentials, query, or fragment.")
     host = urlsplit(base_url).netloc
@@ -230,7 +229,7 @@ def export(
                 "apiVersion": "backstage.io/v1alpha1",
                 "kind": "Location",
                 "metadata": {"name": "developer-platform-kit-templates"},
-                "spec": {"targets": [f"./{t.name}/template.yaml" for t in available_templates()]},
+                "spec": {"targets": [f"./{t.name}/template.yaml" for t in templates]},
             },
             indent=2,
         )

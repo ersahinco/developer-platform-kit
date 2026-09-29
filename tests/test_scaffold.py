@@ -1,8 +1,4 @@
-"""Every template must render, and the rendered output must be valid.
-
-These tests are the only thing standing between a broken template and a team
-discovering it while starting a new repo.
-"""
+"""Render and validate the files and forms that developers receive."""
 
 from __future__ import annotations
 
@@ -26,8 +22,7 @@ from scaffold.new_repo import (
 )
 
 
-def template_names() -> list[str]:
-    return [template.name for template in available_templates()]
+TEMPLATE_NAMES = [template.name for template in available_templates()]
 
 
 def _render(name: str, destination: Path) -> list[Path]:
@@ -36,12 +31,12 @@ def _render(name: str, destination: Path) -> list[Path]:
 
 
 def test_there_is_one_template_per_team() -> None:
-    assert set(template_names()) == {"app", "infra", "data"}, (
+    assert set(TEMPLATE_NAMES) == {"app", "infra", "data"}, (
         "One template per team: app, infra, data. A fourth needs a fourth audience."
     )
 
 
-@pytest.mark.parametrize("name", template_names())
+@pytest.mark.parametrize("name", TEMPLATE_NAMES)
 def test_every_declared_variable_has_a_usable_value(name: str) -> None:
     template = load_template(name)
     for variable in template.variables:
@@ -51,7 +46,7 @@ def test_every_declared_variable_has_a_usable_value(name: str) -> None:
         )
 
 
-@pytest.mark.parametrize("name", template_names())
+@pytest.mark.parametrize("name", TEMPLATE_NAMES)
 def test_template_renders_with_example_values(name: str, tmp_path: Path) -> None:
     written = _render(name, tmp_path / name)
 
@@ -61,7 +56,7 @@ def test_template_renders_with_example_values(name: str, tmp_path: Path) -> None
         assert not TOKEN_PATTERN.search(path.name), f"{path} kept an unrendered token in its name"
 
 
-@pytest.mark.parametrize("name", template_names())
+@pytest.mark.parametrize("name", TEMPLATE_NAMES)
 def test_rendered_yaml_and_json_parse(name: str, tmp_path: Path) -> None:
     for path in _render(name, tmp_path / name):
         if path.suffix in {".yml", ".yaml"}:
@@ -70,7 +65,7 @@ def test_rendered_yaml_and_json_parse(name: str, tmp_path: Path) -> None:
             json.loads(path.read_text())
 
 
-@pytest.mark.parametrize("name", template_names())
+@pytest.mark.parametrize("name", TEMPLATE_NAMES)
 @pytest.mark.parametrize("owner", ["123", "null"])
 def test_catalog_owner_remains_a_string(name: str, owner: str, tmp_path: Path) -> None:
     template = load_template(name)
@@ -80,7 +75,7 @@ def test_catalog_owner_remains_a_string(name: str, owner: str, tmp_path: Path) -
     assert catalog["spec"]["owner"] == owner
 
 
-@pytest.mark.parametrize("name", template_names())
+@pytest.mark.parametrize("name", TEMPLATE_NAMES)
 def test_rendered_python_compiles(name: str, tmp_path: Path) -> None:
     for path in _render(name, tmp_path / name):
         if path.suffix == ".py":
@@ -101,7 +96,7 @@ def test_app_formatting_handles_supported_name_lengths(workload: str, tmp_path: 
     assert result.returncode == 0, result.stdout + result.stderr
 
 
-@pytest.mark.parametrize("name", template_names())
+@pytest.mark.parametrize("name", TEMPLATE_NAMES)
 def test_rendered_dockerfiles_have_no_tokens_left(name: str, tmp_path: Path) -> None:
     """hadolint cannot read a template, so the rendered file is what gets linted.
 
@@ -208,7 +203,7 @@ def test_force_cannot_follow_output_symlink(tmp_path: Path) -> None:
     assert outside.read_text() == "keep"
 
 
-@pytest.mark.parametrize("name", template_names())
+@pytest.mark.parametrize("name", TEMPLATE_NAMES)
 def test_every_variable_has_a_pattern(name: str) -> None:
     assert all(variable.pattern for variable in load_template(name).variables)
 
@@ -411,7 +406,7 @@ def test_backstage_rejects_invalid_fixed_values_before_writing(
     assert not output.exists()
 
 
-@pytest.mark.parametrize("name", template_names())
+@pytest.mark.parametrize("name", TEMPLATE_NAMES)
 def test_catalog_source_location_matches_git_host(name: str, tmp_path: Path) -> None:
     template = load_template(name)
     values = example_values(template) | {
