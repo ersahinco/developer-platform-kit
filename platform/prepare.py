@@ -17,7 +17,7 @@ TOOLKIT = ROOT.parent
 sys.path.insert(0, str(TOOLKIT))
 STATE = ROOT / ".local"
 STACKS_REF = "32160ecb5942b6d0199b1cef039cc3457d2b1100"
-TOOLKIT_REF = "f5942e40b335913620b7bf5235e880c9be1f9c85"
+TOOLKIT_REF = "2e8ba04fd61e06ff92afae938156690aaa6ec5a9"
 BASE_URL = "https://cnoe.localtest.me:8443/gitea"
 PACKAGES = ("external-secrets", "keycloak", "backstage", "backstage-templates")
 

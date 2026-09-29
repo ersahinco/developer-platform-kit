@@ -1,14 +1,23 @@
 # Developer platform kit
 
-Create app, infrastructure, and data repositories through a Python CLI or Backstage.
-Both produce the same starters with tests and ownership metadata. Teams own the
-generated code and reuse GitHub Actions delivery workflows and AWS Terraform modules.
-Generated applications have no runtime dependency on this kit.
+Tested app, infrastructure, and data starters for teams using **GitHub and AWS**.
+Application and data developers get code they can own, tests, dependency locks,
+and delivery workflows. Platform contributors maintain those shared starting
+points so each team has less setup to repeat. Generate the same repositories
+through the Python CLI or Backstage; generated applications have no runtime
+dependency on this kit.
 
-Delivery targets AWS ECS/Fargate and EMR Serverless. Host the portal on an on-premises
-Docker host or AWS ECS/Fargate using existing client services, or use the optional
-CNOE lab locally. On-premises hosting still requires external integrations and AWS
-for delivery. Verify client sign-in and delivery before handover.
+The optional portal builds on [CNOE](https://cnoe.io/): its pinned Backstage app,
+idpbuilder, and existing native integrations. This kit adds three templates,
+three GitHub Actions delivery lanes, AWS Terraform modules, and explicit overlays.
+Use the CLI on its own or export templates into an existing Backstage installation.
+
+The supported delivery path is GitHub.com Actions to AWS ECS/Fargate and EMR
+Serverless. The app can be generated and tested, including CI, without AWS
+credentials. Portal hosting is separate: an optional local CNOE lab, an
+on-premises Docker host, or AWS ECS/Fargate. Gitea supports local scaffolding;
+GHES delivery needs separate verification. Azure, GCP, and GitLab delivery are
+not implemented.
 
 [CLI](#start-a-repository) · [Backstage](#backstage-self-service) ·
 [Shared hosting](#host-a-shared-portal) · [Local lab](#local-cnoe-lab) ·
@@ -22,27 +31,96 @@ for delivery. Verify client sign-in and delivery before handover.
 
 ## Start a repository
 
-Clone this repository and run from its root with Python 3.13+. Rendering uses
-only the standard library; no package installation or local platform is needed.
+### Generate and test an app
+
+You need Git, Python 3.13+, and [uv](https://docs.astral.sh/uv/getting-started/installation/).
+Rendering itself uses only Python's standard library. The app tests need network
+access to download locked dependencies, but no Docker, portal, or AWS account.
+
+**Access today:** this repository is private and no public package release is
+published. The commands below require repository access or an approved mirror.
+Public visibility and release publication are separate maintainer decisions.
+
+Clone the kit, then choose the GitHub owner for your eventual app repository:
 
 ```bash
+git clone https://github.com/ersahinco/developer-platform-kit.git
+cd developer-platform-kit
+GITHUB_OWNER=your-github-user
 python3 -m scaffold.new_repo list
 python3 -m scaffold.new_repo describe app
 python3 -m scaffold.new_repo render app ../orders-api \
   --set WORKLOAD_NAME=orders-api \
   --set OWNER=team-payments \
-  --set REPOSITORY=acme/orders-api \
+  --set REPOSITORY="$GITHUB_OWNER/orders-api" \
   --set AWS_REGION=eu-central-1 \
   --set TOOLKIT_REPOSITORY=ersahinco/developer-platform-kit \
-  --set TOOLKIT_REF=f5942e40b335913620b7bf5235e880c9be1f9c85
+  --set TOOLKIT_REF=2e8ba04fd61e06ff92afae938156690aaa6ec5a9
+
+cd ../orders-api
+uv sync --locked
+uv run --locked ruff format --check .
+uv run --locked ruff check .
+uv run --locked pytest -v
 ```
 
-`describe` lists required variables and examples. Rendering validates them before
-writing. Pin a published full commit SHA or immutable release tag; floating
-branches are rejected. Review the generated README, then publish with Git/GitHub.
-The CLI creates files; repository creation and catalog registration are separate.
+Expect **5 passed** from the app tests. `uv` installs the Python version from
+`.python-version`; `--locked` refuses to change `uv.lock`. `OWNER` is catalog
+metadata and `AWS_REGION` is future deployment configuration; neither needs a
+live service. To run the app, follow its generated README.
 
-To install the commands from a checkout, run `make cli-install` (requires
+`describe` lists required variables and examples. Rendering validates them before
+writing and refuses a nonempty destination. The CLI creates files; GitHub
+repository creation and catalog registration are separate.
+
+### Get green GitHub CI
+
+Before pushing, ensure the destination can call the pinned reusable workflow.
+For this private toolkit, **Settings → Actions → General → Access** must allow
+eligible private caller repositories under the same owner. A developer's clone
+access does not grant a workflow access. For another owner, use an approved
+toolkit mirror owned there and set `TOOLKIT_REPOSITORY` and `TOOLKIT_REF` when
+rendering. See [GitHub's private workflow sharing rules](https://docs.github.com/en/actions/how-tos/reuse-automations/share-across-private-repositories).
+
+In the generated app directory, with [GitHub CLI](https://cli.github.com/)
+authenticated and an unused repository name:
+
+```bash
+git init -b main
+git add .
+git commit -m "Start orders API"
+gh repo create "$GITHUB_OWNER/orders-api" --private --source=. --remote=origin --push
+gh run list --workflow delivery.yml
+# Copy the run ID from the list:
+gh run watch RUN_ID --exit-status
+```
+
+Leave `PUBLISH_IMAGES` unset and add no AWS secrets. **Delivery** should pass
+**Test** and **Build / Build & Scan**, with deployment skipped. GitHub Actions
+must be enabled, allow the pinned actions, and have hosted-runner capacity.
+If GitHub rejects the workflow reference, no jobs started: correct access or
+the pin. If a job starts and fails, inspect that job's log for the failing test,
+build, or vulnerability scan. A queued run needs runner capacity, not AWS keys.
+
+Verified on 2026-09-29: an app generated outside the checkout by the installed
+wheel passed its five local tests and the complete
+[GitHub Delivery run](https://github.com/ersahinco/dpk-beginner-check-20260929/actions/runs/36580863177).
+That private verification repository has no repository secrets or variables;
+AWS authentication, image publication, and deployment were skipped.
+
+### Deployment comes later
+
+For app delivery, provision ECR and the ECS cluster/service/task family, configure
+an OIDC role and protected `aws` environment, then set `AWS_ROLE_ARN`, `ECS_CLUSTER`,
+and `PUBLISH_IMAGES=true` as described in the generated README. The existing
+service must have the workload name and an `app` container. Publishing writes to
+ECR on main pushes; manual deployment releases an existing image by digest.
+Infra and data execution need their own state, roles, and services. Their generated
+READMEs describe those prerequisites; a green app build does not verify deployment.
+
+### Install or distribute the CLI
+
+From the **kit checkout**, run `make cli-install` (requires
 [uv](https://docs.astral.sh/uv/guides/tools/)). Then use `dpk list`, `dpk describe app`,
 and `dpk render` with the same arguments above, from any directory.
 `dpk-backstage` exports portal templates. Run `uv tool update-shell` if the commands
@@ -78,6 +156,40 @@ an installed version. Before promoting a CI snapshot, increment `project.version
 retain previous releases and never overwrite published versions. Public package
 registry publication is not configured.
 
+### What is pinned
+
+The manifest examples, README commands, and local portal defaults use toolkit
+commit `2e8ba04fd61e06ff92afae938156690aaa6ec5a9`, which passed the
+[whole kit CI run](https://github.com/ersahinco/developer-platform-kit/actions/runs/36545905406).
+Use one tested toolkit revision for workflows and modules together. The renderer
+rejects branch names but does not query GitHub or prove a tag is immutable; a full
+commit SHA is preferred. Example version strings are not a promise of a release.
+
+`make cli-check` installs both the wheel and a wheel rebuilt from the source
+archive outside the checkout, then compares all three starters and Backstage
+exports byte for byte with the source. The wheel contains the renderer, templates,
+and MIT notice; it does not bundle delivery workflows, Terraform modules, or CNOE.
+Those remote references still require repository access.
+
+App/data dependencies are locked in `uv.lock`; CI uses uv 0.11.8. Terraform
+modules are pinned by toolkit ref, but the first `terraform init` selects an AWS
+provider within `~> 6.0`: commit the generated `.terraform.lock.hcl` to preserve
+that selection. The kit's infra tests use local modules; they do not prove remote
+access. A consumer can check the real module URLs with `terraform init
+-backend=false` and `terraform validate`, without AWS credentials. Private module
+downloads need Git authentication on the machine or runner independently of
+reusable-workflow access; no cross-repository Git credential setup is bundled.
+Use an approved accessible mirror when necessary.
+
+These pins reproduce starter content and dependency selections, not bit-for-bit
+images forever: Python image tags, hosted runners, provider selection before the
+first lock, and vulnerability databases can change. Review updates in the
+consuming repository and retain its locks and reviewed image digests.
+
+The remote infra module URLs above were fetched and validated on 2026-09-29
+using Terraform 1.15.8 and AWS provider 6.66.0 with the S3 backend disabled.
+This checks remote access and module compatibility; it does not exercise AWS.
+
 | Starter | Includes | Delivery modes |
 |---|---|---|
 | `app` | Container host, health/readiness, metrics, JSON logs, tests, dependency lock | `build`: test, build, scan, optionally publish. `deploy`: release an existing image by digest |
@@ -103,7 +215,7 @@ python3 -m scaffold.backstage /tmp/toolkit-backstage \
   --set OWNER=team-payments \
   --set AWS_REGION=eu-central-1 \
   --set TOOLKIT_REPOSITORY=ersahinco/developer-platform-kit \
-  --set TOOLKIT_REF=f5942e40b335913620b7bf5235e880c9be1f9c85
+  --set TOOLKIT_REF=2e8ba04fd61e06ff92afae938156690aaa6ec5a9
 ```
 
 The installed `dpk-backstage` command takes the same arguments. Publish the
@@ -449,6 +561,27 @@ The pinned CNOE Backstage app has no top-level license file: clarify redistribut
 terms with upstream before distributing its source or a client image. Dependency
 licenses and the upstream README remain in the image.
 
+General fixes to take upstream, with a reproduction against the pinned revision:
+
+| Destination | General fix | Local evidence |
+|---|---|---|
+| `cnoe-io/stacks` | Keycloak bootstrap: architecture-aware kubectl, resume until client secrets exist, and avoid shell tracing credentials | `platform/keycloak/setup.patch` |
+| `cnoe-io/backstage-app` | Register native GitHub actions for GitHub App integrations, not only when `GITHUB_TOKEN` exists; resolve Keycloak users by stable OIDC subject | `platform/backstage/source.patch` |
+| Backstage scaffolder | Reproduce plain `DENY` being ignored for task lists in pinned 3.4.0; remove the empty-owner workaround once an adopted release enforces it | `platform/backstage/policy.cjs`, `platform/verify.py` |
+
+Report the Terraform viewer's server file-read exposure through upstream's
+security reporting channel; it remains disabled here. The missing CNOE app
+license also needs an upstream answer. These are identified follow-ups, not
+claims that reports have been submitted. Keep this kit's templates, delivery
+choices, demo groups, and client-specific configuration here.
+
+For distribution, original CLI/template/module code remains MIT with its notices;
+the CNOE stacks checkout retains Apache-2.0. Missing app redistribution terms block
+shipping the assembled portal image/source, not the standalone original-code CLI.
+Review dependency notices when assembling a distributable image. Repository
+access and the absence of a published release remain separate distribution
+limitations for outside developers.
+
 ### Infrastructure boundaries
 
 The infra starter selects its AWS capabilities from `services` and `data_pipelines`.
@@ -480,20 +613,50 @@ behavior. Discuss a new audience or runtime target in an issue before implementi
 Original contributions are accepted under [MIT](LICENSE); contributors retain
 their copyright. Preserve licenses and notices for code from other projects.
 
-Use `.devcontainer/` for the check tools, or install them locally and run:
+For a first change, get repository access and clone it (or your accessible fork),
+create a branch, and install the locked development tools:
 
 ```bash
+git switch -c fix/describe-the-change
 uv sync --frozen
 make test                   # Fast gate: render all starters and check contracts
-make check                  # Python, workflows, Terraform, TFLint, Checkov, Dockerfiles
-make secret-scan
+make lint-python
 ```
 
-CI also installs the built CLI away from the checkout and compares every rendered
-file and Backstage export with the source version (`make cli-check`). It tests
-generated Python repositories with their locks and builds/tests the Backstage
-image. `make hosting-check` validates Compose and CloudFormation without deploying.
-For platform changes, run `make portal-check`; it also boots the actual Compose
+This path needs Python 3.13+ and uv; no AWS account or portal. For the complete
+toolchain, install Docker and VS Code's Dev Containers extension, open this
+checkout, and choose **Dev Containers: Reopen in Container**. The checked-in
+`.devcontainer/` supplies the pinned tools and installs Git hooks. Locally,
+use the versions in its Dockerfile and `.github/workflows/ci.yml`.
+
+Keep a pull request focused on one observed problem. Edit the source template,
+not an example render; render into a temporary directory and inspect the result.
+Use the following checks in addition to `make test`:
+
+| Change | Relevant checks |
+|---|---|
+| README/setup | Run the commands you changed; check rendered README text |
+| Renderer, packaging, or template files | `make lint-python cli-check`; app/data: run generated lint/tests with `uv sync --locked` |
+| Workflows | `make lint-workflows`; run the affected credential-free build path |
+| Terraform modules or infra starter | `make validate-templates validate-modules lint-terraform lint-tflint lint-checkov` |
+| Hosting or portal | `make hosting-check portal-check`; live identity/publishing checks below when affected |
+
+Run `make check` and `make secret-scan` before requesting review when the full
+toolchain is available. `make check` covers the kit's local gates without a cloud
+account; hosted CI additionally audits dependencies and builds/tests the Backstage
+image. A missing tool or unavailable service means a check **could not run**;
+report that separately from a check that ran and failed. CI must pass before merge.
+
+Commit the focused change, push your branch, and open a pull request against
+`main`. Include the reproduction or use case, resulting behavior, checks and
+their outcomes, and any remaining limitation. Private-fork availability depends
+on repository policy; contributors with write access can use a branch in this
+repository. Do not include generated environments, credentials, or build artifacts.
+
+CI installs the wheel and source archive away from the checkout and compares
+every rendered file and Backstage export (`make cli-check`). It tests generated
+Python repositories with their locks. `make hosting-check` validates Compose and
+CloudFormation without deploying. `make portal-check` also boots the actual Compose
 service against disposable PostgreSQL with verified TLS and a non-superuser,
 without external identity calls. Changes affecting
 sign-in or publishing also need `portal-up`, `portal-verify`, and `portal-smoke`
@@ -505,6 +668,18 @@ contain text files supported by both the CLI and Backstage export. Modules
 need callers in a template. Add tests for behavior changes, keep user documentation
 in this README and generated READMEs, and follow [AGENTS.md](AGENTS.md) for editing
 rules. Never commit `platform/.local/`, generated packages, or credentials.
+
+Three small contributions address current gaps:
+
+1. **Friendly manifest errors:** malformed JSON in `template.json` currently
+   escapes as a traceback. Report the manifest path and JSON error through
+   `TemplateError`, with a regression test showing no output files are written.
+2. **Windows CLI smoke check:** installed-package CI currently runs only on
+   Ubuntu. Add a focused Windows job that builds the package and runs
+   `tests.validate_package`, without requiring Docker or Terraform.
+3. **Data report tests:** the data starter tests quality outcomes but not
+   `pipeline.main.write_report`. Test local nested-directory creation and the
+   S3 bucket/key/body arguments using a fake client, without AWS or a Spark session.
 
 ## License
 

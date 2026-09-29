@@ -2,13 +2,22 @@
 
 Owned by __OWNER__. Scaffolded from the developer platform kit `app` template.
 
-## First
+## Test locally
+
+Install [uv](https://docs.astral.sh/uv/getting-started/installation/), then run
+these commands in this directory. uv supplies the Python version in
+`.python-version`. No Docker, AWS account, or portal is needed for these checks.
 
 ```bash
-uv sync
-uv run uvicorn app.main:app --reload --port __CONTAINER_PORT__
-uv run pytest -v
+uv sync --locked
+uv run --locked ruff format --check .
+uv run --locked ruff check .
+uv run --locked pytest -v
 ```
+
+To try the app, run `uv run --locked uvicorn app.main:app --reload --port __CONTAINER_PORT__`,
+then open `http://localhost:__CONTAINER_PORT__/health`. Stop the server with Ctrl-C.
+Commit `uv.lock` when intentionally changing dependencies.
 
 ## Contract
 
@@ -36,14 +45,32 @@ uv run pytest -v
 Build and deploy are separate runs, so review happens between them. Deploy resolves the tag to a digest and refuses missing images. Restrict ECR write
 permissions to the scanned build lane; existence alone does not prove scan provenance.
 
-## Repository settings
+## First green CI
 
-The initial push needs no AWS credentials. Leave `PUBLISH_IMAGES` unset for a
-demo or until the cloud resources and publishing role are ready.
+Push these files to `__REPOSITORY__` on branch `main` with GitHub Actions enabled.
+Leave `PUBLISH_IMAGES` unset and add no AWS secrets. The **Delivery** run should
+pass **Test** and **Build / Build & Scan**; deployment is skipped.
+
+The shared workflow is pinned to `__TOOLKIT_REPOSITORY__` at `__TOOLKIT_REF__`.
+GitHub must be able to read that revision. If the toolkit is private, its owner
+must enable Actions access for eligible private caller repositories under the
+same owner. Personal clone access alone does not grant workflow access.
+A workflow resolution error means no jobs started: fix the reference or access.
+If a job starts and fails, open that job's log and fix its reported test, build,
+or scan error before retrying.
+
+## Deployment prerequisites
+
+Configure these only when ready to publish and deploy:
 
 - repository secret `AWS_ROLE_ARN`; an `aws` environment with required reviewers and protected deployment branches
 - variable `ECS_CLUSTER` from the infra repo's output
 - repository variable `PUBLISH_IMAGES=true` to enable ECR publication on main pushes
+
+The role needs OIDC trust for main-branch image publishing and the `aws`
+environment for deployment, plus scoped ECR/ECS permissions. An AWS region in
+the workflow is configuration, not a credential. Enabling publication makes
+subsequent main pushes write to ECR; deploying remains a separate manual action.
 
 The infra repo must already own the ECS service and task family named
 `__WORKLOAD_NAME__` with a container named `app`, and the ECR repository
