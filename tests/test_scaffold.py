@@ -313,19 +313,29 @@ def test_backstage_platform_values_are_fixed_outside_the_form(tmp_path: Path) ->
         assert "repoUrl" in form["required"]
 
 
-def test_github_settings_are_applied_before_the_initial_push(tmp_path: Path) -> None:
+@pytest.mark.parametrize("configured", ["all", *TEMPLATE_NAMES])
+def test_github_settings_are_applied_before_the_initial_push(
+    tmp_path: Path, configured: str
+) -> None:
     from scaffold.backstage import export
 
     settings = json.loads((Path(__file__).parent / "fixtures/github-settings.json").read_text())
+    if configured != "all":
+        settings = {configured: {}}
     export(tmp_path, allowed_owners=("acme",), github_settings=settings)
-    for name, expected in settings.items():
+    for name in TEMPLATE_NAMES:
         document = json.loads((tmp_path / name / "template.yaml").read_text())
         steps = document["spec"]["steps"]
         actions = [step["action"] for step in steps]
+        if name not in settings:
+            assert actions == ["fetch:template", "publish:github", "catalog:register"]
+            assert steps[1]["input"]["repoVisibility"] == "private"
+            continue
         assert actions[:2] == ["fetch:template", "github:repo:create"]
         assert actions[-2:] == ["github:repo:push", "catalog:register"]
         assert set(actions[2:-2]) == {"github:environment:create"}
-        for key, value in expected.items():
+        assert steps[-2]["input"]["protectDefaultBranch"] is True
+        for key, value in settings[name].items():
             assert steps[1]["input"][key] == value
         assert steps[1]["input"]["repoVisibility"] == "private"
         assert steps[2]["input"]["name"] == "aws"
