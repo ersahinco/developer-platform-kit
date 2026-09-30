@@ -1,7 +1,6 @@
 name: Infra
 
-# One workflow. Pull requests and pushes plan. A manual run applies a plan that
-# already exists and was already read, named by its run ID.
+# PRs and pushes plan; manual runs apply a reviewed plan by run ID.
 
 on:
   pull_request:

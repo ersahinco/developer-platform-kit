@@ -1,17 +1,7 @@
 """Declarative data quality checks.
 
-Checks are declared in `checks.json` and evaluated here. Keeping them
-declarative means a reviewer reads thresholds in a diff rather than reverse
-engineering them from Spark code.
-
-Two outcomes that matter and are never collapsed:
-
-- `failed`  the check ran and the data violated it. Fix the data or the threshold.
-- `errored` the check could not run: missing column, unreadable dataset. Fix the
-            check or the pipeline. The data may be fine.
-
-A blocking `failed` or any `errored` stops the run. A warning records and
-continues.
+A failed check found bad data; an errored check could not run.
+Blocking failures and all errors stop the load. Warnings continue.
 """
 
 from __future__ import annotations
@@ -65,9 +55,7 @@ def load_checks(path: str) -> list[dict[str, Any]]:
         raise CheckDefinitionError(f"{path} must contain a checks mapping.")
     checks = document.get("checks")
     if not isinstance(checks, list) or not checks:
-        raise CheckDefinitionError(
-            f"{path} declares no checks. An empty check file proves nothing."
-        )
+        raise CheckDefinitionError(f"{path} declares no checks.")
 
     for index, check in enumerate(checks):
         if not isinstance(check, dict):
@@ -83,20 +71,17 @@ def load_checks(path: str) -> list[dict[str, Any]]:
 
 
 def evaluate(check: dict[str, Any], frame: DataFrameLike) -> CheckResult:
-    name = check["name"]
-    dataset = check["dataset"]
     kind = check["kind"]
-    blocking = bool(check.get("blocking", True))
 
     def result(status: str, observed: Any, threshold: Any, detail: str = "") -> CheckResult:
         return CheckResult(
-            name=name,
-            dataset=dataset,
+            name=check["name"],
+            dataset=check["dataset"],
             kind=kind,
             status=status,
             observed=str(observed),
             threshold=str(threshold),
-            blocking=blocking,
+            blocking=bool(check.get("blocking", True)),
             detail=detail,
         )
 
@@ -105,7 +90,9 @@ def evaluate(check: dict[str, Any], frame: DataFrameLike) -> CheckResult:
         if not column:
             return result("errored", "n/a", "n/a", f"{kind} needs a column.")
         if column not in frame.columns:
-            return result("errored", "n/a", "n/a", f"Column {column} is absent from {dataset}.")
+            return result(
+                "errored", "n/a", "n/a", f"Column {column} is absent from {check['dataset']}."
+            )
 
     total = frame.count()
 
@@ -150,22 +137,10 @@ def run_checks(
 ) -> list[CheckResult]:
     results: list[CheckResult] = []
     for check in checks:
-        frame = datasets.get(check["dataset"])
-        if frame is None:
-            results.append(
-                CheckResult(
-                    name=check["name"],
-                    dataset=check["dataset"],
-                    kind=check["kind"],
-                    status="errored",
-                    observed="n/a",
-                    threshold="n/a",
-                    blocking=bool(check.get("blocking", True)),
-                    detail=f"The pipeline produced no dataset named {check['dataset']}.",
-                )
-            )
-            continue
         try:
+            frame = datasets.get(check["dataset"])
+            if frame is None:
+                raise CheckDefinitionError(f"No dataset named {check['dataset']} was produced.")
             results.append(evaluate(check, frame))
         except Exception as error:  # noqa: BLE001 - report engine failures and block the load
             results.append(

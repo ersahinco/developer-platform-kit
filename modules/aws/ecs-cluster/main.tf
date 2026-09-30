@@ -1,9 +1,4 @@
-################################################################################
-# ECS cluster
-#
-# Fargate only. Container Insights on by default because the first question in
-# an incident is always what the task was doing.
-################################################################################
+# Fargate cluster and capacity providers.
 
 resource "aws_ecs_cluster" "this" {
   name = var.name

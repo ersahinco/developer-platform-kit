@@ -1,10 +1,4 @@
-################################################################################
-# Application load balancer
-#
-# One ALB per edge, shared by the services behind it. HTTP exists only to
-# redirect to HTTPS when a certificate is present. Access logs are on by
-# default: they are the only record of a request that never reached a task.
-################################################################################
+# ALB with one target group; public HTTP requires explicit opt-in.
 
 locals {
   https_enabled = var.certificate_arn != null

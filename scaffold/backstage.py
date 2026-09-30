@@ -66,9 +66,8 @@ def export(
         raise TemplateError(f"Unsupported Git provider: {provider}.")
     github_settings = {} if github_settings is None else github_settings
     validate_github_settings(github_settings)
-    if github_settings:
-        if provider != "github" or len(allowed_owners) != 1:
-            raise TemplateError("GitHub settings require GitHub and exactly one --allowed-owner.")
+    if github_settings and (provider != "github" or len(allowed_owners) != 1):
+        raise TemplateError("GitHub settings require GitHub and exactly one --allowed-owner.")
     if not re.fullmatch(r"https://[A-Za-z0-9.-]+(?::[0-9]+)?(?:/[A-Za-z0-9._-]+)*", base_url):
         raise TemplateError("Git base URL must be HTTPS with no credentials, query, or fragment.")
     host = urlsplit(base_url).netloc
@@ -79,6 +78,13 @@ def export(
     repo_pattern = r"[A-Za-z0-9_.-]+"
     if output.exists() and (not output.is_dir() or any(output.iterdir())):
         raise TemplateError(f"{output} must be an empty directory.")
+    fixed_values = fixed_values | {
+        "REPOSITORY_BASE_URL": base_url,
+        "REPOSITORY": (
+            "${{ (parameters.repoUrl | parseRepoUrl).owner }}"
+            "/${{ (parameters.repoUrl | parseRepoUrl).repo }}"
+        ),
+    }
     for template in templates:
         destination = output / template.name
         properties = {}
@@ -87,15 +93,6 @@ def export(
         for variable in template.variables:
             if variable.name in fixed_values:
                 values[variable.name] = fixed_values[variable.name]
-                continue
-            if variable.name == "REPOSITORY_BASE_URL":
-                values[variable.name] = base_url
-                continue
-            if variable.name == "REPOSITORY":
-                values[variable.name] = (
-                    "${{ (parameters.repoUrl | parseRepoUrl).owner }}"
-                    "/${{ (parameters.repoUrl | parseRepoUrl).repo }}"
-                )
                 continue
             properties[variable.name] = {
                 "type": "string",
@@ -126,6 +123,48 @@ def export(
             target = destination / "skeleton" / source.relative_to(template.files_dir)
             target.parent.mkdir(parents=True, exist_ok=True)
             target.write_text(skeleton(source.read_text()))
+        configure_github = template.name in github_settings
+        setup_steps = []
+        publish_options = {}
+        if configure_github:
+            publish_options = {"protectDefaultBranch": True}
+            environments = [
+                {
+                    "name": "aws",
+                    "deploymentBranchPolicy": {
+                        "protected_branches": False,
+                        "custom_branch_policies": True,
+                    },
+                    "customBranchPolicyNames": ["main"],
+                }
+            ]
+            if template.name == "infra":
+                # PR plans use a separate limited role; apply remains main-only.
+                environments.append({"name": "aws-plan"})
+            # Configure delivery before the first push can start its workflow.
+            setup_steps = [
+                {
+                    "id": "create",
+                    "name": "Create repository and configure delivery",
+                    "action": "github:repo:create",
+                    "input": {
+                        "repoUrl": "${{ parameters.repoUrl }}",
+                        "repoVisibility": "private",
+                        **github_settings[template.name],
+                    },
+                },
+                *[
+                    {
+                        "id": f"environment-{index}",
+                        "name": f"Configure {environment['name']} environment",
+                        "action": "github:environment:create",
+                        "input": {"repoUrl": "${{ parameters.repoUrl }}", **environment},
+                    }
+                    for index, environment in enumerate(environments)
+                ],
+            ]
+        elif provider == "github":
+            publish_options = {"repoVisibility": "private"}
         document = {
             "apiVersion": "scaffolder.backstage.io/v1beta3",
             "kind": "Template",
@@ -143,14 +182,15 @@ def export(
                         "action": "fetch:template",
                         "input": {"url": "./skeleton", "values": values},
                     },
+                    *setup_steps,
                     {
                         "id": "publish",
-                        "name": "Publish",
-                        "action": f"publish:{provider}",
+                        "name": "Push starter" if configure_github else "Publish",
+                        "action": "github:repo:push" if configure_github else f"publish:{provider}",
                         "input": {
                             "repoUrl": "${{ parameters.repoUrl }}",
                             "defaultBranch": "main",
-                            **({"repoVisibility": "private"} if provider == "github" else {}),
+                            **publish_options,
                         },
                     },
                     {
@@ -173,56 +213,6 @@ def export(
                 },
             },
         }
-        if template.name in github_settings:
-            settings = github_settings[template.name]
-            steps = document["spec"]["steps"]
-            environments = [
-                {
-                    "name": "aws",
-                    "deploymentBranchPolicy": {
-                        "protected_branches": False,
-                        "custom_branch_policies": True,
-                    },
-                    "customBranchPolicyNames": ["main"],
-                }
-            ]
-            if template.name == "infra":
-                # PR plans need their own limited role; they cannot use the
-                # main-only apply environment. No write credential is shared.
-                environments.append({"name": "aws-plan"})
-            # Create settings and environments before pushing the first commit:
-            # that push can immediately start the generated delivery workflow.
-            steps[1:2] = [
-                {
-                    "id": "create",
-                    "name": "Create repository and configure delivery",
-                    "action": "github:repo:create",
-                    "input": {
-                        "repoUrl": "${{ parameters.repoUrl }}",
-                        "repoVisibility": "private",
-                        **settings,
-                    },
-                },
-                *[
-                    {
-                        "id": f"environment-{index}",
-                        "name": f"Configure {environment['name']} environment",
-                        "action": "github:environment:create",
-                        "input": {"repoUrl": "${{ parameters.repoUrl }}", **environment},
-                    }
-                    for index, environment in enumerate(environments)
-                ],
-                {
-                    "id": "publish",
-                    "name": "Push starter",
-                    "action": "github:repo:push",
-                    "input": {
-                        "repoUrl": "${{ parameters.repoUrl }}",
-                        "defaultBranch": "main",
-                        "protectDefaultBranch": True,
-                    },
-                },
-            ]
         (destination / "template.yaml").write_text(json.dumps(document, indent=2) + "\n")
     (output / "catalog-info.yaml").write_text(
         json.dumps(
@@ -230,7 +220,7 @@ def export(
                 "apiVersion": "backstage.io/v1alpha1",
                 "kind": "Location",
                 "metadata": {"name": "developer-platform-kit-templates"},
-                "spec": {"targets": [f"./{t.name}/template.yaml" for t in available_templates()]},
+                "spec": {"targets": [f"./{t.name}/template.yaml" for t in templates]},
             },
             indent=2,
         )

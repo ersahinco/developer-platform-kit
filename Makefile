@@ -9,9 +9,7 @@ help: ## Show available targets
 	@grep -hE '^[a-zA-Z_-]+:.*?## ' $(MAKEFILE_LIST) \
 		| awk 'BEGIN {FS = ":.*?## "}; {printf "  \033[36m%-24s\033[0m %s\n", $$1, $$2}'
 
-################################################################################
 # Scaffolding
-################################################################################
 
 .PHONY: templates
 templates: ## List available repo templates
@@ -121,9 +119,7 @@ portal-smoke: ## Publish all three starters to local Gitea and compare CLI outpu
 portal-down: ## Delete the local cluster and its repositories
 	idpbuilder delete --name toolkit
 
-################################################################################
 # Checks
-################################################################################
 
 .PHONY: lint
 lint: lint-python lint-workflows lint-terraform ## Run every linter

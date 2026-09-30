@@ -1,9 +1,4 @@
-"""Check-engine tests.
-
-These run without Spark. The engine only needs count, filter, select, distinct
-and columns, so a small fake stands in for a DataFrame and the tests stay fast
-enough to run on every commit.
-"""
+"""Check outcomes and load gating without a Spark runtime."""
 
 from __future__ import annotations
 
@@ -24,29 +19,22 @@ class FakeFrame:
         filtered: dict[str, int] | None = None,
         distinct_count: int | None = None,
     ) -> None:
-        self._columns = columns
+        self.columns = columns
         self._rows = rows
         self._filtered = filtered or {}
         self._distinct = distinct_count if distinct_count is not None else rows
-        self._selected = False
-
-    @property
-    def columns(self) -> list[str]:
-        return self._columns
 
     def count(self) -> int:
         return self._rows
 
     def filter(self, condition: str) -> FakeFrame:
-        return FakeFrame(self._columns, self._filtered.get(condition, 0))
+        return FakeFrame(self.columns, self._filtered.get(condition, 0))
 
     def select(self, *columns: str) -> FakeFrame:
-        frame = FakeFrame(list(columns), self._rows, distinct_count=self._distinct)
-        frame._selected = True
-        return frame
+        return FakeFrame(list(columns), self._rows, distinct_count=self._distinct)
 
     def distinct(self) -> FakeFrame:
-        return FakeFrame(self._columns, self._distinct)
+        return FakeFrame(self.columns, self._distinct)
 
 
 def test_row_count_min_passes_and_fails() -> None:
@@ -108,8 +96,17 @@ def test_missing_dataset_errors_and_names_it() -> None:
     assert "staging" in results[0].detail
 
 
-def _result(status: str, blocking: bool) -> quality.CheckResult:
-    return quality.CheckResult(
+@pytest.mark.parametrize(
+    "status,blocking,stops",
+    [
+        ("passed", True, False),
+        ("failed", False, False),
+        ("failed", True, True),
+        ("errored", False, True),
+    ],
+)
+def test_only_blocking_failures_and_errors_stop_the_run(status, blocking, stops) -> None:
+    result = quality.CheckResult(
         name="rows",
         dataset="curated",
         kind="row_count_min",
@@ -118,17 +115,7 @@ def _result(status: str, blocking: bool) -> quality.CheckResult:
         threshold=">= 1",
         blocking=blocking,
     )
-
-
-def test_warnings_do_not_stop_the_run() -> None:
-    assert quality.should_stop([_result("failed", blocking=False)]) is False
-
-
-def test_blocking_failure_and_error_both_stop_the_run() -> None:
-    assert quality.should_stop([_result("failed", blocking=True)]) is True
-    # An error stops the run whether or not the check was blocking: a check that
-    # could not run has proved nothing either way.
-    assert quality.should_stop([_result("errored", blocking=False)]) is True
+    assert quality.should_stop([result]) is stops
 
 
 def test_unknown_kind_is_rejected_before_any_data_is_read(tmp_path) -> None:

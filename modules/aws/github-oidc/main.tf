@@ -1,15 +1,4 @@
-################################################################################
-# GitHub Actions identity
-#
-# One role per delivery lane, assumed through the GitHub OIDC provider. No
-# long-lived access keys. Subjects are pinned to named environments and refs, so
-# a fork or an arbitrary branch cannot assume the role.
-#
-# This module owns trust and Terraform state access. It deliberately does not
-# ship a catalog of service permissions: attach the policies the lane actually
-# needs through policy_arns or inline_policy_json, and review them in the repo
-# that owns them.
-################################################################################
+# GitHub OIDC trust and optional state access; callers supply delivery policies.
 
 data "aws_partition" "current" {}
 

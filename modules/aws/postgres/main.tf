@@ -1,12 +1,4 @@
-################################################################################
-# PostgreSQL
-#
-# One RDS instance in subnets with no egress route, reachable only from the
-# security groups that name it. The master credential is managed by RDS and
-# rotated by RDS, so no password ever passes through Terraform state or CI.
-#
-# Clients attach the exported client security group rather than opening a CIDR.
-################################################################################
+# RDS-managed credentials; workloads connect through the exported client group.
 
 resource "aws_db_subnet_group" "this" {
   name       = var.name

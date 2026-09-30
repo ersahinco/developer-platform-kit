@@ -20,9 +20,7 @@ uv run pytest -v
 
 ## Order of stages
 
-`extract → transform → check → load`. Checks run **before** the load. A pipeline
-that publishes first and reports a violation afterwards has already spread it
-downstream.
+`extract → transform → check → load`. Validate data before publishing it.
 
 ## Checks
 
@@ -36,9 +34,7 @@ Declared in `checks.json`, evaluated by `pipeline/checks.py`. Kinds:
 | `failed` | The check ran, the data violated it | The data, or the threshold if it was wrong |
 | `errored` | The check could not run: missing column, missing dataset | The check or the pipeline. The data may be fine |
 
-`blocking: true` stops the run. `blocking: false` records a warning and
-continues. Any `errored` stops the run, because an unevaluated check proves
-nothing.
+Failed blocking checks and all errors stop the run. Non-blocking failures warn.
 
 The job writes `checks.json` to S3 and the lane prints it as a table in the run
 summary.
@@ -49,7 +45,7 @@ summary.
 |---|---|
 | 0 | Checks allowed the load, and the load finished |
 | 1 | A blocking check failed, a check errored, or the transform broke |
-| 2 | `checks.json` is invalid. No data was read, so a rerun with the same file fails identically |
+| 2 | `checks.json` is invalid; no data was read |
 
 ## Schema changes
 
@@ -63,7 +59,6 @@ Every change goes through phases, one pull request and one apply each:
 | Switch | Nothing | Reads the new shape only |
 | Contract | Drop the old columns | Nothing reads the old shape |
 
-Skipping expand creates a window where the running code and the schema disagree.
 Changesets are append-only and each carries a rollback.
 
 ## Delivery

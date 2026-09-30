@@ -1,10 +1,4 @@
-################################################################################
-# Object storage
-#
-# One private bucket with encryption, versioning, and a lifecycle rule. Public
-# access is blocked at the bucket level, and TLS is required by policy: an
-# object store reached over plaintext HTTP is a finding, not a preference.
-################################################################################
+# Private object storage with TLS, encryption, versioning, and retention.
 
 resource "aws_s3_bucket" "this" {
   # checkov:skip=CKV2_AWS_62:No event-driven consumer exists; notifications belong to the consuming workload.

@@ -1,18 +1,4 @@
-"""__PIPELINE_NAME__ Spark job.
-
-Stages, in order, with nothing hidden between them:
-
-    extract   read source data as it is
-    transform shape it, without writing
-    check     evaluate checks.json against the result
-    load      publish only if the checks allow it
-
-Checks run before the load, not after. A pipeline that publishes and then
-reports a violation has already spread it downstream.
-
-Arguments are supplied by the data lane, so nothing in here needs to know which
-bucket or run it belongs to.
-"""
+"""__PIPELINE_NAME__ Spark job: extract, transform, check, then load."""
 
 from __future__ import annotations
 
@@ -45,7 +31,7 @@ def emit(event: str, **fields: object) -> None:
 
 
 def extract(spark: SparkSession, source: str) -> DataFrame:
-    """Read the source as it is. No cleaning here, so raw stays reproducible."""
+    """Read source data without modifying it."""
     emit("extract_started", source=source)
     frame = spark.read.parquet(source)
     emit("extract_completed", source=source, rows=frame.count())
@@ -61,7 +47,7 @@ def transform(frame: DataFrame) -> DataFrame:
 
 
 def load(frame: DataFrame, target: str, partition_by: list[str]) -> None:
-    """Publish. Only called once the checks have allowed it."""
+    """Publish only after checks pass; refuse to overwrite an existing target."""
     emit("load_started", target=target)
     writer = frame.write.mode("errorifexists").format("parquet")
     if partition_by:
@@ -71,11 +57,7 @@ def load(frame: DataFrame, target: str, partition_by: list[str]) -> None:
 
 
 def write_report(path: str, body: str) -> None:
-    """Write the report as one object at exactly the path the lane will read.
-
-    Spark's saveAsTextFile would create a directory of part files, so this uses a
-    plain put. boto3 is present in the EMR image.
-    """
+    """Write one report object, not Spark part files. EMR supplies boto3."""
     if path.startswith("s3://"):
         import boto3
 

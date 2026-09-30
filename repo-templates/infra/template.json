@@ -35,13 +35,13 @@
     {
       "name": "TOOLKIT_REPOSITORY",
       "description": "Repository hosting the modules and reusable lanes.",
-      "example": "acme/developer-platform-kit",
+      "example": "ersahinco/developer-platform-kit",
       "pattern": "^[A-Za-z0-9][A-Za-z0-9_.-]*/[A-Za-z0-9][A-Za-z0-9_.-]*$"
     },
     {
       "name": "TOOLKIT_REF",
       "description": "Published toolkit release tag or full commit SHA. No floating branches.",
-      "example": "v0.1.0",
+      "example": "2e8ba04fd61e06ff92afae938156690aaa6ec5a9",
       "pattern": "^(?:[0-9a-f]{40}|v[0-9]+\\.[0-9]+\\.[0-9]+)$"
     },
     {

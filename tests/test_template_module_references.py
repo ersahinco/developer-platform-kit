@@ -1,66 +1,52 @@
-"""Templates must point at modules and lanes that exist.
-
-Renaming a module silently breaks every scaffolded infra repo the next time it
-runs `terraform init`. This moves that failure to the commit that causes it.
-
-It does not prove the sources resolve over the network: a rendered source points
-at the consumer's own toolkit repository and ref, which exists only once they
-have pushed it. It proves the paths inside this repository are real.
-"""
+"""Check module/lane references against this checkout, without fetching remote refs."""
 
 from __future__ import annotations
 
 import re
+from collections.abc import Callable
 from pathlib import Path
+
+import pytest
 
 from scaffold.new_repo import template_files
 
 REPO_ROOT = Path(__file__).resolve().parent.parent
 MODULES_DIR = REPO_ROOT / "modules" / "aws"
-MODULE_REFERENCE = re.compile(r"//modules/aws/(?P<module>[a-z0-9-]+)")
-LANE_REFERENCE = re.compile(r"\.github/workflows/(?P<lane>reusable-[a-z0-9-]+\.yml)")
+MODULE_REFERENCE = re.compile(r"//modules/aws/([a-z0-9-]+)")
+LANE_REFERENCE = re.compile(r"\.github/workflows/(reusable-[a-z0-9-]+\.yml)")
 
 
-def _template_files() -> list[Path]:
-    return template_files(REPO_ROOT / "repo-templates")
+TEMPLATE_FILES = template_files(REPO_ROOT / "repo-templates")
 
 
-def test_referenced_modules_exist() -> None:
+@pytest.mark.parametrize(
+    "directory,reference,check",
+    [
+        (MODULES_DIR, MODULE_REFERENCE, Path.is_dir),
+        (REPO_ROOT / ".github/workflows", LANE_REFERENCE, Path.is_file),
+    ],
+    ids=["modules", "lanes"],
+)
+def test_template_references_exist(
+    directory: Path, reference: re.Pattern[str], check: Callable[[Path], bool]
+) -> None:
     missing: dict[str, set[str]] = {}
     seen: set[str] = set()
 
-    for path in _template_files():
-        for match in MODULE_REFERENCE.finditer(path.read_text()):
-            module = match.group("module")
-            seen.add(module)
-            if not (MODULES_DIR / module).is_dir():
-                missing.setdefault(str(path.relative_to(REPO_ROOT)), set()).add(module)
+    for path in TEMPLATE_FILES:
+        for name in reference.findall(path.read_text()):
+            seen.add(name)
+            if not check(directory / name):
+                missing.setdefault(str(path.relative_to(REPO_ROOT)), set()).add(name)
 
-    assert not missing, f"Templates reference modules that do not exist: {missing}"
-    assert seen, "No template references any module. The infra template should."
-
-
-def test_referenced_lanes_exist() -> None:
-    lanes_dir = REPO_ROOT / ".github" / "workflows"
-    missing: dict[str, set[str]] = {}
-    seen: set[str] = set()
-
-    for path in _template_files():
-        for match in LANE_REFERENCE.finditer(path.read_text()):
-            lane = match.group("lane")
-            seen.add(lane)
-            if not (lanes_dir / lane).is_file():
-                missing.setdefault(str(path.relative_to(REPO_ROOT)), set()).add(lane)
-
-    assert not missing, f"Templates call lanes that do not exist: {missing}"
-    assert seen, "No template calls a lane. Every template should."
+    assert not missing, f"Templates reference missing entries in {directory}: {missing}"
+    assert seen, f"No template references {directory}."
 
 
 def test_every_module_has_a_caller() -> None:
-    """A module nothing calls is weight. Wire it into a template or delete it."""
     referenced: set[str] = set()
-    for path in _template_files():
-        referenced.update(m.group("module") for m in MODULE_REFERENCE.finditer(path.read_text()))
+    for path in TEMPLATE_FILES:
+        referenced.update(MODULE_REFERENCE.findall(path.read_text()))
 
     orphans = [
         directory.name

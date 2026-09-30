@@ -1,22 +1,4 @@
-"""Render a repo template into a new directory.
-
-Templates live in `repo-templates/<name>/`, with `template.json` declaring the
-variables and `files/` holding the tree. Tokens look like `__WORKLOAD_NAME__` and
-appear in file contents and in path names.
-
-    python -m scaffold.new_repo list
-    python -m scaffold.new_repo describe app
-    python -m scaffold.new_repo render app ../orders-api \
-        --set WORKLOAD_NAME=orders-api \
-        --set OWNER=team-payments \
-        --set REPOSITORY=acme/orders-api \
-        --set AWS_REGION=eu-central-1 \
-        --set TOOLKIT_REPOSITORY=acme/developer-platform-kit \
-        --set TOOLKIT_REF=v0.1.0
-
-Stdlib only, on purpose: a scaffolder that needs its own dependency tree is a
-reason not to use the scaffolder.
-"""
+"""Render repository templates using manifest values and __TOKEN__ substitution."""
 
 from __future__ import annotations
 
@@ -33,8 +15,6 @@ if not TEMPLATE_ROOT.is_dir():
     TEMPLATE_ROOT = Path(__file__).resolve().parent.parent / "repo-templates"
 TOKEN_PATTERN = re.compile(r"__([A-Z][A-Z0-9_]*?)__")
 
-# Binary or vendored paths are copied byte for byte, never substituted.
-SKIP_SUBSTITUTION_SUFFIXES = frozenset({".png", ".jpg", ".jpeg", ".gif", ".ico", ".pdf", ".zip"})
 CACHE_DIRS = {".ruff_cache", ".pytest_cache", "__pycache__", ".terraform", ".venv"}
 
 
@@ -105,12 +85,7 @@ def available_templates() -> list[Template]:
 
 
 def example_values(template: Template) -> dict[str, str]:
-    """Each variable's example, falling back to its default.
-
-    This is how the checks render a template without inventing values: linting a
-    template's own Dockerfile or Terraform is impossible, because `__TOKEN__` is
-    not valid in either language. They are linted as a team receives them.
-    """
+    """Use manifest examples, falling back to defaults, for checks and previews."""
     values: dict[str, str] = {}
     for variable in template.variables:
         value = variable.example or variable.default
@@ -136,12 +111,11 @@ def resolve_values(template: Template, provided: dict[str, str]) -> dict[str, st
     values: dict[str, str] = {}
     missing: list[Variable] = []
     for variable in template.variables:
-        if variable.name in provided:
-            values[variable.name] = provided[variable.name]
-        elif variable.default is not None:
-            values[variable.name] = variable.default
-        else:
+        value = provided.get(variable.name, variable.default)
+        if value is None:
             missing.append(variable)
+        else:
+            values[variable.name] = value
 
     if missing:
         lines = [
@@ -157,8 +131,7 @@ def resolve_values(template: Template, provided: dict[str, str]) -> dict[str, st
                 f"{variable.description}"
             )
 
-    # Any *_NAME gets a *_SLUG for free. Derived, so it is never asked for and can
-    # never disagree with its source.
+    # Derive slugs after validating their source names.
     for name in list(values):
         if name.endswith("_NAME"):
             values[f"{name.removesuffix('_NAME')}_SLUG"] = values[name].replace("-", "_")
@@ -167,15 +140,8 @@ def resolve_values(template: Template, provided: dict[str, str]) -> dict[str, st
 
 
 def substitute(text: str, values: dict[str, str]) -> str:
-    def replace(match: re.Match[str]) -> str:
-        token = match.group(1)
-        if token not in values:
-            # Left as-is; render() reports it with the file it came from, which is
-            # the information needed to fix either the template or the call.
-            return match.group(0)
-        return values[token]
-
-    return TOKEN_PATTERN.sub(replace, text)
+    # Leave unknown tokens intact so render() can report their source file.
+    return TOKEN_PATTERN.sub(lambda match: values.get(match[1], match[0]), text)
 
 
 def render(
@@ -188,48 +154,33 @@ def render(
             f"{output} already has contents. Pass --force to render into it anyway."
         )
 
-    written: list[Path] = []
     unresolved: dict[str, set[str]] = {}
-    pending: list[tuple[Path, Path, str | None]] = []
+    pending: list[tuple[Path, Path, str]] = []
 
     for source in template_files(template.files_dir):
         relative = source.relative_to(template.files_dir)
-        target = output / Path(substitute(str(relative), values))
+        target = output / substitute(str(relative), values)
         if source.is_symlink() or not target.resolve().is_relative_to(output.resolve()):
             raise TemplateError(f"Unsafe template path: {relative}.")
-        path_tokens = set(TOKEN_PATTERN.findall(str(target.relative_to(output))))
-        if path_tokens:
-            unresolved[str(relative)] = path_tokens
-
-        if source.suffix in SKIP_SUBSTITUTION_SUFFIXES:
-            pending.append((source, target, None))
-            continue
-
         rendered = substitute(source.read_text(), values)
-        leftover = {match.group(1) for match in TOKEN_PATTERN.finditer(rendered)}
+        leftover = set(TOKEN_PATTERN.findall(str(target.relative_to(output))))
+        leftover.update(TOKEN_PATTERN.findall(rendered))
         if leftover:
-            unresolved.setdefault(str(relative), set()).update(leftover)
+            unresolved[str(relative)] = leftover
         pending.append((source, target, rendered))
 
     if unresolved:
         detail = "\n".join(
             f"  {path}: {', '.join(sorted(tokens))}" for path, tokens in sorted(unresolved.items())
         )
-        raise TemplateError(
-            "Rendered output still contains tokens with no declared variable. Either the "
-            "template references a token it never declares, or the token is a typo:\n" + detail
-        )
+        raise TemplateError("Undeclared template tokens:\n" + detail)
 
     # Validate the whole tree before writing, including with --force.
     for source, target, rendered in pending:
         target.parent.mkdir(parents=True, exist_ok=True)
-        if rendered is None:
-            shutil.copy2(source, target)
-        else:
-            target.write_text(rendered)
-            shutil.copymode(source, target)
-        written.append(target)
-    return written
+        target.write_text(rendered)
+        shutil.copymode(source, target)
+    return [target for _, target, _ in pending]
 
 
 def parse_set(pairs: list[str]) -> dict[str, str]:

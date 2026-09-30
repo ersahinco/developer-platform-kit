@@ -1,14 +1,4 @@
-################################################################################
-# ECS service
-#
-# One long-running workload: log group, task roles, task definition, security
-# group, service, and optional target-group registration.
-#
-# Terraform owns the shape of the service. The deploy lane owns which image is
-# running, so task_definition and desired_count are ignored after creation.
-# Changing the container shape here and deploying an image there stay separate
-# on purpose.
-################################################################################
+# Terraform owns service configuration and task count; delivery owns image revisions.
 
 data "aws_region" "current" {}
 
@@ -23,9 +13,7 @@ data "aws_ec2_managed_prefix_list" "s3" {
 locals {
   log_group_name = coalesce(var.log_group_name, "/ecs/${var.name}")
 
-  # A secret value may carry a JSON key suffix, as in "<arn>:password::". That is
-  # valid for the container definition and invalid as an IAM resource, so the
-  # policy gets the ARN back without it.
+  # Strip container-only JSON key suffixes (e.g. :password::) from IAM resource ARNs.
   secret_resources = distinct([
     for arn in values(var.secrets) :
     join(":", slice(split(":", arn), 0, min(7, length(split(":", arn)))))
@@ -85,9 +73,7 @@ resource "aws_cloudwatch_log_group" "this" {
   tags = var.tags
 }
 
-################################################################################
 # Identity
-################################################################################
 
 data "aws_iam_policy_document" "assume_task" {
   statement {
@@ -153,9 +139,7 @@ resource "aws_iam_role_policy_attachment" "task_managed" {
   policy_arn = each.value
 }
 
-################################################################################
 # Task definition
-################################################################################
 
 resource "aws_ecs_task_definition" "this" {
   family                   = var.name
@@ -176,9 +160,7 @@ resource "aws_ecs_task_definition" "this" {
   tags = var.tags
 }
 
-################################################################################
 # Network placement
-################################################################################
 
 resource "aws_security_group" "task" {
   name_prefix = "${var.name}-task-"
@@ -237,9 +219,7 @@ resource "aws_vpc_security_group_egress_rule" "s3" {
   ip_protocol       = "tcp"
 }
 
-################################################################################
 # Service
-################################################################################
 
 resource "aws_ecs_service" "this" {
   name            = var.name
