@@ -161,7 +161,7 @@ lint-tflint: ## TFLint every module
 
 .PHONY: lint-checkov
 lint-checkov: ## Checkov scan of the modules
-	uvx --python 3.12 --from checkov==3.3.19 checkov --directory modules --framework terraform --quiet --compact
+	uvx --python 3.12 --from checkov==3.3.8 checkov --directory modules --framework terraform --quiet --compact
 
 .PHONY: lint-dockerfiles
 lint-dockerfiles: ## Lint the Dockerfiles as rendered. A template with __TOKEN__ in it is not valid Dockerfile
