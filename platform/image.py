@@ -1,8 +1,8 @@
 """Build the CNOE Backstage integration and load it into the local Kind cluster."""
 
 import hashlib
-from pathlib import Path
 import subprocess
+from pathlib import Path
 
 SOURCE = Path(__file__).resolve().parent / "backstage"
 IMAGE = (
@@ -17,7 +17,9 @@ IMAGE = (
 )
 
 if __name__ == "__main__":
-    present = subprocess.run(["docker", "image", "inspect", IMAGE], capture_output=True)
+    present = subprocess.run(
+        ["docker", "image", "inspect", IMAGE], capture_output=True, check=False
+    )
     if present.returncode:
         subprocess.run(
             [

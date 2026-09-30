@@ -24,6 +24,7 @@ jobs:
       - uses: astral-sh/setup-uv@c18668ad3cf93ea998bef934396af7bb5c839dc7 # v10.2.0
         with:
           version: "0.11.8"
+          prune-cache: true
           enable-cache: true
 
       - name: Install
@@ -82,6 +83,7 @@ jobs:
       - uses: astral-sh/setup-uv@c18668ad3cf93ea998bef934396af7bb5c839dc7 # v10.2.0
         with:
           version: "0.11.8"
+          prune-cache: true
 
       - name: Validate hosting definitions
         run: make hosting-check
@@ -131,6 +133,7 @@ jobs:
       - uses: astral-sh/setup-uv@c18668ad3cf93ea998bef934396af7bb5c839dc7 # v10.2.0
         with:
           version: "0.11.8"
+          prune-cache: true
 
       - name: Validate rendered infrastructure
         run: make validate-templates
@@ -161,6 +164,7 @@ jobs:
       - uses: astral-sh/setup-uv@c18668ad3cf93ea998bef934396af7bb5c839dc7 # v10.2.0
         with:
           version: "0.11.8"
+          prune-cache: true
           enable-cache: true
 
       - name: Secret and misconfiguration scan

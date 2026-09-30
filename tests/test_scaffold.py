@@ -21,7 +21,6 @@ from scaffold.new_repo import (
     resolve_values,
 )
 
-
 TEMPLATE_NAMES = [template.name for template in available_templates()]
 
 

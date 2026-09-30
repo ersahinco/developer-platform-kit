@@ -109,8 +109,8 @@ def main():
                 if file.is_file()
             }
             assert actual.keys() == expected.keys(), f"{template.name}: published file set differs"
-            for file in expected:
-                assert actual[file] == expected[file], f"{template.name}/{file}: content differs"
+            for file, content in expected.items():
+                assert actual[file] == content, f"{template.name}/{file}: content differs"
         for attempt in range(30):
             try:
                 entity = request(

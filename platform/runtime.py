@@ -24,6 +24,7 @@ def apply(resource):
         input=json.dumps(resource),
         text=True,
         capture_output=True,
+        check=False,
     )
     if result.returncode:
         # API errors can echo submitted secrets; report only the resource identity.
