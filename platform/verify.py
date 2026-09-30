@@ -203,6 +203,7 @@ https.get(url, res => {
         ],
         capture_output=True,
         text=True,
+        check=False,
     )
     assert result.returncode == 1 and result.stdout.strip() == "no", (
         "Backstage must not read cluster secrets."

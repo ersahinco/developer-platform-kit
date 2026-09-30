@@ -4,19 +4,19 @@ import base64
 import json
 import os
 import re
-from html.parser import HTMLParser
-from http.cookiejar import CookieJar
-from urllib.parse import unquote, urlencode, urlsplit
 import ssl
 import subprocess
 import time
+from html.parser import HTMLParser
+from http.cookiejar import CookieJar
 from urllib.error import HTTPError
+from urllib.parse import unquote, urlencode, urlsplit
 from urllib.request import (
-    Request,
-    urlopen,
-    build_opener,
-    HTTPSHandler,
     HTTPCookieProcessor,
+    HTTPSHandler,
+    Request,
+    build_opener,
+    urlopen,
 )
 
 from prepare import BASE_URL, STATE
