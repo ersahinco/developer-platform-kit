@@ -662,12 +662,54 @@ without external identity calls. Changes affecting
 sign-in or publishing also need `portal-up`, `portal-verify`, and `portal-smoke`
 with the local Gitea profile. Update upstream pins and patches together.
 
-Keep three templates and three lanes. Prefer native integration and declarative
-configuration; custom code needs a verified gap and a current consumer. Starters
-contain text files supported by both the CLI and Backstage export. Modules
-need callers in a template. Add tests for behavior changes, keep user documentation
-in this README and generated READMEs, and follow [AGENTS.md](AGENTS.md) for editing
-rules. Never commit `platform/.local/`, generated packages, or credentials.
+### Repository conventions
+
+This kit owns scaffolding and shared delivery. Keep three templates and three
+lanes: app, infra, and data. Prefer native integrations and declarative
+configuration; custom code needs a verified gap and a current consumer. Keep user
+and contributor documentation in this README and the generated READMEs.
+
+| Path | Responsibility |
+|---|---|
+| `repo-templates/<name>/template.json` | Variable definitions with descriptions, examples, and patterns; no environment values or account IDs |
+| `repo-templates/<name>/files/` | The generated repository tree, supported by both CLI and Backstage export; no kit-only files |
+| `.github/workflows/reusable-*.yml` | One delivery lane per audience, called by ref; no stack names, regions, or cluster names |
+| `.github/workflows/ci.yml` | This kit's checks; no cloud-account access |
+| `modules/aws/<name>/` | One capability with a template caller; no stack wiring or workload identity |
+| `scaffold/` | Rendering logic; template content belongs in templates |
+| `platform/` | Upstream CNOE deployment, native integrations, overlays, and explicit patches; no duplicate templates or custom portal server |
+| `tests/` | Rendering and delivery contracts; no production code |
+
+- **Rendering:** `make test` is the gate. Declare `__UPPER_SNAKE__` tokens in
+  `template.json`; undeclared tokens must fail with the file named. Compute derived
+  values rather than declaring them: every `*_NAME` yields `*_SLUG`.
+- **Delivery:** each lane has a `mode` input and one job per mode, gated by
+  `if: inputs.mode == '...'`. Modes are mutually exclusive. Build never deploys;
+  plan never applies. Apply verifies the plan run succeeded on the default branch
+  and planned the current head. Reject `latest` in the lane and use immutable tags.
+- **Credentials and evidence:** credentials arrive through `secrets:`, never
+  `inputs:`. Every cloud-changing mode writes `release-event.json` inline with
+  `jq`, without requiring a script from this kit. Irreversible changes require a
+  literal `confirm`. Pin third-party actions to full SHAs with versions in trailing
+  comments.
+- **Modules:** include `main.tf`, `variables.tf`, `outputs.tf`, and `versions.tf`,
+  with descriptions for every variable and output. Accept `name` and `tags`, and
+  derive resource names from `name`. Enforce cost and data safeguards with
+  `validation` and `precondition`; explain other choices in comments. Remove
+  modules that have no template caller.
+- **Upstream ownership:** keep the pinned CNOE checkout and generated packages
+  ignored under `platform/.local/`. Preserve upstream licenses and remove local
+  workarounds when upstream supplies the capability. Never commit credentials.
+- **Errors and checks:** distinguish a failed task, a task that never started,
+  and a rollout still in progress; each needs its own next step. Add tests for
+  behavior changes. The test suite discovers templates and modules, so a new one
+  should use those existing checks.
+
+Avoid application/domain/schema code owned by the kit, custom control planes or
+catalog servers, provider-neutral module wrappers, and runtime targets without
+consumers. Remove redundant setup and speculative features.
+
+### First contributions
 
 Three small contributions address current gaps:
 

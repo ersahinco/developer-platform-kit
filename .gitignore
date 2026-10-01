@@ -34,7 +34,6 @@ override.tf.json
 !repo-templates/**/*.tfvars
 
 # IDE / OS
-.codex/
 .vscode/
 .idea/
 .DS_Store
