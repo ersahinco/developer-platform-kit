@@ -105,7 +105,7 @@ jobs:
         working-directory: ${{ inputs.root_dir }}
 
       - name: checkov
-        uses: bridgecrewio/checkov-action@7b972723c44fb3d256283fac96fae5d7c1894bb7 # v12.3114.0
+        uses: bridgecrewio/checkov-action@cc0e17d456ef1713bbfd963ebac19dc776775cb2 # v12.3128.0
         with:
           directory: ${{ inputs.root_dir }}
           framework: terraform
